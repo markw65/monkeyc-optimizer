@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "build-debug",
+      "group": { "isDefault": true, "kind": "build" },
+      "problemMatcher": [],
+      "label": "npm: build-debug",
+      "detail": "webpack --mode development"
+    }
+  ]
+}
