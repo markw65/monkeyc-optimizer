@@ -243,8 +243,10 @@ function identify_optimizer_groups(targets, options) {
 
 export async function get_jungle(jungles, options) {
   options = options || {};
-  // jungles = "/Users/mwilliams/www/git/garmin-samples/Picker/monkey.jungle"
-  const data = await process_jungles(jungles.split(";"));
+  jungles = jungles
+    .split(";")
+    .map((jungle) => path.resolve(options.workspace || "./", jungle));
+  const data = await process_jungles(jungles);
   const manifest_node = resolve_node_by_path(data, ["project", "manifest"]);
   if (!manifest_node) throw "No manifest found!";
   const manifest = resolve_filename(manifest_node[0]);
@@ -259,17 +261,5 @@ export async function get_jungle(jungles, options) {
   });
   await promise;
   identify_optimizer_groups(targets, options);
-  return targets;
+  return { manifest, targets };
 }
-
-get_jungle(
-  "/Users/mwilliams/www/git/HRMultifield/monkey.jungle;/Users/mwilliams/www/git/HRMultifield/generated/device-specific.jungle",
-  {
-    ignoredExcludeAnnotations: [
-      "high_memory",
-      "json_data",
-      "string_data",
-      "require_settings_view",
-    ],
-  }
-).then((targets) => console.log(JSON.stringify(targets)));

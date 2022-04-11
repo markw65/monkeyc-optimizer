@@ -9,7 +9,11 @@
       "request": "launch",
       "name": "Parse jungle file",
       "skipFiles": ["<node_internals>/**"],
-      "program": "${workspaceFolder}/src/jungles.js"
+      "program": "${workspaceFolder}/test/test.js",
+      "args": [
+        "--jungle=/Users/mwilliams/www/git/HRMultifield/monkey.jungle;/Users/mwilliams/www/git/HRMultifield/generated/device-specific.jungle",
+        "--output-path=generated/optimized"
+      ]
     }
   ]
 }

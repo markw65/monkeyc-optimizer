@@ -1,7 +1,10 @@
 import * as fs from "fs/promises";
+import path from "path";
 import { formatAst, getApiMapping } from "./api.js";
+import { get_jungle } from "./jungles.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
 import {
+  appSupport,
   copyRecursiveAsNeeded,
   first_modified,
   globa,
@@ -10,22 +13,97 @@ import {
 
 export { copyRecursiveAsNeeded };
 
+async function getVSCodeSettings(path) {
+  try {
+    const settings = await fs.readFile(path);
+    return JSON.parse(settings.toString());
+  } catch (e) {
+    return {};
+  }
+}
+
 export const defaultConfig = {
-  pathsToClone:
-    "source;source-*;resources;resources-*;monkey.jungle;manifest.xml",
   outputPath: "optimized",
   workspace: "./",
 };
 
 export async function buildOptimizedProject(options) {
   const config = { ...defaultConfig, ...(options || {}) };
-  const pathPatterns = config.pathsToClone.split(";");
   const workspace = config.workspace;
+
+  // const sdk = await getSdkPath();
+  const global_settings = await getVSCodeSettings(
+    `${appSupport}/Code/User/settings.json`
+  );
+  const settings = {
+    ...global_settings,
+    ...(await getVSCodeSettings(`${workspace}/.vscode/settings.json`)),
+  };
+  //  const developer_key = config.developerKeyPath || settings["monkeyC.developerKeyPath"];
+  const jungle_path = config.jungleFiles || settings["monkeyC.jungleFiles"];
+
+  const { manifest, targets } = await get_jungle(jungle_path, config);
+  const buildConfigs = {};
+  targets.forEach((p) => (buildConfigs[p.group.key] = p.group.optimizerConfig));
+
+  console.log(JSON.stringify(targets));
+
+  await Promise.all(
+    Object.keys(buildConfigs)
+      .sort()
+      .map((key) => {
+        const buildConfig = buildConfigs[key];
+        return buildOneConfig({
+          ...config,
+          buildConfig,
+          outputPath: config.outputPath + "/" + key,
+        });
+      })
+  );
+
+  const parts = [`project.manifest=${manifest}`];
+  const process_field = (prefix, base, name, map) =>
+    base[name] &&
+    parts.push(
+      `${prefix}${name} = ${base[name]
+        .map((s) => (map ? map(s) : s))
+        .join(";")}`
+    );
+
+  targets.forEach((jungle) => {
+    const { product, qualifier } = jungle;
+    process_field(`${product}.`, qualifier, "sourcePath", (s) =>
+      path.resolve(
+        workspace,
+        config.outputPath,
+        jungle.group.key.toString(),
+        path.relative(workspace, s)
+      )
+    );
+    process_field(`${product}.`, qualifier, "resourcePath");
+    process_field(`${product}.`, qualifier, "barrelPath");
+    process_field(`${product}.`, qualifier, "annotations");
+    process_field(`${product}.`, qualifier, "excludeAnnotations");
+    if (qualifier.lang) {
+      Object.entries(qualifier.lang).forEach(([key, value]) => {
+        process_field(`${product}.lang.`, value, key);
+      });
+    }
+  });
+
+  await fs.writeFile(
+    path.resolve(workspace, config.outputPath, "monkey.jungle"),
+    parts.join("\n")
+  );
+}
+
+async function buildOneConfig(config) {
+  const { workspace, buildConfig } = config;
   const output = `${workspace}/${config.outputPath}`;
 
   const paths = (
     await Promise.all(
-      pathPatterns.map((pattern) =>
+      buildConfig.sourcePath.map((pattern) =>
         globa(pattern, { cwd: workspace, mark: true })
       )
     )
@@ -35,13 +113,14 @@ export async function buildOptimizedProject(options) {
     await Promise.all(
       paths.map((path) =>
         path.endsWith("/")
-          ? globa(`${path}**/*`, { cwd: workspace, mark: true })
+          ? globa(`${path}**/*.mc`, { cwd: workspace, mark: true })
           : path
       )
     )
   )
     .flat()
-    .filter((file) => !file.endsWith("/"));
+    .filter((file) => !file.endsWith("/"))
+    .map((file) => path.relative(workspace, file));
 
   const source_time = await last_modified(
     files.map((file) => `${workspace}/${file}`)
@@ -57,24 +136,12 @@ export async function buildOptimizedProject(options) {
   const fnMap = Object.fromEntries(
     baseFileNames.map((file) => [`${workspace}/${file}`, `${output}/${file}`])
   );
-  const [optFiles] = await Promise.all([
-    optimizeMonkeyC(Object.keys(fnMap)),
-    Promise.all(
-      paths.map((path) => {
-        copyRecursiveAsNeeded(
-          `${workspace}/${path}`,
-          `${output}/${path}`,
-          (src) => !/\.mc$/.test(src)
-        );
-      })
-    ),
-  ]);
-
+  const optFiles = await optimizeMonkeyC(Object.keys(fnMap));
   return await Promise.all(
     optFiles.map(async (file) => {
       const name = fnMap[file.name];
-      // const match = /^(.*)\//.exec(name);
-      // await fs.mkdir(match[1], { recursive: true });
+      const match = /^(.*)\//.exec(name);
+      await fs.mkdir(match[1], { recursive: true });
 
       // Prettier inserts comments by using the source location to
       // find the original comment, rather than using the contents
