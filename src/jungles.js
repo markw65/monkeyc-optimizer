@@ -1,7 +1,9 @@
 import * as fs from "fs/promises";
+import * as path from "path";
 import * as jungle from "../build/jungle.js";
-import { getSdkPath } from "./util.js";
 import { hasProperty } from "./api.js";
+import { manifestProducts, readManifest } from "./manifest.js";
+import { getSdkPath, globa } from "./util.js";
 
 function process_assignments(assignments, current) {
   return assignments.reduce((state, a) => {
@@ -86,13 +88,16 @@ async function parse_one(file) {
   return evaluate_locals(assignments);
 }
 
+// Read default.jungle, and all jungles in sources, and
+// return a jungle object with all local variables resolved,
+// but all qualifier references left unresolved.
 async function process_jungles(sources) {
   const sdk = await getSdkPath();
 
   if (!Array.isArray(sources)) {
     sources = [sources];
   }
-  const all = [[`${sdk}bin/default.jungle`, "default"], ...sources];
+  const all = [[`${sdk}bin/default.jungle`, null], ...sources];
   const results = await Promise.all(all.map(parse_one));
   const state = {};
   results.forEach((r) => process_assignments(r, state));
@@ -100,7 +105,7 @@ async function process_jungles(sources) {
 }
 
 // return the resolved node at path
-function resolve_path(state, path) {
+function resolve_node_by_path(state, path) {
   return path.reduce((s, n, i) => {
     const sn = s[n];
     if (!i) {
@@ -114,7 +119,7 @@ function resolve_path(state, path) {
 
 // fully resolve the given node, and all its children
 function resolve_node(state, node) {
-  if (Array.isArray(node)) {
+  if (node == null || Array.isArray(node)) {
     // an already optimized leaf node
     return node;
   }
@@ -124,10 +129,10 @@ function resolve_node(state, node) {
       const v = dot[i];
       if (v.type == "QualifiedName") {
         dot.splice(i, 1);
-        let resolved = resolve_path(state, v.names);
+        let resolved = resolve_node_by_path(state, v.names);
         if (Array.isArray(resolved)) {
           dot.splice(i, 0, ...resolved);
-        } else {
+        } else if (resolved) {
           dot.splice(i, 0, resolved);
         }
       }
@@ -149,10 +154,122 @@ function resolve_node(state, node) {
   return node;
 }
 
-process_jungles(
-  "/Users/mwilliams/www/git/garmin-samples/Picker/monkey.jungle"
-).then((data) => {
-  console.log(JSON.stringify(resolve_path(data, ["project", "manifest"])));
-  // console.log(JSON.stringify(data));
-  console.log(JSON.stringify(resolve_path(data, ["fenix5"])));
-});
+function resolve_filename(literal, default_source) {
+  const root = path.dirname(literal.source || default_source);
+  return path.resolve(root, literal.value);
+}
+
+async function resolve_literals(qualifier, default_source) {
+  const resolve_file_list = async (literals) =>
+    literals &&
+    (
+      await Promise.all(
+        literals.map(async (v) => {
+          let resolved = resolve_filename(v, default_source);
+          if (/[*?\[\]\{\}]/.test(resolved)) {
+            resolved = resolved.replace(/\/\*\*([^/])/g, "/**/*$1");
+            const match = await globa(resolved);
+            return match.length ? resolved : null;
+          } else {
+            const stat = await fs.stat(resolved).catch(() => null);
+            return stat ? resolved : null;
+          }
+        })
+      )
+    ).filter((name) => name != null);
+
+  const resolve_one_file_list = async (base, name) => {
+    if (!base[name]) return;
+    const result = await resolve_file_list(base[name]);
+    if (!result || !result.length) {
+      delete base[name];
+    } else {
+      base[name] = result;
+    }
+  };
+
+  await resolve_one_file_list(qualifier, "sourcePath");
+  await resolve_one_file_list(qualifier, "resourcePath");
+  await resolve_one_file_list(qualifier, "barrelPath");
+  const lang = qualifier["lang"];
+  await Promise.all(
+    Object.keys(lang).map((key) => resolve_one_file_list(lang, key))
+  );
+  if (Object.keys(lang).length === 0) delete qualifier["lang"];
+
+  const resolve_literal_list = (base, name) => {
+    const literals = base[name];
+    if (!literals || !literals.length) return;
+    base[name] = literals.map((v) => v.value);
+  };
+  resolve_literal_list(qualifier, "excludeAnnotations");
+  resolve_literal_list(qualifier, "annotations");
+}
+
+function identify_optimizer_groups(targets, options) {
+  const groups = {};
+  let key = 0;
+  targets.forEach((target) => {
+    let { sourcePath, barrelPath, excludeAnnotations, annotations } =
+      target.qualifier;
+    if (excludeAnnotations && options.ignoredExcludeAnnotations) {
+      excludeAnnotations = excludeAnnotations.filter(
+        (a) => !options.ignoredExcludeAnnotations.includes(a)
+      );
+    }
+    if (annotations && options.ignoredAnnotations) {
+      annotations = annotations.filter(
+        (a) => !options.ignoredAnnotations.includes(a)
+      );
+    }
+    const optimizerConfig = {
+      sourcePath,
+      barrelPath,
+      excludeAnnotations,
+      annotations,
+    };
+
+    const serialized = JSON.stringify(optimizerConfig);
+    if (!hasProperty(groups, serialized)) {
+      groups[serialized] = {
+        key,
+        optimizerConfig,
+      };
+      key++;
+    }
+    target.group = groups[serialized];
+  });
+}
+
+export async function get_jungle(jungles, options) {
+  options = options || {};
+  // jungles = "/Users/mwilliams/www/git/garmin-samples/Picker/monkey.jungle"
+  const data = await process_jungles(jungles.split(";"));
+  const manifest_node = resolve_node_by_path(data, ["project", "manifest"]);
+  if (!manifest_node) throw "No manifest found!";
+  const manifest = resolve_filename(manifest_node[0]);
+  const xml = await readManifest(manifest);
+  const targets = [];
+  let promise = Promise.resolve();
+  manifestProducts(xml).forEach((product) => {
+    const qualifier = resolve_node(data, data[product]);
+    promise = promise
+      .then(() => resolve_literals(qualifier, manifest))
+      .then(() => targets.push({ product, qualifier }));
+  });
+  await promise;
+  identify_optimizer_groups(targets, options);
+  return targets;
+}
+
+get_jungle(
+  "/Users/mwilliams/www/git/HRMultifield/monkey.jungle;/Users/mwilliams/www/git/HRMultifield/generated/device-specific.jungle",
+  {
+    ignoredExcludeAnnotations: [
+      "high_memory",
+      "json_data",
+      "string_data",
+      "require_settings_view",
+    ],
+  }
+).then((targets) => console.log(JSON.stringify(targets)));

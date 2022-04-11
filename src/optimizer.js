@@ -1,24 +1,12 @@
 import * as fs from "fs/promises";
-import * as glob from "glob";
 import { formatAst, getApiMapping } from "./api.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
 import {
   copyRecursiveAsNeeded,
   first_modified,
+  globa,
   last_modified,
 } from "./util.js";
-
-function globa(pattern, options) {
-  return new Promise((resolve, reject) => {
-    glob.glob(pattern, options, (er, files) => {
-      if (er) {
-        reject(files);
-      } else {
-        resolve(files);
-      }
-    });
-  });
-}
 
 export { copyRecursiveAsNeeded };
 

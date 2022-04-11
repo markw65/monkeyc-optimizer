@@ -1,6 +1,7 @@
 import * as child_process from "child_process";
 import * as fsc from "fs";
 import * as fs from "fs/promises";
+import glob from "glob";
 import * as path from "path";
 import * as readline from "readline";
 
@@ -16,6 +17,18 @@ export function getSdkPath() {
   return fs
     .readFile(connectiq + "/current-sdk.cfg")
     .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"));
+}
+
+export function globa(pattern, options) {
+  return new Promise((resolve, reject) => {
+    glob.glob(pattern, options, (er, files) => {
+      if (er) {
+        reject(files);
+      } else {
+        resolve(files);
+      }
+    });
+  });
 }
 
 async function modified_times(inputs, missing) {
