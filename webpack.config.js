@@ -111,6 +111,9 @@ export default (env, argv) => {
       readline: "readline",
       assert: "assert",
       util: "util",
+      stream: "stream",
+      string_decoder: "string_decoder",
+      timers: "timers",
     },
     plugins: [
       {

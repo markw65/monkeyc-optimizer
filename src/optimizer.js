@@ -1,6 +1,7 @@
 import * as fs from "fs/promises";
 import path from "path";
-import { formatAst, getApiMapping } from "./api.js";
+import { formatAst, getApiMapping, hasProperty } from "./api.js";
+import { build_project } from "./build.js";
 import { get_jungle } from "./jungles.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
 import {
@@ -27,41 +28,98 @@ export const defaultConfig = {
   workspace: "./",
 };
 
-export async function buildOptimizedProject(options) {
+async function getConfig(options) {
   const config = { ...defaultConfig, ...(options || {}) };
+  let promise;
+  [
+    "jungleFiles",
+    "developerKeyPath",
+    "typeCheckLevel",
+    "compilerOptions",
+    "compilerWarnings",
+  ].forEach((key) => {
+    if (config[key]) return;
+    if (!promise) {
+      promise = Promise.resolve()
+        .then(() => getVSCodeSettings(`${appSupport}/Code/User/settings.json`))
+        .then((globals) =>
+          getVSCodeSettings(`${config.workspace}/.vscode/settings.json`).then(
+            (locals) => ({ ...globals, ...locals })
+          )
+        );
+    }
+    promise.then((settings) => {
+      const value = settings[`monkeyC.${key}`];
+      if (value) {
+        config[key] = value;
+      }
+    });
+  });
+  promise && (await promise);
+  return config;
+}
+
+export async function buildOptimizedProject(product, options) {
+  const config = await getConfig(options);
+  if (product) {
+    config.products = [product];
+  }
+  const { jungleFiles, program } = await generateOptimizedProject(config);
+  config.jungleFiles = jungleFiles;
+  let bin = config.buildDir || "bin";
+  let name = `${program}.prg`;
+  if (product) {
+    if (config.forSimulator === false) {
+      bin = path.join(bin, product);
+    }
+  } else {
+    bin = path.join(bin, "exported");
+    name = `${program}.iq`;
+  }
+  config.program = path.join(bin, name);
+  return build_project(product, config);
+}
+
+export async function generateOptimizedProject(options) {
+  const config = await getConfig(options);
   const workspace = config.workspace;
 
-  // const sdk = await getSdkPath();
-  const global_settings = await getVSCodeSettings(
-    `${appSupport}/Code/User/settings.json`
-  );
-  const settings = {
-    ...global_settings,
-    ...(await getVSCodeSettings(`${workspace}/.vscode/settings.json`)),
-  };
-  //  const developer_key = config.developerKeyPath || settings["monkeyC.developerKeyPath"];
-  const jungle_path = config.jungleFiles || settings["monkeyC.jungleFiles"];
-
-  const { manifest, targets } = await get_jungle(jungle_path, config);
+  const { manifest, targets } = await get_jungle(config.jungleFiles, config);
   const buildConfigs = {};
-  targets.forEach((p) => (buildConfigs[p.group.key] = p.group.optimizerConfig));
+  targets.forEach((p) => {
+    if (!hasProperty(buildConfigs, p.group.key)) {
+      buildConfigs[p.group.key] = null;
+    }
+    if (!options.products || options.products.includes(p.product)) {
+      buildConfigs[p.group.key] = p.group.optimizerConfig;
+    }
+  });
 
-  console.log(JSON.stringify(targets));
+  // console.log(JSON.stringify(targets));
 
-  await Promise.all(
-    Object.keys(buildConfigs)
-      .sort()
-      .map((key) => {
-        const buildConfig = buildConfigs[key];
-        return buildOneConfig({
-          ...config,
-          buildConfig,
-          outputPath: config.outputPath + "/" + key,
-        });
-      })
-  );
+  const jungle_dir = path.resolve(workspace, config.outputPath);
+  await fs.mkdir(jungle_dir, { recursive: true });
 
-  const parts = [`project.manifest=${manifest}`];
+  const promises = Object.keys(buildConfigs)
+    .sort()
+    .map((key) => {
+      const buildConfig = buildConfigs[key];
+      const outputPath = path.join(config.outputPath, key);
+
+      return buildConfig
+        ? generateOneConfig({
+            ...config,
+            buildConfig,
+            outputPath,
+          })
+        : fs.rm(path.resolve(workspace, outputPath), {
+            recursive: true,
+            force: true,
+          });
+    });
+
+  const relative_path = (s) => path.relative(jungle_dir, s);
+  const parts = [`project.manifest=${relative_path(manifest)}`];
   const process_field = (prefix, base, name, map) =>
     base[name] &&
     parts.push(
@@ -69,35 +127,32 @@ export async function buildOptimizedProject(options) {
         .map((s) => (map ? map(s) : s))
         .join(";")}`
     );
-
   targets.forEach((jungle) => {
-    const { product, qualifier } = jungle;
-    process_field(`${product}.`, qualifier, "sourcePath", (s) =>
-      path.resolve(
-        workspace,
-        config.outputPath,
-        jungle.group.key.toString(),
-        path.relative(workspace, s)
-      )
+    const { product, qualifier, group } = jungle;
+    const prefix = `${product}.`;
+    process_field(prefix, qualifier, "sourcePath", (s) =>
+      path
+        .join(group.key.toString(), path.relative(workspace, s))
+        .replace(/(\/\*\*)\/\*/g, "$1")
     );
-    process_field(`${product}.`, qualifier, "resourcePath");
-    process_field(`${product}.`, qualifier, "barrelPath");
-    process_field(`${product}.`, qualifier, "annotations");
-    process_field(`${product}.`, qualifier, "excludeAnnotations");
+    process_field(prefix, qualifier, "resourcePath", relative_path);
+    process_field(prefix, qualifier, "barrelPath", relative_path);
+    process_field(prefix, qualifier, "annotations");
+    process_field(prefix, qualifier, "excludeAnnotations");
     if (qualifier.lang) {
       Object.entries(qualifier.lang).forEach(([key, value]) => {
-        process_field(`${product}.lang.`, value, key);
+        process_field(`${prefix}lang.`, value, key, relative_path);
       });
     }
   });
 
-  await fs.writeFile(
-    path.resolve(workspace, config.outputPath, "monkey.jungle"),
-    parts.join("\n")
-  );
+  const jungleFiles = path.join(jungle_dir, "monkey.jungle");
+  promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
+  await Promise.all(promises);
+  return { jungleFiles, program: path.basename(path.dirname(manifest)) };
 }
 
-async function buildOneConfig(config) {
+async function generateOneConfig(config) {
   const { workspace, buildConfig } = config;
   const output = `${workspace}/${config.outputPath}`;
 

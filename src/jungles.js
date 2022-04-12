@@ -232,7 +232,7 @@ function identify_optimizer_groups(targets, options) {
     const serialized = JSON.stringify(optimizerConfig);
     if (!hasProperty(groups, serialized)) {
       groups[serialized] = {
-        key,
+        key: "group" + key.toString().padStart(3, "0"),
         optimizerConfig,
       };
       key++;

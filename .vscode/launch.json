@@ -7,12 +7,25 @@
     {
       "type": "pwa-node",
       "request": "launch",
-      "name": "Parse jungle file",
+      "name": "Optimize and bulid HRMultifield",
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
       "args": [
         "--jungle=/Users/mwilliams/www/git/HRMultifield/monkey.jungle;/Users/mwilliams/www/git/HRMultifield/generated/device-specific.jungle",
-        "--output-path=generated/optimized"
+        "--output-path=generated/optimized",
+        "--product=fenix5xplus"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Optimize and build Picker",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/test/test.js",
+      "args": [
+        "--jungle=/Users/mwilliams/www/git/garmin-samples/Picker/monkey.jungle",
+        "--output-path=optimized",
+        "--product=fenix5x"
       ]
     }
   ]
