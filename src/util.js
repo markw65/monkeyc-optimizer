@@ -110,7 +110,7 @@ export async function copyRecursiveAsNeeded(source, target, filter) {
 
     if (!stat || !stat.isDirectory()) {
       stat && (await fs.rm(target, { force: true }));
-      await fs.mkdir(target);
+      await fs.mkdir(target, { recursive: true });
     }
 
     const files = await fs.readdir(source);

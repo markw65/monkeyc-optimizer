@@ -3,6 +3,7 @@ import path from "path";
 import { formatAst, getApiMapping, hasProperty } from "./api.js";
 import { build_project } from "./build.js";
 import { get_jungle } from "./jungles.js";
+import { launchSimulator } from "./launch.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
 import {
   appSupport,
@@ -12,7 +13,7 @@ import {
   last_modified,
 } from "./util.js";
 
-export { copyRecursiveAsNeeded };
+export { copyRecursiveAsNeeded, launchSimulator };
 
 async function getVSCodeSettings(path) {
   try {
@@ -67,9 +68,9 @@ export async function buildOptimizedProject(product, options) {
   const { jungleFiles, program } = await generateOptimizedProject(config);
   config.jungleFiles = jungleFiles;
   let bin = config.buildDir || "bin";
-  let name = `${program}.prg`;
+  let name = `optimized-${program}.prg`;
   if (product) {
-    if (config.forSimulator === false) {
+    if (config.simulatorBuild === false) {
       bin = path.join(bin, product);
     }
   } else {
@@ -175,7 +176,8 @@ async function generateOneConfig(config) {
   )
     .flat()
     .filter((file) => !file.endsWith("/"))
-    .map((file) => path.relative(workspace, file));
+    .map((file) => path.relative(workspace, file))
+    .filter((file) => !file.startsWith("bin"));
 
   const source_time = await last_modified(
     files.map((file) => `${workspace}/${file}`)

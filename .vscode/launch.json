@@ -7,7 +7,7 @@
     {
       "type": "pwa-node",
       "request": "launch",
-      "name": "Optimize and bulid HRMultifield",
+      "name": "Optimize and build HRMultifield",
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
       "args": [
@@ -24,7 +24,7 @@
       "program": "${workspaceFolder}/test/test.js",
       "args": [
         "--jungle=/Users/mwilliams/www/git/garmin-samples/Picker/monkey.jungle",
-        "--output-path=optimized",
+        "--output-path=bin/optimized",
         "--product=fenix5x"
       ]
     }

@@ -167,6 +167,9 @@ async function resolve_literals(qualifier, default_source) {
         literals.map(async (v) => {
           let resolved = resolve_filename(v, default_source);
           if (/[*?\[\]\{\}]/.test(resolved)) {
+            // Jungle files can contain "./**.mc" which is supposed to match
+            // any mc file under "./". The standard way to express that
+            // is "./**/*.mc", which is what glob expects, so translate.
             resolved = resolved.replace(/\/\*\*([^/])/g, "/**/*$1");
             const match = await globa(resolved);
             return match.length ? resolved : null;

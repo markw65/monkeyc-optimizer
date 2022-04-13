@@ -7,8 +7,8 @@ export async function build_project(product, options, lineCallback) {
     program,
     jungleFiles,
     developerKeyPath,
-    forSimulator,
-    forRelease,
+    simulatorBuild,
+    releaseBuild,
     compilerOptions,
     compilerWarnings,
     typeCheckLevel,
@@ -21,7 +21,7 @@ export async function build_project(product, options, lineCallback) {
   if (compilerWarnings) {
     extraArgs.push("-w");
   }
-  if (forRelease) {
+  if (releaseBuild) {
     extraArgs.push("-r");
   }
   if (!product) {
@@ -42,7 +42,7 @@ export async function build_project(product, options, lineCallback) {
       break;
   }
   if (product) {
-    extraArgs.push("-d", forSimulator !== false ? `${product}_sim` : product);
+    extraArgs.push("-d", simulatorBuild !== false ? `${product}_sim` : product);
   }
   return spawnByLine(
     path.resolve(sdk, "bin", "monkeyc"),
