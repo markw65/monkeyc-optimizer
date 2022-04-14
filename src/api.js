@@ -248,10 +248,12 @@ export function collectNamespaces(ast, state) {
       if (state.pre) return state.pre(node);
     },
     (node) => {
-      if (state.post) state.post(node);
+      let ret;
+      if (state.post) ret = state.post(node);
       if (state.stack.slice(-1).pop().node === node) {
         state.stack.pop();
       }
+      return ret;
     }
   );
   if (state.stack.length != 1) {

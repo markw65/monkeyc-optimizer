@@ -212,18 +212,72 @@ async function resolve_literals(qualifier, default_source) {
 function identify_optimizer_groups(targets, options) {
   const groups = {};
   let key = 0;
+  const ignoreStrOption = (str) =>
+    str == null
+      ? null
+      : str === "*"
+      ? "*"
+      : Object.fromEntries(str.split(";").map((e) => [e, true]));
+  const getStrsWithIgnore = (strs, option) => {
+    if (option === "*") {
+      return [];
+    } else {
+      return strs.filter((a) => !hasProperty(option, a));
+    }
+  };
+  const ignoreRegExpOption = (str) => {
+    try {
+      if (!str) return null;
+      return new RegExp(str);
+    } catch {
+      return null;
+    }
+  };
+
+  const ignoredExcludeAnnotations = ignoreStrOption(
+    options.ignoredExcludeAnnotations
+  );
+  const ignoredAnnotations = ignoreStrOption(options.ignoredAnnotations);
+  const ignoredSourcePathsRe = ignoreRegExpOption(options.ignoredSourcePaths);
+
+  const ignoredSourcePaths = ignoredSourcePathsRe
+    ? targets.reduce(
+        (state, target) => {
+          if (target.qualifier.sourcePath) {
+            target.qualifier.sourcePath.forEach((path) => {
+              const m = path.match(ignoredSourcePathsRe);
+              const key = m ? "key-" + m.slice(1).join("") : path;
+              if (!hasProperty(state.keys, key)) {
+                state.keys[key] = {};
+              }
+              state.keys[key][path] = true;
+              state.paths[path] = state.keys[key];
+            });
+          }
+          return state;
+        },
+        { keys: {}, paths: {} }
+      ).paths
+    : null;
+
   targets.forEach((target) => {
     let { sourcePath, barrelPath, excludeAnnotations, annotations } =
       target.qualifier;
-    if (excludeAnnotations && options.ignoredExcludeAnnotations) {
-      excludeAnnotations = excludeAnnotations.filter(
-        (a) => !options.ignoredExcludeAnnotations.includes(a)
+    if (excludeAnnotations && ignoredExcludeAnnotations) {
+      excludeAnnotations = getStrsWithIgnore(
+        excludeAnnotations,
+        ignoredExcludeAnnotations
       );
     }
-    if (annotations && options.ignoredAnnotations) {
-      annotations = annotations.filter(
-        (a) => !options.ignoredAnnotations.includes(a)
-      );
+    if (annotations && ignoredAnnotations) {
+      annotations = getStrsWithIgnore(annotations, ignoredAnnotations);
+    }
+    if (ignoredSourcePaths) {
+      sourcePath = sourcePath
+        .map((path) => Object.keys(ignoredSourcePaths[path]))
+        .flat()
+        .sort()
+        .filter((v, i, a) => i === 0 || v !== a[i - 1]);
     }
     const optimizerConfig = {
       sourcePath,
@@ -232,7 +286,10 @@ function identify_optimizer_groups(targets, options) {
       annotations,
     };
 
-    const serialized = JSON.stringify(optimizerConfig);
+    const serialized = JSON.stringify(
+      optimizerConfig,
+      Object.keys(optimizerConfig).sort()
+    );
     if (!hasProperty(groups, serialized)) {
       groups[serialized] = {
         key: "group" + key.toString().padStart(3, "0"),

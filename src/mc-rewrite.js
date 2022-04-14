@@ -39,12 +39,39 @@ function collectClassInfo(state) {
   });
 }
 
-async function analyze(fileNames) {
+async function analyze(fileNames, buildConfig) {
+  const excludeAnnotations =
+    buildConfig && buildConfig.excludeAnnotations
+      ? Object.fromEntries(buildConfig.excludeAnnotations.map((a) => [a, true]))
+      : {};
+
+  const shouldExclude = (node) => {
+    if (node.attrs && node.attrs.attrs) {
+      if (
+        node.attrs.attrs.filter((attr) => {
+          if (attr.type != "UnaryExpression") return false;
+          if (attr.argument.type != "Identifier") return false;
+          return hasProperty(excludeAnnotations, attr.argument.name);
+        }).length
+      ) {
+        return true;
+      }
+    }
+  };
   const state = {
     allFunctions: [],
     allClasses: [],
-
+    pre(node) {
+      if (shouldExclude(node)) {
+        // don't visit any children, but do call post
+        return [];
+      }
+    },
     post(node) {
+      if (shouldExclude(node)) {
+        // delete the node.
+        return false;
+      }
       switch (node.type) {
         case "FunctionDeclaration":
         case "ClassDeclaration": {
@@ -88,6 +115,7 @@ async function analyze(fileNames) {
     collectNamespaces(f.ast, state);
   });
 
+  delete state.pre;
   delete state.post;
 
   collectClassInfo(state);
@@ -96,6 +124,26 @@ async function analyze(fileNames) {
 }
 
 function getLiteralNode(node) {
+  if (Array.isArray(node)) {
+    if (!node.length) return null;
+    if (node.length === 1) return getLiteralNode(node[0]);
+    let result;
+    if (
+      node.every((n) => {
+        const lit = getLiteralNode(n);
+        if (!lit) return false;
+        if (!result) {
+          result = lit;
+        } else {
+          if (lit.value !== result.value) return false;
+        }
+        return true;
+      })
+    ) {
+      return result;
+    }
+    return null;
+  }
   if (node.type == "Literal") return node;
   if (node.type == "BinaryExpression" && node.operator == "as") {
     return getLiteralNode(node.left) && node;
@@ -286,8 +334,8 @@ function evaluateFunction(func, args) {
   }
 }
 
-export async function optimizeMonkeyC(fileNames) {
-  const { files, state } = await analyze(fileNames);
+export async function optimizeMonkeyC(fileNames, buildConfig) {
+  const { files, state } = await analyze(fileNames, buildConfig);
   const replace = (node, obj) => {
     for (const k of Object.keys(node)) {
       delete node[k];
@@ -306,10 +354,10 @@ export async function optimizeMonkeyC(fileNames) {
   };
   const lookupAndReplace = (node) => {
     const [, objects] = state.lookup(node);
-    if (!objects || objects.length != 1) {
+    if (!objects) {
       return false;
     }
-    const obj = getLiteralNode(objects[0]);
+    const obj = getLiteralNode(objects);
     if (!obj) {
       return false;
     }

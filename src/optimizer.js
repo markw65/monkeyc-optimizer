@@ -193,7 +193,7 @@ async function generateOneConfig(config) {
   const fnMap = Object.fromEntries(
     baseFileNames.map((file) => [`${workspace}/${file}`, `${output}/${file}`])
   );
-  const optFiles = await optimizeMonkeyC(Object.keys(fnMap));
+  const optFiles = await optimizeMonkeyC(Object.keys(fnMap), buildConfig);
   return await Promise.all(
     optFiles.map(async (file) => {
       const name = fnMap[file.name];
