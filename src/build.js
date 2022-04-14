@@ -1,5 +1,5 @@
 import * as path from "path";
-import { getSdkPath, spawnByLine } from "./util.js";
+import { getSdkPath, isWin, spawnByLine } from "./util.js";
 
 export async function build_project(product, options, lineCallback) {
   const {
@@ -45,7 +45,7 @@ export async function build_project(product, options, lineCallback) {
   if (product) {
     extraArgs.push("-d", simulatorBuild !== false ? `${product}_sim` : product);
   }
-  const exe = path.resolve(sdk, "bin", "monkeyc");
+  const exe = path.resolve(sdk, "bin", isWin ? "monkeyc.bat" : "monkeyc");
   const args = [
     ["-o", program],
     ["-f", jungleFiles],

@@ -11,7 +11,7 @@
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
       "args": [
-        "--jungle=/Users/mwilliams/www/git/HRMultifield/monkey.jungle;/Users/mwilliams/www/git/HRMultifield/generated/device-specific.jungle",
+        "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
         "--output-path=generated/optimized",
         "--product=fenix5xplus"
       ]
@@ -23,7 +23,7 @@
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
       "args": [
-        "--jungle=/Users/mwilliams/www/git/garmin-samples/Picker/monkey.jungle",
+        "--jungle=${workspaceFolder}/../garmin-samples/Picker/monkey.jungle",
         "--output-path=bin/optimized",
         "--product=fenix5x"
       ]

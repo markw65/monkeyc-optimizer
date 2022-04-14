@@ -5,7 +5,7 @@ import glob from "glob";
 import * as path from "path";
 import * as readline from "readline";
 
-const isWin = process.platform == "win32";
+export const isWin = process.platform == "win32";
 
 export const appSupport = isWin
   ? `${process.env.APPDATA}`.replace(/\\/g, "/")

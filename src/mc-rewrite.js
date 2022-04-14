@@ -104,14 +104,20 @@ async function analyze(fileNames, buildConfig) {
   markApi(state.stack[0]);
 
   const files = await Promise.all(
-    fileNames.map(async (name) => ({ name, data: await fs.readFile(name) }))
+    fileNames.map(async (name) => ({
+      name,
+      monkeyCSource: (await fs.readFile(name))
+        .toString()
+        .replace(/\r\n/g, "\n"),
+    }))
   );
 
   files.forEach((f) => {
-    f.ast = MonkeyC.parsers.monkeyc.parse(f.data.toString(), {
+    f.ast = MonkeyC.parsers.monkeyc.parse(f.monkeyCSource, {
       grammarSource: f.name,
     });
-    delete f.data;
+    f.ast.monkeyCSource = f.monkeyCSource;
+    delete f.monkeyCSource;
     collectNamespaces(f.ast, state);
   });
 

@@ -155,7 +155,7 @@ export async function generateOptimizedProject(options) {
 
 async function generateOneConfig(config) {
   const { workspace, buildConfig } = config;
-  const output = `${workspace}/${config.outputPath}`;
+  const output = path.join(workspace, config.outputPath);
 
   const paths = (
     await Promise.all(
@@ -179,26 +179,24 @@ async function generateOneConfig(config) {
     .map((file) => path.relative(workspace, file))
     .filter((file) => !file.startsWith("bin"));
 
-  const source_time = await last_modified(
-    files.map((file) => `${workspace}/${file}`)
+  const fnMap = Object.fromEntries(
+    files
+      .filter((src) => /\.mc$/.test(src))
+      .map((file) => [path.join(workspace, file), path.join(output, file)])
   );
-  const opt_time = await first_modified(
-    files.map((file) => `${output}/${file}`)
-  );
+
+  const source_time = await last_modified(Object.keys(fnMap));
+  const opt_time = await first_modified(Object.values(fnMap));
   if (source_time < opt_time) return;
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
-  const baseFileNames = files.filter((src) => /\.mc$/.test(src));
-  const fnMap = Object.fromEntries(
-    baseFileNames.map((file) => [`${workspace}/${file}`, `${output}/${file}`])
-  );
   const optFiles = await optimizeMonkeyC(Object.keys(fnMap), buildConfig);
   return await Promise.all(
     optFiles.map(async (file) => {
       const name = fnMap[file.name];
-      const match = /^(.*)\//.exec(name);
-      await fs.mkdir(match[1], { recursive: true });
+      const dir = path.dirname(name);
+      await fs.mkdir(dir, { recursive: true });
 
       // Prettier inserts comments by using the source location to
       // find the original comment, rather than using the contents
