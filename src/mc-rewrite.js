@@ -81,7 +81,9 @@ async function analyze(fileNames) {
   );
 
   files.forEach((f) => {
-    f.ast = MonkeyC.parsers.monkeyc.parse(f.data.toString());
+    f.ast = MonkeyC.parsers.monkeyc.parse(f.data.toString(), {
+      grammarSource: f.name,
+    });
     delete f.data;
     collectNamespaces(f.ast, state);
   });

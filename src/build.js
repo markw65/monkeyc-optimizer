@@ -12,6 +12,7 @@ export async function build_project(product, options, lineCallback) {
     compilerOptions,
     compilerWarnings,
     typeCheckLevel,
+    returnCommand,
   } = options;
   const sdk = await getSdkPath();
   let extraArgs = [];
@@ -44,15 +45,30 @@ export async function build_project(product, options, lineCallback) {
   if (product) {
     extraArgs.push("-d", simulatorBuild !== false ? `${product}_sim` : product);
   }
-  return spawnByLine(
-    path.resolve(sdk, "bin", "monkeyc"),
-    [
-      ["-o", program],
-      ["-f", jungleFiles],
-      ["-y", developerKeyPath],
-      extraArgs,
-    ].flat(),
+  const exe = path.resolve(sdk, "bin", "monkeyc");
+  const args = [
+    ["-o", program],
+    ["-f", jungleFiles],
+    ["-y", developerKeyPath],
+    extraArgs,
+  ].flat();
+
+  const handlers = [
     lineCallback || ((line) => console.log(line)),
-    { cwd: workspace }
-  );
+    (line) => {
+      if (
+        /^WARNING: .*: Source path '.*' cannot be resolved to a valid path./.test(
+          line
+        )
+      ) {
+        return;
+      }
+      console.error(line);
+    },
+  ];
+  return returnCommand
+    ? { exe, args }
+    : spawnByLine(exe, args, handlers, {
+        cwd: workspace,
+      });
 }

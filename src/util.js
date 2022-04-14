@@ -53,8 +53,11 @@ export async function first_modified(inputs) {
 }
 
 // return a promise that will process the output of command
-// line-by-line via lineHandler.
-export function spawnByLine(command, args, lineHandler, options) {
+// line-by-line via lineHandlers.
+export function spawnByLine(command, args, lineHandlers, options) {
+  const [lineHandler, errHandler] = Array.isArray(lineHandlers)
+    ? lineHandlers
+    : [lineHandlers, (data) => console.error(data.toString())];
   return new Promise((resolve, reject) => {
     const proc = child_process.spawn(command, args, {
       ...(options || {}),
@@ -63,8 +66,11 @@ export function spawnByLine(command, args, lineHandler, options) {
     const rl = readline.createInterface({
       input: proc.stdout,
     });
+    const rle = readline.createInterface({
+      input: proc.stderr,
+    });
     proc.on("error", reject);
-    proc.stderr.on("data", (data) => console.error(data.toString()));
+    rle.on("line", errHandler);
     rl.on("line", lineHandler);
     proc.on("close", (code) => {
       if (code == 0) resolve();
