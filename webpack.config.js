@@ -99,6 +99,7 @@ export default (env, argv) => {
     entry: {
       optimizer: "./src/optimizer.js",
     },
+    optimization: { minimize: false },
     dependencies: ["jungle"],
     externals: {
       "prettier/standalone.js": "commonjs prettier/standalone.js",
