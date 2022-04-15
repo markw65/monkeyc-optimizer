@@ -198,13 +198,6 @@ async function generateOneConfig(config) {
       const dir = path.dirname(name);
       await fs.mkdir(dir, { recursive: true });
 
-      // Prettier inserts comments by using the source location to
-      // find the original comment, rather than using the contents
-      // of the comment as reported by the comment nodes themselves.
-      // Since we're passing in the ast, rather than the actual
-      // source code, this goes horribly wrong. The easiest fix is
-      // to just drop all the comments.
-      delete file.ast.comments;
       const opt_source = formatAst(file.ast);
       await fs.writeFile(name, opt_source);
       return name;

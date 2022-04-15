@@ -313,7 +313,23 @@ export function traverseAst(node, pre, post) {
 }
 
 export function formatAst(node, options) {
-  return Prettier.format(JSON.stringify(node), {
+  if (!node.monkeyCSource && node.comments) {
+    // Prettier inserts comments by using the source location to
+    // find the original comment, rather than using the contents
+    // of the comment as reported by the comment nodes themselves.
+    // If all we've got is the ast, rather than the actual
+    // source code, this goes horribly wrong, so just drop all
+    // the comments.
+    delete node.comments;
+  }
+  // If we *do* have the original source, pass that in ahead of the
+  // json. The parser knows to just treat the last line of the input
+  // as the ast itself, and the printers will find what they're
+  // looking for in the source.
+  const source =
+    (node.monkeyCSource ? node.monkeyCSource + "\n" : "") +
+    JSON.stringify(node);
+  return Prettier.format(source, {
     ...(options || {}),
     parser: "monkeyc-json",
     plugins: [MonkeyC],
