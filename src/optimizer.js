@@ -208,32 +208,19 @@ async function generateOneConfig(config) {
 export async function generateApiMirTests(options) {
   const config = { ...defaultConfig, ...(options || {}) };
   const tests = [];
-  const state = {
-    post(node) {
-      if (node.type == "EnumDeclaration") {
-        const [parent] = state.stack.slice(-1);
-        node.body.members.forEach((e) => {
-          const name = e.name || e.id.name;
-          const values = parent.decls[name];
-          if (values == null || values.length != 1) {
-            throw "Can't find value for enum";
-          }
-          const value = values[0];
-          tests.push([`${parent.fullName}.${name}`, formatAst(value)]);
-        });
-      } else if (node.type == "VariableDeclaration" && node.kind == "const") {
-        const [parent] = state.stack.slice(-1);
-        node.declarations.forEach((decl) =>
-          tests.push([
-            `${parent.fullName}.${decl.id.name}`,
-            formatAst(decl.init),
-          ])
-        );
+  const api = await getApiMapping();
+  const findConstants = (node) => {
+    Object.entries(node.decls).forEach(([key, decl]) => {
+      if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
+      if (decl.length != 1) return;
+      if (decl[0].type == "Literal") {
+        tests.push([`${node.fullName}.${key}`, formatAst(decl[0])]);
+      } else if (decl[0].decls) {
+        findConstants(decl[0]);
       }
-    },
+    });
   };
-  await getApiMapping(state);
-
+  findConstants(api);
   function hasTests(name) {
     const names = name.split(".");
     return names
@@ -242,8 +229,9 @@ export async function generateApiMirTests(options) {
       .join(" && ");
   }
   const source = [
+    "import Toybox.Lang;",
     "import Toybox.Test;",
-    "(:test)",
+    "(:test,:typecheck(false))",
     "function apiTest(logger as Logger) as Boolean {",
     ...tests.map(
       (t) =>

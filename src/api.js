@@ -2,6 +2,7 @@ import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
 import { getSdkPath } from "./util.js";
+import { negativeFixups } from "./negative-fixups.js";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/;
 /*
@@ -25,11 +26,30 @@ export async function getApiMapping(state) {
     .toString()
     .replace(/\r\n/g, "\n")
     .replace(/^\s*\[.*?\]\s*$/gm, "")
-    .replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
+    //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
     .replace(/^(\s*type)\s/gm, "$1def ");
 
   try {
-    return collectNamespaces(parser.parse(api, {}), state);
+    const result = collectNamespaces(parser.parse(api, {}), state);
+    negativeFixups.forEach((fixup) => {
+      const value = fixup.split(".").reduce((state, part) => {
+        const decls = state.decls[part];
+        if (!Array.isArray(decls) || decls.length != 1 || !decls[0]) {
+          throw `Failed to find and fix negative constant ${fixup}`;
+        }
+        return decls[0];
+      }, result);
+      if (value.type != "Literal") {
+        throw `Negative constant ${fixup} was not a Literal`;
+      }
+      if (value.value > 0) {
+        value.value = -value.value;
+        value.raw = "-" + value.raw;
+      } else {
+        console.log(`Negative fixup ${fixup} was already negative!`);
+      }
+    });
+    return result;
   } catch (e) {
     console.error(e.toString());
   }
