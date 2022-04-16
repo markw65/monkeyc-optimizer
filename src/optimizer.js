@@ -76,6 +76,9 @@ export async function buildOptimizedProject(product, options) {
   } else {
     bin = path.join(bin, "exported");
     name = `${program}.iq`;
+    if (!hasProperty(config, "releaseBuild")) {
+      config.releaseBuild = true;
+    }
   }
   config.program = path.join(bin, name);
   return build_project(product, config);
