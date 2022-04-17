@@ -26,7 +26,7 @@ async function test() {
       }
     }
   });
-  if (!jungles.length) throw "No inputs!";
+  if (!jungles.length) throw new Error("No inputs!");
   let promise = Promise.resolve();
   jungles.forEach((jungleFiles) => {
     const workspace = path.dirname(jungleFiles.split(";")[0]);

@@ -116,6 +116,7 @@ async function analyze(fileNames, buildConfig) {
     f.ast = MonkeyC.parsers.monkeyc.parse(f.monkeyCSource, {
       grammarSource: f.name,
     });
+    f.ast.source = f.name;
     f.ast.monkeyCSource = f.monkeyCSource;
     delete f.monkeyCSource;
     collectNamespaces(f.ast, state);
@@ -309,7 +310,7 @@ function evaluateFunction(func, args) {
           case "Identifier":
             return;
           default:
-            throw "Bad node type";
+            throw new Error("Bad node type");
         }
       },
       args &&
@@ -329,7 +330,7 @@ function evaluateFunction(func, args) {
             default: {
               const repl = optimizeNode(node);
               if (repl && repl.type === "Literal") return repl;
-              throw "Didn't optimize";
+              throw new Error("Didn't optimize");
             }
           }
         })
@@ -477,7 +478,7 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
         if (n) {
           state.exposed[n] = true;
         } else {
-          throw "What?";
+          throw new Error("What?");
         }
         return;
       }
@@ -522,7 +523,9 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
                 node.members.map((m) => {
                   if (!m.init) return "Number";
                   const [node, type] = getNodeValue(m.init);
-                  if (!node) throw "Failed to get type for eliminated enum";
+                  if (!node) {
+                    throw new Error("Failed to get type for eliminated enum");
+                  }
                   return type;
                 })
               ),
@@ -534,7 +537,7 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
           if (!node.body.members.length) {
             if (!node.id) return false;
             if (!node.body.enumType) {
-              throw "Missing enumType on optimized enum";
+              throw new Error("Missing enumType on optimized enum");
             }
             replace(node, {
               type: "TypedefDeclaration",
