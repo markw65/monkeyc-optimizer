@@ -103,169 +103,182 @@ export function collectNamespaces(ast, state) {
     return [null, null];
   };
 
-  traverseAst(
-    ast,
-    (node) => {
-      try {
-        switch (node.type) {
-          case "Program":
-            if (state.stack.length != 1) {
-              throw new Error("Unexpected stack length for Program node");
-            }
-            if (node.source) {
-              state.stack[0].source = node.source;
-            }
-            break;
-          case "BlockStatement": {
-            const [parent] = state.stack.slice(-1);
-            if (
-              parent.type != "FunctionDeclaration" &&
-              parent.type != "BlockStatement"
-            ) {
+  state.traverse = (root) =>
+    traverseAst(
+      root,
+      (node) => {
+        try {
+          if (state.shouldExclude && state.shouldExclude(node)) {
+            // don't visit any children, but do call post
+            return [];
+          }
+          switch (node.type) {
+            case "Program":
+              if (state.stack.length != 1) {
+                throw new Error("Unexpected stack length for Program node");
+              }
+              if (node.source) {
+                state.stack[0].source = node.source;
+              }
               break;
+            case "BlockStatement": {
+              const [parent] = state.stack.slice(-1);
+              if (
+                parent.type != "FunctionDeclaration" &&
+                parent.type != "BlockStatement"
+              ) {
+                break;
+              }
+              // fall through
+            }
+            case "ClassDeclaration":
+            case "FunctionDeclaration":
+            case "ModuleDeclaration":
+              if (node.id || node.type == "BlockStatement") {
+                const [parent] = state.stack.slice(-1);
+                const elm = {
+                  type: node.type,
+                  name: node.id && node.id.name,
+                  node,
+                };
+                state.stack.push(elm);
+                elm.fullName = state.stack
+                  .map((e) => e.name)
+                  .filter((e) => e != null)
+                  .join(".");
+                if (elm.name) {
+                  if (!parent.decls) parent.decls = {};
+                  if (hasProperty(parent.decls, elm.name)) {
+                    const what =
+                      node.type == "ModuleDeclaration" ? "type" : "node";
+                    const e = parent.decls[elm.name].find(
+                      (d) => d[what] == elm[what]
+                    );
+                    if (e != null) {
+                      e.node = node;
+                      state.stack.splice(-1, 1, e);
+                      break;
+                    }
+                  } else {
+                    parent.decls[elm.name] = [];
+                  }
+                  parent.decls[elm.name].push(elm);
+                }
+              }
+              break;
+            // an EnumDeclaration doesn't create a scope, but
+            // it does create a type (if it has a name)
+            case "EnumDeclaration": {
+              if (!node.id) break;
+              const [parent] = state.stack.slice(-1);
+              const name = (parent.fullName + "." + node.id.name).replace(
+                /^\$\./,
+                ""
+              );
+              node.body.members.forEach((m) => ((m.init || m).enumType = name));
             }
             // fall through
-          }
-          case "ClassDeclaration":
-          case "FunctionDeclaration":
-          case "ModuleDeclaration":
-            if (node.id || node.type == "BlockStatement") {
+            case "TypedefDeclaration": {
               const [parent] = state.stack.slice(-1);
-              const elm = {
-                type: node.type,
-                name: node.id && node.id.name,
-                node,
-              };
-              state.stack.push(elm);
-              elm.fullName = state.stack
-                .map((e) => e.name)
-                .filter((e) => e != null)
-                .join(".");
-              if (elm.name) {
-                if (!parent.decls) parent.decls = {};
-                if (hasProperty(parent.decls, elm.name)) {
-                  const what =
-                    node.type == "ModuleDeclaration" ? "type" : "node";
-                  const e = parent.decls[elm.name].find(
-                    (d) => d[what] == elm[what]
+              if (!parent.decls) parent.decls = {};
+              if (!hasProperty(parent.decls, node.id.name)) {
+                parent.decls[node.id.name] = [];
+              }
+              pushUnique(
+                parent.decls[node.id.name],
+                node.ts ? formatAst(node.ts.argument) : node.id.name
+              );
+              break;
+            }
+            case "VariableDeclaration": {
+              const [parent] = state.stack.slice(-1);
+              if (!parent.decls) parent.decls = {};
+              node.declarations.forEach((decl) => {
+                if (!hasProperty(parent.decls, decl.id.name)) {
+                  parent.decls[decl.id.name] = [];
+                }
+                if (node.kind == "const") {
+                  pushUnique(parent.decls[decl.id.name], decl.init);
+                  if (!hasProperty(state.index, decl.id.name)) {
+                    state.index[decl.id.name] = [];
+                  }
+                  pushUnique(state.index[decl.id.name], parent);
+                } else if (decl.id.ts) {
+                  pushUnique(
+                    parent.decls[decl.id.name],
+                    formatAst(decl.id.ts.argument)
                   );
-                  if (e != null) {
-                    e.node = node;
-                    state.stack.splice(-1, 1, e);
-                    break;
+                }
+              });
+              break;
+            }
+            case "EnumStringBody": {
+              const [parent] = state.stack.slice(-1);
+              const values = parent.decls || (parent.decls = {});
+              let prev = -1;
+              node.members.forEach((m) => {
+                let name, init;
+                if (m.type == "EnumStringMember") {
+                  name = m.id.name;
+                  init = m.init;
+                  if (
+                    init.type == "Literal" &&
+                    LiteralIntegerRe.test(init.raw)
+                  ) {
+                    prev = init.value;
                   }
                 } else {
-                  parent.decls[elm.name] = [];
+                  name = m.name;
+                  prev += 1;
+                  if (!state.constants) {
+                    state.constants = {};
+                  }
+                  const key = m.enumType ? `${m.enumType}:${prev}` : prev;
+                  init = state.constants[key];
+                  if (!init) {
+                    init = state.constants[key] = {
+                      type: "Literal",
+                      value: prev,
+                      raw: prev.toString(),
+                      enumType: m.enumType,
+                    };
+                  }
                 }
-                parent.decls[elm.name].push(elm);
-              }
+                if (!hasProperty(values, name)) {
+                  values[name] = [];
+                }
+                pushUnique(values[name], init);
+                if (!hasProperty(state.index, name)) {
+                  state.index[name] = [];
+                }
+                pushUnique(state.index[name], parent);
+              });
+              break;
             }
-            break;
-          // an EnumDeclaration doesn't create a scope, but
-          // it does create a type (if it has a name)
-          case "EnumDeclaration": {
-            if (!node.id) break;
-            const [parent] = state.stack.slice(-1);
-            const name = (parent.fullName + "." + node.id.name).replace(
-              /^\$\./,
-              ""
-            );
-            node.body.members.forEach((m) => ((m.init || m).enumType = name));
           }
-          // fall through
-          case "TypedefDeclaration": {
-            const [parent] = state.stack.slice(-1);
-            if (!parent.decls) parent.decls = {};
-            if (!hasProperty(parent.decls, node.id.name)) {
-              parent.decls[node.id.name] = [];
-            }
-            pushUnique(
-              parent.decls[node.id.name],
-              node.ts ? formatAst(node.ts.argument) : node.id.name
-            );
-            break;
-          }
-          case "VariableDeclaration": {
-            const [parent] = state.stack.slice(-1);
-            if (!parent.decls) parent.decls = {};
-            node.declarations.forEach((decl) => {
-              if (!hasProperty(parent.decls, decl.id.name)) {
-                parent.decls[decl.id.name] = [];
-              }
-              if (node.kind == "const") {
-                pushUnique(parent.decls[decl.id.name], decl.init);
-                if (!hasProperty(state.index, decl.id.name)) {
-                  state.index[decl.id.name] = [];
-                }
-                pushUnique(state.index[decl.id.name], parent);
-              } else if (decl.id.ts) {
-                pushUnique(
-                  parent.decls[decl.id.name],
-                  formatAst(decl.id.ts.argument)
-                );
-              }
-            });
-            break;
-          }
-          case "EnumStringBody": {
-            const [parent] = state.stack.slice(-1);
-            const values = parent.decls || (parent.decls = {});
-            let prev = -1;
-            node.members.forEach((m) => {
-              let name, init;
-              if (m.type == "EnumStringMember") {
-                name = m.id.name;
-                init = m.init;
-                if (init.type == "Literal" && LiteralIntegerRe.test(init.raw)) {
-                  prev = init.value;
-                }
-              } else {
-                name = m.name;
-                prev += 1;
-                if (!state.constants) {
-                  state.constants = {};
-                }
-                const key = m.enumType ? `${m.enumType}:${prev}` : prev;
-                init = state.constants[key];
-                if (!init) {
-                  init = state.constants[key] = {
-                    type: "Literal",
-                    value: prev,
-                    raw: prev.toString(),
-                    enumType: m.enumType,
-                  };
-                }
-              }
-              if (!hasProperty(values, name)) {
-                values[name] = [];
-              }
-              pushUnique(values[name], init);
-              if (!hasProperty(state.index, name)) {
-                state.index[name] = [];
-              }
-              pushUnique(state.index[name], parent);
-            });
-            break;
-          }
+          if (state.pre) return state.pre(node);
+        } catch (e) {
+          handleException(state, node, e);
         }
-        if (state.pre) return state.pre(node);
-      } catch (e) {
-        handleException(state, node, e);
-      }
-    },
-    (node) => {
-      try {
-        let ret;
-        if (state.post) ret = state.post(node);
-        if (state.stack.slice(-1).pop().node === node) {
-          state.stack.pop();
+      },
+      (node) => {
+        try {
+          let ret;
+          if (state.shouldExclude && state.shouldExclude(node)) {
+            // delete the node.
+            return false;
+          }
+          if (state.post) ret = state.post(node);
+          if (state.stack.slice(-1).pop().node === node) {
+            state.stack.pop();
+          }
+          return ret;
+        } catch (e) {
+          handleException(state, node, e);
         }
-        return ret;
-      } catch (e) {
-        handleException(state, node, e);
       }
-    }
-  );
+    );
+  state.traverse(ast);
   if (state.stack.length != 1) {
     throw new Error("Invalid AST!");
   }

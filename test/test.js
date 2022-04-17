@@ -6,6 +6,7 @@ async function test() {
   let products;
   let developerKeyPath;
   let outputPath;
+  let releaseBuild;
   process.argv.slice(2).forEach((arg) => {
     const match = /^--((?:\w|-)+)=(.*)$/.exec(arg);
     if (match) {
@@ -18,6 +19,9 @@ async function test() {
           break;
         case "jungle":
           jungles.push(match[2]);
+          break;
+        case "release":
+          releaseBuild = /^true|1$/i.test(match[2]);
           break;
         case "product":
           if (!products) products = [];
@@ -36,6 +40,8 @@ async function test() {
       developerKeyPath,
       outputPath,
       products,
+      releaseBuild,
+      compilerWarnings: true,
     };
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k]

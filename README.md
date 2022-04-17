@@ -18,4 +18,9 @@ Initial release
 - Better error reporting when something goes wrong internally
 - Fix an order dependency when processing imports. Previously, if the import statement was seen before the module being imported, we would fail to properly handle the import.
 
+### 1.0.3
+
+- Split the build into release and debug, so we can exclude code based on (:release) and (:debug)
+- Optimize away `if (constant)`, `while (false)` and `constant ? E1 : E2`. Convert `do BODY while(false)` to `BODY`
+
 ---

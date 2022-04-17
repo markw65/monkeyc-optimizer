@@ -7,13 +7,37 @@
     {
       "type": "pwa-node",
       "request": "launch",
-      "name": "Optimize and build HRMultifield",
+      "name": "Optimize and build HRMultifield Debug",
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
       "args": [
         "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
         "--output-path=generated/optimized",
         "--product=fenix5xplus"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Optimize and build HRMultifield Release",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/test/test.js",
+      "args": [
+        "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
+        "--output-path=generated/optimized",
+        "--product=fenix5xplus",
+        "--release=true"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Optimize and export HRMultifield",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/test/test.js",
+      "args": [
+        "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
+        "--output-path=generated/optimized"
       ]
     },
     {

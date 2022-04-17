@@ -62,34 +62,24 @@ async function analyze(fileNames, buildConfig) {
       ? Object.fromEntries(buildConfig.excludeAnnotations.map((a) => [a, true]))
       : {};
 
-  const shouldExclude = (node) => {
-    if (node.attrs && node.attrs.attrs) {
-      if (
-        node.attrs.attrs.filter((attr) => {
-          if (attr.type != "UnaryExpression") return false;
-          if (attr.argument.type != "Identifier") return false;
-          return hasProperty(excludeAnnotations, attr.argument.name);
-        }).length
-      ) {
-        return true;
-      }
-    }
-  };
   const allImports = [];
   const state = {
     allFunctions: [],
     allClasses: [],
-    pre(node) {
-      if (shouldExclude(node)) {
-        // don't visit any children, but do call post
-        return [];
+    shouldExclude(node) {
+      if (node.attrs && node.attrs.attrs) {
+        if (
+          node.attrs.attrs.filter((attr) => {
+            if (attr.type != "UnaryExpression") return false;
+            if (attr.argument.type != "Identifier") return false;
+            return hasProperty(excludeAnnotations, attr.argument.name);
+          }).length
+        ) {
+          return true;
+        }
       }
     },
     post(node) {
-      if (shouldExclude(node)) {
-        // delete the node.
-        return false;
-      }
       switch (node.type) {
         case "FunctionDeclaration":
         case "ClassDeclaration": {
@@ -145,7 +135,7 @@ async function analyze(fileNames, buildConfig) {
     collectNamespaces(f.ast, state);
   });
 
-  delete state.pre;
+  delete state.shouldExclude;
   delete state.post;
 
   processImports(allImports, state.lookup);
@@ -431,6 +421,49 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
   state.calledFunctions = {};
   state.pre = (node) => {
     switch (node.type) {
+      case "ConditionalExpression":
+      case "IfStatement":
+      case "DoWhileStatement":
+      case "WhileStatement":
+        state.traverse(node.test);
+        const [value, type] = getNodeValue(node.test);
+        if (value) {
+          let result = null;
+          if (type === "Null") {
+            result = false;
+          } else if (
+            type === "Boolean" ||
+            type === "Number" ||
+            type === "Long"
+          ) {
+            result = !!value.value;
+          }
+          if (result !== null) {
+            if (
+              node.type === "IfStatement" ||
+              node.type === "ConditionalExpression"
+            ) {
+              if (result === false) {
+                node.consequent = null;
+              } else {
+                node.alternate = null;
+              }
+              node.test = result;
+            } else if (node.type === "WhileStatement") {
+              if (result === false) {
+                node.body = null;
+              }
+            } else if (node.type === "DoWhileStatement") {
+              if (result === false) {
+                node.test = null;
+              }
+            } else {
+              throw new Error("Unexpected Node type");
+            }
+          }
+        }
+        return;
+
       case "EnumDeclaration":
         return false;
       case "VariableDeclarator":
@@ -492,38 +525,55 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
       replace(node, opt);
       return;
     }
-    if (node.type == "CallExpression") {
-      const [name, callees] = state.lookup(node.callee);
-      if (!callees || !callees.length) {
-        const n =
-          name ||
-          node.callee.name ||
-          (node.callee.property && node.callee.property.name);
-        if (n) {
-          state.exposed[n] = true;
-        } else {
-          throw new Error("What?");
+    switch (node.type) {
+      case "ConditionalExpression":
+      case "IfStatement":
+        if (typeof node.test === "boolean") {
+          const rep = node.test ? node.consequent : node.alternate;
+          return rep || false;
         }
-        return;
-      }
-      if (callees.length == 1) {
-        const callee = callees[0].node;
-        if (
-          callee.optimizable &&
-          !callee.hasOverride &&
-          node.arguments.every((n) => getNodeValue(n)[0] !== null)
-        ) {
-          const ret = evaluateFunction(callee, node.arguments);
-          if (ret) {
-            replace(node, ret);
-            return;
+        break;
+      case "WhileStatement":
+        if (!node.body) return false;
+        break;
+      case "DoWhileStatement":
+        if (!node.test) return node.body;
+        break;
+
+      case "CallExpression": {
+        const [name, callees] = state.lookup(node.callee);
+        if (!callees || !callees.length) {
+          const n =
+            name ||
+            node.callee.name ||
+            (node.callee.property && node.callee.property.name);
+          if (n) {
+            state.exposed[n] = true;
+          } else {
+            throw new Error("What?");
+          }
+          return;
+        }
+        if (callees.length == 1) {
+          const callee = callees[0].node;
+          if (
+            callee.optimizable &&
+            !callee.hasOverride &&
+            node.arguments.every((n) => getNodeValue(n)[0] !== null)
+          ) {
+            const ret = evaluateFunction(callee, node.arguments);
+            if (ret) {
+              replace(node, ret);
+              return;
+            }
           }
         }
+        if (!hasProperty(state.calledFunctions, name)) {
+          state.calledFunctions[name] = [];
+        }
+        callees.forEach((c) => state.calledFunctions[name].push(c.node));
+        break;
       }
-      if (!hasProperty(state.calledFunctions, name)) {
-        state.calledFunctions[name] = [];
-      }
-      callees.forEach((c) => state.calledFunctions[name].push(c.node));
     }
   };
   files.forEach((f) => {

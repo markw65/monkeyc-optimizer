@@ -25,7 +25,7 @@ async function getVSCodeSettings(path) {
 }
 
 export const defaultConfig = {
-  outputPath: "optimized",
+  outputPath: "bin/optimized",
   workspace: "./",
 };
 
@@ -64,6 +64,8 @@ export async function buildOptimizedProject(product, options) {
   const config = await getConfig(options);
   if (product) {
     config.products = [product];
+  } else if (!hasProperty(config, "releaseBuild")) {
+    config.releaseBuild = true;
   }
   const { jungleFiles, program } = await generateOptimizedProject(config);
   config.jungleFiles = jungleFiles;
@@ -76,9 +78,6 @@ export async function buildOptimizedProject(product, options) {
   } else {
     bin = path.join(bin, "exported");
     name = `${program}.iq`;
-    if (!hasProperty(config, "releaseBuild")) {
-      config.releaseBuild = true;
-    }
   }
   config.program = path.join(bin, name);
   return build_project(product, config);
@@ -91,11 +90,18 @@ export async function generateOptimizedProject(options) {
   const { manifest, targets } = await get_jungle(config.jungleFiles, config);
   const buildConfigs = {};
   targets.forEach((p) => {
-    if (!hasProperty(buildConfigs, p.group.key)) {
-      buildConfigs[p.group.key] = null;
+    const key = p.group.key + (config.releaseBuild ? "-release" : "-debug");
+    if (!hasProperty(buildConfigs, key)) {
+      p.group.dir = key;
+      buildConfigs[key] = null;
+      // Note that we exclude (:debug) in release builds, and we
+      // exclude (:release) in debug builds. This isn't backwards!
+      p.group.optimizerConfig["excludeAnnotations"].push(
+        config.releaseBuild ? "debug" : "release"
+      );
     }
     if (!options.products || options.products.includes(p.product)) {
-      buildConfigs[p.group.key] = p.group.optimizerConfig;
+      buildConfigs[key] = p.group.optimizerConfig;
     }
   });
 
@@ -136,7 +142,7 @@ export async function generateOptimizedProject(options) {
     const prefix = `${product}.`;
     process_field(prefix, qualifier, "sourcePath", (s) =>
       path
-        .join(group.key.toString(), path.relative(workspace, s))
+        .join(group.dir, path.relative(workspace, s))
         .replace(/(\/\*\*)\/\*/g, "$1")
     );
     process_field(prefix, qualifier, "resourcePath", relative_path);
