@@ -7,6 +7,23 @@ import {
   traverseAst,
   LiteralIntegerRe,
 } from "./api.js";
+import { pushUnique } from "./util.js";
+
+function processImports(allImports, lookup) {
+  allImports.forEach(({ node, stack }) => {
+    const [name, module] = lookup(node.id, node.as && node.as.id.name, stack);
+    if (name && module) {
+      const [parent] = stack.slice(-1);
+      if (!parent.decls) parent.decls = {};
+      if (!hasProperty(parent.decls, name)) parent.decls[name] = [];
+      module.forEach((m) => {
+        if (m.type == "ModuleDeclaration") {
+          pushUnique(parent.decls[name], m);
+        }
+      });
+    }
+  });
+}
 
 function collectClassInfo(state) {
   state.allClasses.forEach((elm) => {
@@ -58,6 +75,7 @@ async function analyze(fileNames, buildConfig) {
       }
     }
   };
+  const allImports = [];
   const state = {
     allFunctions: [],
     allClasses: [],
@@ -82,7 +100,12 @@ async function analyze(fileNames, buildConfig) {
             ? state.allFunctions
             : state.allClasses
           ).push(scope);
+          return;
         }
+        case "Using":
+        case "ImportModule":
+          allImports.push({ node, stack: state.stack.slice() });
+          return;
       }
     },
   };
@@ -125,6 +148,7 @@ async function analyze(fileNames, buildConfig) {
   delete state.pre;
   delete state.post;
 
+  processImports(allImports, state.lookup);
   collectClassInfo(state);
 
   return { files, state };

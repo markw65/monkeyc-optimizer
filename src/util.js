@@ -52,6 +52,11 @@ export async function first_modified(inputs) {
   return Math.min(...(await modified_times(inputs, 0)));
 }
 
+export function pushUnique(arr, value) {
+  if (arr.find((v) => v === value) != null) return;
+  arr.push(value);
+}
+
 // return a promise that will process the output of command
 // line-by-line via lineHandlers.
 export function spawnByLine(command, args, lineHandlers, options) {

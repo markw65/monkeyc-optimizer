@@ -1,7 +1,7 @@
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
-import { getSdkPath } from "./util.js";
+import { getSdkPath, pushUnique } from "./util.js";
 import { negativeFixups } from "./negative-fixups.js";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/;
@@ -101,11 +101,6 @@ export function collectNamespaces(ast, state) {
       }
     }
     return [null, null];
-  };
-
-  const pushUnique = (arr, value) => {
-    if (arr.find((v) => v === value) != null) return;
-    arr.push(value);
   };
 
   traverseAst(
@@ -250,24 +245,6 @@ export function collectNamespaces(ast, state) {
               }
               pushUnique(state.index[name], parent);
             });
-            break;
-          }
-          case "Using":
-          case "ImportModule": {
-            const [name, module] = state.lookup(
-              node.id,
-              node.as && node.as.id.name
-            );
-            if (name && module) {
-              const [parent] = state.stack.slice(-1);
-              if (!parent.decls) parent.decls = {};
-              if (!hasProperty(parent.decls, name)) parent.decls[name] = [];
-              module.forEach((m) => {
-                if (m.type == "ModuleDeclaration") {
-                  pushUnique(parent.decls[name], m);
-                }
-              });
-            }
             break;
           }
         }
