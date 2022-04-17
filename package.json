@@ -4,6 +4,10 @@
   "version": "1.0.1",
   "description": "Source to source optimizer for Garmin Monkey C code",
   "main": "build/optimizer.cjs",
+  "exports": {
+    ".": "./build/optimizer.cjs",
+    "./*.js": "./build/*.cjs"
+  },
   "scripts": {
     "watch": "webpack --mode development --watch",
     "build-debug": "webpack --mode development",
@@ -12,7 +16,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
-    "build/optimizer.cjs"
+    "build/optimizer.cjs",
+    "build/util.cjs",
+    "build/api.cjs"
   ],
   "author": "markw65",
   "license": "MIT",

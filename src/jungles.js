@@ -308,7 +308,7 @@ export async function get_jungle(jungles, options) {
     .map((jungle) => path.resolve(options.workspace || "./", jungle));
   const data = await process_jungles(jungles);
   const manifest_node = resolve_node_by_path(data, ["project", "manifest"]);
-  if (!manifest_node) throw "No manifest found!";
+  if (!manifest_node) throw new Error("No manifest found!");
   const manifest = resolve_filename(manifest_node[0]);
   const xml = await readManifest(manifest);
   const targets = [];

@@ -98,23 +98,34 @@ export default (env, argv) => {
     name: "monkeyc-optimizer",
     entry: {
       optimizer: "./src/optimizer.js",
+      util: "./src/util.js",
+      api: "./src/api.js",
     },
     optimization: { minimize: false },
     dependencies: ["jungle"],
-    externals: {
-      "prettier/standalone.js": "commonjs prettier/standalone.js",
-      "@markw65/prettier-plugin-monkeyc":
-        "commonjs @markw65/prettier-plugin-monkeyc",
-      "fs/promises": "fs/promises",
-      fs: "fs",
-      path: "path",
-      child_process: "child_process",
-      readline: "readline",
-      assert: "assert",
-      util: "util",
-      stream: "stream",
-      string_decoder: "string_decoder",
-      timers: "timers",
+    externals({ request }, callback) {
+      const obj = {
+        "prettier/standalone.js": "commonjs prettier/standalone.js",
+        "@markw65/prettier-plugin-monkeyc":
+          "commonjs @markw65/prettier-plugin-monkeyc",
+        "fs/promises": "fs/promises",
+        fs: "fs",
+        path: "path",
+        child_process: "child_process",
+        readline: "readline",
+        assert: "assert",
+        util: "util",
+        stream: "stream",
+        string_decoder: "string_decoder",
+        timers: "timers",
+      };
+      if (Object.prototype.hasOwnProperty.call(obj, request)) {
+        return callback(null, obj[request]);
+      }
+      if (/^\.\/(util|api)\.js$/.test(request)) {
+        return callback(null, request.replace(/\.js$/, ".cjs"));
+      }
+      callback();
     },
     plugins: [
       {
@@ -123,6 +134,26 @@ export default (env, argv) => {
           compiler.hooks.afterDone.tap(pluginName, () => {
             console.log(`\n[${new Date().toLocaleString()}] Build finished.\n`);
           });
+          /*
+          const requests = {};
+          compiler.hooks.normalModuleFactory.tap(pluginName, (factory) => {
+            factory.hooks.parser
+              .for("javascript/auto")
+              .tap(pluginName, (parser) => {
+                parser.hooks.statement.tap(pluginName, (node) => {
+                  if (
+                    !requests.hasOwnProperty(parser.state.module.rawRequest)
+                  ) {
+                    console.log(parser.state.module.rawRequest);
+                    requests[parser.state.module.rawRequest] = true;
+                  }
+                  if (/export/i.test(node.type)) {
+                    console.log(node);
+                  }
+                });
+              });
+          });
+          */
         },
       },
     ],
