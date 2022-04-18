@@ -23,4 +23,10 @@ Initial release
 - Split the build into release and debug, so we can exclude code based on (:release) and (:debug)
 - Optimize away `if (constant)`, `while (false)` and `constant ? E1 : E2`. Convert `do BODY while(false)` to `BODY`
 
+### 1.0.4
+
+- Fix a bug resulting in a failure to fully optimize constants initialized by constant conditional expressions
+- Make the generated .cjs files work better with es modules (vscode doesn't work with es modules, so prettier-extension-monkeyc doesn't care - but for other projects importing this package it improves the behavior)
+- Generate separate debug/release jungle files.
+
 ---
