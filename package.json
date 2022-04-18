@@ -23,7 +23,7 @@
   "author": "markw65",
   "license": "MIT",
   "dependencies": {
-    "@markw65/prettier-plugin-monkeyc": "^1.0.10"
+    "@markw65/prettier-plugin-monkeyc": "^1.0.11"
   },
   "devDependencies": {
     "eslint": "^8.12.0",
