@@ -29,4 +29,8 @@ Initial release
 - Make the generated .cjs files work better with es modules (vscode doesn't work with es modules, so prettier-extension-monkeyc doesn't care - but for other projects importing this package it improves the behavior)
 - Generate separate debug/release jungle files.
 
+### 1.0.5
+
+- Bump to version 1.0.11 of `@markw65/prettier-plugin-monkeyc` to fix an ObjectLiteral parsing issue.
+
 ---
