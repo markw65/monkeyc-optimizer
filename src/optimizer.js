@@ -156,7 +156,10 @@ export async function generateOptimizedProject(options) {
     }
   });
 
-  const jungleFiles = path.join(jungle_dir, "monkey.jungle");
+  const jungleFiles = path.join(
+    jungle_dir,
+    `${config.releaseBuild ? "release" : "debug"}.jungle`
+  );
   promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
   await Promise.all(promises);
   return { jungleFiles, program: path.basename(path.dirname(manifest)) };
