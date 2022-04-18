@@ -530,7 +530,8 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
       case "IfStatement":
         if (typeof node.test === "boolean") {
           const rep = node.test ? node.consequent : node.alternate;
-          return rep || false;
+          if (!rep) return false;
+          replace(node, rep);
         }
         break;
       case "WhileStatement":
