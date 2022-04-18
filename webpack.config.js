@@ -135,25 +135,97 @@ export default (env, argv) => {
             console.log(`\n[${new Date().toLocaleString()}] Build finished.\n`);
           });
           /*
-          const requests = {};
+           * When you import a .cjs module from an esm module, node tries
+           * to guess the names of the .cjs module's exports. It does this
+           * based on some heuristics which fail for webpack generated code.
+           *
+           * When the heuristics fail, node treats the whole exported object
+           * as the default export of the module, so you have to do
+           *
+           *   import foo from "foo";
+           *   const { import1, import2 } = foo;
+           *
+           * rather than
+           *
+           *   import { import1, import2 } from "foo";
+           *
+           * A minor inconvenience, but I'd rather keep the import syntax
+           * the same as if I was importing the original esm source (since
+           * hopefully, vscode will start supporting esm extensions at some
+           * point).
+           *
+           * One of the patterns that node *does* recognize is
+           *
+           *  0 && (module.exports = {name1, ..., nameK});
+           *
+           * Note that this code *does* nothing, but since it matches one of
+           * node's patterns, its enough to make named imports work.
+           * The above pattern was added to support esbuild, and node has
+           * tests to make sure it continues to work.
+           *
+           * So, first we gather all the exported names from the esm modules
+           * in the build.
+           */
+          const fileToExports = {};
+          const recordExport = (request, name) => {
+            if (!fileToExports.hasOwnProperty(request)) {
+              fileToExports[request] = [];
+            }
+            fileToExports[request].push(name);
+          };
           compiler.hooks.normalModuleFactory.tap(pluginName, (factory) => {
             factory.hooks.parser
-              .for("javascript/auto")
+              .for("javascript/esm")
               .tap(pluginName, (parser) => {
-                parser.hooks.statement.tap(pluginName, (node) => {
-                  if (
-                    !requests.hasOwnProperty(parser.state.module.rawRequest)
-                  ) {
-                    console.log(parser.state.module.rawRequest);
-                    requests[parser.state.module.rawRequest] = true;
-                  }
-                  if (/export/i.test(node.type)) {
-                    console.log(node);
-                  }
-                });
+                parser.hooks.exportSpecifier.tap(
+                  pluginName,
+                  (statement, id, name) =>
+                    recordExport(parser.state.module.rawRequest, name)
+                );
+                parser.hooks.exportImportSpecifier.tap(
+                  pluginName,
+                  (statement, source, id, name) =>
+                    recordExport(parser.state.module.rawRequest, name)
+                );
               });
           });
-          */
+          /*
+           * Now we insert the fake exports line into each of the .cjs
+           * files. We don't currently enable minimization, but if we
+           * ever do, we're doing the insertion after minimization would
+           * run.
+           */
+          compiler.hooks.compilation.tap(pluginName, function (compilation) {
+            compilation.hooks.processAssets.tap(
+              {
+                name: pluginName,
+                stage:
+                  compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_DEV_TOOLING,
+                additionalAssets: false,
+              },
+              function (assets) {
+                Object.entries(assets).forEach(([file, asset]) => {
+                  const match = file.match(/^(.*)\.cjs/);
+                  if (match) {
+                    const original = `./src/${match[1]}.js`;
+                    const exports = fileToExports[original];
+                    if (exports) {
+                      const fakeExportLine = `0 && (module.exports = {${exports.join(
+                        ","
+                      )}});\n`;
+                      compilation.updateAsset(
+                        file,
+                        new compiler.webpack.sources.ConcatSource(
+                          fakeExportLine,
+                          asset
+                        )
+                      );
+                    }
+                  }
+                });
+              }
+            );
+          });
         },
       },
     ],

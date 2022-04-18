@@ -1,4 +1,4 @@
-import { buildOptimizedProject } from "../src/optimizer.js";
+import { buildOptimizedProject } from "../build/optimizer.cjs";
 import * as path from "path";
 
 async function test() {
