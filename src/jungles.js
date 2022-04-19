@@ -195,10 +195,14 @@ async function resolve_literals(qualifier, default_source) {
   await resolve_one_file_list(qualifier, "resourcePath");
   await resolve_one_file_list(qualifier, "barrelPath");
   const lang = qualifier["lang"];
-  await Promise.all(
-    Object.keys(lang).map((key) => resolve_one_file_list(lang, key))
-  );
-  if (Object.keys(lang).length === 0) delete qualifier["lang"];
+  if (lang) {
+    await Promise.all(
+      Object.keys(lang).map((key) => resolve_one_file_list(lang, key))
+    );
+    if (Object.keys(lang).length === 0) delete qualifier["lang"];
+  } else {
+    delete qualifier["lang"];
+  }
 
   const resolve_literal_list = (base, name) => {
     const literals = base[name];

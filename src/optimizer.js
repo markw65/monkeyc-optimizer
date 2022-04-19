@@ -94,6 +94,9 @@ export async function generateOptimizedProject(options) {
     if (!hasProperty(buildConfigs, key)) {
       p.group.dir = key;
       buildConfigs[key] = null;
+      if (p.group.optimizerConfig["excludeAnnotations"] == null) {
+        p.group.optimizerConfig["excludeAnnotations"] = [];
+      }
       // Note that we exclude (:debug) in release builds, and we
       // exclude (:release) in debug builds. This isn't backwards!
       p.group.optimizerConfig["excludeAnnotations"].push(

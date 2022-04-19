@@ -11,7 +11,7 @@ import { pushUnique } from "./util.js";
 
 function processImports(allImports, lookup) {
   allImports.forEach(({ node, stack }) => {
-    const [name, module] = lookup(node.id, node.as && node.as.id.name, stack);
+    const [name, module] = lookup(node.id, node.as && node.as.name, stack);
     if (name && module) {
       const [parent] = stack.slice(-1);
       if (!parent.decls) parent.decls = {};

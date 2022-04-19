@@ -1,0 +1,240 @@
+import { spawnByLine } from "../build/util.cjs";
+import path from "path";
+import * as fs from "fs/promises";
+import { fileURLToPath } from "url";
+import { globa } from "../src/util.js";
+
+export const githubProjects = [
+  "https://bitbucket.org/mike_polatoglou/moonphase",
+  "https://bitbucket.org/obagot/connectiq-hict",
+  "https://bitbucket.org/villagehymn/marklaying",
+  "https://github.com/30Wedge/SwagginNumerals",
+  "https://github.com/4ch1m/HueCIQ",
+  "https://github.com/DeCaPa/MyBigDate",
+  "https://github.com/HanSolo/digital",
+  "https://github.com/HerrRiebmann/Stretch",
+  "https://github.com/HookyQR/TidyField",
+  "https://github.com/HookyQR/TidyWatch",
+  "https://github.com/Laverlin/Yet-Another-Sailing-App",
+  "https://github.com/Laverlin/Yet-Another-WatchFace",
+  "https://github.com/OliverHannover/Aviatorlike",
+  "https://github.com/OliverHannover/Formula_1",
+  "https://github.com/Peterdedecker/connectiq",
+  "https://github.com/Tkadla-GSG/garmin",
+  "https://github.com/ToryStark/connect-iq",
+  "https://github.com/TrainAsONE/trainasone-connectiq",
+  "https://github.com/YoungChulDK/GarminCryptoPrices",
+  "https://github.com/adamml/tempo-trainer",
+  "https://github.com/admsteck/ConnectIQ",
+  "https://github.com/alanfischer/hassiq",
+  "https://github.com/alexphredorg/ConnectIqSailingApp",
+  "https://github.com/andriijas/connectiq-apps",
+  "https://github.com/antirez/iqmeteo",
+  "https://github.com/antonioasaro/GARMIN-AMD_Watchface",
+  "https://github.com/antonioasaro/Garmin-Antonio_SMS",
+  "https://github.com/aronsommer/WebRequestGlance-Widget",
+  "https://github.com/aronsommer/WebRequestMultiple-Widget",
+  "https://github.com/axl13/PowerAdjuster",
+  "https://github.com/blaskovicz/garmin-nest-camera-control",
+  "https://github.com/breber/helicopter-iq",
+  "https://github.com/breber/nest-iq",
+  "https://github.com/cedric-dufour/connectiq-app-glidersk",
+  "https://github.com/cedric-dufour/connectiq-app-towplanesk",
+  "https://github.com/chanezgr/IQwprimebal",
+  "https://github.com/chris220688/garmin-myBus-app",
+  "https://github.com/clementbarthes/GarminCogDisplay",
+  "https://github.com/creacominc/connectiq-PowerField",
+  "https://github.com/creacominc/connectiq-PowerFieldTests",
+  "https://github.com/danielsiwiec/fitnessTimer",
+  "https://github.com/danielsiwiec/tabataTimer",
+  "https://github.com/danielsiwiec/waypoints-app",
+  "https://github.com/danipindado/Lap-average-vertical-speed",
+  "https://github.com/darrencroton/Snapshot",
+  "https://github.com/darrencroton/SnapshotHR",
+  "https://github.com/darrencroton/SnapshotRHR",
+  "https://github.com/darrencroton/SnapshotWatch",
+  "https://github.com/davedoesdemos/ConnectIQ-Watch-IoT",
+  "https://github.com/dazey77/Horizontal-speedo-rep",
+  "https://github.com/dbcm/KISSFace",
+  "https://github.com/desyat/OpenWeatherMapWidget",
+  "https://github.com/dkappler/kraken",
+  "https://github.com/dmuino/HMFields",
+  "https://github.com/douglasr/connectiq-logo-analog",
+  // "https://github.com/douglasr/connectiq-samples",
+  "https://github.com/ebolefeysot/CIQ_PcvVo2max",
+  "https://github.com/fhdeutschmann/ZuluTime",
+  "https://github.com/fjbenitog/bike-simulator",
+  "https://github.com/fjbenitog/digital-watch-cas10",
+  "https://github.com/fmercado/telemeter",
+  "https://github.com/gcormier9/GRun",
+  "https://github.com/gimportexportdevs/gimporter",
+  "https://github.com/grafstrom/ORun",
+  "https://github.com/hakonrossebo/FootballFixtures",
+  "https://github.com/hansiglaser/ConnectIQ",
+  "https://github.com/haraldh/SunCalc",
+  "https://github.com/imgrant/AuxHR",
+  "https://github.com/imgrant/EnergyExpenditureField",
+  "https://github.com/imgrant/FlexiRunner",
+  "https://github.com/imgrant/RunningEconomyField",
+  "https://github.com/jensws80/JSClock",
+  "https://github.com/joakim-ribier/ftw-garmin",
+  "https://github.com/joergsteinkamp/Simplog",
+  "https://github.com/johnnyw3/connectiq-watchapps",
+  "https://github.com/jonasbcdk/CleanSteps",
+  "https://github.com/kolyuchii/TravelCalc",
+  "https://github.com/kopa/BikersField",
+  "https://github.com/kopa/RunnersField",
+  "https://github.com/kromar/garmin_fenix3",
+  "https://github.com/landnavapp/LandNavApp",
+  "https://github.com/lcj2/ciq_binarywatch",
+  "https://github.com/lcj2/ciq_monkeyfuel",
+  "https://github.com/lucamrod/TriathlonDuathlonAquathlon",
+  //"https://github.com/lukasz-duda/EstimatedPoolDistance",
+  "https://github.com/matco/badminton",
+  "https://github.com/matmuc/SportMonitor",
+  "https://github.com/matthiasmullie/connect-iq-datafield-accurate-pace",
+  "https://github.com/matthiasmullie/connect-iq-datafield-calories-equivalent",
+  "https://github.com/mettyw/activity_view",
+  "https://github.com/miss-architect/garmin-squash",
+  "https://github.com/mrfoto/ForecastLine",
+  "https://github.com/myneur/HeartRateRunner",
+  // "https://github.com/myneur/late",
+  "https://github.com/okdar/smartarcs",
+  "https://github.com/pedlarstudios/WordOfTheDay",
+  "https://github.com/psjo/arcsin",
+  "https://github.com/psjo/darktimes",
+  "https://github.com/psjo/dotter",
+  "https://github.com/psjo/felt",
+  "https://github.com/rain-dl/DayRound",
+  "https://github.com/ravenfeld/Connect-IQ-DataField-BackToHome",
+  "https://github.com/ravenfeld/Connect-IQ-DataField-GPS",
+  "https://github.com/ravenfeld/Connect-IQ-DataField-Speed",
+  "https://github.com/ravenfeld/Connect-IQ-Widget-Compass",
+  "https://github.com/rexMingla/low-battery-mode",
+  "https://github.com/rgergely/polesteps",
+  "https://github.com/rgrellmann/connectiq-bergsteigen-app",
+  "https://github.com/roelofk/HeartRateRunner",
+  "https://github.com/samuelmr/garmin-abouttime",
+  "https://github.com/seajay/ColourHR",
+  "https://github.com/simonl-ciq/RollingAverage",
+  "https://github.com/simonmacmullen/activity-widget",
+  "https://github.com/simonmacmullen/chart-datafields",
+  "https://github.com/simonmacmullen/hr-widget",
+  "https://github.com/simonmacmullen/instrument-panel",
+  "https://github.com/sixtop/Watch-Face-Garmin",
+  "https://github.com/smeyac/connect-iq",
+  "https://github.com/sparksp/Analog24",
+  "https://github.com/spikyjt/SailingTimer",
+  "https://github.com/srwalter/garmin-tesla",
+  "https://github.com/sunpazed/garmin-ciqsummit17",
+  "https://github.com/sunpazed/garmin-drawaa",
+  "https://github.com/sunpazed/garmin-flags",
+  "https://github.com/sunpazed/garmin-mario",
+  "https://github.com/sunpazed/garmin-mickey",
+  "https://github.com/sunpazed/garmin-nyan-cat",
+  "https://github.com/sunpazed/garmin-oz",
+  "https://github.com/sunpazed/garmin-polybug",
+  "https://github.com/sunpazed/garmin-vangogh",
+  "https://github.com/sunpazed/garmin-waketest",
+  "https://github.com/thekr1s/garmin_wordclock",
+  "https://github.com/tobiaslj/TrendPace",
+  "https://github.com/toomasr/8-min-abs",
+  "https://github.com/toskaw/ImageNotify",
+  "https://github.com/travisvitek/connectiq_laps_datafield",
+  // "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
+  "https://github.com/victornottat/garmin-trimp-perhour",
+  "https://github.com/victornottat/garmin-trimp",
+  "https://github.com/vmaywood/Garmin-Watch-Faces",
+  //"https://github.com/voseldop/timeless",
+  "https://github.com/vovan-/cyclist-datafiled-garmin",
+  "https://github.com/vtrifonov-esfiddle/Meditate",
+  "https://github.com/warmsound/crystal-face",
+  "https://github.com/werkkrew/ciq-orange-theory",
+  "https://github.com/zbraniecki/ultitimer",
+  "https://gitlab.com/HankG/GarminConnectIQ",
+  "https://gitlab.com/harryonline/emergencyinfo",
+  "https://gitlab.com/harryonline/fortune-quote",
+  "https://gitlab.com/harryonline/fortune-quote",
+  "https://gitlab.com/harryonline/timerwidget",
+  "https://gitlab.com/nz_brian/HiVisRunField",
+  "https://gitlab.com/nz_brian/garmin.watch.analogplus",
+  "https://gitlab.com/ravenfeld/Connect-IQ-App-Timer",
+];
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export async function fetchGitProjects(projects) {
+  const dir = path.join(__dirname, "..", "build", "test", "projects");
+  await fs.mkdir(dir, { recursive: true });
+  const result = [];
+  const failures = [];
+  let promise = Promise.resolve();
+  projects.forEach((p) => {
+    const name = p.replace(/(^.*\/(.*)\/)/, "$2-");
+    const projDir = path.resolve(dir, name);
+    const gitDir = path.resolve(projDir, ".git");
+    promise = promise
+      .then(() => fs.stat(gitDir).catch(() => null))
+      .then((s) =>
+        !s
+          ? spawnByLine(
+              "git",
+              ["clone", p + ".git", name],
+              (line) => console.log(line),
+              {
+                cwd: dir,
+              }
+            )
+          : null
+      )
+      .then(() =>
+        spawnByLine("git", ["fetch", "origin"], (line) => console.log(line), {
+          cwd: projDir,
+        })
+      )
+      .then(() =>
+        spawnByLine(
+          "git",
+          ["rebase", "FETCH_HEAD"],
+          (line) => console.log(line),
+          {
+            cwd: projDir,
+          }
+        )
+      )
+      .then(() =>
+        spawnByLine(
+          "git",
+          ["reset", "--hard", "HEAD"],
+          (line) => console.log(line),
+          {
+            cwd: projDir,
+          }
+        )
+      )
+      .then(() =>
+        spawnByLine("git", ["clean", "-fxd"], (line) => console.log(line), {
+          cwd: projDir,
+        })
+      )
+      .then(() => globa(`${projDir}/**/*.jungle`))
+      .then((jungles) => {
+        if (jungles.length) return jungles;
+        return globa(`${projDir}/**/manifest.xml`).then((manifests) =>
+          Promise.all(
+            manifests.map(async (m) => {
+              const jungle = m.replace(/manifest.xml$/, "monkey.jungle");
+              await fs.writeFile(jungle, "project.manifest = manifest.xml\n");
+              return jungle;
+            })
+          )
+        );
+      })
+      .then((jungles) => result.push(...jungles))
+      .catch(() => failures.push(p));
+  });
+  return promise.then(() => {
+    failures.forEach((p) => console.error("Bad project: " + p));
+    return result;
+  });
+}
