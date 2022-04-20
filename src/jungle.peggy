@@ -36,7 +36,7 @@ RawValue "raw string"
     }
 
 StringValue "quoted string"
-  = "\"" value:$(RawPart (WhiteSpace RawPart)* WhiteSpace?) "\"" {
+  = "\"" value:$(RawPart+ (WhiteSpace+ RawPart+)* WhiteSpace*) "\"" {
       return wrap({ type: "Literal", value });
     }
 
