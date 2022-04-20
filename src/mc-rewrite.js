@@ -498,6 +498,8 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
               state.exposed[node.name] = true;
             }
           }
+          // Don't optimize the property.
+          return ["object"];
         }
         break;
       case "FunctionDeclaration": {

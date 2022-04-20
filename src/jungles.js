@@ -155,6 +155,7 @@ function resolve_node(state, node) {
 }
 
 function resolve_filename(literal, default_source) {
+  if (typeof literal === "string") return literal;
   const root = path.dirname(literal.source || default_source);
   return path.resolve(root, literal.value);
 }
