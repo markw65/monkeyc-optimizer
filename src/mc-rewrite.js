@@ -40,13 +40,14 @@ function collectClassInfo(state) {
   const markOverrides = (cls, scls) => {
     if (scls === true) return;
     scls.forEach((c) => {
-      Object.values(c.decls).forEach((f) => {
-        if (f.type == "FunctionDeclaration") {
-          if (hasProperty(cls.decls, f.name)) {
-            f.hasOverride = true;
+      c.decls &&
+        Object.values(c.decls).forEach((f) => {
+          if (f.type == "FunctionDeclaration") {
+            if (hasProperty(cls.decls, f.name)) {
+              f.hasOverride = true;
+            }
           }
-        }
-      });
+        });
       if (c.superClass) markOverrides(cls, c.superClass);
     });
   };
