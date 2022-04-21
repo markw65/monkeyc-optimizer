@@ -89,6 +89,7 @@ export async function generateOptimizedProject(options) {
 
   const { manifest, targets } = await get_jungle(config.jungleFiles, config);
   const buildConfigs = {};
+  const products = {};
   targets.forEach((p) => {
     const key = p.group.key + (config.releaseBuild ? "-release" : "-debug");
     if (!hasProperty(buildConfigs, key)) {
@@ -104,7 +105,11 @@ export async function generateOptimizedProject(options) {
       );
     }
     if (!options.products || options.products.includes(p.product)) {
-      buildConfigs[key] = p.group.optimizerConfig;
+      if (!buildConfigs[key]) {
+        buildConfigs[key] = p.group.optimizerConfig;
+        products[key] = [];
+      }
+      products[key].push(p.product);
     }
   });
 
@@ -124,6 +129,12 @@ export async function generateOptimizedProject(options) {
             ...config,
             buildConfig,
             outputPath,
+          }).catch((e) => {
+            if (!e.stack) {
+              e = new Error(e.toString());
+            }
+            e.products = products[key];
+            throw e;
           })
         : fs.rm(path.resolve(workspace, outputPath), {
             recursive: true,

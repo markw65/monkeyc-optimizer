@@ -105,19 +105,39 @@ async function test() {
       )
       .then(() => console.log(`Done: ${jungleFiles}`))
       .catch((e) => {
-        console.error("Error: ", e, jungleFiles);
-        if (e.stack) console.error(e.stack);
+        const products = e && e.products && e.products.join(",");
+        console.error(
+          `While building '${jungleFiles}${products ? ` for ${products}` : ""}`
+        );
+        if (e.name && e.message && e.location) {
+          const source = e.location.source
+            ? options.workspace
+              ? path.relative(options.workspace, e.location.source)
+              : e.location.source
+            : "<unknown>";
+          console.error(
+            `ERROR: ${e.name}: ${source}:${e.location.start.line},${e.location.start.column}: ${e.message}`
+          );
+        } else {
+          console.error("Error: ", e);
+        }
         failures.push([jungleFiles, e]);
       });
   });
   await promise;
+  if (failures.length) {
+    throw new Error(
+      failures
+        .map(([f, e]) => `Failed to build '${f}' with error ${e}`)
+        .join("\n\n")
+    );
+  }
 }
 
 test()
   .then(() => console.log("Success"))
   .catch((e) => {
     console.log("Failed: " + e.toString());
-    if (e.stack) console.log(e.stack);
   });
 
 function error(message) {
