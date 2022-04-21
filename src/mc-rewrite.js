@@ -496,7 +496,7 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
             if (lookupAndReplace(node)) {
               return false;
             } else {
-              state.exposed[node.name] = true;
+              state.exposed[node.property.name] = true;
             }
           }
           // Don't optimize the property.
