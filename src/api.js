@@ -3,6 +3,7 @@ import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
 import { getSdkPath, pushUnique } from "./util.js";
 import { negativeFixups } from "./negative-fixups.js";
+import { getLiteralNode } from "./mc-rewrite.js";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/;
 /*
@@ -220,7 +221,13 @@ export function collectNamespaces(ast, state) {
                 let name, init;
                 if (m.type == "EnumStringMember") {
                   name = m.id.name;
-                  init = m.init;
+                  init = getLiteralNode(m.init);
+                  if (!init) {
+                    throw new Error("Unexpected enum initializer");
+                  }
+                  if (init != m.init) {
+                    m.init = init;
+                  }
                   if (
                     init.type == "Literal" &&
                     LiteralIntegerRe.test(init.raw)

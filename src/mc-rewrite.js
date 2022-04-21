@@ -144,7 +144,7 @@ async function analyze(fileNames, buildConfig) {
   return { files, state };
 }
 
-function getLiteralNode(node) {
+export function getLiteralNode(node) {
   if (Array.isArray(node)) {
     if (!node.length) return null;
     if (node.length === 1) return getLiteralNode(node[0]);
