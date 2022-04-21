@@ -104,16 +104,45 @@ async function process_jungles(sources) {
   return state;
 }
 
+function resolve_node_list(state, list) {
+  for (let i = list.length; i--; ) {
+    const v = list[i];
+    if (v.type === "QualifiedName") {
+      const rep = resolve_node(state, resolve_node_by_path(state, v.names));
+      if (Array.isArray(rep)) {
+        if (rep.length !== 1 || rep[0].type) {
+          resolve_node_list(state, rep);
+        }
+        list.splice(i, 1, ...rep);
+      } else if (rep != null) {
+        list[i] = rep;
+      } else {
+        list.splice(i, 1);
+      }
+    } else if (v.type === "SubList") {
+      resolve_node_list(state, v.values);
+    }
+  }
+  return list;
+}
+
+function check_non_leaf_dot(dot, path, i) {
+  if (dot.length !== 1 || dot[0].type) {
+    throw new Error(
+      `'.' node at ${(path || [])
+        .slice(0, i + 1)
+        .join(".")} should have length 1: ${JSON.stringify(dot)}`
+    );
+  }
+}
 // return the resolved node at path
 function resolve_node_by_path(state, path) {
   return path.reduce((s, n, i) => {
-    const sn = s[n];
-    if (!i) {
-      // resolving the base node resolves all its children,
-      // so only need to resolve once.
-      return (s[n] = resolve_node(state, s[n]));
+    if (!s[n] && s["."]) {
+      s[n] = resolve_node_list(state, s["."])[0][n];
+      check_non_leaf_dot(s["."], path, i);
     }
-    return sn;
+    return s[n];
   }, state);
 }
 
@@ -125,30 +154,27 @@ function resolve_node(state, node) {
   }
   const { ".": dot, ...rest } = node;
   if (dot) {
-    for (let i = dot.length; i--; ) {
-      const v = dot[i];
-      if (v.type == "QualifiedName") {
-        dot.splice(i, 1);
-        let resolved = resolve_node_by_path(state, v.names);
-        if (Array.isArray(resolved)) {
-          dot.splice(i, 0, ...resolved);
-        } else if (resolved) {
-          dot.splice(i, 0, resolved);
-        }
-      }
-    }
-    delete node["."];
-  }
-  const entries = Object.entries(rest);
-  if (dot) {
-    if (dot.length == 1 && !dot[0]["type"]) {
-      Object.assign(node, dot[0]);
+    const entries = Object.entries(rest);
+    resolve_node_list(state, dot);
+    if (entries.length) {
+      // not a leaf, so dot must have a single element
+      check_non_leaf_dot(dot);
+      Object.entries(dot[0]).forEach(([k, v]) => {
+        node[k] = v;
+      });
+      entries.forEach(([k, v]) => {
+        node[k] = v;
+      });
+    } else if (dot.length === 1 && !dot[0].type) {
+      Object.entries(dot[0]).forEach(([k, v]) => {
+        node[k] = v;
+      });
     } else {
       return dot;
     }
+    delete node["."];
   }
-
-  entries.forEach(([key, value]) => {
+  Object.entries(node).forEach(([key, value]) => {
     node[key] = resolve_node(state, value);
   });
   return node;
@@ -312,7 +338,10 @@ export async function get_jungle(jungles, options) {
     .split(";")
     .map((jungle) => path.resolve(options.workspace || "./", jungle));
   const data = await process_jungles(jungles);
-  const manifest_node = resolve_node_by_path(data, ["project", "manifest"]);
+  const manifest_node = resolve_node(
+    data,
+    resolve_node_by_path(data, ["project", "manifest"])
+  );
   if (!manifest_node) throw new Error("No manifest found!");
   const manifest = resolve_filename(manifest_node[0]);
   const xml = await readManifest(manifest);
