@@ -139,7 +139,14 @@ function check_non_leaf_dot(dot, path, i) {
 function resolve_node_by_path(state, path) {
   return path.reduce((s, n, i) => {
     if (!s[n] && s["."]) {
-      s[n] = resolve_node_list(state, s["."])[0][n];
+      let resolved = resolve_node_list(state, s["."])[0][n];
+      if (resolved == null && s["."].every((e) => e.type == "Literal")) {
+        // foo = string
+        // bar = $(foo.resourcePath)
+        // is supposed to work as if you'd left out the (obviously
+        // incorrect) ".resourcePath"
+        return s;
+      }
       check_non_leaf_dot(s["."], path, i);
     }
     return s[n];
