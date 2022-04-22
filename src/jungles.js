@@ -46,6 +46,26 @@ function process_assignments(assignments, current) {
       };
       process_list(a.values);
     }
+    if (
+      a.names.length === 1 &&
+      a.values.length === 1 &&
+      a.values[0].type === "QualifiedName" &&
+      a.values[0].names.length === 1
+    ) {
+      // some older manifests have things like "round_watch"
+      // as a product. You can't put that in a jungle file
+      // so instead, we identify every round device, and
+      // replace round_watch with all the corresponding
+      // devices. So we look for assignments of the form
+      //   device = $(shape-size)
+      // and put all such devices on a `shape`_watch entry
+      const match = a.values[0].names[0].match(/^(\w+)-(\w+)$/);
+      if (match) {
+        const key = `${match[1]}_watch`;
+        if (!state[key]) state[key] = { products: [] };
+        state[key].products.push(a.names[0]);
+      }
+    }
     node["."] = a.values;
     return state;
   }, current);
@@ -345,6 +365,8 @@ export async function get_jungle(jungles, options) {
     .split(";")
     .map((jungle) => path.resolve(options.workspace || "./", jungle));
   const data = await process_jungles(jungles);
+  // apparently square_watch is an alias for rectangle_watch
+  data["square_watch"] = data["rectangle_watch"];
   const manifest_node = resolve_node(
     data,
     resolve_node_by_path(data, ["project", "manifest"])
@@ -354,13 +376,22 @@ export async function get_jungle(jungles, options) {
   const xml = await readManifest(manifest);
   const targets = [];
   let promise = Promise.resolve();
-  manifestProducts(xml).forEach((product) => {
+  const add_one = (product, shape) => {
     const qualifier = resolve_node(data, data[product]);
     promise = promise
       .then(() => resolve_literals(qualifier, manifest))
-      .then(() => targets.push({ product, qualifier }));
+      .then(() => targets.push({ product, qualifier, shape }));
+  };
+  manifestProducts(xml).forEach((product) => {
+    if (hasProperty(data, product) && data[product].products) {
+      // this was something like round_watch. Add all the corresponding
+      // products.
+      data[product].products.forEach((p) => add_one(p, product));
+    } else {
+      add_one(product);
+    }
   });
   await promise;
   identify_optimizer_groups(targets, options);
-  return { manifest, targets };
+  return { manifest, targets, xml };
 }

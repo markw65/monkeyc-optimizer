@@ -4,6 +4,7 @@ import { formatAst, getApiMapping, hasProperty } from "./api.js";
 import { build_project } from "./build.js";
 import { get_jungle } from "./jungles.js";
 import { launchSimulator } from "./launch.js";
+import { checkManifest, writeManifest } from "./manifest.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
 import {
   appSupport,
@@ -87,7 +88,10 @@ export async function generateOptimizedProject(options) {
   const config = await getConfig(options);
   const workspace = config.workspace;
 
-  const { manifest, targets } = await get_jungle(config.jungleFiles, config);
+  const { manifest, targets, xml } = await get_jungle(
+    config.jungleFiles,
+    config
+  );
   const buildConfigs = {};
   const products = {};
   targets.forEach((p) => {
@@ -104,7 +108,11 @@ export async function generateOptimizedProject(options) {
         config.releaseBuild ? "debug" : "release"
       );
     }
-    if (!options.products || options.products.includes(p.product)) {
+    if (
+      !options.products ||
+      options.products.includes(p.product) ||
+      (p.shape && options.products.includes(p.shape))
+    ) {
       if (!buildConfigs[key]) {
         buildConfigs[key] = p.group.optimizerConfig;
         products[key] = [];
@@ -117,7 +125,12 @@ export async function generateOptimizedProject(options) {
 
   const jungle_dir = path.resolve(workspace, config.outputPath);
   await fs.mkdir(jungle_dir, { recursive: true });
-
+  const relative_path = (s) => path.relative(jungle_dir, s);
+  let relative_manifest = relative_path(manifest);
+  const manifestOk = await checkManifest(
+    xml,
+    targets.map((t) => t.product)
+  );
   const promises = Object.keys(buildConfigs)
     .sort()
     .map((key) => {
@@ -142,8 +155,13 @@ export async function generateOptimizedProject(options) {
           });
     });
 
-  const relative_path = (s) => path.relative(jungle_dir, s);
-  const parts = [`project.manifest=${relative_path(manifest)}`];
+  if (!manifestOk) {
+    const manifestFile = path.join(jungle_dir, "manifest.xml");
+    promises.push(writeManifest(manifestFile, xml));
+    relative_manifest = "manifest.xml";
+  }
+
+  const parts = [`project.manifest=${relative_manifest}`];
   const process_field = (prefix, base, name, map) =>
     base[name] &&
     parts.push(
@@ -175,6 +193,7 @@ export async function generateOptimizedProject(options) {
     `${config.releaseBuild ? "release" : "debug"}.jungle`
   );
   promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
+
   await Promise.all(promises);
   return { jungleFiles, program: path.basename(path.dirname(manifest)) };
 }
