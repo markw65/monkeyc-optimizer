@@ -38,4 +38,22 @@ Initial release
 - Bump to version 1.0.12 of `@markw65/prettier-plugin-monkeyc` to fix multiple parser bugs
 - Add lots of open source projects as tests. For now, just verify that optimizing the sources succeeds, not that the generated source is actually correct.
 
+### 1.0.7
+
+More fixes found via open source projects.
+
+- Fix parsing of quoted strings in jungle files
+- Better error messages from the test framework
+- Lazier handling of variables in jungle files
+- Fix handling of negative enums that get completely removed
+- Fix a bug analyzing empty classes
+- Fix a typo that could result in consts being incorrectly eliminated
+- Fix an edge case handling local jungle variables
+- More test options, and add filters for some of the remote projects
+- Try to clean up broken jungles and manifests
+- Fix handling of unnamed callees
+- Drop unrecognized devices
+- Add support for a 'pick-one' device to aid testing
+- Add a flag to remote projects to prevent trying to build them (some projects are broken to start with)
+
 ---
