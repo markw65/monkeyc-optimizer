@@ -137,12 +137,19 @@ export const githubProjects = [
   "https://github.com/simonmacmullen/instrument-panel",
   "https://github.com/sixtop/Watch-Face-Garmin",
   "https://github.com/smeyac/connect-iq",
-  "https://github.com/sparksp/Analog24",
+  {
+    root: "https://github.com/sparksp/Analog24",
+    build: false,
+    comment: "Manifest needs a launcher icon",
+  },
   "https://github.com/spikyjt/SailingTimer",
   "https://github.com/srwalter/garmin-tesla",
   "https://github.com/sunpazed/garmin-ciqsummit17",
   "https://github.com/sunpazed/garmin-drawaa",
-  "https://github.com/sunpazed/garmin-flags",
+  {
+    root: "https://github.com/sunpazed/garmin-flags",
+    exclude: "temp/monkey.jungle",
+  },
   "https://github.com/sunpazed/garmin-mario",
   "https://github.com/sunpazed/garmin-mickey",
   "https://github.com/sunpazed/garmin-nyan-cat",
@@ -168,7 +175,11 @@ export const githubProjects = [
   "https://github.com/warmsound/crystal-face",
   "https://github.com/werkkrew/ciq-orange-theory",
   "https://github.com/zbraniecki/ultitimer",
-  "https://gitlab.com/HankG/GarminConnectIQ",
+  {
+    root: "https://gitlab.com/HankG/GarminConnectIQ",
+    build: false,
+    comment: "Double declaration of a variable",
+  },
   "https://gitlab.com/harryonline/emergencyinfo",
   "https://gitlab.com/harryonline/fortune-quote",
   "https://gitlab.com/harryonline/fortune-quote",
@@ -187,7 +198,7 @@ export async function fetchGitProjects(projects) {
   const failures = [];
   let promise = Promise.resolve();
   projects.forEach((p) => {
-    const { root, include, exclude } = p.root ? p : { root: p };
+    const { root, include, exclude, build } = p.root ? p : { root: p };
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
     promise = promise
@@ -213,6 +224,11 @@ export async function fetchGitProjects(projects) {
         if (exclude) {
           const re = new RegExp(exclude);
           jungles = jungles.filter((j) => !re.test(j));
+        }
+        if (build === false) {
+          jungles = jungles.map((jungle) => {
+            return { jungle, build };
+          });
         }
         result.push(...jungles);
       })

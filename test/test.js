@@ -91,6 +91,10 @@ async function test() {
   const failures = [];
   promise = Promise.resolve();
   jungles.forEach((jungleFiles) => {
+    const genOnly = jungleFiles.build === false || generateOnly;
+    if (jungleFiles.jungle) {
+      jungleFiles = jungleFiles.jungle;
+    }
     const workspace = path.dirname(jungleFiles.split(";")[0]);
     const options = {
       jungleFiles,
@@ -107,7 +111,7 @@ async function test() {
     );
     promise = promise
       .then(() =>
-        generateOnly
+        genOnly
           ? generateOptimizedProject(options)
           : buildOptimizedProject(products ? products[0] : null, options)
       )
