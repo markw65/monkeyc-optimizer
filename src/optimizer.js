@@ -73,6 +73,7 @@ export async function buildOptimizedProject(product, options) {
   let bin = config.buildDir || "bin";
   let name = `optimized-${program}.prg`;
   if (product) {
+    product = config.products[0];
     if (config.simulatorBuild === false) {
       bin = path.join(bin, product);
     }
@@ -94,6 +95,7 @@ export async function generateOptimizedProject(options) {
   );
   const buildConfigs = {};
   const products = {};
+  let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   targets.forEach((p) => {
     const key = p.group.key + (config.releaseBuild ? "-release" : "-debug");
     if (!hasProperty(buildConfigs, key)) {
@@ -109,10 +111,15 @@ export async function generateOptimizedProject(options) {
       );
     }
     if (
-      !options.products ||
-      options.products.includes(p.product) ||
-      (p.shape && options.products.includes(p.shape))
+      pick_one >= 0 ||
+      !config.products ||
+      config.products.includes(p.product) ||
+      (p.shape && config.products.includes(p.shape))
     ) {
+      if (pick_one >= 0) {
+        config.products[pick_one] = p.product;
+        pick_one = -1;
+      }
       if (!buildConfigs[key]) {
         buildConfigs[key] = p.group.optimizerConfig;
         products[key] = [];
