@@ -378,6 +378,7 @@ export async function get_jungle(jungles, options) {
   let promise = Promise.resolve();
   const add_one = (product, shape) => {
     const qualifier = resolve_node(data, data[product]);
+    if (!qualifier) return;
     promise = promise
       .then(() => resolve_literals(qualifier, manifest))
       .then(() => targets.push({ product, qualifier, shape }));
