@@ -554,7 +554,8 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
           if (n) {
             state.exposed[n] = true;
           } else {
-            throw new Error("What?");
+            // There are unnamed CallExpressions, such as new [size]
+            // So there's nothing to do here.
           }
           return;
         }
