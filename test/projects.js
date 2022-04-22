@@ -42,7 +42,10 @@ export const githubProjects = [
   "https://github.com/cedric-dufour/connectiq-app-towplanesk",
   "https://github.com/chanezgr/IQwprimebal",
   "https://github.com/chris220688/garmin-myBus-app",
-  "https://github.com/clementbarthes/GarminCogDisplay",
+  {
+    root: "https://github.com/clementbarthes/GarminCogDisplay",
+    exclude: ["temp[\\\\\\/]monkey\\.jungle"],
+  },
   "https://github.com/creacominc/connectiq-PowerField",
   "https://github.com/creacominc/connectiq-PowerFieldTests",
   "https://github.com/danielsiwiec/fitnessTimer",
@@ -60,7 +63,7 @@ export const githubProjects = [
   "https://github.com/dkappler/kraken",
   "https://github.com/dmuino/HMFields",
   "https://github.com/douglasr/connectiq-logo-analog",
-  // "https://github.com/douglasr/connectiq-samples",
+  "https://github.com/douglasr/connectiq-samples",
   "https://github.com/ebolefeysot/CIQ_PcvVo2max",
   "https://github.com/fhdeutschmann/ZuluTime",
   "https://github.com/fjbenitog/bike-simulator",
@@ -76,10 +79,18 @@ export const githubProjects = [
   "https://github.com/imgrant/EnergyExpenditureField",
   "https://github.com/imgrant/FlexiRunner",
   "https://github.com/imgrant/RunningEconomyField",
-  "https://github.com/jensws80/JSClock",
+  {
+    root: "https://github.com/jensws80/JSClock",
+    exclude: ".*",
+    comment: "Its missing a manifest.xml",
+  },
   "https://github.com/joakim-ribier/ftw-garmin",
   "https://github.com/joergsteinkamp/Simplog",
-  "https://github.com/johnnyw3/connectiq-watchapps",
+  {
+    root: "https://github.com/johnnyw3/connectiq-watchapps",
+    exclude: "Data Fields.TurnAroundReminder.monkey.jungle",
+    comment: "Has syntax errors",
+  },
   "https://github.com/jonasbcdk/CleanSteps",
   "https://github.com/kolyuchii/TravelCalc",
   "https://github.com/kopa/BikersField",
@@ -89,7 +100,7 @@ export const githubProjects = [
   "https://github.com/lcj2/ciq_binarywatch",
   "https://github.com/lcj2/ciq_monkeyfuel",
   "https://github.com/lucamrod/TriathlonDuathlonAquathlon",
-  //"https://github.com/lukasz-duda/EstimatedPoolDistance",
+  "https://github.com/lukasz-duda/NormalizedPoolDistance",
   "https://github.com/matco/badminton",
   "https://github.com/matmuc/SportMonitor",
   "https://github.com/matthiasmullie/connect-iq-datafield-accurate-pace",
@@ -98,7 +109,7 @@ export const githubProjects = [
   "https://github.com/miss-architect/garmin-squash",
   "https://github.com/mrfoto/ForecastLine",
   "https://github.com/myneur/HeartRateRunner",
-  // "https://github.com/myneur/late",
+  "https://github.com/myneur/late",
   "https://github.com/okdar/smartarcs",
   "https://github.com/pedlarstudios/WordOfTheDay",
   "https://github.com/psjo/arcsin",
@@ -114,7 +125,10 @@ export const githubProjects = [
   "https://github.com/rgergely/polesteps",
   "https://github.com/rgrellmann/connectiq-bergsteigen-app",
   "https://github.com/roelofk/HeartRateRunner",
-  "https://github.com/samuelmr/garmin-abouttime",
+  {
+    root: "https://github.com/samuelmr/garmin-abouttime",
+    include: "monkey-eng.jungle",
+  },
   "https://github.com/seajay/ColourHR",
   "https://github.com/simonl-ciq/RollingAverage",
   "https://github.com/simonmacmullen/activity-widget",
@@ -141,13 +155,16 @@ export const githubProjects = [
   "https://github.com/toomasr/8-min-abs",
   "https://github.com/toskaw/ImageNotify",
   "https://github.com/travisvitek/connectiq_laps_datafield",
-  // "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
+  "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
   "https://github.com/victornottat/garmin-trimp-perhour",
   "https://github.com/victornottat/garmin-trimp",
   "https://github.com/vmaywood/Garmin-Watch-Faces",
-  //"https://github.com/voseldop/timeless",
+  "https://github.com/voseldop/timeless",
   "https://github.com/vovan-/cyclist-datafiled-garmin",
-  "https://github.com/vtrifonov-esfiddle/Meditate",
+  {
+    root: "https://github.com/vtrifonov-esfiddle/Meditate",
+    exclude: "barrels.jungle",
+  },
   "https://github.com/warmsound/crystal-face",
   "https://github.com/werkkrew/ciq-orange-theory",
   "https://github.com/zbraniecki/ultitimer",
@@ -170,71 +187,88 @@ export async function fetchGitProjects(projects) {
   const failures = [];
   let promise = Promise.resolve();
   projects.forEach((p) => {
-    const name = p.replace(/(^.*\/(.*)\/)/, "$2-");
+    const { root, include, exclude } = p.root ? p : { root: p };
+    const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
-    const gitDir = path.resolve(projDir, ".git");
     promise = promise
-      .then(() => fs.stat(gitDir).catch(() => null))
-      .then((s) =>
-        !s
-          ? spawnByLine(
-              "git",
-              ["clone", p + ".git", name],
-              (line) => console.log(line),
-              {
-                cwd: dir,
-              }
-            )
-          : null
-      )
-      .then(() =>
-        spawnByLine("git", ["fetch", "origin"], (line) => console.log(line), {
-          cwd: projDir,
-        })
-      )
-      .then(() =>
-        spawnByLine(
-          "git",
-          ["rebase", "FETCH_HEAD"],
-          (line) => console.log(line),
-          {
-            cwd: projDir,
-          }
-        )
-      )
-      .then(() =>
-        spawnByLine(
-          "git",
-          ["reset", "--hard", "HEAD"],
-          (line) => console.log(line),
-          {
-            cwd: projDir,
-          }
-        )
-      )
-      .then(() =>
-        spawnByLine("git", ["clean", "-fxd"], (line) => console.log(line), {
-          cwd: projDir,
-        })
-      )
+      .then(() => fetchAndClean(projDir, root))
       .then(() => globa(`${projDir}/**/*.jungle`))
       .then((jungles) => {
         if (jungles.length) return jungles;
         return globa(`${projDir}/**/manifest.xml`).then((manifests) =>
           Promise.all(
             manifests.map(async (m) => {
-              const jungle = m.replace(/manifest.xml$/, "monkey.jungle");
+              const jungle = path.resolve(path.dirname(m), "monkey.jungle");
               await fs.writeFile(jungle, "project.manifest = manifest.xml\n");
               return jungle;
             })
           )
         );
       })
-      .then((jungles) => result.push(...jungles))
-      .catch(() => failures.push(p));
+      .then((jungles) => {
+        if (include) {
+          const re = new RegExp(include);
+          jungles = jungles.filter((j) => re.test(j));
+        }
+        if (exclude) {
+          const re = new RegExp(exclude);
+          jungles = jungles.filter((j) => !re.test(j));
+        }
+        result.push(...jungles);
+      })
+      .catch(() => failures.push(root));
   });
   return promise.then(() => {
     failures.forEach((p) => console.error("Bad project: " + p));
     return result;
   });
+}
+
+function fetchAndClean(projDir, root) {
+  const gitDir = path.resolve(projDir, ".git");
+  return fs
+    .stat(gitDir)
+    .catch(() => null)
+    .then((s) =>
+      !s
+        ? spawnByLine(
+            "git",
+            ["clone", root + ".git", path.basename(projDir)],
+            (line) => console.log(line),
+            {
+              cwd: path.resolve(projDir, ".."),
+            }
+          )
+        : null
+    )
+    .then(() =>
+      spawnByLine("git", ["fetch", "origin"], (line) => console.log(line), {
+        cwd: projDir,
+      })
+    )
+    .then(() =>
+      spawnByLine(
+        "git",
+        ["rebase", "FETCH_HEAD"],
+        (line) => console.log(line),
+        {
+          cwd: projDir,
+        }
+      )
+    )
+    .then(() =>
+      spawnByLine(
+        "git",
+        ["reset", "--hard", "HEAD"],
+        (line) => console.log(line),
+        {
+          cwd: projDir,
+        }
+      )
+    )
+    .then(() =>
+      spawnByLine("git", ["clean", "-fxd"], (line) => console.log(line), {
+        cwd: projDir,
+      })
+    );
 }

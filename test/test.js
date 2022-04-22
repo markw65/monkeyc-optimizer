@@ -17,6 +17,7 @@ async function test() {
   let promise = Promise.resolve();
   let remoteProjects;
   let generateOnly;
+  let jungleOnly;
 
   const prev = process.argv.slice(2).reduce((prev, arg) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(arg);
@@ -50,6 +51,9 @@ async function test() {
         case "generate-only":
           generateOnly = !value || /^true|1$/i.test(value);
           break;
+        case "jungle-only":
+          jungleOnly = !value || /^true|1$/i.test(value);
+          break;
         case "typeCheckLevel":
           if (value == null) return key;
           typeCheckLevel = value;
@@ -63,7 +67,7 @@ async function test() {
           if (value) {
             const re = new RegExp(value, "i");
             remoteProjects = githubProjects.filter((project) =>
-              re.test(project)
+              re.test(project.root || project)
             );
           } else {
             remoteProjects = githubProjects;
@@ -80,6 +84,10 @@ async function test() {
   }
   await promise;
   if (!jungles.length) throw new Error("No inputs!");
+  if (jungleOnly) {
+    products = [];
+    generateOnly = true;
+  }
   const failures = [];
   promise = Promise.resolve();
   jungles.forEach((jungleFiles) => {
