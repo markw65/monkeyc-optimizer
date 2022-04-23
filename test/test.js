@@ -18,6 +18,7 @@ async function test() {
   let remoteProjects;
   let generateOnly;
   let jungleOnly;
+  let skipOptimization;
 
   const prev = process.argv.slice(2).reduce((prev, arg) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(arg);
@@ -57,6 +58,9 @@ async function test() {
         case "typeCheckLevel":
           if (value == null) return key;
           typeCheckLevel = value;
+          break;
+        case "skipOptimization":
+          skipOptimization = !value || /^true|1$/i.test(value);
           break;
         case "product":
           if (value == null) return key;
@@ -105,6 +109,7 @@ async function test() {
       releaseBuild,
       compilerWarnings,
       typeCheckLevel,
+      skipOptimization,
     };
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k]

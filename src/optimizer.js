@@ -96,6 +96,15 @@ export async function generateOptimizedProject(options) {
   const buildConfigs = {};
   const products = {};
   let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
+  if (config.skipOptimization) {
+    if (pick_one >= 0) {
+      config.products[pick_one] = targets[0].product;
+    }
+    return {
+      jungleFiles: config.jungleFiles,
+      program: path.basename(path.dirname(manifest)),
+    };
+  }
   targets.forEach((p) => {
     const key = p.group.key + (config.releaseBuild ? "-release" : "-debug");
     if (!hasProperty(buildConfigs, key)) {
