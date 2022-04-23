@@ -263,17 +263,17 @@ function fetchAndClean(projDir, root) {
       })
     )
     .then(() =>
-      spawnByLine("git", ["rebase", "FETCH_HEAD"], loggers, {
-        cwd: projDir,
-      })
-    )
-    .then(() =>
       spawnByLine("git", ["reset", "--hard", "HEAD"], loggers, {
         cwd: projDir,
       })
     )
     .then(() =>
       spawnByLine("git", ["clean", "-fxd"], loggers, {
+        cwd: projDir,
+      })
+    )
+    .then(() =>
+      spawnByLine("git", ["rebase", "FETCH_HEAD"], loggers, {
         cwd: projDir,
       })
     )
