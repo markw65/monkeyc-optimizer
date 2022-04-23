@@ -56,4 +56,8 @@ More fixes found via open source projects.
 - Add support for a 'pick-one' device to aid testing
 - Add a flag to remote projects to prevent trying to build them (some projects are broken to start with)
 
+### 1.0.8
+
+- Generate the default jungle dynamically, since sdk/bin/default.jungle is generated lazily, and may not exist in newly installed sdks, or may be out of date after device installations.
+
 ---

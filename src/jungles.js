@@ -3,7 +3,54 @@ import * as path from "path";
 import * as jungle from "../build/jungle.js";
 import { hasProperty } from "./api.js";
 import { manifestProducts, readManifest } from "./manifest.js";
-import { getSdkPath, globa } from "./util.js";
+import { globa } from "./util.js";
+import { getDeviceInfo, getLanguages } from "./sdk-util.js";
+
+async function default_jungle() {
+  const assignments = [];
+  const devices = await getDeviceInfo();
+  const languages = await getLanguages();
+  const literal = (value) => ({ type: "Literal", value });
+  const qname = (name) => ({ type: "QualifiedName", names: name.split(".") });
+  const assign = (name, values) =>
+    assignments.push({ names: name.split("."), values });
+  const rassign = (name, values, base) => {
+    assign(name, base ? [qname(name)].concat(values) : values);
+  };
+  const rezAndLang = (id, rez, base) => {
+    if (base) {
+      assign(id, [qname(base)]);
+    }
+    rassign(`${id}.resourcePath`, [literal(rez)], base);
+
+    languages.forEach((l) =>
+      rassign(`${id}.lang.${l.id}`, [literal(`${rez}-${l.id}`)], base)
+    );
+  };
+  const done = {};
+
+  assign("base.sourcePath", [literal("./**.mc")]);
+  rezAndLang("base", "resources");
+  Object.entries(devices).forEach(([deviceId, { deviceFamily }]) => {
+    const match = deviceFamily.match(/^(\w+)-\d+x\d+/);
+    if (!match) {
+      throw new Error(
+        `Strange deviceFamily (${deviceFamily}) for device ${deviceId}`
+      );
+    }
+    const shape = match[1];
+    if (!hasProperty(done, shape)) {
+      rezAndLang(shape, `resources-${shape}`, "base");
+      done[shape] = true;
+    }
+    if (!hasProperty(done, deviceFamily)) {
+      rezAndLang(deviceFamily, `resources-${deviceFamily}`, shape);
+      done[deviceFamily] = true;
+    }
+    rezAndLang(deviceId, `resources-${deviceId}`, deviceFamily);
+  });
+  return process_assignments(assignments, {});
+}
 
 function process_assignments(assignments, current) {
   return assignments.reduce((state, a) => {
@@ -112,14 +159,11 @@ async function parse_one(file) {
 // return a jungle object with all local variables resolved,
 // but all qualifier references left unresolved.
 async function process_jungles(sources) {
-  const sdk = await getSdkPath();
-
   if (!Array.isArray(sources)) {
     sources = [sources];
   }
-  const all = [[`${sdk}bin/default.jungle`, null], ...sources];
-  const results = await Promise.all(all.map(parse_one));
-  const state = {};
+  const results = await Promise.all(sources.map(parse_one));
+  const state = await default_jungle();
   results.forEach((r) => process_assignments(r, state));
   return state;
 }
@@ -364,12 +408,12 @@ export async function get_jungle(jungles, options) {
   jungles = jungles
     .split(";")
     .map((jungle) => path.resolve(options.workspace || "./", jungle));
-  const data = await process_jungles(jungles);
+  const state = await process_jungles(jungles);
   // apparently square_watch is an alias for rectangle_watch
-  data["square_watch"] = data["rectangle_watch"];
+  state["square_watch"] = state["rectangle_watch"];
   const manifest_node = resolve_node(
-    data,
-    resolve_node_by_path(data, ["project", "manifest"])
+    state,
+    resolve_node_by_path(state, ["project", "manifest"])
   );
   if (!manifest_node) throw new Error("No manifest found!");
   const manifest = resolve_filename(manifest_node[0]);
@@ -377,17 +421,17 @@ export async function get_jungle(jungles, options) {
   const targets = [];
   let promise = Promise.resolve();
   const add_one = (product, shape) => {
-    const qualifier = resolve_node(data, data[product]);
+    const qualifier = resolve_node(state, state[product]);
     if (!qualifier) return;
     promise = promise
       .then(() => resolve_literals(qualifier, manifest))
       .then(() => targets.push({ product, qualifier, shape }));
   };
   manifestProducts(xml).forEach((product) => {
-    if (hasProperty(data, product) && data[product].products) {
+    if (hasProperty(state, product) && state[product].products) {
       // this was something like round_watch. Add all the corresponding
       // products.
-      data[product].products.forEach((p) => add_one(p, product));
+      state[product].products.forEach((p) => add_one(p, product));
     } else {
       add_one(product);
     }

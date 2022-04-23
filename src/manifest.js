@@ -1,6 +1,6 @@
 import { parseStringPromise, Builder } from "xml2js";
 import * as fs from "fs/promises";
-import { connectiq, globa } from "./util.js";
+import { getDeviceInfo } from "./sdk-util.js";
 
 export async function readManifest(manifest) {
   const data = await fs.readFile(manifest);
@@ -21,22 +21,6 @@ export function manifestProducts(manifest) {
     .map((p) => p["$"]["id"])
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);
-}
-
-async function getDeviceInfo() {
-  const files = await globa(`${connectiq}/Devices/*/compiler.json`);
-  return Promise.all(
-    files.map((file) => {
-      return fs.readFile(file).then((data) => {
-        const { deviceId, appTypes, deviceFamily } = JSON.parse(
-          data.toString()
-        );
-        return [deviceId, { appTypes, deviceFamily }];
-      });
-    })
-  ).then((info) => {
-    return Object.fromEntries(info);
-  });
 }
 
 export async function checkManifest(manifest, products) {
