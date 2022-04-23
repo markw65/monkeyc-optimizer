@@ -98,7 +98,8 @@ export async function generateOptimizedProject(options) {
   let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   if (config.skipOptimization) {
     if (pick_one >= 0) {
-      config.products[pick_one] = targets[0].product;
+      options.products = [...options.products];
+      options.products[pick_one] = targets[0].product;
     }
     return {
       jungleFiles: config.jungleFiles,
@@ -121,12 +122,15 @@ export async function generateOptimizedProject(options) {
     }
     if (
       pick_one >= 0 ||
-      !config.products ||
-      config.products.includes(p.product) ||
-      (p.shape && config.products.includes(p.shape))
+      !options.products ||
+      options.products.includes(p.product) ||
+      (p.shape && options.products.includes(p.shape))
     ) {
       if (pick_one >= 0) {
-        config.products[pick_one] = p.product;
+        // don't modify the original array since it may be shared
+        // (and *is* shared when we're called from test.js)
+        options.products = [...options.products];
+        options.products[pick_one] = p.product;
         pick_one = -1;
       }
       if (!buildConfigs[key]) {
