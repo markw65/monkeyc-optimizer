@@ -189,8 +189,8 @@ export async function generateOptimizedProject(options) {
     process_field(prefix, qualifier, "annotations");
     process_field(prefix, qualifier, "excludeAnnotations");
     if (qualifier.lang) {
-      Object.entries(qualifier.lang).forEach(([key, value]) => {
-        process_field(`${prefix}lang.`, value, key, relative_path);
+      Object.keys(qualifier.lang).forEach((key) => {
+        process_field(`${prefix}lang.`, qualifier.lang, key, relative_path);
       });
     }
   });
