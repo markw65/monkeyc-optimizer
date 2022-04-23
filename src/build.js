@@ -1,5 +1,6 @@
 import * as path from "path";
-import { getSdkPath, isWin, spawnByLine } from "./util.js";
+import { getSdkPath, isWin } from "./sdk-util.js";
+import { spawnByLine } from "./util.js";
 
 export async function build_project(product, options, lineCallback) {
   const {

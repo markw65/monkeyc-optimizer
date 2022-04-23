@@ -1,7 +1,21 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
-import { connectiq, getSdkPath, globa } from "./util.js";
+import { globa } from "./util.js";
+
+export const isWin = process.platform == "win32";
+
+export const appSupport = isWin
+  ? `${process.env.APPDATA}`.replace(/\\/g, "/")
+  : `${process.env.HOME}/Library/Application Support`;
+
+export const connectiq = `${appSupport}/Garmin/ConnectIQ`;
+
+export function getSdkPath() {
+  return fs
+    .readFile(connectiq + "/current-sdk.cfg")
+    .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"));
+}
 
 export async function getDeviceInfo() {
   const files = await globa(`${connectiq}/Devices/*/compiler.json`);

@@ -6,8 +6,8 @@ import { get_jungle } from "./jungles.js";
 import { launchSimulator } from "./launch.js";
 import { checkManifest, writeManifest } from "./manifest.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
+import { appSupport } from "./sdk-util.js";
 import {
-  appSupport,
   copyRecursiveAsNeeded,
   first_modified,
   globa,

@@ -1,6 +1,6 @@
 import path from "path";
 import { execFile } from "child_process";
-import { getSdkPath, isWin } from "./util.js";
+import { getSdkPath, isWin } from "./sdk-util.js";
 
 export function launchSimulator() {
   return getSdkPath().then((sdk) => {

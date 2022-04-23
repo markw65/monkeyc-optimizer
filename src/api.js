@@ -1,9 +1,10 @@
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
-import { getSdkPath, pushUnique } from "./util.js";
-import { negativeFixups } from "./negative-fixups.js";
 import { getLiteralNode } from "./mc-rewrite.js";
+import { negativeFixups } from "./negative-fixups.js";
+import { getSdkPath } from "./sdk-util.js";
+import { pushUnique } from "./util.js";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/;
 /*

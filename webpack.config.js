@@ -118,6 +118,7 @@ export default (env, argv) => {
         stream: "stream",
         string_decoder: "string_decoder",
         timers: "timers",
+        url: "url",
       };
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);

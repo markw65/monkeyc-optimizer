@@ -4,20 +4,9 @@ import * as fs from "fs/promises";
 import glob from "glob";
 import * as path from "path";
 import * as readline from "readline";
+import { fileURLToPath } from "url";
 
-export const isWin = process.platform == "win32";
-
-export const appSupport = isWin
-  ? `${process.env.APPDATA}`.replace(/\\/g, "/")
-  : `${process.env.HOME}/Library/Application Support`;
-
-export const connectiq = `${appSupport}/Garmin/ConnectIQ`;
-
-export function getSdkPath() {
-  return fs
-    .readFile(connectiq + "/current-sdk.cfg")
-    .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"));
-}
+export const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function globa(pattern, options) {
   return new Promise((resolve, reject) => {

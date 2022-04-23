@@ -1,8 +1,6 @@
-import { spawnByLine } from "../build/util.cjs";
+import { spawnByLine, globa, __dirname } from "../build/util.cjs";
 import path from "path";
 import * as fs from "fs/promises";
-import { fileURLToPath } from "url";
-import { globa } from "../src/util.js";
 
 export const githubProjects = [
   "https://bitbucket.org/mike_polatoglou/moonphase",
@@ -188,8 +186,6 @@ export const githubProjects = [
   "https://gitlab.com/nz_brian/garmin.watch.analogplus",
   "https://gitlab.com/ravenfeld/Connect-IQ-App-Timer",
 ];
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function fetchGitProjects(projects) {
   const dir = path.join(__dirname, "..", "build", "test", "projects");
