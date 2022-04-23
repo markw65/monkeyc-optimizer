@@ -1,6 +1,6 @@
-import { spawnByLine, globa, __dirname } from "../build/util.cjs";
-import path from "path";
 import * as fs from "fs/promises";
+import path from "path";
+import { globa, promiseAll, spawnByLine, __dirname } from "../build/util.cjs";
 
 export const githubProjects = [
   "https://bitbucket.org/mike_polatoglou/moonphase",
@@ -190,54 +190,58 @@ export const githubProjects = [
 export async function fetchGitProjects(projects) {
   const dir = path.join(__dirname, "..", "build", "test", "projects");
   await fs.mkdir(dir, { recursive: true });
-  const result = [];
   const failures = [];
-  let promise = Promise.resolve();
-  projects.forEach((p) => {
-    const { root, include, exclude, build } = p.root ? p : { root: p };
-    const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
-    const projDir = path.resolve(dir, name);
-    promise = promise
-      .then(() => fetchAndClean(projDir, root))
-      .then(() => globa(`${projDir}/**/*.jungle`))
-      .then((jungles) => {
-        if (jungles.length) return jungles;
-        return globa(`${projDir}/**/manifest.xml`).then((manifests) =>
-          Promise.all(
-            manifests.map(async (m) => {
-              const jungle = path.resolve(path.dirname(m), "monkey.jungle");
-              await fs.writeFile(jungle, "project.manifest = manifest.xml\n");
-              return jungle;
-            })
-          )
-        );
-      })
-      .then((jungles) => {
-        if (include) {
-          const re = new RegExp(include);
-          jungles = jungles.filter((j) => re.test(j));
-        }
-        if (exclude) {
-          const re = new RegExp(exclude);
-          jungles = jungles.filter((j) => !re.test(j));
-        }
-        if (build === false) {
-          jungles = jungles.map((jungle) => {
-            return { jungle, build };
-          });
-        }
-        result.push(...jungles);
-      })
-      .catch(() => failures.push(root));
-  });
-  return promise.then(() => {
-    failures.forEach((p) => console.error("Bad project: " + p));
-    return result;
-  });
+  const result = await promiseAll(
+    projects.map((p) => {
+      const { root, include, exclude, build } = p.root ? p : { root: p };
+      const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
+      const projDir = path.resolve(dir, name);
+      return fetchAndClean(projDir, root)
+        .then((output) => {
+          console.log(output);
+          return globa(`${projDir}/**/*.jungle`);
+        })
+        .then((jungles) => {
+          if (jungles.length) return jungles;
+          return globa(`${projDir}/**/manifest.xml`).then((manifests) =>
+            Promise.all(
+              manifests.map(async (m) => {
+                const jungle = path.resolve(path.dirname(m), "monkey.jungle");
+                await fs.writeFile(jungle, "project.manifest = manifest.xml\n");
+                return jungle;
+              })
+            )
+          );
+        })
+        .then((jungles) => {
+          if (include) {
+            const re = new RegExp(include);
+            jungles = jungles.filter((j) => re.test(j));
+          }
+          if (exclude) {
+            const re = new RegExp(exclude);
+            jungles = jungles.filter((j) => !re.test(j));
+          }
+          if (build === false) {
+            jungles = jungles.map((jungle) => {
+              return { jungle, build };
+            });
+          }
+          return jungles;
+        })
+        .catch(() => failures.push(root));
+    }),
+    16
+  );
+  failures.forEach((p) => console.error("Bad project: " + p));
+  return result.flat();
 }
 
 function fetchAndClean(projDir, root) {
   const gitDir = path.resolve(projDir, ".git");
+  const output = [`Updating project ${root}`];
+  const logger = (line) => output.push(` - ${line}`);
+  const loggers = [logger, logger];
   return fs
     .stat(gitDir)
     .catch(() => null)
@@ -246,7 +250,7 @@ function fetchAndClean(projDir, root) {
         ? spawnByLine(
             "git",
             ["clone", root + ".git", path.basename(projDir)],
-            (line) => console.log(line),
+            loggers,
             {
               cwd: path.resolve(projDir, ".."),
             }
@@ -254,33 +258,24 @@ function fetchAndClean(projDir, root) {
         : null
     )
     .then(() =>
-      spawnByLine("git", ["fetch", "origin"], (line) => console.log(line), {
+      spawnByLine("git", ["fetch", "origin"], loggers, {
         cwd: projDir,
       })
     )
     .then(() =>
-      spawnByLine(
-        "git",
-        ["rebase", "FETCH_HEAD"],
-        (line) => console.log(line),
-        {
-          cwd: projDir,
-        }
-      )
-    )
-    .then(() =>
-      spawnByLine(
-        "git",
-        ["reset", "--hard", "HEAD"],
-        (line) => console.log(line),
-        {
-          cwd: projDir,
-        }
-      )
-    )
-    .then(() =>
-      spawnByLine("git", ["clean", "-fxd"], (line) => console.log(line), {
+      spawnByLine("git", ["rebase", "FETCH_HEAD"], loggers, {
         cwd: projDir,
       })
-    );
+    )
+    .then(() =>
+      spawnByLine("git", ["reset", "--hard", "HEAD"], loggers, {
+        cwd: projDir,
+      })
+    )
+    .then(() =>
+      spawnByLine("git", ["clean", "-fxd"], loggers, {
+        cwd: projDir,
+      })
+    )
+    .then(() => output.join("\n"));
 }

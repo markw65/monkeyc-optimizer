@@ -92,14 +92,17 @@ export function readByLine(file, lineHandler) {
 export async function promiseAll(promises, parallelism) {
   parallelism = parallelism || 4;
   const serializer = [];
+  const results = [];
+  const capture = (r, i) => (results[i] = r);
   promises.forEach((p, i) => {
+    const cap = () => p.then((r) => capture(r, i));
     if (serializer.length < parallelism) {
-      serializer.push(p);
+      serializer.push(cap());
     } else {
-      serializer[i % parallelism].then(() => p);
+      serializer[i % parallelism] = serializer[i % parallelism].then(cap);
     }
   });
-  return Promise.all(serializer);
+  return Promise.all(serializer).then(() => results);
 }
 
 export async function copyRecursiveAsNeeded(source, target, filter) {
