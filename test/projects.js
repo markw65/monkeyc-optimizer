@@ -18,7 +18,10 @@ export const githubProjects = [
   },
   "https://github.com/HookyQR/TidyField",
   "https://github.com/HookyQR/TidyWatch",
-  "https://github.com/Laverlin/Yet-Another-Sailing-App",
+  {
+    root: "https://github.com/Laverlin/Yet-Another-Sailing-App",
+    //options: { ignoredExcludeAnnotations: "*" },
+  },
   {
     root: "https://github.com/Laverlin/Yet-Another-WatchFace",
     build: false,
@@ -48,7 +51,11 @@ export const githubProjects = [
     comment:
       'ERROR: fenix3: /Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/blaskovicz-garmin-nest-camera-control/source/NestApi.mc:174: Undefined symbol "NestApiProxyURI" detected.',
   },
-  "https://github.com/breber/helicopter-iq",
+  {
+    root: "https://github.com/breber/helicopter-iq",
+    build: false,
+    comment: "missing launcher icon",
+  },
   "https://github.com/breber/nest-iq",
   "https://github.com/cedric-dufour/connectiq-app-glidersk",
   "https://github.com/cedric-dufour/connectiq-app-towplanesk",
@@ -215,7 +222,9 @@ export async function fetchGitProjects(projects) {
   const failures = [];
   const result = await promiseAll(
     projects.map((p) => {
-      const { root, include, exclude, build } = p.root ? p : { root: p };
+      const { root, include, exclude, build, options } = p.root
+        ? p
+        : { root: p };
       const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
       const projDir = path.resolve(dir, name);
       return fetchAndClean(projDir, root)
@@ -244,10 +253,8 @@ export async function fetchGitProjects(projects) {
             const re = new RegExp(exclude);
             jungles = jungles.filter((j) => !re.test(j));
           }
-          if (build === false) {
-            jungles = jungles.map((jungle) => {
-              return { jungle, build };
-            });
+          if (options || build === false) {
+            jungles = jungles.map((jungle) => ({ jungle, build, options }));
           }
           return jungles;
         })
