@@ -124,6 +124,7 @@ async function test() {
       skipOptimization,
       returnCommand: true,
       ...jungleOptions,
+      checkManifest: true,
     };
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k]

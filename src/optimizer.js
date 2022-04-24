@@ -147,10 +147,12 @@ export async function generateOptimizedProject(options) {
   await fs.mkdir(jungle_dir, { recursive: true });
   const relative_path = (s) => path.relative(jungle_dir, s);
   let relative_manifest = relative_path(manifest);
-  const manifestOk = await checkManifest(
-    xml,
-    targets.map((t) => t.product)
-  );
+  const manifestOk =
+    !config.checkManifest ||
+    (await checkManifest(
+      xml,
+      targets.map((t) => t.product)
+    ));
   const promises = Object.keys(buildConfigs)
     .sort()
     .map((key) => {
