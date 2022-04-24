@@ -160,7 +160,11 @@ export const githubProjects = [
   "https://github.com/seajay/ColourHR",
   "https://github.com/simonl-ciq/RollingAverage",
   "https://github.com/simonmacmullen/activity-widget",
-  "https://github.com/simonmacmullen/chart-datafields",
+  {
+    root: "https://github.com/simonmacmullen/chart-datafields",
+    jungleContent:
+      "base.sourcePath=./**.mc;../../src\nbase.resourcePath=../../resources",
+  },
   "https://github.com/simonmacmullen/hr-widget",
   "https://github.com/simonmacmullen/instrument-panel",
   "https://github.com/sixtop/Watch-Face-Garmin",
@@ -229,9 +233,15 @@ export async function fetchGitProjects(projects) {
   const failures = [];
   const result = await promiseAll(
     projects.map((p) => {
-      const { root, include, exclude, build, options, sourcePath } = p.root
-        ? p
-        : { root: p };
+      const {
+        root,
+        include,
+        exclude,
+        build,
+        options,
+        sourcePath,
+        jungleContent,
+      } = p.root ? p : { root: p };
       const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
       const projDir = path.resolve(dir, name);
       return fetchAndClean(projDir, root)
@@ -248,8 +258,8 @@ export async function fetchGitProjects(projects) {
                 await fs.writeFile(
                   jungle,
                   `project.manifest = manifest.xml\n${
-                    sourcePath ? `base.sourcePath=${sourcePath}\n` : ""
-                  }`
+                    sourcePath ? `base.sourcePath=${sourcePath}` : ""
+                  }\n${jungleContent ? jungleContent : ""}\n`
                 );
                 return jungle;
               })
