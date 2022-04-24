@@ -1,10 +1,11 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+import { parseStringPromise } from "xml2js";
 import * as jungle from "../build/jungle.js";
 import { hasProperty } from "./api.js";
 import { manifestProducts, readManifest } from "./manifest.js";
-import { globa } from "./util.js";
 import { getDeviceInfo, getLanguages } from "./sdk-util.js";
+import { globa } from "./util.js";
 
 async function default_jungle() {
   const assignments = [];
@@ -311,6 +312,87 @@ async function resolve_literals(qualifier, default_source) {
   resolve_literal_list(qualifier, "annotations");
 }
 
+async function find_build_instructions_in_resource(file) {
+  const data = await fs.readFile(file);
+  const rez = await parseStringPromise(data).catch(() => ({}));
+  if (rez.build && rez.build.exclude) {
+    const dir = path.dirname(file);
+    const sourceExcludes = rez.build.exclude
+      .map((e) => e.$.file)
+      .filter((f) => f != null)
+      .map((f) => path.resolve(dir, f));
+
+    const filePatterns = rez.build.exclude
+      .map((e) => e.$.dir)
+      .filter((f) => f != null)
+      .map((f) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
+    if (filePatterns.length) {
+      const files = (
+        await Promise.all(filePatterns.map((p) => globa(p)))
+      ).flat();
+      sourceExcludes.push(...files);
+    }
+    const excludeAnnotations = rez.build.exclude
+      .map((e) => e.$.annotation)
+      .filter((f) => f != null);
+    return { sourceExcludes, excludeAnnotations };
+  }
+}
+async function find_build_instructions(targets) {
+  const resourceGroups = {};
+  await Promise.all(
+    targets.map(async (p) => {
+      if (!p.qualifier.resourcePath) return;
+      const key = p.qualifier.resourcePath.join(";");
+      if (!hasProperty(resourceGroups, key)) {
+        resourceGroups[key] = {
+          resourcePath: p.qualifier.resourcePath,
+          products: [],
+        };
+        const paths = (
+          await Promise.all(
+            p.qualifier.resourcePath.map((pattern) =>
+              globa(pattern, { mark: true })
+            )
+          )
+        ).flat();
+
+        const sourceExcludes = [];
+        const excludeAnnotations = [];
+        const resourceFiles = await Promise.all(
+          paths.map((path) =>
+            path.endsWith("/") ? globa(`${path}**/*.xml`, { mark: true }) : path
+          )
+        );
+        const buildInstructions = await Promise.all(
+          resourceFiles
+            .flat()
+            .filter((file) => !file.endsWith("/"))
+            .map((file) => find_build_instructions_in_resource(file))
+        );
+        buildInstructions
+          .filter((i) => i != null)
+          .map((i) => {
+            if (i.sourceExcludes) sourceExcludes.push(...i.sourceExcludes);
+            if (i.excludeAnnotations)
+              excludeAnnotations.push(...i.excludeAnnotations);
+          });
+        if (sourceExcludes.length) {
+          p.qualifier.sourceExcludes = sourceExcludes;
+        }
+        if (excludeAnnotations.length) {
+          if (p.qualifier.excludeAnnotations) {
+            p.qualifier.excludeAnnotations.push(excludeAnnotations);
+          } else {
+            p.qualifier.excludeAnnotations = excludeAnnotations;
+          }
+        }
+      }
+      resourceGroups[key].products.push(p.product);
+    })
+  );
+}
+
 function identify_optimizer_groups(targets, options) {
   const groups = {};
   let key = 0;
@@ -363,8 +445,13 @@ function identify_optimizer_groups(targets, options) {
     : null;
 
   targets.forEach((target) => {
-    let { sourcePath, barrelPath, excludeAnnotations, annotations } =
-      target.qualifier;
+    let {
+      sourcePath,
+      sourceExcludes,
+      barrelPath,
+      excludeAnnotations,
+      annotations,
+    } = target.qualifier;
     if (excludeAnnotations && ignoredExcludeAnnotations) {
       excludeAnnotations = getStrsWithIgnore(
         excludeAnnotations,
@@ -383,6 +470,7 @@ function identify_optimizer_groups(targets, options) {
     }
     const optimizerConfig = {
       sourcePath,
+      sourceExcludes,
       barrelPath,
       excludeAnnotations,
       annotations,
@@ -437,6 +525,7 @@ export async function get_jungle(jungles, options) {
     }
   });
   await promise;
+  await find_build_instructions(targets);
   identify_optimizer_groups(targets, options);
   return { manifest, targets, xml };
 }

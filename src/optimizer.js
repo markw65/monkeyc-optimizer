@@ -240,7 +240,12 @@ async function generateOneConfig(config) {
     )
   )
     .flat()
-    .filter((file) => !file.endsWith("/"))
+    .filter(
+      (file) =>
+        !file.endsWith("/") &&
+        (!buildConfig.sourceExcludes ||
+          !buildConfig.sourceExcludes.includes(file))
+    )
     .map((file) => path.relative(workspace, file))
     .filter((file) => !file.startsWith("bin"));
 
