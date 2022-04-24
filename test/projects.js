@@ -63,7 +63,7 @@ export const githubProjects = [
   "https://github.com/chris220688/garmin-myBus-app",
   {
     root: "https://github.com/clementbarthes/GarminCogDisplay",
-    exclude: ["temp[\\\\\\/]monkey\\.jungle"],
+    exclude: ["temp.monkey\\.jungle"],
   },
   "https://github.com/creacominc/connectiq-PowerField",
   {
@@ -113,6 +113,7 @@ export const githubProjects = [
     root: "https://github.com/johnnyw3/connectiq-watchapps",
     exclude: "Data Fields.TurnAroundReminder.monkey.jungle",
     comment: "Has syntax errors",
+    sourcePath: "source",
   },
   "https://github.com/jonasbcdk/CleanSteps",
   "https://github.com/kolyuchii/TravelCalc",
@@ -130,7 +131,11 @@ export const githubProjects = [
   "https://github.com/matthiasmullie/connect-iq-datafield-calories-equivalent",
   "https://github.com/mettyw/activity_view",
   "https://github.com/miss-architect/garmin-squash",
-  "https://github.com/mrfoto/ForecastLine",
+  {
+    root: "https://github.com/mrfoto/ForecastLine",
+    build: false,
+    comment: "Missing a 'secrets' file",
+  },
   "https://github.com/myneur/HeartRateRunner",
   "https://github.com/myneur/late",
   "https://github.com/okdar/smartarcs",
@@ -222,7 +227,7 @@ export async function fetchGitProjects(projects) {
   const failures = [];
   const result = await promiseAll(
     projects.map((p) => {
-      const { root, include, exclude, build, options } = p.root
+      const { root, include, exclude, build, options, sourcePath } = p.root
         ? p
         : { root: p };
       const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
@@ -238,7 +243,12 @@ export async function fetchGitProjects(projects) {
             Promise.all(
               manifests.map(async (m) => {
                 const jungle = path.resolve(path.dirname(m), "monkey.jungle");
-                await fs.writeFile(jungle, "project.manifest = manifest.xml\n");
+                await fs.writeFile(
+                  jungle,
+                  `project.manifest = manifest.xml\n${
+                    sourcePath ? `base.sourcePath=${sourcePath}\n` : ""
+                  }`
+                );
                 return jungle;
               })
             )
@@ -258,7 +268,10 @@ export async function fetchGitProjects(projects) {
           }
           return jungles;
         })
-        .catch(() => failures.push(root));
+        .catch(() => {
+          failures.push(root);
+          return [];
+        });
     }),
     16
   );
