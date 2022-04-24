@@ -18,7 +18,7 @@ export function manifestProducts(manifest) {
     manifest["iq:manifest"]["iq:application"] ||
     manifest["iq:manifest"]["iq:barrel"];
   return app[0]["iq:products"][0]["iq:product"]
-    .map((p) => p["$"]["id"])
+    .map((p) => p.$.id)
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);
 }
@@ -34,6 +34,11 @@ export async function checkManifest(manifest, products) {
   if (!app) return ok;
 
   const elm = app[0];
+  const id = elm.$.id;
+  if (id.length < 32 || !/^[-_0-9a-f.]+$/.test(id)) {
+    ok = false;
+    elm.$.id = "08070f9d-8b4e-40a4-9c49-fe67a2a55dec";
+  }
   const type = elm.$.type.replace(/-/, "").toLowerCase();
   const deviceInfo = await getDeviceInfo();
   const allowedProducts = products.sort().filter(
