@@ -70,30 +70,30 @@ function process_assignments(assignments, current) {
     );
     // an assignment to a node overwrites its old value
     Object.keys(node).forEach((k) => delete node[k]);
-    if (dot) {
-      const process_list = (values) => {
-        for (let i = values.length; i--; ) {
-          const v = values[i];
-          if (
-            v.type == "QualifiedName" &&
-            v.names.every((n, i) => n === a.names[i])
-          ) {
-            a.values.splice(
-              i,
-              1,
-              ...dot.map((v) =>
-                v.type == "QualifiedName"
-                  ? { ...v, names: v.names.concat(dotnames) }
-                  : v
-              )
-            );
-          } else if (v.type == "SubList") {
-            process_list(v.values);
-          }
+    const process_list = (values) => {
+      for (let i = values.length; i--; ) {
+        const v = values[i];
+        if (
+          v.type == "QualifiedName" &&
+          v.names.every((n, i) => n === a.names[i])
+        ) {
+          values.splice(
+            i,
+            1,
+            ...(dot
+              ? dot.map((v) =>
+                  v.type == "QualifiedName"
+                    ? { ...v, names: v.names.concat(dotnames) }
+                    : v
+                )
+              : [])
+          );
+        } else if (v.type == "SubList") {
+          process_list(v.values);
         }
-      };
-      process_list(a.values);
-    }
+      }
+    };
+    process_list(a.values);
     if (
       a.names.length === 1 &&
       a.values.length === 1 &&
@@ -264,6 +264,9 @@ async function resolve_literals(qualifier, default_source) {
     (
       await Promise.all(
         literals.map(async (v) => {
+          if (v.type == "SubList") {
+            return resolve_file_list(v.values);
+          }
           let resolved = resolve_filename(v, default_source);
           if (/[*?\[\]\{\}]/.test(resolved)) {
             // Jungle files can contain "./**.mc" which is supposed to match

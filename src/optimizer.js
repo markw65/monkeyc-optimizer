@@ -182,13 +182,13 @@ export async function generateOptimizedProject(options) {
   }
 
   const parts = [`project.manifest=${relative_manifest}`];
-  const process_field = (prefix, base, name, map) =>
-    base[name] &&
-    parts.push(
-      `${prefix}${name} = ${base[name]
-        .map((s) => (map ? map(s) : s))
-        .join(";")}`
-    );
+  const process_field = (prefix, base, name, mapper) => {
+    if (!base[name]) return;
+    const map_one = (s) => (mapper ? mapper(s) : s);
+    const map = (s) =>
+      Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
+    parts.push(`${prefix}${name} = ${base[name].map(map).join(";")}`);
+  };
   targets.forEach((jungle) => {
     const { product, qualifier, group } = jungle;
     const prefix = `${product}.`;
