@@ -418,6 +418,7 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
         (sc.superClass && checkInherited(sc, name))
     );
 
+  state.localsStack = [{}];
   state.exposed = {};
   state.calledFunctions = {};
   state.pre = (node) => {
@@ -467,8 +468,74 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
 
       case "EnumDeclaration":
         return false;
-      case "VariableDeclarator":
+      case "ForStatement": {
+        const map = state.localsStack.slice(-1).pop().map;
+        if (map) {
+          state.localsStack.push({ node, map: { ...map } });
+        }
+        break;
+      }
+      case "VariableDeclarator": {
+        const locals = state.localsStack.slice(-1).pop();
+        const { map } = locals;
+        if (map) {
+          if (hasProperty(map, node.id.name)) {
+            // We already have a variable with this name in scope
+            // Recent monkeyc compilers complain, so rename it
+            let suffix = 0;
+            let node_name = node.id.name;
+            const match = node_name.match(/^pmcr_(.*)_(\d+)$/);
+            if (match) {
+              node_name = match[1];
+              suffix = parseInt(match[2], 10) + 1;
+            }
+            if (!locals.inners) {
+              // find all the names declared in this scope, to avoid
+              // more conflicts
+              locals.inners = {};
+              traverseAst(locals.node, (node) => {
+                if (node.type === "VariableDeclarator") {
+                  locals.inners[node.id.name] = true;
+                }
+              });
+            }
+            let name;
+            while (true) {
+              name = `pmcr_${node_name}_${suffix}`;
+              if (
+                !hasProperty(map, name) &&
+                !hasProperty(locals.inners, name)
+              ) {
+                // we also need to ensure that we don't hide the name of
+                // an outer module, class, function, enum or variable,
+                // since someone might want to access it from this scope.
+                let ok = false;
+                let i;
+                for (i = state.stack.length; i--; ) {
+                  const elm = state.stack[i];
+                  if (ok) {
+                    if (hasProperty(elm.decls, name)) {
+                      break;
+                    }
+                  } else if (elm.node.type === "FunctionDeclaration") {
+                    ok = true;
+                  }
+                }
+                if (i < 0) {
+                  break;
+                }
+              }
+              suffix++;
+            }
+            map[node.id.name] = name;
+            map[name] = true;
+            node.id.name = name;
+          } else {
+            map[node.id.name] = true;
+          }
+        }
         return ["init"];
+      }
       case "UnaryExpression":
         if (node.operator == ":") {
           // If we produce a Symbol, for a given name,
@@ -483,6 +550,15 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
         }
         break;
       case "Identifier": {
+        const map = state.localsStack.slice(-1).pop().map;
+        if (map) {
+          if (hasProperty(map, node.name)) {
+            const name = map[node.name];
+            if (name !== true) {
+              node.name = name;
+            }
+          }
+        }
         if (hasProperty(state.index, node.name)) {
           if (!lookupAndReplace(node)) {
             state.exposed[node.name] = true;
@@ -503,7 +579,20 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
           return ["object"];
         }
         break;
+      case "BlockStatement": {
+        const map = state.localsStack.slice(-1).pop().map;
+        if (map) {
+          state.localsStack.push({
+            node,
+            map: { ...map },
+          });
+        }
+        break;
+      }
       case "FunctionDeclaration": {
+        const map = {};
+        node.params && node.params.forEach((p) => (map[p.name] = true));
+        state.localsStack.push({ node, map });
         const [parent] = state.stack.slice(-2);
         if (parent.type == "ClassDeclaration" && !maybeCalled(node)) {
           let used = false;
@@ -523,6 +612,9 @@ export async function optimizeMonkeyC(fileNames, buildConfig) {
     }
   };
   state.post = (node) => {
+    if (state.localsStack.slice(-1).pop().node === node) {
+      state.localsStack.pop();
+    }
     const opt = optimizeNode(node);
     if (opt) {
       replace(node, opt);
