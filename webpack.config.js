@@ -1,6 +1,7 @@
 /* eslint-env node */
 import path from "path";
 import { fileURLToPath } from "url";
+import webpack from "webpack";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -129,6 +130,14 @@ export default (env, argv) => {
       callback();
     },
     plugins: [
+      new webpack.DefinePlugin({
+        "global.lastModifiedSource": webpack.DefinePlugin.runtimeValue(
+          Date.now,
+          {
+            contextDependencies: [path.resolve(__dirname, "src")],
+          }
+        ),
+      }),
       {
         apply(compiler) {
           const pluginName = "Log On Done Plugin";

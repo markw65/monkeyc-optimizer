@@ -267,9 +267,27 @@ async function generateOneConfig(config) {
       ])
   );
 
-  const source_time = await last_modified(Object.keys(fnMap));
-  const opt_time = await first_modified(Object.values(fnMap));
-  if (source_time < opt_time) return;
+  const actualOptimizedFiles = (
+    await globa(path.join(output, "**", "*.mc"), { mark: true })
+  )
+    .filter((file) => !file.endsWith("/"))
+    .sort();
+
+  // check that the set of files thats actually there is the same as the
+  // set of files we're going to generate (in case eg a jungle file change
+  // might have altered it)
+  if (
+    actualOptimizedFiles.length == files.length &&
+    Object.values(fnMap)
+      .sort()
+      .every((f, i) => f == actualOptimizedFiles[i])
+  ) {
+    // now if the newest source file is older than
+    // the oldest optimized file, we don't need to regenerate
+    const source_time = await last_modified(Object.keys(fnMap));
+    const opt_time = await first_modified(Object.values(fnMap));
+    if (source_time < opt_time && global.lastModifiedSource < opt_time) return;
+  }
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });

@@ -5,6 +5,10 @@ import glob from "glob";
 import * as path from "path";
 import * as readline from "readline";
 
+// Write it this way so that webpack.DefinePlugin doesn't
+// recognize global.lastModifiedSource.
+global["lastModifiedSource" + ""] = 0;
+
 export function globa(pattern, options) {
   return new Promise((resolve, reject) => {
     glob.glob(pattern, options, (er, files) => {
