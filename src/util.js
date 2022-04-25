@@ -4,9 +4,6 @@ import * as fs from "fs/promises";
 import glob from "glob";
 import * as path from "path";
 import * as readline from "readline";
-import { fileURLToPath } from "url";
-
-export const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function globa(pattern, options) {
   return new Promise((resolve, reject) => {

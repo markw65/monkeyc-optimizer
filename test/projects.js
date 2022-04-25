@@ -1,6 +1,9 @@
 import * as fs from "fs/promises";
 import path from "path";
-import { globa, promiseAll, spawnByLine, __dirname } from "../build/util.cjs";
+import { fileURLToPath } from "url";
+import { globa, promiseAll, spawnByLine } from "../build/util.cjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const githubProjects = [
   "https://bitbucket.org/mike_polatoglou/moonphase",
