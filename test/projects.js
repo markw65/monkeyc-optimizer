@@ -13,29 +13,29 @@ export const githubProjects = [
   "https://github.com/4ch1m/HueCIQ",
   "https://github.com/DeCaPa/MyBigDate",
   "https://github.com/HanSolo/digital",
-  {
-    root: "https://github.com/HerrRiebmann/Stretch",
-    build: false,
-    comment:
-      "ERROR: Attempting to override '<fitField>' contribution '0'. These resources must be global to the app and cannot be overridden.",
-  },
+  "https://github.com/HerrRiebmann/Stretch",
   "https://github.com/HookyQR/TidyField",
-  "https://github.com/HookyQR/TidyWatch",
+  {
+    root: "https://github.com/HookyQR/TidyWatch",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   {
     root: "https://github.com/Laverlin/Yet-Another-Sailing-App",
-    //options: { ignoredExcludeAnnotations: "*" },
+    options: { compilerOptions: "--Eno-invalid-symbol" },
   },
   {
     root: "https://github.com/Laverlin/Yet-Another-WatchFace",
-    build: false,
-    comment: "undefined symbols",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
   },
   "https://github.com/OliverHannover/Aviatorlike",
   "https://github.com/OliverHannover/Formula_1",
   "https://github.com/Peterdedecker/connectiq",
   "https://github.com/Tkadla-GSG/garmin",
   "https://github.com/ToryStark/connect-iq",
-  "https://github.com/TrainAsONE/trainasone-connectiq",
+  {
+    root: "https://github.com/TrainAsONE/trainasone-connectiq",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/YoungChulDK/GarminCryptoPrices",
   "https://github.com/adamml/tempo-trainer",
   "https://github.com/admsteck/ConnectIQ",
@@ -50,9 +50,7 @@ export const githubProjects = [
   "https://github.com/axl13/PowerAdjuster",
   {
     root: "https://github.com/blaskovicz/garmin-nest-camera-control",
-    build: false,
-    comment:
-      'ERROR: fenix3: /Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/blaskovicz-garmin-nest-camera-control/source/NestApi.mc:174: Undefined symbol "NestApiProxyURI" detected.',
+    rename: [{ from: "source/Env.mc.sample", to: "source/Env.mc" }],
   },
   {
     root: "https://github.com/breber/helicopter-iq",
@@ -71,8 +69,10 @@ export const githubProjects = [
   "https://github.com/creacominc/connectiq-PowerField",
   {
     root: "https://github.com/creacominc/connectiq-PowerFieldTests",
-    build: false,
-    comment: "Missing classes",
+    jungleContent: [
+      "base.sourcePath=source;../creacominc-connectiq-PowerField/source",
+      "base.resourcePath=resources;../creacominc-connectiq-PowerField/resources",
+    ],
   },
   "https://github.com/danielsiwiec/fitnessTimer",
   "https://github.com/danielsiwiec/tabataTimer",
@@ -86,7 +86,10 @@ export const githubProjects = [
   "https://github.com/dazey77/Horizontal-speedo-rep",
   "https://github.com/dbcm/KISSFace",
   "https://github.com/desyat/OpenWeatherMapWidget",
-  "https://github.com/dkappler/kraken",
+  {
+    root: "https://github.com/dkappler/kraken",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/dmuino/HMFields",
   "https://github.com/douglasr/connectiq-logo-analog",
   "https://github.com/douglasr/connectiq-samples",
@@ -98,18 +101,20 @@ export const githubProjects = [
   "https://github.com/gcormier9/GRun",
   "https://github.com/gimportexportdevs/gimporter",
   "https://github.com/grafstrom/ORun",
-  "https://github.com/hakonrossebo/FootballFixtures",
+  {
+    root: "https://github.com/hakonrossebo/FootballFixtures",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/hansiglaser/ConnectIQ",
   "https://github.com/haraldh/SunCalc",
-  "https://github.com/imgrant/AuxHR",
+  {
+    root: "https://github.com/imgrant/AuxHR",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/imgrant/EnergyExpenditureField",
   "https://github.com/imgrant/FlexiRunner",
   "https://github.com/imgrant/RunningEconomyField",
-  {
-    root: "https://github.com/jensws80/JSClock",
-    exclude: ".*",
-    comment: "Its missing a manifest.xml",
-  },
+  "https://github.com/jensws80/JSClock",
   "https://github.com/joakim-ribier/ftw-garmin",
   "https://github.com/joergsteinkamp/Simplog",
   {
@@ -117,19 +122,26 @@ export const githubProjects = [
     exclude: "Data Fields.TurnAroundReminder.monkey.jungle",
     comment: "Has syntax errors",
     sourcePath: "source",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
   },
   "https://github.com/jonasbcdk/CleanSteps",
   "https://github.com/kolyuchii/TravelCalc",
   "https://github.com/kopa/BikersField",
   "https://github.com/kopa/RunnersField",
-  "https://github.com/kromar/garmin_fenix3",
+  {
+    root: "https://github.com/kromar/garmin_fenix3",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/landnavapp/LandNavApp",
   "https://github.com/lcj2/ciq_binarywatch",
   "https://github.com/lcj2/ciq_monkeyfuel",
   "https://github.com/lucamrod/TriathlonDuathlonAquathlon",
   "https://github.com/lukasz-duda/NormalizedPoolDistance",
   "https://github.com/matco/badminton",
-  "https://github.com/matmuc/SportMonitor",
+  {
+    root: "https://github.com/matmuc/SportMonitor",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/matthiasmullie/connect-iq-datafield-accurate-pace",
   "https://github.com/matthiasmullie/connect-iq-datafield-calories-equivalent",
   "https://github.com/mettyw/activity_view",
@@ -140,13 +152,28 @@ export const githubProjects = [
     comment: "Missing a 'secrets' file",
   },
   "https://github.com/myneur/HeartRateRunner",
-  "https://github.com/myneur/late",
+  {
+    root: "https://github.com/myneur/late",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/okdar/smartarcs",
   "https://github.com/pedlarstudios/WordOfTheDay",
-  "https://github.com/psjo/arcsin",
-  "https://github.com/psjo/darktimes",
-  "https://github.com/psjo/dotter",
-  "https://github.com/psjo/felt",
+  {
+    root: "https://github.com/psjo/arcsin",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
+  {
+    root: "https://github.com/psjo/darktimes",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
+  {
+    root: "https://github.com/psjo/dotter",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
+  {
+    root: "https://github.com/psjo/felt",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/rain-dl/DayRound",
   "https://github.com/ravenfeld/Connect-IQ-DataField-BackToHome",
   "https://github.com/ravenfeld/Connect-IQ-DataField-GPS",
@@ -165,8 +192,10 @@ export const githubProjects = [
   "https://github.com/simonmacmullen/activity-widget",
   {
     root: "https://github.com/simonmacmullen/chart-datafields",
-    jungleContent:
-      "base.sourcePath=./**.mc;../../src\nbase.resourcePath=../../resources;./strings.xml",
+    jungleContent: [
+      "base.sourcePath=./**.mc;../../src",
+      "base.resourcePath=../../resources;./strings.xml",
+    ],
   },
   "https://github.com/simonmacmullen/hr-widget",
   "https://github.com/simonmacmullen/instrument-panel",
@@ -189,8 +218,7 @@ export const githubProjects = [
   "https://github.com/sunpazed/garmin-mickey",
   {
     root: "https://github.com/sunpazed/garmin-nyan-cat",
-    build: false,
-    comment: "Undefined variables",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
   },
   "https://github.com/sunpazed/garmin-oz",
   "https://github.com/sunpazed/garmin-polybug",
@@ -205,8 +233,15 @@ export const githubProjects = [
   "https://github.com/victornottat/garmin-trimp-perhour",
   "https://github.com/victornottat/garmin-trimp",
   "https://github.com/vmaywood/Garmin-Watch-Faces",
-  "https://github.com/voseldop/timeless",
-  "https://github.com/vovan-/cyclist-datafiled-garmin",
+  {
+    root: "https://github.com/voseldop/timeless",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
+  {
+    root: "https://github.com/vovan-/cyclist-datafiled-garmin",
+    build: false,
+    comment: "missing launcher icon",
+  },
   {
     root: "https://github.com/vtrifonov-esfiddle/Meditate",
     exclude:
@@ -216,13 +251,8 @@ export const githubProjects = [
   "https://github.com/warmsound/crystal-face",
   "https://github.com/werkkrew/ciq-orange-theory",
   "https://github.com/zbraniecki/ultitimer",
-  {
-    root: "https://gitlab.com/HankG/GarminConnectIQ",
-    build: false,
-    comment: "Double declaration of a variable",
-  },
+  "https://gitlab.com/HankG/GarminConnectIQ",
   "https://gitlab.com/harryonline/emergencyinfo",
-  "https://gitlab.com/harryonline/fortune-quote",
   "https://gitlab.com/harryonline/fortune-quote",
   "https://gitlab.com/harryonline/timerwidget",
   "https://gitlab.com/nz_brian/HiVisRunField",
@@ -244,10 +274,21 @@ export async function fetchGitProjects(projects) {
         options,
         sourcePath,
         jungleContent,
+        rename,
       } = p.root ? p : { root: p };
       const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
       const projDir = path.resolve(dir, name);
       return fetchAndClean(projDir, root)
+        .then((output) => {
+          if (!rename) {
+            return output;
+          }
+          return Promise.all(
+            rename.map((e) =>
+              fs.rename(path.join(projDir, e.from), path.join(projDir, e.to))
+            )
+          ).then(() => output);
+        })
         .then((output) => {
           console.log(output);
           return globa(`${projDir}/**/*.jungle`);
@@ -262,7 +303,7 @@ export async function fetchGitProjects(projects) {
                   jungle,
                   `project.manifest = manifest.xml\n${
                     sourcePath ? `base.sourcePath=${sourcePath}` : ""
-                  }\n${jungleContent ? jungleContent : ""}\n`
+                  }\n${jungleContent ? jungleContent.join("\n") : ""}\n`
                 );
                 return jungle;
               })
@@ -283,8 +324,8 @@ export async function fetchGitProjects(projects) {
           }
           return jungles;
         })
-        .catch(() => {
-          failures.push(root);
+        .catch((e) => {
+          failures.push(`${root}: ${e.toString()}`);
           return [];
         });
     }),
@@ -320,7 +361,7 @@ function fetchAndClean(projDir, root) {
       })
     )
     .then(() =>
-      spawnByLine("git", ["reset", "--hard", "HEAD"], loggers, {
+      spawnByLine("git", ["reset", "--hard", "FETCH_HEAD"], loggers, {
         cwd: projDir,
       })
     )
@@ -330,9 +371,25 @@ function fetchAndClean(projDir, root) {
       })
     )
     .then(() =>
-      spawnByLine("git", ["rebase", "FETCH_HEAD"], loggers, {
-        cwd: projDir,
-      })
+      globa(
+        path.join(
+          __dirname,
+          "projects",
+          "patches",
+          path.basename(projDir),
+          "*.patch"
+        )
+      )
     )
-    .then(() => output.join("\n"));
+    .then(
+      (patches) =>
+        patches.length &&
+        spawnByLine("git", ["am", ...patches], loggers, {
+          cwd: projDir,
+        })
+    )
+    .then(() => output.join("\n"))
+    .catch(() => {
+      throw new Error(output.join("\n"));
+    });
 }

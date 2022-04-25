@@ -1,0 +1,30 @@
+From 61f61b9bc2bbfbcc8f35ff1f0cb99aecb1f6e71f Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sat, 23 Apr 2022 16:40:32 -0700
+Subject: [PATCH] markw65: fix various issues
+
+---
+ resources/layouts/settings.xml | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/resources/layouts/settings.xml b/resources/layouts/settings.xml
+index 8ad16f7..d08f78a 100644
+--- a/resources/layouts/settings.xml
++++ b/resources/layouts/settings.xml
+@@ -20,13 +20,4 @@
+     <setting propertyKey="@Properties.hideWindsView" title="@Strings.HideWindsView">
+         <settingConfig type="boolean" readonly="false"/>
+     </setting>
+-    <setting propertyKey="@Properties.autoSwitchToMarks" title="@Strings.AutoSwitchToMarks">
+-        <settingConfig type="boolean" readonly="false"/>
+-    </setting>
+-    <setting propertyKey="@Properties.timerDisplayMode" title="@Strings.TimerDisplayMode">
+-        <settingConfig type="list">
+-            <listEntry value="0">@Strings.BigCOG</listEntry>
+-            <listEntry value="1">@Strings.BigTimer</listEntry>
+-        </settingConfig>
+-    </setting>
+ </settings>
+-- 
+2.34.1
+

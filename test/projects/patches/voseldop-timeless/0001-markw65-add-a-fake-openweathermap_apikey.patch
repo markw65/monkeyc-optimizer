@@ -1,0 +1,22 @@
+From 1bfbc8edf1871bfe7de9ad21b4a5e56bc48a80f7 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Tue, 26 Apr 2022 07:47:49 -0700
+Subject: [PATCH] markw65: add a fake openweathermap_apikey
+
+---
+ resources/openweather_key.xml | 3 +++
+ 1 file changed, 3 insertions(+)
+ create mode 100644 resources/openweather_key.xml
+
+diff --git a/resources/openweather_key.xml b/resources/openweather_key.xml
+new file mode 100644
+index 0000000..9dddb48
+--- /dev/null
++++ b/resources/openweather_key.xml
+@@ -0,0 +1,3 @@
++<strings>
++    <string id="openweathermap_apikey">not-a-real-key</string>
++</strings>
+-- 
+2.34.1
+

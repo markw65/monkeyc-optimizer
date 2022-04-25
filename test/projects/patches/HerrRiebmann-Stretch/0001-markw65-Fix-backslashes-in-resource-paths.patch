@@ -1,0 +1,513 @@
+From 5057f015c8b4220f0e92f080eee3c5c556572e81 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sat, 23 Apr 2022 12:46:42 -0700
+Subject: [PATCH] markw65: Fix backslashes in resource paths
+
+---
+ resources-approachs60/layouts/layout.xml      |  8 +++----
+ resources-d2bravo/layouts/layout.xml          |  8 +++----
+ resources-d2bravo_titanium/layouts/layout.xml |  8 +++----
+ resources-d2charlie/layouts/layout.xml        |  8 +++----
+ resources-fenix3/layouts/layout.xml           |  8 +++----
+ resources-fenix3_hr/layouts/layout.xml        |  8 +++----
+ resources-fenix5/layouts/layout.xml           |  8 +++----
+ resources-fenix5s/layouts/layout.xml          |  8 +++----
+ resources-fenix5x/layouts/layout.xml          |  8 +++----
+ resources-fenixchronos/layouts/layout.xml     |  8 +++----
+ resources-fr230/layouts/layout.xml            |  8 +++----
+ resources-fr235/layouts/layout.xml            |  8 +++----
+ resources-fr630/layouts/layout.xml            |  8 +++----
+ resources-fr735xt/layouts/layout.xml          |  8 +++----
+ resources-fr935/layouts/layout.xml            |  8 +++----
+ resources-round-218x218/layouts/layout.xml    |  6 ++---
+ resources-vivoactive3/layouts/layout.xml      |  8 +++----
+ resources-vivoactive_hr/layouts/layout.xml    |  8 +++----
+ resources/fitContributions.xml                | 24 -------------------
+ resources/layouts/layout.xml                  |  8 +++----
+ 20 files changed, 75 insertions(+), 99 deletions(-)
+ delete mode 100644 resources/fitContributions.xml
+
+diff --git a/resources-approachs60/layouts/layout.xml b/resources-approachs60/layouts/layout.xml
+index 54805da..09e1706 100644
+--- a/resources-approachs60/layouts/layout.xml
++++ b/resources-approachs60/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="55" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="55" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="80" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="120" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="150" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="120" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="150" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="160" y="10" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="135" y="173" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="145" y="170" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="120" y="200" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="173" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="173" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-d2bravo/layouts/layout.xml b/resources-d2bravo/layouts/layout.xml
+index 288e59f..92ddcb6 100644
+--- a/resources-d2bravo/layouts/layout.xml
++++ b/resources-d2bravo/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="163" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="155" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="155" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-d2bravo_titanium/layouts/layout.xml b/resources-d2bravo_titanium/layouts/layout.xml
+index 288e59f..92ddcb6 100644
+--- a/resources-d2bravo_titanium/layouts/layout.xml
++++ b/resources-d2bravo_titanium/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="163" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="155" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="155" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-d2charlie/layouts/layout.xml b/resources-d2charlie/layouts/layout.xml
+index 0a5369e..e889cb8 100644
+--- a/resources-d2charlie/layouts/layout.xml
++++ b/resources-d2charlie/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="55" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="55" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="80" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="120" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="150" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="120" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="150" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="160" y="10" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="120" y="173" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="130" y="170" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="120" y="200" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="173" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="173" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fenix3/layouts/layout.xml b/resources-fenix3/layouts/layout.xml
+index 288e59f..92ddcb6 100644
+--- a/resources-fenix3/layouts/layout.xml
++++ b/resources-fenix3/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="163" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="155" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="155" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fenix3_hr/layouts/layout.xml b/resources-fenix3_hr/layouts/layout.xml
+index 288e59f..92ddcb6 100644
+--- a/resources-fenix3_hr/layouts/layout.xml
++++ b/resources-fenix3_hr/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="163" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="155" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="155" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fenix5/layouts/layout.xml b/resources-fenix5/layouts/layout.xml
+index 0a5369e..e889cb8 100644
+--- a/resources-fenix5/layouts/layout.xml
++++ b/resources-fenix5/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="55" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="55" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="80" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="120" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="150" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="120" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="150" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="160" y="10" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="120" y="173" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="130" y="170" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="120" y="200" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="173" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="173" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fenix5s/layouts/layout.xml b/resources-fenix5s/layouts/layout.xml
+index b91ee3a..29338ac 100644
+--- a/resources-fenix5s/layouts/layout.xml
++++ b/resources-fenix5s/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="163" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="155" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="155" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fenix5x/layouts/layout.xml b/resources-fenix5x/layouts/layout.xml
+index 0a5369e..e889cb8 100644
+--- a/resources-fenix5x/layouts/layout.xml
++++ b/resources-fenix5x/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="55" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="55" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="80" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="120" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="150" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="120" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="150" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="160" y="10" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="120" y="173" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="130" y="170" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="120" y="200" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="173" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="173" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fenixchronos/layouts/layout.xml b/resources-fenixchronos/layouts/layout.xml
+index 288e59f..92ddcb6 100644
+--- a/resources-fenixchronos/layouts/layout.xml
++++ b/resources-fenixchronos/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="163" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="155" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="155" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fr230/layouts/layout.xml b/resources-fr230/layouts/layout.xml
+index b3ea8c7..38cc6db 100644
+--- a/resources-fr230/layouts/layout.xml
++++ b/resources-fr230/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>		
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+     <label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="146" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="143" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="160" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="160" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fr235/layouts/layout.xml b/resources-fr235/layouts/layout.xml
+index b3ea8c7..38cc6db 100644
+--- a/resources-fr235/layouts/layout.xml
++++ b/resources-fr235/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>		
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+     <label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="146" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="143" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="160" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="160" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fr630/layouts/layout.xml b/resources-fr630/layouts/layout.xml
+index b3ea8c7..38cc6db 100644
+--- a/resources-fr630/layouts/layout.xml
++++ b/resources-fr630/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>		
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+     <label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="146" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="143" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="160" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="160" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fr735xt/layouts/layout.xml b/resources-fr735xt/layouts/layout.xml
+index b3ea8c7..38cc6db 100644
+--- a/resources-fr735xt/layouts/layout.xml
++++ b/resources-fr735xt/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>		
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+     <label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="110" y="146" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="120" y="143" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="109" y="160" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="160" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="160" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-fr935/layouts/layout.xml b/resources-fr935/layouts/layout.xml
+index 0a5369e..e889cb8 100644
+--- a/resources-fr935/layouts/layout.xml
++++ b/resources-fr935/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="55" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="55" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="80" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="120" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="150" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="120" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="150" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="160" y="10" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="120" y="173" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="130" y="170" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="120" y="200" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="173" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="173" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+diff --git a/resources-round-218x218/layouts/layout.xml b/resources-round-218x218/layouts/layout.xml
+index dd1972f..c9393de 100644
+--- a/resources-round-218x218/layouts/layout.xml
++++ b/resources-round-218x218/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="45" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="45" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="70" y="14" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="105" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="130" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="105" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="130" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="140" y="12" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="55" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="190" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+diff --git a/resources-vivoactive3/layouts/layout.xml b/resources-vivoactive3/layouts/layout.xml
+index ef4907a..b629902 100644
+--- a/resources-vivoactive3/layouts/layout.xml
++++ b/resources-vivoactive3/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="55" y="16" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="55" y="16" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="80" y="9" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="120" y="16" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="150" y="16" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="120" y="16" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="150" y="16" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="160" y="8" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="75" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="200" y="40" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblTypeNext" x="135" y="173" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="145" y="170" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>    
+ 	<label id="lblRep" x="120" y="200" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="173" y="18" filename="..\Drawables\Recording15x15.png" />
++	<bitmap id="bmpRecording" x="173" y="18" filename="../Drawables/Recording15x15.png" />
+ </layout>
+\ No newline at end of file
+diff --git a/resources-vivoactive_hr/layouts/layout.xml b/resources-vivoactive_hr/layouts/layout.xml
+index bb168bb..1e56d6d 100644
+--- a/resources-vivoactive_hr/layouts/layout.xml
++++ b/resources-vivoactive_hr/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="20" y="0" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="20" y="0" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="45" y="-1" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="75" y="0" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="105" y="1" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="75" y="0" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="105" y="1" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="115" y="-2" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="15" y="45" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>	
+     <label id="time" x="140" y="20" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblRep" x="145" y="155" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_MEDIUM"/>
+     <label id="lblTypeNext" x="90" y="183" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="100" y="180" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="130" y="2" filename="..\Drawables\Recording15x15.png" />    
++	<bitmap id="bmpRecording" x="130" y="2" filename="../Drawables/Recording15x15.png" />    
+ </layout>
+diff --git a/resources/fitContributions.xml b/resources/fitContributions.xml
+deleted file mode 100644
+index 25bb9d9..0000000
+--- a/resources/fitContributions.xml
++++ /dev/null
+@@ -1,24 +0,0 @@
+-<resources>
+-    <fitContributions>
+-        <fitField id="0"
+-        displayInActivitySummary="true"        
+-        dataLabel="@Strings.menu_label_Rep"
+-        unitLabel="@Strings.unit_Rep"
+-        sortOrder = "0"
+-        precision="0"/>
+-
+-        <fitField id="1"
+-        displayInActivitySummary="true"
+-        dataLabel="@Strings.menu_label_Timer"
+-        unitLabel="@Strings.unit_Duration"
+-        sortOrder = "1"
+-        precision="0"/>
+-        
+-        <fitField id="2"
+-        displayInActivitySummary="true"        
+-        dataLabel="@Strings.menu_label_Rest"
+-        unitLabel="@Strings.unit_Duration"
+-        sortOrder = "2"
+-        precision="0"/>
+-    </fitContributions>
+-</resources>
+\ No newline at end of file
+diff --git a/resources/layouts/layout.xml b/resources/layouts/layout.xml
+index 6f04cfb..9e87cc4 100644
+--- a/resources/layouts/layout.xml
++++ b/resources/layouts/layout.xml
+@@ -1,9 +1,9 @@
+ <layout id="MainLayout">
+ 	<drawable id="statusLayout" />
+-	<bitmap id="Heart" x="20" y="0" filename="..\Drawables\Heart20x20.png" /> 
++	<bitmap id="Heart" x="20" y="0" filename="../Drawables/Heart20x20.png" /> 
+ 	<label id="heartrate" x="45" y="-1" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>
+-	<bitmap id="Bluetooth" x="75" y="0" filename="..\Drawables\Bluetooth32.png" />	
+-	<bitmap id="Messages" x="105" y="1" filename="..\Drawables\Message20x20.png" /> 
++	<bitmap id="Bluetooth" x="75" y="0" filename="../Drawables/Bluetooth32.png" />	
++	<bitmap id="Messages" x="105" y="1" filename="../Drawables/Message20x20.png" /> 
+ 	<label id="MessageCounter" x="115" y="-1" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_CENTER" font="Gfx.FONT_SMALL"/>
+ 	<label id="lblTypeActive" x="10" y="20" text="@Strings.main_label_Rest" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_SMALL"/>		
+     <label id="time" x="190" y="0" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>
+@@ -11,5 +11,5 @@
+     <label id="lblRep" x="12" y="120" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>
+     <label id="lblTypeNext" x="150" y="125" text="@Strings.main_label_Stretch" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_RIGHT" font="Gfx.FONT_SMALL"/>	
+ 	<label id="lblNext" x="155" y="120" color="Gfx.COLOR_WHITE" justification="Gfx.TEXT_JUSTIFY_LEFT" font="Gfx.FONT_MEDIUM"/>
+-	<bitmap id="bmpRecording" x="135" y="2" filename="..\Drawables\Recording15x15.png" />		    
++	<bitmap id="bmpRecording" x="135" y="2" filename="../Drawables/Recording15x15.png" />		    
+ </layout>
+-- 
+2.34.1
+

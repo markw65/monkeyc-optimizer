@@ -1,0 +1,26 @@
+From 6b0c2abc65af0a52b941719ccbc55c853ef8c42d Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Tue, 26 Apr 2022 07:11:28 -0700
+Subject: [PATCH] markw65: Remove prompt with missing reference
+
+---
+ resources/settings/settings.xml | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/resources/settings/settings.xml b/resources/settings/settings.xml
+index a7b79b3..54acc11 100644
+--- a/resources/settings/settings.xml
++++ b/resources/settings/settings.xml
+@@ -183,8 +183,7 @@
+ 			<listEntry value="0xAA00FF">@Strings.purpleCol</listEntry>
+ 		</settingConfig>
+ 	</setting>
+-	<setting propertyKey="@Properties.colonPos_prop" title="@Strings.colonPos"
+-		prompt="@Strings.choosePrompt" >
++	<setting propertyKey="@Properties.colonPos_prop" title="@Strings.colonPos">
+ 		<settingConfig type="numeric" min="0" max="46"
+ 			errorMessage="@Strings.colonValueError" />
+ 	</setting>
+-- 
+2.34.1
+

@@ -13,7 +13,8 @@
     "build-debug": "webpack --mode development",
     "build-release": "webpack --mode production",
     "prepack": "webpack --mode production",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test-remote",
+    "test-remote": "node ./test/test.js --product=pick-one --github"
   },
   "files": [
     "build/optimizer.cjs",

@@ -1,0 +1,25 @@
+From c55bee3e5b5df183d9793b4d4d8269d6b2cb158d Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sat, 23 Apr 2022 12:53:04 -0700
+Subject: [PATCH] markw65: Fix maybe-not-initialized error
+
+---
+ source/TimerApp.mc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/TimerApp.mc b/source/TimerApp.mc
+index b73411c..d61fb28 100644
+--- a/source/TimerApp.mc
++++ b/source/TimerApp.mc
+@@ -39,7 +39,7 @@ class TimerApp extends App.AppBase {
+ 	}
+ 		
+ 	function elementsToJson(){
+-		var json;
++		var json="";
+ 		for (var i=0; i<elements.size(); i++){
+ 			if(i==0){
+ 				json= "[";
+-- 
+2.34.1
+

@@ -1,0 +1,24 @@
+From 5df887c6b53a7d8775078be549e0dc836096e115 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sat, 23 Apr 2022 12:34:49 -0700
+Subject: [PATCH] markw65: Remove broken, unused layout
+
+---
+ resources/layouts/layout.xml | 4 ----
+ 1 file changed, 4 deletions(-)
+ delete mode 100644 resources/layouts/layout.xml
+
+diff --git a/resources/layouts/layout.xml b/resources/layouts/layout.xml
+deleted file mode 100644
+index 3752e56..0000000
+--- a/resources/layouts/layout.xml
++++ /dev/null
+@@ -1,4 +0,0 @@
+-<layout id="WatchFace">
+-    <drawable class="Background" />
+-    <label id="TimeLabel" x="center" y="center" font="Gfx.FONT_LARGE" justification="Gfx.TEXT_JUSTIFY_CENTER" color="Gfx.COLOR_BLUE" />
+-</layout>
+\ No newline at end of file
+-- 
+2.34.1
+

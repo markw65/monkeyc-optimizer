@@ -1,0 +1,31 @@
+From 34901140ff5c8a753446a07b032f77c59c674247 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sat, 23 Apr 2022 16:47:14 -0700
+Subject: [PATCH] markw65: Fix bad resource
+
+---
+ MFFWatch/resources/resources.xml | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/MFFWatch/resources/resources.xml b/MFFWatch/resources/resources.xml
+index 81c0466..3ae3f9e 100644
+--- a/MFFWatch/resources/resources.xml
++++ b/MFFWatch/resources/resources.xml
+@@ -1,8 +1,9 @@
+ <resources>
+     <string id="AppName">MFFWatch</string>
+ 
+-    <bitmap id="LauncherIcon" filename="images/launcher_icon.png" />
+-	<palette>
+-      <color>0093D3</color>
+-    </palette>
++    <bitmap id="LauncherIcon" filename="images/launcher_icon.png">
++        <palette>
++            <color>0093D3</color>
++        </palette>
++    </bitmap>
+ </resources>
+\ No newline at end of file
+-- 
+2.34.1
+
