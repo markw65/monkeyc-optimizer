@@ -163,7 +163,7 @@ export const githubProjects = [
   {
     root: "https://github.com/simonmacmullen/chart-datafields",
     jungleContent:
-      "base.sourcePath=./**.mc;../../src\nbase.resourcePath=../../resources",
+      "base.sourcePath=./**.mc;../../src\nbase.resourcePath=../../resources;./strings.xml",
   },
   "https://github.com/simonmacmullen/hr-widget",
   "https://github.com/simonmacmullen/instrument-panel",

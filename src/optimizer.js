@@ -16,6 +16,13 @@ import {
 
 export { copyRecursiveAsNeeded, launchSimulator };
 
+function relative_path_no_dotdot(relative) {
+  return relative.replace(
+    /^(\.\.[\\\/])+/,
+    (str) => `__${"dot".repeat(str.length / 3)}__${str.slice(-1)}`
+  );
+}
+
 async function getVSCodeSettings(path) {
   try {
     const settings = await fs.readFile(path);
@@ -196,7 +203,7 @@ export async function generateOptimizedProject(options) {
     const prefix = `${product}.`;
     process_field(prefix, qualifier, "sourcePath", (s) =>
       path
-        .join(group.dir, path.relative(workspace, s))
+        .join(group.dir, relative_path_no_dotdot(path.relative(workspace, s)))
         .replace(/(\/\*\*)\/\*/g, "$1")
     );
     process_field(prefix, qualifier, "resourcePath", relative_path);
@@ -254,7 +261,10 @@ async function generateOneConfig(config) {
   const fnMap = Object.fromEntries(
     files
       .filter((src) => /\.mc$/.test(src))
-      .map((file) => [path.join(workspace, file), path.join(output, file)])
+      .map((file) => [
+        path.join(workspace, file),
+        path.join(output, relative_path_no_dotdot(file)),
+      ])
   );
 
   const source_time = await last_modified(Object.keys(fnMap));
