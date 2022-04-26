@@ -317,7 +317,7 @@ export async function fetchGitProjects(projects) {
           }
           if (exclude) {
             const re = new RegExp(exclude);
-            jungles = jungles.filter((j) => !re.test(j));
+            jungles = jungles.filter((j) => !re.test(j.replace(/\\/g, "/")));
           }
           if (options || build === false) {
             jungles = jungles.map((jungle) => ({ jungle, build, options }));

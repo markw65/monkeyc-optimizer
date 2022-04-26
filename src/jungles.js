@@ -272,7 +272,7 @@ async function resolve_literals(qualifier, default_source) {
             // Jungle files can contain "./**.mc" which is supposed to match
             // any mc file under "./". The standard way to express that
             // is "./**/*.mc", which is what glob expects, so translate.
-            resolved = resolved.replace(/\/\*\*([^/])/g, "/**/*$1");
+            resolved = resolved.replace(/[\\\/]\*\*([^\\\/])/g, "/**/*$1");
             const match = await globa(resolved);
             return match.length ? resolved : null;
           } else {
@@ -323,7 +323,7 @@ async function find_build_instructions_in_resource(file) {
     const sourceExcludes = rez.build.exclude
       .map((e) => e.$.file)
       .filter((f) => f != null)
-      .map((f) => path.resolve(dir, f));
+      .map((f) => path.resolve(dir, f).replace(/\\/g, "/"));
 
     const filePatterns = rez.build.exclude
       .map((e) => e.$.dir)

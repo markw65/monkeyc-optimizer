@@ -204,7 +204,7 @@ export async function generateOptimizedProject(options) {
     process_field(prefix, qualifier, "sourcePath", (s) =>
       path
         .join(group.dir, relative_path_no_dotdot(path.relative(workspace, s)))
-        .replace(/(\/\*\*)\/\*/g, "$1")
+        .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
     );
     process_field(prefix, qualifier, "resourcePath", relative_path);
     process_field(prefix, qualifier, "barrelPath", relative_path);
