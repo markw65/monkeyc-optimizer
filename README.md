@@ -58,6 +58,27 @@ More fixes found via open source projects.
 
 ### 1.0.8
 
-- Generate the default jungle dynamically, since sdk/bin/default.jungle is generated lazily, and may not exist in newly installed sdks, or may be out of date after device installations.
+- Improvements
 
----
+  - Update to @markw65/prettier-plugin-monkeyc:1.0.14
+  - Parse and respect \<build\> instructions in resource files
+  - Add minimal barrel support
+  - Better checking for whether the optimized source is up to date
+  - Rename locals which would be marked re-declaring
+
+- Bug Fixes
+
+  - Generate the default jungle dynamically, since sdk/bin/default.jungle is generated lazily, and may not exist in newly installed sdks, or may be out of date after device installations.
+  - Fix a bug generating language settings in optimized jungle
+  - Fix a bug introduced by pick-one: don't modify a shared array
+  - Don't allow src paths to navigate out of the optimized directory
+  - Fix some windows paths issues
+
+- Tests
+  - More parallelism while fetching remote projects for testing
+  - Add option to build the original project, rather than the optimized one
+  - Add support for overriding build options on a per project basis
+  - Add an option so we only 'fix' the manifest when running remote projects
+  - Check the manifest's application id, and throw in a valid one if necessary
+  - Allow project specific overrides for the generated monkey.jungle files, and use it to fix some projects
+  - Add patches for some broken projects
