@@ -113,8 +113,10 @@ export async function generateOptimizedProject(options) {
       program: path.basename(path.dirname(manifest)),
     };
   }
+  const configKey = (p) =>
+    p.group.key + (config.releaseBuild ? "-release" : "-debug");
   targets.forEach((p) => {
-    const key = p.group.key + (config.releaseBuild ? "-release" : "-debug");
+    const key = configKey(p);
     if (!hasProperty(buildConfigs, key)) {
       p.group.dir = key;
       buildConfigs[key] = null;
@@ -199,6 +201,7 @@ export async function generateOptimizedProject(options) {
     parts.push(`${prefix}${name} = ${base[name].map(map).join(";")}`);
   };
   targets.forEach((jungle) => {
+    if (!buildConfigs[configKey(jungle)]) return;
     const { product, qualifier, group } = jungle;
     const prefix = `${product}.`;
     process_field(prefix, qualifier, "sourcePath", (s) =>

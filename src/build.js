@@ -56,16 +56,7 @@ export async function build_project(product, options, lineCallback) {
 
   const handlers = [
     lineCallback || ((line) => console.log(line)),
-    (line) => {
-      if (
-        /^WARNING: .*: Source path '.*' cannot be resolved to a valid path./.test(
-          line
-        )
-      ) {
-        return;
-      }
-      console.error(line);
-    },
+    (line) => console.error(line),
   ];
   return returnCommand
     ? { exe, args }
