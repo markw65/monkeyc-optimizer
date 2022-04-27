@@ -19,6 +19,7 @@
   "files": [
     "build/optimizer.cjs",
     "build/util.cjs",
+    "build/sdk-util.cjs",
     "build/api.cjs"
   ],
   "author": "markw65",

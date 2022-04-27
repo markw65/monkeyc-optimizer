@@ -100,6 +100,7 @@ export default (env, argv) => {
     entry: {
       optimizer: "./src/optimizer.js",
       util: "./src/util.js",
+      "sdk-util": "./src/sdk-util.js",
       api: "./src/api.js",
     },
     optimization: { minimize: false },
@@ -124,7 +125,7 @@ export default (env, argv) => {
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);
       }
-      if (/^\.\/(util|api)\.js$/.test(request)) {
+      if (/^\.\/(util|api|sdk-util)\.js$/.test(request)) {
         return callback(null, request.replace(/\.js$/, ".cjs"));
       }
       callback();
