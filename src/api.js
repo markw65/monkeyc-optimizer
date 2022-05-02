@@ -6,7 +6,7 @@ import { negativeFixups } from "./negative-fixups.js";
 import { getSdkPath } from "./sdk-util.js";
 import { pushUnique } from "./util.js";
 
-export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/;
+export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
 /*
  * This is an unfortunate hack. I want to be able to extract things
  * like the types of all of a Class's variables (in particular the type
