@@ -264,73 +264,72 @@ export async function fetchGitProjects(projects) {
   const dir = path.join(__dirname, "..", "build", "test", "projects");
   await fs.mkdir(dir, { recursive: true });
   const failures = [];
-  const result = await promiseAll(
-    projects.map((p) => {
-      const {
-        root,
-        include,
-        exclude,
-        build,
-        options,
-        sourcePath,
-        jungleContent,
-        rename,
-      } = p.root ? p : { root: p };
-      const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
-      const projDir = path.resolve(dir, name);
-      return fetchAndClean(projDir, root)
-        .then((output) => {
-          if (!rename) {
-            return output;
-          }
-          return Promise.all(
-            rename.map((e) =>
-              fs.rename(path.join(projDir, e.from), path.join(projDir, e.to))
-            )
-          ).then(() => output);
-        })
-        .then((output) => {
-          console.log(output);
-          return globa(`${projDir}/**/*.jungle`);
-        })
-        .then((jungles) => {
-          if (jungles.length) return jungles;
-          return globa(`${projDir}/**/manifest.xml`).then((manifests) =>
-            Promise.all(
-              manifests.map(async (m) => {
-                const jungle = path.resolve(path.dirname(m), "monkey.jungle");
-                await fs.writeFile(
-                  jungle,
-                  `project.manifest = manifest.xml\n${
-                    sourcePath ? `base.sourcePath=${sourcePath}` : ""
-                  }\n${jungleContent ? jungleContent.join("\n") : ""}\n`
-                );
-                return jungle;
-              })
-            )
-          );
-        })
-        .then((jungles) => {
-          if (include) {
-            const re = new RegExp(include);
-            jungles = jungles.filter((j) => re.test(j));
-          }
-          if (exclude) {
-            const re = new RegExp(exclude);
-            jungles = jungles.filter((j) => !re.test(j.replace(/\\/g, "/")));
-          }
-          if (options || build === false) {
-            jungles = jungles.map((jungle) => ({ jungle, build, options }));
-          }
-          return jungles;
-        })
-        .catch((e) => {
-          failures.push(`${root}: ${e.toString()}`);
-          return [];
-        });
-    }),
-    16
-  );
+  const result = await promiseAll((i) => {
+    if (i >= projects.length) return null;
+    const p = projects[i];
+    const {
+      root,
+      include,
+      exclude,
+      build,
+      options,
+      sourcePath,
+      jungleContent,
+      rename,
+    } = p.root ? p : { root: p };
+    const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
+    const projDir = path.resolve(dir, name);
+    return fetchAndClean(projDir, root)
+      .then((output) => {
+        if (!rename) {
+          return output;
+        }
+        return Promise.all(
+          rename.map((e) =>
+            fs.rename(path.join(projDir, e.from), path.join(projDir, e.to))
+          )
+        ).then(() => output);
+      })
+      .then((output) => {
+        console.log(output);
+        return globa(`${projDir}/**/*.jungle`);
+      })
+      .then((jungles) => {
+        if (jungles.length) return jungles;
+        return globa(`${projDir}/**/manifest.xml`).then((manifests) =>
+          Promise.all(
+            manifests.map(async (m) => {
+              const jungle = path.resolve(path.dirname(m), "monkey.jungle");
+              await fs.writeFile(
+                jungle,
+                `project.manifest = manifest.xml\n${
+                  sourcePath ? `base.sourcePath=${sourcePath}` : ""
+                }\n${jungleContent ? jungleContent.join("\n") : ""}\n`
+              );
+              return jungle;
+            })
+          )
+        );
+      })
+      .then((jungles) => {
+        if (include) {
+          const re = new RegExp(include);
+          jungles = jungles.filter((j) => re.test(j));
+        }
+        if (exclude) {
+          const re = new RegExp(exclude);
+          jungles = jungles.filter((j) => !re.test(j.replace(/\\/g, "/")));
+        }
+        if (options || build === false) {
+          jungles = jungles.map((jungle) => ({ jungle, build, options }));
+        }
+        return jungles;
+      })
+      .catch((e) => {
+        failures.push(`${root}: ${e.toString()}`);
+        return [];
+      });
+  }, 16);
   failures.forEach((p) => console.error("Bad project: " + p));
   return result.flat();
 }

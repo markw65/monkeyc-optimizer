@@ -90,19 +90,29 @@ export function readByLine(file, lineHandler) {
   );
 }
 
-export async function promiseAll(promises, parallelism) {
+export async function promiseAll(promiseFn, parallelism) {
   parallelism = parallelism || 4;
   const serializer = [];
   const results = [];
-  const capture = (r, i) => (results[i] = r);
-  promises.forEach((p, i) => {
-    const cap = () => p.then((r) => capture(r, i));
-    if (serializer.length < parallelism) {
-      serializer.push(cap());
-    } else {
-      serializer[i % parallelism] = serializer[i % parallelism].then(cap);
+  let done = false;
+  let i = 0;
+  const next = () => {
+    const index = i++;
+    if (done) return;
+    const promise = promiseFn(index);
+    if (!promise) {
+      done = true;
+      return;
     }
-  });
+    return promise
+      .then((r) => {
+        results[index] = r;
+      })
+      .then(next);
+  };
+  while (i < parallelism) {
+    serializer.push(next());
+  }
   return Promise.all(serializer).then(() => results);
 }
 
