@@ -246,7 +246,6 @@ export const githubProjects = [
     root: "https://github.com/vtrifonov-esfiddle/Meditate",
     exclude:
       "barrels.jungle|(HrvAlgorithms|ScreenPicker|StatusIconFonts).monkey.jungle",
-    options: { jungleFiles: "monkey.jungle;barrels.jungle" },
   },
   "https://github.com/warmsound/crystal-face",
   "https://github.com/werkkrew/ciq-orange-theory",

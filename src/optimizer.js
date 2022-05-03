@@ -96,8 +96,20 @@ export async function generateOptimizedProject(options) {
   const config = await getConfig(options);
   const workspace = config.workspace;
 
+  const jungleFiles = config.jungleFiles.split(";");
+  if (!jungleFiles.includes("barrels.jungle")) {
+    const barrels = path.resolve(workspace, "barrels.jungle");
+    if (
+      await fs
+        .stat(barrels)
+        .then((s) => s.isFile())
+        .catch(() => false)
+    ) {
+      jungleFiles.push(barrels);
+    }
+  }
   const { manifest, targets, xml } = await get_jungle(
-    config.jungleFiles,
+    jungleFiles.join(";"),
     config
   );
   const buildConfigs = {};
@@ -109,7 +121,7 @@ export async function generateOptimizedProject(options) {
       options.products[pick_one] = targets[0].product;
     }
     return {
-      jungleFiles: config.jungleFiles,
+      jungleFiles: jungleFiles.join(";"),
       program: path.basename(path.dirname(manifest)),
     };
   }
@@ -220,14 +232,17 @@ export async function generateOptimizedProject(options) {
     }
   });
 
-  const jungleFiles = path.join(
+  const outputJungle = path.join(
     jungle_dir,
     `${config.releaseBuild ? "release" : "debug"}.jungle`
   );
-  promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
+  promises.push(fs.writeFile(outputJungle, parts.join("\n")));
 
   await Promise.all(promises);
-  return { jungleFiles, program: path.basename(path.dirname(manifest)) };
+  return {
+    jungleFiles: outputJungle,
+    program: path.basename(path.dirname(manifest)),
+  };
 }
 
 async function generateOneConfig(config) {
