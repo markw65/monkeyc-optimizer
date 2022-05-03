@@ -82,3 +82,13 @@ More fixes found via open source projects.
   - Check the manifest's application id, and throw in a valid one if necessary
   - Allow project specific overrides for the generated monkey.jungle files, and use it to fix some projects
   - Add patches for some broken projects
+
+### 1.0.9
+
+- Only generate the parts of the jungle we're going to use
+- Also publish sdk-util.cjs
+- Bump to @markw65/prettier-plugin-monkeyc:1.0.15
+  - Fixes a bug that dropped attributes on modules
+- LiteralIntegerRe should be case insensitive
+- Proper fix for promiseAll
+- Auto-include barrels.jungle when its present
