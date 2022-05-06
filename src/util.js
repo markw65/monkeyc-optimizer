@@ -141,7 +141,6 @@ export async function copyRecursiveAsNeeded(source, target, filter) {
     }
     const tstat = await fstat(target).catch(() => null);
     if (!tstat || tstat.mtimeMs < sstat.mtimeMs) {
-      console.log(`Copying ${source} to ${target}...`);
       return fs.copyFile(source, target, fsc.constants.COPYFILE_FICLONE);
     }
   }

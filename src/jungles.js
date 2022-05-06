@@ -1,9 +1,17 @@
+import * as crypto from "crypto";
+import extract from "extract-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
 import * as jungle from "../build/jungle.js";
 import { hasProperty } from "./api.js";
-import { manifestProducts, readManifest } from "./manifest.js";
+import {
+  manifestAnnotations,
+  manifestBarrelName,
+  manifestBarrels,
+  manifestProducts,
+  readManifest,
+} from "./manifest.js";
 import { getDeviceInfo, getLanguages } from "./sdk-util.js";
 import { globa } from "./util.js";
 
@@ -312,7 +320,20 @@ async function resolve_literals(qualifier, default_source) {
     base[name] = literals.map((v) => v.value);
   };
   resolve_literal_list(qualifier, "excludeAnnotations");
-  resolve_literal_list(qualifier, "annotations");
+  // turn the annotations inside out.
+  // in the jungle we have
+  //   qualifier.BarrelName.annotations = Foo;Bar
+  // but its more convenient as
+  //   qualifier.annotations.BarrelName = Foo;Bar
+  const annotations = {};
+  Object.entries(qualifier).forEach(([k, v]) => {
+    if (hasProperty(v, "annotations")) {
+      annotations[k] = v.annotations;
+      resolve_literal_list(annotations, k);
+      delete qualifier[k];
+    }
+  });
+  qualifier.annotations = annotations;
 }
 
 async function find_build_instructions_in_resource(file) {
@@ -452,6 +473,7 @@ function identify_optimizer_groups(targets, options) {
       sourcePath,
       sourceExcludes,
       barrelPath,
+      barrelMap,
       excludeAnnotations,
       annotations,
     } = target.qualifier;
@@ -461,9 +483,11 @@ function identify_optimizer_groups(targets, options) {
         ignoredExcludeAnnotations
       );
     }
-    if (annotations && ignoredAnnotations) {
-      annotations = getStrsWithIgnore(annotations, ignoredAnnotations);
-    }
+    Object.entries(annotations).forEach(([key, value]) => {
+      if (ignoredAnnotations) {
+        annotations[key] = getStrsWithIgnore(value, ignoredAnnotations);
+      }
+    });
     if (ignoredSourcePaths) {
       sourcePath = sourcePath
         .map((path) => Object.keys(ignoredSourcePaths[path]))
@@ -475,6 +499,7 @@ function identify_optimizer_groups(targets, options) {
       sourcePath,
       sourceExcludes,
       barrelPath,
+      barrelMap,
       excludeAnnotations,
       annotations,
     };
@@ -494,11 +519,230 @@ function identify_optimizer_groups(targets, options) {
   });
 }
 
-export async function get_jungle(jungles, options) {
-  options = options || {};
+/**
+ * Find the barrels referred to by barrelPath.
+ *
+ * Each string in barrelPath is a glob that can expand to a
+ * .jungle file, a .barrel file, or a directory. If it
+ * expands to a directory, that directory is searched recursively
+ * for .barrel files.
+ *
+ * @param {string|string[]} barrelPath the path or paths to search
+ * @returns {Promise<string[]>}
+ */
+function find_barrels(barrelPath) {
+  return (
+    Array.isArray(barrelPath)
+      ? Promise.all(barrelPath.map(find_barrels))
+      : globa(barrelPath, { mark: true }).then((paths) =>
+          Promise.all(
+            paths.map((path) =>
+              path.endsWith("/") ? globa(`${path}**/*.barrel`) : path
+            )
+          )
+        )
+  ).then((barrelPaths) =>
+    barrelPaths
+      .flat()
+      .filter((path) => path.endsWith(".jungle") || path.endsWith(".barrel"))
+  );
+}
+
+/**
+ *
+ * @typedef {Object} BarrelMapEntry - The result of parsing a barrel's jungle file
+ * @property {string} rawBarrel - Path to the barrel's jungle file
+ * @property {string} manifest - Path to the barrel's manifest file
+ * @property {Object} xml - The xml content of the manifest, as returned by xml2js
+ * @property {Target[]} targets - All of the targets from the barrel's jungle/manifest
+
+ * @typedef {Object} ResolvedBarrel - A BarrelMapEntry restricted to a single target
+ * @property {string} rawBarrel - path to the barrel's jungle file
+ * @property {string} manifest - path to the barrel's manifest file
+ * @property {Object} xml - the xml content of the manifest, as returned by xml2js
+ * @property {JungleQualifier} qualifier - the qualifier for this ResolvedBarrel's target
+*
+ * @typedef {Object} JungleQualifier
+ * @property {string[]=} sourcePath - locations to find source file
+ * @property {string[]=} sourceExcludes - array of files to exclude from the build (from resource build instructions)
+ * @property {string[]=} excludeAnnotations - array of excludeAnnotations
+ * @property {string[]=} resourcePath - locations to find resource files
+ * @property {LangResourcePaths} lang - locations to find resource files
+ * @property {(string|string[])[]=} barrelPath - locations to find barrels
+ * @property {BarrelAnnotations=} annotations - map from barrel names to arrays of annotations
+ * @property {BarrelMap=} barrelMap
+ *
+ * @typedef {{[key:string]:string[]}} LangResourcePaths - Map from language codes to the corresponding resource paths
+ * @typedef {{[key:string]:string[]}} BarrelAnnotations - Map from barrel name to imported annotations
+ * @typedef {{[key:string]:ResolvedBarrel[]}} BarrelMap - Map from barrel name to the set of resolved barrel projects for that name. Note that they must all share a manifest.
+ */
+
+/**
+ * Given a .barrel file, unpack it into barrelDir, then process its .jungle file as below
+ * Given a .jungle file, resolve it to a BarrelMapEntry
+ *
+ * @param {string} barrel Path to a .jungle or .barrel file to resolve
+ * @param {string} barrelDir Directory where .barrel files should be unpacked
+ * @param {*} options
+ * @returns {Promise<BarrelMapEntry>}
+ */
+function resolve_barrel(barrel, barrelDir, options) {
+  const cache = options._cache;
+  if (hasProperty(cache.barrels, barrel)) {
+    return cache.barrels[barrel];
+  }
+  let promise = Promise.resolve();
+  let rawBarrel = barrel;
+  if (barrel.endsWith(".barrel")) {
+    // A barrel with the given name could in theory resolve to a different physical
+    // barrel file for each product, so uniqify the local name with a sha1.
+    const sha1 = crypto
+      .createHash("sha1")
+      .update(barrel, "binary")
+      .digest("base64")
+      .replace(/[\/=+]/g, "");
+    const localPath = path.resolve(
+      barrelDir,
+      `${path.basename(barrel, ".barrel")}-${sha1}`
+    );
+    rawBarrel = path.resolve(localPath, "barrel.jungle");
+    promise = promise.then(() =>
+      fs
+        .stat(localPath)
+        .then(
+          (localStat) =>
+            !localStat.isDirectory() ||
+            fs
+              .stat(barrel)
+              .then((barrelStat) => localStat.mtimeMs < barrelStat.mtimeMs),
+          () => true
+        )
+        .then(
+          (needsUpdate) =>
+            needsUpdate &&
+            fs
+              .rm(localPath, { recursive: true, force: true })
+              .then(() => extract(barrel, { dir: localPath }))
+        )
+    );
+  }
+  return promise
+    .then(() => get_jungle_and_barrels(rawBarrel, options))
+    .then((result) => {
+      if (!cache.barrels) cache.barrels = {};
+      return (cache.barrels[barrel] = { rawBarrel, ...result });
+    });
+}
+
+/**
+ * Find and resolve the BarrelMap for product, and add it to qualifier.
+ *
+ * @param {string} product The device id we're resolving
+ * @param {JungleQualifier} qualifier The qualifier for product from the main jungle
+ * @param {string[]} barrels The barrels imported by the project's manifest
+ * @param {*} options
+ * @returns {Promise<void>}
+ */
+function resolve_barrels(product, qualifier, barrels, options) {
+  if (qualifier.annotations) {
+    Object.keys(qualifier.annotations).forEach((key) => {
+      // delete annotations for non-existent barrels such as
+      if (!barrels.includes(key)) {
+        delete qualifier.annotations[key];
+      }
+    });
+  }
+  if (!barrels.length) {
+    delete qualifier.barrelPath;
+    return;
+  }
+  const cache = options._cache || (options._cache = {});
+  const barrelMapKey = JSON.stringify([barrels, qualifier.barrelPath]);
+  const setBarrelMap = (barrelMap) => {
+    qualifier.barrelMap = barrels.reduce((result, barrel) => {
+      result[barrel] = barrelMap[barrel].map(({ targets, ...rest }) => {
+        const target = targets.find((t) => t.product === product);
+        if (!target) {
+          throw new Error(
+            `Barrel ${barrel} does not support device ${product}`
+          );
+        }
+        rest.qualifier = target.qualifier;
+        return rest;
+      });
+      return result;
+    }, {});
+  };
+  if (hasProperty(cache.barrelMap, barrelMapKey)) {
+    setBarrelMap(cache.barrelMap[barrelMapKey]);
+    return;
+  }
+  const barrelDir = path.resolve(
+    options.workspace,
+    options.outputPath,
+    "raw-barrels"
+  );
+  const barrelMap = Object.fromEntries(barrels.map((b) => [b, null]));
+  return (qualifier.barrelPath || [])
+    .reduce(
+      (promise, barrelPath) =>
+        promise
+          .then(() => find_barrels(barrelPath))
+          .then((barrelPaths) => {
+            return Promise.all(
+              barrelPaths.map((barrel) =>
+                resolve_barrel(barrel, barrelDir, options)
+              )
+            );
+          })
+          .then((resolvedBarrels) => {
+            resolvedBarrels.forEach((resolvedBarrel) => {
+              const name = manifestBarrelName(
+                resolvedBarrel.manifest,
+                resolvedBarrel.xml
+              );
+              if (!hasProperty(barrelMap, name)) return;
+              if (!barrelMap[name]) {
+                barrelMap[name] = [];
+              }
+              barrelMap[name].push(resolvedBarrel);
+            });
+          }),
+      Promise.resolve()
+    )
+    .then(() => {
+      const unresolved = Object.entries(barrelMap).filter((v) => v[1] === null);
+      if (unresolved.length) {
+        throw new Error(
+          `Failed to resolve some barrels: ${unresolved
+            .map(([name]) => name)
+            .join(",")}`
+        );
+      }
+      if (!cache.barrelMap) cache.barrelMap = {};
+      cache.barrelMap[barrelMapKey] = barrelMap;
+      setBarrelMap(barrelMap);
+    });
+}
+
+async function get_jungle_and_barrels(jungles, options) {
   jungles = jungles
     .split(";")
     .map((jungle) => path.resolve(options.workspace || "./", jungle));
+  const barrels_jungle = path.resolve(
+    path.dirname(jungles[0]),
+    "barrels.jungle"
+  );
+  if (!jungles.includes(barrels_jungle)) {
+    if (
+      await fs
+        .stat(barrels_jungle)
+        .then((s) => s.isFile())
+        .catch(() => false)
+    ) {
+      jungles.push(barrels_jungle);
+    }
+  }
   const state = await process_jungles(jungles);
   // apparently square_watch is an alias for rectangle_watch
   state["square_watch"] = state["rectangle_watch"];
@@ -508,14 +752,20 @@ export async function get_jungle(jungles, options) {
   );
   if (!manifest_node) throw new Error("No manifest found!");
   const manifest = resolve_filename(manifest_node[0]);
+  if (!options.workspace) {
+    options.workspace = path.dirname(manifest);
+  }
   const xml = await readManifest(manifest);
   const targets = [];
+  const barrels = manifestBarrels(xml);
+  const annotations = manifestAnnotations(xml);
   let promise = Promise.resolve();
   const add_one = (product, shape) => {
     const qualifier = resolve_node(state, state[product]);
     if (!qualifier) return;
     promise = promise
       .then(() => resolve_literals(qualifier, manifest))
+      .then(() => resolve_barrels(product, qualifier, barrels, options))
       .then(() => targets.push({ product, qualifier, shape }));
   };
   manifestProducts(xml).forEach((product) => {
@@ -529,6 +779,12 @@ export async function get_jungle(jungles, options) {
   });
   await promise;
   await find_build_instructions(targets);
-  identify_optimizer_groups(targets, options);
-  return { manifest, targets, xml };
+  return { manifest, targets, xml, annotations, jungles };
+}
+
+export async function get_jungle(jungles, options) {
+  options = options || {};
+  const result = await get_jungle_and_barrels(jungles, options);
+  identify_optimizer_groups(result.targets, options);
+  return result;
 }

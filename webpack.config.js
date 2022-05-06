@@ -121,6 +121,9 @@ export default (env, argv) => {
         string_decoder: "string_decoder",
         timers: "timers",
         url: "url",
+        zlib: "zlib",
+        buffer: "buffer",
+        crypto: "crypto",
       };
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);

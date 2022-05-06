@@ -1,3 +1,4 @@
+import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import path from "path";
 import { formatAst, getApiMapping, hasProperty } from "./api.js";
@@ -92,26 +93,100 @@ export async function buildOptimizedProject(product, options) {
   return build_project(product, config);
 }
 
+/**
+ * For each barrel project included in the build, we want to build
+ * a local barrel project inside the optimized directory.
+ *
+ * Note that for each named barrel, each target could include a
+ * different barrel, or barrel project. It could even include more
+ * than one - but in that case, they should be separate jungle files
+ * with the same manifest file.
+ *
+ * So for each input barrel (resolvedBarrel.rawBarrel is the jungle
+ * file corresponding to an input barrel), we create a copy of
+ * the barrel with all the sources removed (and pick up the sources
+ * from the input barrel)
+ */
+async function createLocalBarrels(targets, options) {
+  // where to create the local barrel projects.
+  const barrelDir = path.resolve(
+    options.workspace,
+    options.outputPath,
+    "opt-barrels"
+  );
+  let promise = Promise.resolve();
+  targets.forEach((target) => {
+    const barrelMap = target.group.optimizerConfig.barrelMap;
+    if (!barrelMap) return;
+    if (target.group.optBarrels) {
+      // we already handled this group.
+      return;
+    }
+    const optBarrels = (target.group.optimizerConfig.optBarrels = {});
+    Object.entries(barrelMap).forEach(([barrel, values]) => {
+      values.forEach((resolvedBarrel) => {
+        const { manifest, rawBarrel } = resolvedBarrel;
+        const rawBarrelDir = path.dirname(rawBarrel);
+        const sha1 = crypto
+          .createHash("sha1")
+          .update(rawBarrelDir, "binary")
+          .digest("base64")
+          .replace(/[\/=+]/g, "");
+        const optBarrelDir = path.resolve(barrelDir, `${barrel}-${sha1}`);
+        promise = promise.then(() =>
+          copyRecursiveAsNeeded(
+            rawBarrelDir,
+            optBarrelDir,
+            (src) => !src.endsWith(".mc")
+          )
+        );
+        if (!hasProperty(optBarrels, barrel)) {
+          optBarrels[barrel] = {
+            rawBarrelDir,
+            manifest,
+            jungleFiles: [path.relative(rawBarrelDir, rawBarrel)],
+            optBarrelDir,
+          };
+        } else {
+          if (
+            optBarrels[barrel].manifest !== manifest ||
+            optBarrels[barrel].optBarrelDir !== optBarrelDir ||
+            optBarrels[barrel].rawBarrelDir != rawBarrelDir
+          ) {
+            throw new Error(
+              `For device ${
+                target.product
+              }, barrel ${barrel} was mapped to both ${path.relative(
+                optBarrels[barrel].rawBarrelDir,
+                optBarrels[barrel].manifest
+              )} in ${optBarrels[barrel].rawBarrelDir} and ${path.relative(
+                rawBarrelDir,
+                manifest
+              )} in ${rawBarrelDir}.`
+            );
+          }
+          optBarrelDir[barrel].jungleFiles.push(
+            path.relative(rawBarrelDir, rawBarrel)
+          );
+        }
+      });
+    });
+  });
+  return promise;
+}
+
 export async function generateOptimizedProject(options) {
   const config = await getConfig(options);
   const workspace = config.workspace;
 
-  const jungleFiles = config.jungleFiles.split(";");
-  if (!jungleFiles.includes("barrels.jungle")) {
-    const barrels = path.resolve(workspace, "barrels.jungle");
-    if (
-      await fs
-        .stat(barrels)
-        .then((s) => s.isFile())
-        .catch(() => false)
-    ) {
-      jungleFiles.push(barrels);
-    }
-  }
-  const { manifest, targets, xml } = await get_jungle(
-    jungleFiles.join(";"),
+  const { manifest, targets, xml, jungles } = await get_jungle(
+    config.jungleFiles,
     config
   );
+
+  const dependencyFiles = [manifest, ...jungles];
+  await createLocalBarrels(targets, options);
+
   const buildConfigs = {};
   const products = {};
   let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
@@ -121,7 +196,7 @@ export async function generateOptimizedProject(options) {
       options.products[pick_one] = targets[0].product;
     }
     return {
-      jungleFiles: jungleFiles.join(";"),
+      jungleFiles: config.jungleFiles,
       program: path.basename(path.dirname(manifest)),
     };
   }
@@ -132,14 +207,6 @@ export async function generateOptimizedProject(options) {
     if (!hasProperty(buildConfigs, key)) {
       p.group.dir = key;
       buildConfigs[key] = null;
-      if (p.group.optimizerConfig["excludeAnnotations"] == null) {
-        p.group.optimizerConfig["excludeAnnotations"] = [];
-      }
-      // Note that we exclude (:debug) in release builds, and we
-      // exclude (:release) in debug builds. This isn't backwards!
-      p.group.optimizerConfig["excludeAnnotations"].push(
-        config.releaseBuild ? "debug" : "release"
-      );
     }
     if (
       pick_one >= 0 ||
@@ -185,6 +252,7 @@ export async function generateOptimizedProject(options) {
             ...config,
             buildConfig,
             outputPath,
+            dependencyFiles,
           }).catch((e) => {
             if (!e.stack) {
               e = new Error(e.toString());
@@ -218,12 +286,52 @@ export async function generateOptimizedProject(options) {
     const prefix = `${product}.`;
     process_field(prefix, qualifier, "sourcePath", (s) =>
       path
-        .join(group.dir, relative_path_no_dotdot(path.relative(workspace, s)))
+        .join(
+          group.dir,
+          "source",
+          relative_path_no_dotdot(path.relative(workspace, s))
+        )
         .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
     );
+    if (group.optimizerConfig.optBarrels) {
+      parts.push(
+        `${prefix}barrelPath = ${Object.values(group.optimizerConfig.optBarrels)
+          .map(
+            (value) =>
+              `[${value.jungleFiles
+                .map((j) => relative_path(path.join(value.optBarrelDir, j)))
+                .join(";")}]`
+          )
+          .join(";")}`
+      );
+      parts.push(
+        `${prefix}sourcePath = ${[`$(${prefix}sourcePath)`]
+          .concat(
+            Object.entries(group.optimizerConfig.barrelMap)
+              .map(([barrel, barrelMapEntries]) =>
+                barrelMapEntries.map((barrelMapEntry) => {
+                  const root = path.dirname(barrelMapEntry.rawBarrel);
+                  return (barrelMapEntry.qualifier.sourcePath || []).map((s) =>
+                    path
+                      .join(
+                        group.dir,
+                        "barrels",
+                        barrel,
+                        path.relative(root, s)
+                      )
+                      .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
+                  );
+                })
+              )
+              .flat()
+              .sort()
+              .filter((s, i, arr) => !i || s !== arr[i - 1])
+          )
+          .join(";")}`
+      );
+    }
+    // annotations were handled via source transformations.
     process_field(prefix, qualifier, "resourcePath", relative_path);
-    process_field(prefix, qualifier, "barrelPath", relative_path);
-    process_field(prefix, qualifier, "annotations");
     process_field(prefix, qualifier, "excludeAnnotations");
     if (qualifier.lang) {
       Object.keys(qualifier.lang).forEach((key) => {
@@ -232,23 +340,25 @@ export async function generateOptimizedProject(options) {
     }
   });
 
-  const outputJungle = path.join(
+  const jungleFiles = path.join(
     jungle_dir,
     `${config.releaseBuild ? "release" : "debug"}.jungle`
   );
-  promises.push(fs.writeFile(outputJungle, parts.join("\n")));
+  promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
 
   await Promise.all(promises);
   return {
-    jungleFiles: outputJungle,
+    jungleFiles,
     program: path.basename(path.dirname(manifest)),
   };
 }
 
-async function generateOneConfig(config) {
-  const { workspace, buildConfig } = config;
-  const output = path.join(workspace, config.outputPath);
-
+async function fileInfoFromConfig(
+  workspace,
+  output,
+  buildConfig,
+  extraExcludes
+) {
   const paths = (
     await Promise.all(
       buildConfig.sourcePath.map((pattern) =>
@@ -269,21 +379,93 @@ async function generateOneConfig(config) {
     .flat()
     .filter(
       (file) =>
-        !file.endsWith("/") &&
+        file.endsWith(".mc") &&
+        !path.relative(workspace, file).startsWith("bin") &&
         (!buildConfig.sourceExcludes ||
           !buildConfig.sourceExcludes.includes(file))
-    )
-    .map((file) => path.relative(workspace, file))
-    .filter((file) => !file.startsWith("bin"));
+    );
 
-  const fnMap = Object.fromEntries(
-    files
-      .filter((src) => /\.mc$/.test(src))
-      .map((file) => [
-        path.join(workspace, file),
-        path.join(output, relative_path_no_dotdot(file)),
-      ])
+  const excludeAnnotations = Object.assign(
+    buildConfig.excludeAnnotations
+      ? Object.fromEntries(
+          buildConfig.excludeAnnotations.map((ex) => [ex, true])
+        )
+      : {},
+    extraExcludes
   );
+
+  return Object.fromEntries(
+    files.map((file) => [
+      file,
+      {
+        output: path.join(
+          output,
+          relative_path_no_dotdot(path.relative(workspace, file))
+        ),
+        excludeAnnotations,
+      },
+    ])
+  );
+}
+
+function excludesFromAnnotations(barrel, annotations, resolvedBarrel) {
+  const excludes = resolvedBarrel.annotations
+    ? Object.fromEntries(resolvedBarrel.annotations.map((a) => [a, true]))
+    : {};
+  if (annotations && annotations[barrel]) {
+    annotations[barrel].forEach((a) => {
+      delete excludes[a];
+    });
+  }
+  return excludes;
+}
+
+async function generateOneConfig(config) {
+  const { workspace, buildConfig } = config;
+  const output = path.join(workspace, config.outputPath);
+
+  const dependencyFiles = [...config.dependencyFiles];
+
+  const buildModeExcludes = {
+    // note: exclude debug in release builds, and release in debug builds
+    [config.releaseBuild ? "debug" : "release"]: true,
+  };
+
+  const fnMap = await fileInfoFromConfig(
+    workspace,
+    path.join(output, "source"),
+    buildConfig,
+    buildModeExcludes
+  );
+
+  if (buildConfig.barrelMap) {
+    const barrelFnMaps = await Promise.all(
+      Object.entries(buildConfig.barrelMap)
+        .map(([barrel, resolvedBarrels]) =>
+          resolvedBarrels.map((resolvedBarrel) => {
+            dependencyFiles.push(
+              ...resolvedBarrel.jungles,
+              resolvedBarrel.manifest
+            );
+            return fileInfoFromConfig(
+              path.dirname(resolvedBarrel.rawBarrel),
+              path.join(output, "barrels", barrel),
+              resolvedBarrel.qualifier,
+              {
+                ...buildModeExcludes,
+                ...excludesFromAnnotations(
+                  barrel,
+                  buildConfig.annotations,
+                  resolvedBarrel
+                ),
+              }
+            );
+          })
+        )
+        .flat()
+    );
+    barrelFnMaps.forEach((barrelFnMap) => Object.assign(fnMap, barrelFnMap));
+  }
 
   const actualOptimizedFiles = (
     await globa(path.join(output, "**", "*.mc"), { mark: true })
@@ -295,24 +477,29 @@ async function generateOneConfig(config) {
   // set of files we're going to generate (in case eg a jungle file change
   // might have altered it)
   if (
-    actualOptimizedFiles.length == files.length &&
+    actualOptimizedFiles.length == Object.values(fnMap).length &&
     Object.values(fnMap)
+      .map((v) => v.output)
       .sort()
       .every((f, i) => f == actualOptimizedFiles[i])
   ) {
     // now if the newest source file is older than
     // the oldest optimized file, we don't need to regenerate
-    const source_time = await last_modified(Object.keys(fnMap));
-    const opt_time = await first_modified(Object.values(fnMap));
+    const source_time = await last_modified(
+      Object.keys(fnMap).concat(dependencyFiles)
+    );
+    const opt_time = await first_modified(
+      Object.values(fnMap).map((v) => v.output)
+    );
     if (source_time < opt_time && global.lastModifiedSource < opt_time) return;
   }
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
-  const optFiles = await optimizeMonkeyC(Object.keys(fnMap), buildConfig);
+  const optFiles = await optimizeMonkeyC(fnMap);
   return await Promise.all(
     optFiles.map(async (file) => {
-      const name = fnMap[file.name];
+      const name = fnMap[file.name].output;
       const dir = path.dirname(name);
       await fs.mkdir(dir, { recursive: true });
 

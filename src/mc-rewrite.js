@@ -57,12 +57,8 @@ function collectClassInfo(state) {
   });
 }
 
-async function analyze(fileNames, buildConfig) {
-  const excludeAnnotations =
-    buildConfig && buildConfig.excludeAnnotations
-      ? Object.fromEntries(buildConfig.excludeAnnotations.map((a) => [a, true]))
-      : {};
-
+async function analyze(fnMap) {
+  let excludeAnnotations;
   const allImports = [];
   const state = {
     allFunctions: [],
@@ -70,11 +66,11 @@ async function analyze(fileNames, buildConfig) {
     shouldExclude(node) {
       if (node.attrs && node.attrs.attrs) {
         if (
-          node.attrs.attrs.filter((attr) => {
+          node.attrs.attrs.some((attr) => {
             if (attr.type != "UnaryExpression") return false;
             if (attr.argument.type != "Identifier") return false;
             return hasProperty(excludeAnnotations, attr.argument.name);
-          }).length
+          })
         ) {
           return true;
         }
@@ -118,15 +114,17 @@ async function analyze(fileNames, buildConfig) {
   markApi(state.stack[0]);
 
   const files = await Promise.all(
-    fileNames.map(async (name) => ({
+    Object.entries(fnMap).map(async ([name, { excludeAnnotations }]) => ({
       name,
       monkeyCSource: (await fs.readFile(name))
         .toString()
         .replace(/\r\n/g, "\n"),
+      excludeAnnotations,
     }))
   );
 
   files.forEach((f) => {
+    excludeAnnotations = f.excludeAnnotations;
     f.ast = MonkeyC.parsers.monkeyc.parse(f.monkeyCSource, {
       grammarSource: f.name,
     });
@@ -356,8 +354,8 @@ function evaluateFunction(func, args) {
   }
 }
 
-export async function optimizeMonkeyC(fileNames, buildConfig) {
-  const { files, state } = await analyze(fileNames, buildConfig);
+export async function optimizeMonkeyC(fnMap) {
+  const { files, state } = await analyze(fnMap);
   const replace = (node, obj) => {
     for (const k of Object.keys(node)) {
       delete node[k];

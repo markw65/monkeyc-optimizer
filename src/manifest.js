@@ -23,6 +23,37 @@ export function manifestProducts(manifest) {
     .filter((p, i, a) => !i || p !== a[i - 1]);
 }
 
+export function manifestBarrels(manifest) {
+  const app = manifest["iq:manifest"]["iq:application"];
+  if (
+    Array.isArray(app) &&
+    app.length &&
+    app[0] &&
+    Array.isArray(app[0]["iq:barrels"]) &&
+    app[0]["iq:barrels"].length &&
+    Array.isArray(app[0]["iq:barrels"][0]["iq:depends"])
+  ) {
+    return app[0]["iq:barrels"][0]["iq:depends"]
+      .map((p) => p.$.name)
+      .sort()
+      .filter((p, i, a) => !i || p !== a[i - 1]);
+  }
+  return [];
+}
+
+export function manifestBarrelName(manifestName, manifest) {
+  const barrel = manifest["iq:manifest"]["iq:barrel"];
+  if (!barrel) throw new Error(`Not a barrel manifest: ${manifestName}`);
+  return barrel[0].$.module;
+}
+
+export function manifestAnnotations(manifest) {
+  const barrel = manifest["iq:manifest"]["iq:barrel"];
+  if (!barrel) return null;
+  const annotations = barrel[0]["iq:annotations"];
+  return annotations && annotations[0]["iq:annotation"];
+}
+
 export async function checkManifest(manifest, products) {
   let ok = true;
   if (!manifest["iq:manifest"]["$"]["xmlns:iq"]) {
