@@ -41,6 +41,10 @@ export function manifestBarrels(manifest) {
   return [];
 }
 
+export function manifestDropBarrels(manifest) {
+  delete manifest["iq:manifest"]["iq:application"][0]["iq:barrels"];
+}
+
 export function manifestBarrelName(manifestName, manifest) {
   const barrel = manifest["iq:manifest"]["iq:barrel"];
   if (!barrel) throw new Error(`Not a barrel manifest: ${manifestName}`);

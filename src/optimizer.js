@@ -5,7 +5,11 @@ import { formatAst, getApiMapping, hasProperty } from "./api.js";
 import { build_project } from "./build.js";
 import { get_jungle } from "./jungles.js";
 import { launchSimulator } from "./launch.js";
-import { checkManifest, writeManifest } from "./manifest.js";
+import {
+  checkManifest,
+  writeManifest,
+  manifestDropBarrels,
+} from "./manifest.js";
 import { optimizeMonkeyC } from "./mc-rewrite.js";
 import { appSupport } from "./sdk-util.js";
 import {
@@ -108,46 +112,62 @@ export async function buildOptimizedProject(product, options) {
  * from the input barrel)
  */
 async function createLocalBarrels(targets, options) {
+  if (
+    targets.every(
+      (target) =>
+        !target.group.optimizerConfig.barrelMap ||
+        Object.values(target.group.optimizerConfig.barrelMap).every(
+          (resolvedBarrels) =>
+            resolvedBarrels.every(
+              (resolvedBarrel) => !resolvedBarrel.qualifier.resourcePath
+            )
+        )
+    )
+  ) {
+    // there are no barrels, or every barrel has no resources.
+    // we can drop any barrels altogether (we'll need to drop them
+    // from the manifest file too).
+    return;
+  }
   // where to create the local barrel projects.
   const barrelDir = path.resolve(
     options.workspace,
     options.outputPath,
     "opt-barrels"
   );
-  let promise = Promise.resolve();
-  targets.forEach((target) => {
+  return targets.reduce((promise, target) => {
     const barrelMap = target.group.optimizerConfig.barrelMap;
-    if (!barrelMap) return;
-    if (target.group.optBarrels) {
-      // we already handled this group.
-      return;
+    if (!barrelMap || target.group.optBarrels) {
+      return promise;
     }
     const optBarrels = (target.group.optimizerConfig.optBarrels = {});
-    Object.entries(barrelMap).forEach(([barrel, values]) => {
-      values.forEach((resolvedBarrel) => {
-        const { manifest, rawBarrel } = resolvedBarrel;
-        const rawBarrelDir = path.dirname(rawBarrel);
-        const sha1 = crypto
-          .createHash("sha1")
-          .update(rawBarrelDir, "binary")
-          .digest("base64")
-          .replace(/[\/=+]/g, "");
-        const optBarrelDir = path.resolve(barrelDir, `${barrel}-${sha1}`);
-        promise = promise.then(() =>
-          copyRecursiveAsNeeded(
-            rawBarrelDir,
-            optBarrelDir,
-            (src) => !src.endsWith(".mc")
-          )
-        );
-        if (!hasProperty(optBarrels, barrel)) {
-          optBarrels[barrel] = {
-            rawBarrelDir,
-            manifest,
-            jungleFiles: [path.relative(rawBarrelDir, rawBarrel)],
-            optBarrelDir,
-          };
-        } else {
+    return Object.entries(barrelMap).reduce(
+      (promise, [barrel, resolvedBarrels]) =>
+        resolvedBarrels.reduce((promise, resolvedBarrel) => {
+          const { manifest, rawBarrel } = resolvedBarrel;
+          const rawBarrelDir = path.dirname(rawBarrel);
+          const rawJungle = path.basename(rawBarrel);
+          const sha1 = crypto
+            .createHash("sha1")
+            .update(rawBarrelDir, "binary")
+            .digest("base64")
+            .replace(/[\/=+]/g, "");
+          const optBarrelDir = path.resolve(barrelDir, `${barrel}-${sha1}`);
+          if (!hasProperty(optBarrels, barrel)) {
+            optBarrels[barrel] = {
+              rawBarrelDir,
+              manifest,
+              jungleFiles: [rawJungle],
+              optBarrelDir,
+            };
+            return promise.then(() =>
+              copyRecursiveAsNeeded(
+                rawBarrelDir,
+                optBarrelDir,
+                (src) => !src.endsWith(".mc")
+              )
+            );
+          }
           if (
             optBarrels[barrel].manifest !== manifest ||
             optBarrels[barrel].optBarrelDir !== optBarrelDir ||
@@ -165,14 +185,12 @@ async function createLocalBarrels(targets, options) {
               )} in ${rawBarrelDir}.`
             );
           }
-          optBarrelDir[barrel].jungleFiles.push(
-            path.relative(rawBarrelDir, rawBarrel)
-          );
-        }
-      });
-    });
-  });
-  return promise;
+          optBarrels[barrel].jungleFiles.push(rawJungle);
+          return promise;
+        }, promise),
+      promise
+    );
+  }, Promise.resolve());
 }
 
 export async function generateOptimizedProject(options) {
@@ -200,12 +218,19 @@ export async function generateOptimizedProject(options) {
       program: path.basename(path.dirname(manifest)),
     };
   }
+  let dropBarrels = false;
   const configKey = (p) =>
     p.group.key + (config.releaseBuild ? "-release" : "-debug");
   targets.forEach((p) => {
     const key = configKey(p);
     if (!hasProperty(buildConfigs, key)) {
       p.group.dir = key;
+      if (
+        p.group.optimizerConfig.barrelMap &&
+        !p.group.optimizerConfig.optBarrels
+      ) {
+        dropBarrels = true;
+      }
       buildConfigs[key] = null;
     }
     if (
@@ -236,11 +261,12 @@ export async function generateOptimizedProject(options) {
   const relative_path = (s) => path.relative(jungle_dir, s);
   let relative_manifest = relative_path(manifest);
   const manifestOk =
-    !config.checkManifest ||
-    (await checkManifest(
-      xml,
-      targets.map((t) => t.product)
-    ));
+    (!config.checkManifest ||
+      (await checkManifest(
+        xml,
+        targets.map((t) => t.product)
+      ))) &&
+    !dropBarrels;
   const promises = Object.keys(buildConfigs)
     .sort()
     .map((key) => {
@@ -267,6 +293,9 @@ export async function generateOptimizedProject(options) {
     });
 
   if (!manifestOk) {
+    if (dropBarrels) {
+      manifestDropBarrels(xml);
+    }
     const manifestFile = path.join(jungle_dir, "manifest.xml");
     promises.push(writeManifest(manifestFile, xml));
     relative_manifest = "manifest.xml";
@@ -304,6 +333,8 @@ export async function generateOptimizedProject(options) {
           )
           .join(";")}`
       );
+    }
+    if (group.optimizerConfig.barrelMap) {
       parts.push(
         `${prefix}sourcePath = ${[`$(${prefix}sourcePath)`]
           .concat(
