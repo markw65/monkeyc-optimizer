@@ -4,6 +4,7 @@ import {
   generateOptimizedProject,
 } from "../build/optimizer.cjs";
 import { globa } from "../build/util.cjs";
+import { launchSimulator, simulateProgram } from "../src/launch.js";
 import { spawnByLine } from "../src/util.js";
 import { fetchGitProjects, githubProjects } from "./projects.js";
 
@@ -21,6 +22,7 @@ async function test() {
   let jungleOnly;
   let skipOptimization;
   let extraMonkeycArgs = [];
+  let execute = false;
 
   const prev = process.argv.slice(2).reduce((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
@@ -87,6 +89,9 @@ async function test() {
           remoteProjects = githubProjects;
         }
         break;
+      case "execute":
+        execute = !value || /^true|1$/i.test(value);
+        break;
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -99,13 +104,25 @@ async function test() {
   }
   await promise;
   if (!jungles.length) throw new Error("No inputs!");
+  if (execute) {
+    if (jungleOnly || generateOnly) {
+      error(
+        `--execute is not compatible with ${
+          jungleOnly ? "--jungle-only" : "--generate-only"
+        }`
+      );
+    }
+    if (!products) {
+      error("--execute requires a product to execute on");
+    }
+    await launchSimulator();
+  }
   if (jungleOnly) {
     products = [];
     generateOnly = true;
   }
   const failures = [];
-  promise = Promise.resolve();
-  jungles.forEach((jungleFiles) => {
+  await jungles.reduce((promise, jungleFiles) => {
     const genOnly = jungleFiles.build === false || generateOnly;
     const jungleOptions = jungleFiles.options || {};
     if (jungleFiles.jungle) {
@@ -122,26 +139,42 @@ async function test() {
       compilerWarnings,
       typeCheckLevel,
       skipOptimization,
-      returnCommand: true,
       ...jungleOptions,
+      returnCommand: true,
       checkManifest: true,
     };
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k]
     );
-    promise = promise
+    return promise
       .then(() =>
         genOnly
-          ? generateOptimizedProject(options)
+          ? generateOptimizedProject(options).then(() => null)
           : buildOptimizedProject(products ? products[0] : null, options).then(
-              ({ exe, args }) => {
+              ({ exe, args, program, product }) => {
                 args.push(...extraMonkeycArgs);
                 console.log(
                   [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
                 );
-                return spawnByLine(exe, args, console.log, { cwd: workspace });
+                return spawnByLine(exe, args, console.log, {
+                  cwd: workspace,
+                }).then(() => ({
+                  program,
+                  product,
+                }));
               }
             )
+      )
+      .then(
+        (res) =>
+          execute &&
+          res &&
+          res.program &&
+          res.product &&
+          (console.log(`Executing ${res.program} on ${res.product}`),
+          simulateProgram(res.program, res.product).catch(() =>
+            console.error("Simulation failed")
+          ))
       )
       .then(() => console.log(`Done: ${jungleFiles}`))
       .catch((e) => {
@@ -163,8 +196,7 @@ async function test() {
         }
         failures.push([jungleFiles, e]);
       });
-  });
-  await promise;
+  }, Promise.resolve());
   if (failures.length) {
     throw new Error(
       failures

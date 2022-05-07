@@ -59,7 +59,7 @@ export async function build_project(product, options, lineCallback) {
     (line) => console.error(line),
   ];
   return returnCommand
-    ? { exe, args }
+    ? { exe, args, program: path.resolve(workspace, program), product }
     : spawnByLine(exe, args, handlers, {
         cwd: workspace,
       });
