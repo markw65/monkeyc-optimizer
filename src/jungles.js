@@ -531,33 +531,42 @@ function identify_optimizer_groups(targets, options) {
  * @returns {Promise<string[]>}
  */
 function find_barrels(barrelPath) {
-  return (
-    Array.isArray(barrelPath)
-      ? Promise.all(barrelPath.map(find_barrels))
-      : globa(barrelPath, { mark: true }).then((paths) =>
-          Promise.all(
-            paths.map((path) =>
-              path.endsWith("/") ? globa(`${path}**/*.barrel`) : path
-            )
-          )
+  if (Array.isArray(barrelPath)) {
+    // This is a sublist. The barrel has more than one jungle file.
+    return Promise.all(
+      barrelPath.map((path) => globa(path, { mark: true }))
+    ).then((paths) => [
+      paths
+        .flat()
+        .filter((path) => path.endsWith(".jungle"))
+        .join(";"),
+    ]);
+  }
+  return globa(barrelPath, { mark: true })
+    .then((paths) =>
+      Promise.all(
+        paths.map((path) =>
+          path.endsWith("/") ? globa(`${path}**/*.barrel`) : path
         )
-  ).then((barrelPaths) =>
-    barrelPaths
-      .flat()
-      .filter((path) => path.endsWith(".jungle") || path.endsWith(".barrel"))
-  );
+      )
+    )
+    .then((barrelPaths) =>
+      barrelPaths
+        .flat()
+        .filter((path) => path.endsWith(".jungle") || path.endsWith(".barrel"))
+    );
 }
 
 /**
  *
  * @typedef {Object} BarrelMapEntry - The result of parsing a barrel's jungle file
- * @property {string} rawBarrel - Path to the barrel's jungle file
+ * @property {string[]} jungles - Paths to the barrel's jungle files
  * @property {string} manifest - Path to the barrel's manifest file
  * @property {Object} xml - The xml content of the manifest, as returned by xml2js
  * @property {Target[]} targets - All of the targets from the barrel's jungle/manifest
 
  * @typedef {Object} ResolvedBarrel - A BarrelMapEntry restricted to a single target
- * @property {string} rawBarrel - path to the barrel's jungle file
+ * @property {string[]} jungles - paths to the barrel's jungle files
  * @property {string} manifest - path to the barrel's manifest file
  * @property {Object} xml - the xml content of the manifest, as returned by xml2js
  * @property {JungleQualifier} qualifier - the qualifier for this ResolvedBarrel's target
@@ -630,7 +639,7 @@ function resolve_barrel(barrel, barrelDir, options) {
     .then(() => get_jungle_and_barrels(rawBarrel, options))
     .then((result) => {
       if (!cache.barrels) cache.barrels = {};
-      return (cache.barrels[barrel] = { rawBarrel, ...result });
+      return (cache.barrels[barrel] = { ...result });
     });
 }
 

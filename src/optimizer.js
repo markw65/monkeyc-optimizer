@@ -106,8 +106,8 @@ export async function buildOptimizedProject(product, options) {
  * than one - but in that case, they should be separate jungle files
  * with the same manifest file.
  *
- * So for each input barrel (resolvedBarrel.rawBarrel is the jungle
- * file corresponding to an input barrel), we create a copy of
+ * So for each input barrel (resolvedBarrel.jungles are the jungle
+ * files corresponding to an input barrel), we create a copy of
  * the barrel with all the sources removed (and pick up the sources
  * from the input barrel)
  */
@@ -144,9 +144,11 @@ async function createLocalBarrels(targets, options) {
     return Object.entries(barrelMap).reduce(
       (promise, [barrel, resolvedBarrels]) =>
         resolvedBarrels.reduce((promise, resolvedBarrel) => {
-          const { manifest, rawBarrel } = resolvedBarrel;
-          const rawBarrelDir = path.dirname(rawBarrel);
-          const rawJungle = path.basename(rawBarrel);
+          const { manifest, jungles } = resolvedBarrel;
+          const rawBarrelDir = path.dirname(jungles[0]);
+          const rawJungles = jungles.map((jungle) =>
+            path.relative(rawBarrelDir, jungle)
+          );
           const sha1 = crypto
             .createHash("sha1")
             .update(rawBarrelDir, "binary")
@@ -157,7 +159,7 @@ async function createLocalBarrels(targets, options) {
             optBarrels[barrel] = {
               rawBarrelDir,
               manifest,
-              jungleFiles: [rawJungle],
+              jungleFiles: [...rawJungles],
               optBarrelDir,
             };
             return promise.then(() =>
@@ -185,7 +187,7 @@ async function createLocalBarrels(targets, options) {
               )} in ${rawBarrelDir}.`
             );
           }
-          optBarrels[barrel].jungleFiles.push(rawJungle);
+          optBarrels[barrel].jungleFiles.push(...rawJungles);
           return promise;
         }, promise),
       promise
@@ -341,7 +343,7 @@ export async function generateOptimizedProject(options) {
             Object.entries(group.optimizerConfig.barrelMap)
               .map(([barrel, barrelMapEntries]) =>
                 barrelMapEntries.map((barrelMapEntry) => {
-                  const root = path.dirname(barrelMapEntry.rawBarrel);
+                  const root = path.dirname(barrelMapEntry.jungles[0]);
                   return (barrelMapEntry.qualifier.sourcePath || []).map((s) =>
                     path
                       .join(
@@ -479,7 +481,7 @@ async function generateOneConfig(config) {
               resolvedBarrel.manifest
             );
             return fileInfoFromConfig(
-              path.dirname(resolvedBarrel.rawBarrel),
+              path.dirname(resolvedBarrel.jungles[0]),
               path.join(output, "barrels", barrel),
               resolvedBarrel.qualifier,
               {
