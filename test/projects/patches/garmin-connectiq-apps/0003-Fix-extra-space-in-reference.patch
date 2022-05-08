@@ -1,0 +1,32 @@
+From 50417aac27d6b87b77d1081d7530dcd30ff02ffa Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 8 May 2022 11:48:24 -0700
+Subject: [PATCH] Fix extra space in @-reference
+
+---
+ .../strava-api/resources-rectangle-205x148/layouts/layout.xml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/widgets/strava-api/resources-rectangle-205x148/layouts/layout.xml b/widgets/strava-api/resources-rectangle-205x148/layouts/layout.xml
+index efc1a30..46744dc 100644
+--- a/widgets/strava-api/resources-rectangle-205x148/layouts/layout.xml
++++ b/widgets/strava-api/resources-rectangle-205x148/layouts/layout.xml
+@@ -4,7 +4,7 @@
+ 
+         <label id="Title" text="@Strings.titleLabel" x="center" y="0" font="Gfx.FONT_TINY" justification="Gfx.TEXT_JUSTIFY_CENTER" color="Gfx.COLOR_BLACK" />
+ 
+-      <label id="swimLabel" text="@Strings.swimLabel " x="center" y="40" font="Gfx.FONT_MEDIUM" justification="Gfx.TEXT_JUSTIFY_RIGHT" color="Gfx.COLOR_BLUE" />
++      <label id="swimLabel" text="@Strings.swimLabel" x="center" y="40" font="Gfx.FONT_MEDIUM" justification="Gfx.TEXT_JUSTIFY_RIGHT" color="Gfx.COLOR_BLUE" />
+       <label id="bikeLabel" text="@Strings.bikeLabel" x="center" y="65" font="Gfx.FONT_MEDIUM" justification="Gfx.TEXT_JUSTIFY_RIGHT" color="Gfx.COLOR_BLUE" />
+       <label id="runLabel" text="@Strings.runLabel" x="center" y="90" font="Gfx.FONT_MEDIUM" justification="Gfx.TEXT_JUSTIFY_RIGHT" color="Gfx.COLOR_BLUE" />
+         <label id="totalLabel" text="@Strings.totalLabel" x="center" y="115" font="Gfx.FONT_MEDIUM" justification="Gfx.TEXT_JUSTIFY_RIGHT" color="Gfx.COLOR_BLUE" />
+@@ -17,4 +17,4 @@
+ 
+   </layout>
+ 
+-</layouts>
+\ No newline at end of file
++</layouts>
+-- 
+2.34.1
+

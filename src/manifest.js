@@ -74,13 +74,14 @@ export async function checkManifest(manifest, products) {
     ok = false;
     elm.$.id = "08070f9d-8b4e-40a4-9c49-fe67a2a55dec";
   }
-  const type = elm.$.type.replace(/-/, "").toLowerCase();
+  const type = elm.$.type.replace(/-/g, "").toLowerCase();
   const deviceInfo = await getDeviceInfo();
   const allowedProducts = products.sort().filter(
     (p) =>
       deviceInfo[p] &&
       deviceInfo[p].appTypes.find((at) => {
-        return at.type.toLowerCase() === type;
+        const t = at.type.toLowerCase();
+        return t === type || `${t}app` === type;
       })
   );
   if (

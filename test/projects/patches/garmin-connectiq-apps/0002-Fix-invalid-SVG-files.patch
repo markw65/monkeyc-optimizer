@@ -1,0 +1,179 @@
+From 5a76a425e2f586eaf9908db87a684655f4494bb0 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 8 May 2022 11:40:36 -0700
+Subject: [PATCH] Fix invalid SVG files
+
+---
+ .../resources/drawables/activeminutes.svg          |  2 +-
+ .../TypedFace/resources/drawables/calendar.svg     |  4 ++--
+ .../resources/drawables/charging_battery.svg       |  4 ++--
+ .../TypedFace/resources/drawables/complication.svg |  2 +-
+ .../TypedFace/resources/drawables/full_battery.svg |  4 ++--
+ .../TypedFace/resources/drawables/half_battery.svg | 14 +++++++-------
+ watchfaces/TypedFace/resources/drawables/heart.svg |  4 ++--
+ .../TypedFace/resources/drawables/low_battery.svg  |  4 ++--
+ watchfaces/TypedFace/resources/drawables/steps.svg | 10 +++++-----
+ 9 files changed, 24 insertions(+), 24 deletions(-)
+
+diff --git a/watchfaces/TypedFace/resources/drawables/activeminutes.svg b/watchfaces/TypedFace/resources/drawables/activeminutes.svg
+index bb87aef..ea3eac2 100644
+--- a/watchfaces/TypedFace/resources/drawables/activeminutes.svg
++++ b/watchfaces/TypedFace/resources/drawables/activeminutes.svg
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="iso-8859-1"?>
+ <!-- Generator: Adobe Illustrator 23.1.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+ <svg version="1.1" id="_x31_-outline-expand" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+-	 x="0px" y="0px" width="64px" height="64px" viewBox="0 0 64 64" style="enable-background:new 0 0 64 64;" xml:space="preserve">
++	 x="0" y="0" width="64" height="64" viewBox="0 0 64 64" style="enable-background:new 0 0 64 64;" xml:space="preserve">
+ <path d="M34,26c0-0.379-0.214-0.725-0.553-0.895l-6-3l-0.895,1.789L30.764,26l-4.211,2.105l0.895,1.789l6-3
+ 	C33.786,26.725,34,26.379,34,26z"/>
+ <path d="M40.553,26.895l6,3l0.895-1.789L43.236,26l4.211-2.105l-0.895-1.789l-6,3C40.214,25.275,40,25.621,40,26
+diff --git a/watchfaces/TypedFace/resources/drawables/calendar.svg b/watchfaces/TypedFace/resources/drawables/calendar.svg
+index cf911db..a134c75 100644
+--- a/watchfaces/TypedFace/resources/drawables/calendar.svg
++++ b/watchfaces/TypedFace/resources/drawables/calendar.svg
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="iso-8859-1"?>
+ <!-- Generator: Adobe Illustrator 21.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100px" height="100px"
+-	 viewBox="0 0 100.353 100.353" style="enable-background:new 0 0 100.353 100.353;" xml:space="preserve">
++<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100"
++	 viewBox="0 0 100 100" style="enable-background:new 0 0 100.353 100.353;" xml:space="preserve">
+ <g>
+ 	<path d="M32.286,42.441h-9.762c-0.829,0-1.5,0.671-1.5,1.5v9.762c0,0.828,0.671,1.5,1.5,1.5h9.762c0.829,0,1.5-0.672,1.5-1.5
+ 		v-9.762C33.786,43.113,33.115,42.441,32.286,42.441z M30.786,52.203h-6.762v-6.762h6.762V52.203z"/>
+diff --git a/watchfaces/TypedFace/resources/drawables/charging_battery.svg b/watchfaces/TypedFace/resources/drawables/charging_battery.svg
+index 38c0d2b..93fc8e5 100644
+--- a/watchfaces/TypedFace/resources/drawables/charging_battery.svg
++++ b/watchfaces/TypedFace/resources/drawables/charging_battery.svg
+@@ -1,8 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+-	 width="64px" height="64px" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve">
++<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0"
++	 width="64" height="64" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve">
+ <g>
+ 	<rect x="1" y="21" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="58" height="24"/>
+ 	<polyline fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" points="59,27 63,27 63,39 59,39 	"/>
+diff --git a/watchfaces/TypedFace/resources/drawables/complication.svg b/watchfaces/TypedFace/resources/drawables/complication.svg
+index f39b545..37d3ffc 100644
+--- a/watchfaces/TypedFace/resources/drawables/complication.svg
++++ b/watchfaces/TypedFace/resources/drawables/complication.svg
+@@ -11,7 +11,7 @@
+    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+    width="100"
+    height="100"
+-   viewBox="0 0 26.458333 26.458333"
++   viewBox="0 0 26 26"
+    version="1.1"
+    id="svg821"
+    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
+diff --git a/watchfaces/TypedFace/resources/drawables/full_battery.svg b/watchfaces/TypedFace/resources/drawables/full_battery.svg
+index 75b530a..5457e7e 100644
+--- a/watchfaces/TypedFace/resources/drawables/full_battery.svg
++++ b/watchfaces/TypedFace/resources/drawables/full_battery.svg
+@@ -1,8 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+-	 width="64px" height="64px" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve">
++<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0"
++	 width="64" height="64" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve">
+ <g>
+ 	<rect x="1" y="21" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="58" height="24"/>
+ 	<polyline fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" points="59,27 63,27 63,39 59,39 	"/>
+diff --git a/watchfaces/TypedFace/resources/drawables/half_battery.svg b/watchfaces/TypedFace/resources/drawables/half_battery.svg
+index 10ac890..38e052d 100644
+--- a/watchfaces/TypedFace/resources/drawables/half_battery.svg
++++ b/watchfaces/TypedFace/resources/drawables/half_battery.svg
+@@ -11,10 +11,10 @@
+    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+    version="1.1"
+    id="Layer_1"
+-   x="0px"
+-   y="0px"
+-   width="64px"
+-   height="64px"
++   x="0"
++   y="0"
++   width="64"
++   height="64"
+    viewBox="0 0 64 64"
+    enable-background="new 0 0 64 64"
+    xml:space="preserve"
+@@ -24,9 +24,9 @@
+        rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+          rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+    id="defs13">
+-	
+-	
+-	
++
++
++
+ </defs><sodipodi:namedview
+    pagecolor="#ffffff"
+    bordercolor="#666666"
+diff --git a/watchfaces/TypedFace/resources/drawables/heart.svg b/watchfaces/TypedFace/resources/drawables/heart.svg
+index 17b337a..04d1b6b 100644
+--- a/watchfaces/TypedFace/resources/drawables/heart.svg
++++ b/watchfaces/TypedFace/resources/drawables/heart.svg
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="iso-8859-1"?>
+ <!-- Generator: Adobe Illustrator 21.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="100px" height="100px"
+-	 viewBox="0 0 100.354 100.352" style="enable-background:new 0 0 100.354 100.352;" xml:space="preserve">
++<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="100" height="100"
++	 viewBox="0 0 100 100" style="enable-background:new 0 0 100.354 100.352;" xml:space="preserve">
+ <path d="M88.118,56.196H74.572l8.777-11.001c0.031-0.04,0.061-0.081,0.088-0.123c2.235-3.47,3.417-7.429,3.417-11.448
+ 	c0-11.762-9.577-21.331-21.35-21.331c-8.988,0-16.697,5.588-19.833,13.472c-3.137-7.884-10.848-13.472-19.839-13.472
+ 	c-11.768,0-21.341,9.569-21.341,21.331c0,4.531,1.467,8.907,4.276,12.7L44.501,90.95c0.285,0.355,0.715,0.562,1.171,0.562
+diff --git a/watchfaces/TypedFace/resources/drawables/low_battery.svg b/watchfaces/TypedFace/resources/drawables/low_battery.svg
+index 7efbc52..fe61e0c 100644
+--- a/watchfaces/TypedFace/resources/drawables/low_battery.svg
++++ b/watchfaces/TypedFace/resources/drawables/low_battery.svg
+@@ -1,8 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+-	 width="64px" height="64px" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve">
++<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0"
++	 width="64" height="64" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve">
+ <g>
+ 	<rect x="1" y="21" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="58" height="24"/>
+ 	<polyline fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" points="59,27 63,27 63,39 59,39 	"/>
+diff --git a/watchfaces/TypedFace/resources/drawables/steps.svg b/watchfaces/TypedFace/resources/drawables/steps.svg
+index b18fc70..239b78c 100644
+--- a/watchfaces/TypedFace/resources/drawables/steps.svg
++++ b/watchfaces/TypedFace/resources/drawables/steps.svg
+@@ -11,10 +11,10 @@
+    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+    version="1.1"
+    id="Layer_1"
+-   x="0px"
+-   y="0px"
+-   width="150px"
+-   height="150px"
++   x="0"
++   y="0q"
++   width="150"
++   height="150"
+    viewBox="0 0 150 150"
+    style="enable-background:new 0 0 150 150;"
+    xml:space="preserve"
+@@ -24,7 +24,7 @@
+        rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+          rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title></dc:title></cc:Work></rdf:RDF></metadata><defs
+    id="defs37">
+-	
++
+ </defs><sodipodi:namedview
+    pagecolor="#ffffff"
+    bordercolor="#666666"
+-- 
+2.34.1
+

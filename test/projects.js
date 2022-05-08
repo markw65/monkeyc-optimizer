@@ -98,6 +98,11 @@ export const githubProjects = [
   "https://github.com/fjbenitog/bike-simulator",
   "https://github.com/fjbenitog/digital-watch-cas10",
   "https://github.com/fmercado/telemeter",
+  {
+    root: "https://github.com/garmin/connectiq-apps",
+    exclude: "/barrels/|barrels.jungle",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/gcormier9/GRun",
   "https://github.com/gimportexportdevs/gimporter",
   "https://github.com/grafstrom/ORun",

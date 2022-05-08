@@ -1,0 +1,24 @@
+From db840487c5ba574cdc465f333495f4d137310030 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 8 May 2022 11:10:13 -0700
+Subject: [PATCH] Point barrel path at barrel project
+
+---
+ device-apps/bluetooth-mesh-sample/barrels.jungle | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/device-apps/bluetooth-mesh-sample/barrels.jungle b/device-apps/bluetooth-mesh-sample/barrels.jungle
+index 582f3d4..1d59879 100644
+--- a/device-apps/bluetooth-mesh-sample/barrels.jungle
++++ b/device-apps/bluetooth-mesh-sample/barrels.jungle
+@@ -1,6 +1,6 @@
+ # Do not hand edit this file. To make changes right click
+ # on the project and select "Configure Monkey Barrels".
+ 
+-BluetoothMeshBarrel = ".\BluetoothMeshBarrel-1.0.0.barrel"
++BluetoothMeshBarrel = "../../barrels/BluetoothMeshBarrel/monkey.jungle"
+ base.barrelPath = $(base.barrelPath);$(BluetoothMeshBarrel)
+ 
+-- 
+2.34.1
+
