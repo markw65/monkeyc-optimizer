@@ -117,10 +117,7 @@ async function createLocalBarrels(targets, options) {
       (target) =>
         !target.group.optimizerConfig.barrelMap ||
         Object.values(target.group.optimizerConfig.barrelMap).every(
-          (resolvedBarrels) =>
-            resolvedBarrels.every(
-              (resolvedBarrel) => !resolvedBarrel.qualifier.resourcePath
-            )
+          (resolvedBarrel) => !resolvedBarrel.qualifier.resourcePath
         )
     )
   ) {
@@ -142,54 +139,53 @@ async function createLocalBarrels(targets, options) {
     }
     const optBarrels = (target.group.optimizerConfig.optBarrels = {});
     return Object.entries(barrelMap).reduce(
-      (promise, [barrel, resolvedBarrels]) =>
-        resolvedBarrels.reduce((promise, resolvedBarrel) => {
-          const { manifest, jungles } = resolvedBarrel;
-          const rawBarrelDir = path.dirname(jungles[0]);
-          const rawJungles = jungles.map((jungle) =>
-            path.relative(rawBarrelDir, jungle)
-          );
-          const sha1 = crypto
-            .createHash("sha1")
-            .update(rawBarrelDir, "binary")
-            .digest("base64")
-            .replace(/[\/=+]/g, "");
-          const optBarrelDir = path.resolve(barrelDir, `${barrel}-${sha1}`);
-          if (!hasProperty(optBarrels, barrel)) {
-            optBarrels[barrel] = {
+      (promise, [barrel, resolvedBarrel]) => {
+        const { manifest, jungles } = resolvedBarrel;
+        const rawBarrelDir = path.dirname(jungles[0]);
+        const rawJungles = jungles.map((jungle) =>
+          path.relative(rawBarrelDir, jungle)
+        );
+        const sha1 = crypto
+          .createHash("sha1")
+          .update(rawBarrelDir, "binary")
+          .digest("base64")
+          .replace(/[\/=+]/g, "");
+        const optBarrelDir = path.resolve(barrelDir, `${barrel}-${sha1}`);
+        if (!hasProperty(optBarrels, barrel)) {
+          optBarrels[barrel] = {
+            rawBarrelDir,
+            manifest,
+            jungleFiles: [...rawJungles],
+            optBarrelDir,
+          };
+          return promise.then(() =>
+            copyRecursiveAsNeeded(
               rawBarrelDir,
-              manifest,
-              jungleFiles: [...rawJungles],
               optBarrelDir,
-            };
-            return promise.then(() =>
-              copyRecursiveAsNeeded(
-                rawBarrelDir,
-                optBarrelDir,
-                (src) => !src.endsWith(".mc")
-              )
-            );
-          }
-          if (
-            optBarrels[barrel].manifest !== manifest ||
-            optBarrels[barrel].optBarrelDir !== optBarrelDir ||
-            optBarrels[barrel].rawBarrelDir != rawBarrelDir
-          ) {
-            throw new Error(
-              `For device ${
-                target.product
-              }, barrel ${barrel} was mapped to both ${path.relative(
-                optBarrels[barrel].rawBarrelDir,
-                optBarrels[barrel].manifest
-              )} in ${optBarrels[barrel].rawBarrelDir} and ${path.relative(
-                rawBarrelDir,
-                manifest
-              )} in ${rawBarrelDir}.`
-            );
-          }
-          optBarrels[barrel].jungleFiles.push(...rawJungles);
-          return promise;
-        }, promise),
+              (src) => !src.endsWith(".mc")
+            )
+          );
+        }
+        if (
+          optBarrels[barrel].manifest !== manifest ||
+          optBarrels[barrel].optBarrelDir !== optBarrelDir ||
+          optBarrels[barrel].rawBarrelDir != rawBarrelDir
+        ) {
+          throw new Error(
+            `For device ${
+              target.product
+            }, barrel ${barrel} was mapped to both ${path.relative(
+              optBarrels[barrel].rawBarrelDir,
+              optBarrels[barrel].manifest
+            )} in ${optBarrels[barrel].rawBarrelDir} and ${path.relative(
+              rawBarrelDir,
+              manifest
+            )} in ${rawBarrelDir}.`
+          );
+        }
+        optBarrels[barrel].jungleFiles.push(...rawJungles);
+        return promise;
+      },
       promise
     );
   }, Promise.resolve());
@@ -341,21 +337,14 @@ export async function generateOptimizedProject(options) {
         `${prefix}sourcePath = ${[`$(${prefix}sourcePath)`]
           .concat(
             Object.entries(group.optimizerConfig.barrelMap)
-              .map(([barrel, barrelMapEntries]) =>
-                barrelMapEntries.map((barrelMapEntry) => {
-                  const root = path.dirname(barrelMapEntry.jungles[0]);
-                  return (barrelMapEntry.qualifier.sourcePath || []).map((s) =>
-                    path
-                      .join(
-                        group.dir,
-                        "barrels",
-                        barrel,
-                        path.relative(root, s)
-                      )
-                      .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
-                  );
-                })
-              )
+              .map(([barrel, resolvedBarrel]) => {
+                const root = path.dirname(resolvedBarrel.jungles[0]);
+                return (resolvedBarrel.qualifier.sourcePath || []).map((s) =>
+                  path
+                    .join(group.dir, "barrels", barrel, path.relative(root, s))
+                    .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
+                );
+              })
               .flat()
               .sort()
               .filter((s, i, arr) => !i || s !== arr[i - 1])
@@ -474,27 +463,25 @@ async function generateOneConfig(config) {
   if (buildConfig.barrelMap) {
     const barrelFnMaps = await Promise.all(
       Object.entries(buildConfig.barrelMap)
-        .map(([barrel, resolvedBarrels]) =>
-          resolvedBarrels.map((resolvedBarrel) => {
-            dependencyFiles.push(
-              ...resolvedBarrel.jungles,
-              resolvedBarrel.manifest
-            );
-            return fileInfoFromConfig(
-              path.dirname(resolvedBarrel.jungles[0]),
-              path.join(output, "barrels", barrel),
-              resolvedBarrel.qualifier,
-              {
-                ...buildModeExcludes,
-                ...excludesFromAnnotations(
-                  barrel,
-                  buildConfig.annotations,
-                  resolvedBarrel
-                ),
-              }
-            );
-          })
-        )
+        .map(([barrel, resolvedBarrel]) => {
+          dependencyFiles.push(
+            ...resolvedBarrel.jungles,
+            resolvedBarrel.manifest
+          );
+          return fileInfoFromConfig(
+            path.dirname(resolvedBarrel.jungles[0]),
+            path.join(output, "barrels", barrel),
+            resolvedBarrel.qualifier,
+            {
+              ...buildModeExcludes,
+              ...excludesFromAnnotations(
+                barrel,
+                buildConfig.annotations,
+                resolvedBarrel
+              ),
+            }
+          );
+        })
         .flat()
     );
     barrelFnMaps.forEach((barrelFnMap) => Object.assign(fnMap, barrelFnMap));

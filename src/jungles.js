@@ -583,7 +583,7 @@ function find_barrels(barrelPath) {
  *
  * @typedef {{[key:string]:string[]}} LangResourcePaths - Map from language codes to the corresponding resource paths
  * @typedef {{[key:string]:string[]}} BarrelAnnotations - Map from barrel name to imported annotations
- * @typedef {{[key:string]:ResolvedBarrel[]}} BarrelMap - Map from barrel name to the set of resolved barrel projects for that name. Note that they must all share a manifest.
+ * @typedef {{[key:string]:ResolvedBarrel}} BarrelMap - Map from barrel name to the set of resolved barrel projects for that name. Note that they must all share a manifest.
  */
 
 /**
@@ -669,16 +669,13 @@ function resolve_barrels(product, qualifier, barrels, options) {
   const barrelMapKey = JSON.stringify([barrels, qualifier.barrelPath]);
   const setBarrelMap = (barrelMap) => {
     qualifier.barrelMap = barrels.reduce((result, barrel) => {
-      result[barrel] = barrelMap[barrel].map(({ targets, ...rest }) => {
-        const target = targets.find((t) => t.product === product);
-        if (!target) {
-          throw new Error(
-            `Barrel ${barrel} does not support device ${product}`
-          );
-        }
-        rest.qualifier = target.qualifier;
-        return rest;
-      });
+      const { targets, ...rest } = barrelMap[barrel];
+      const target = targets.find((t) => t.product === product);
+      if (!target) {
+        throw new Error(`Barrel ${barrel} does not support device ${product}`);
+      }
+      rest.qualifier = target.qualifier;
+      result[barrel] = rest;
       return result;
     }, {});
   };
@@ -711,10 +708,15 @@ function resolve_barrels(product, qualifier, barrels, options) {
                 resolvedBarrel.xml
               );
               if (!hasProperty(barrelMap, name)) return;
-              if (!barrelMap[name]) {
-                barrelMap[name] = [];
+              if (barrelMap[name]) {
+                const bname = (r) => r.jungles.join(";");
+                throw new Error(
+                  `Barrel ${name} already resolved to ${bname(
+                    barrelMap[name]
+                  )}; can't also resolve to ${bname(resolvedBarrel)}`
+                );
               }
-              barrelMap[name].push(resolvedBarrel);
+              barrelMap[name] = resolvedBarrel;
             });
           }),
       Promise.resolve()
