@@ -113,26 +113,28 @@ async function analyze(fnMap) {
   };
   markApi(state.stack[0]);
 
-  const files = await Promise.all(
-    Object.entries(fnMap).map(async ([name, { excludeAnnotations }]) => ({
-      name,
-      monkeyCSource: (await fs.readFile(name))
-        .toString()
-        .replace(/\r\n/g, "\n"),
-      excludeAnnotations,
-    }))
-  );
-
-  files.forEach((f) => {
-    excludeAnnotations = f.excludeAnnotations;
-    f.ast = MonkeyC.parsers.monkeyc.parse(f.monkeyCSource, {
-      grammarSource: f.name,
+  const getAst = (source, monkeyCSource, exclude) => {
+    excludeAnnotations = exclude;
+    const ast = MonkeyC.parsers.monkeyc.parse(monkeyCSource, {
+      grammarSource: source,
     });
-    f.ast.source = f.name;
-    f.ast.monkeyCSource = f.monkeyCSource;
-    delete f.monkeyCSource;
-    collectNamespaces(f.ast, state);
-  });
+    ast.source = source;
+    ast.monkeyCSource = monkeyCSource;
+    collectNamespaces(ast, state);
+    return ast;
+  };
+  const files = await Promise.all(
+    Object.entries(fnMap).map(([name, { excludeAnnotations }]) =>
+      fs.readFile(name).then((data) => ({
+        name,
+        ast: getAst(
+          name,
+          data.toString().replace(/\r\n/g, "\n"),
+          excludeAnnotations
+        ),
+      }))
+    )
+  );
 
   delete state.shouldExclude;
   delete state.post;

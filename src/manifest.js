@@ -17,7 +17,7 @@ export function manifestProducts(manifest) {
   const app =
     manifest["iq:manifest"]["iq:application"] ||
     manifest["iq:manifest"]["iq:barrel"];
-  return app[0]["iq:products"][0]["iq:product"]
+  return ((app[0]["iq:products"] || [{}])[0]["iq:product"] || [])
     .map((p) => p.$.id)
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);

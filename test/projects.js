@@ -268,13 +268,13 @@ export async function fetchGitProjects(projects) {
     const p = projects[i];
     const {
       root,
-      include,
-      exclude,
-      build,
-      options,
-      sourcePath,
-      jungleContent,
-      rename,
+      include = null,
+      exclude = null,
+      build = null,
+      options = null,
+      sourcePath = null,
+      jungleContent = null,
+      rename = null,
     } = p.root ? p : { root: p };
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);

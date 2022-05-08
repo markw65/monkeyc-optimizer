@@ -48,7 +48,9 @@ async function test() {
         if (value == null) return key;
         promise = promise
           .then(() => (value.includes(";") ? [value] : globa(value)))
-          .then((files) => jungles.push(...files));
+          .then((files) => {
+            jungles.push(...files);
+          });
         break;
       case "release":
         releaseBuild = !value || /^true|1$/i.test(value);
@@ -83,7 +85,7 @@ async function test() {
         if (value) {
           const re = new RegExp(value, "i");
           remoteProjects = githubProjects.filter((project) =>
-            re.test(project.root || project)
+            re.test(typeof project === "string" ? project : project.root)
           );
         } else {
           remoteProjects = githubProjects;
@@ -100,7 +102,9 @@ async function test() {
   if (remoteProjects) {
     promise = promise
       .then(() => fetchGitProjects(remoteProjects))
-      .then((j) => jungles.push(...j));
+      .then((j) => {
+        jungles.push(...j);
+      });
   }
   await promise;
   if (!jungles.length) throw new Error("No inputs!");
