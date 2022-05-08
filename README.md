@@ -92,3 +92,11 @@ More fixes found via open source projects.
 - LiteralIntegerRe should be case insensitive
 - Proper fix for promiseAll
 - Auto-include barrels.jungle when its present
+
+### 1.0.10
+
+- Add --execute option to test.js to run the projects after building them
+- Add support for optimizing barrels
+- Add some typing via jsdoc, and turn on ts validation in vscode
+- Bump to @markw65/prettier-plugin-monkeyc:1.0.16 so ts recognizes its exports
+- Add [garmin/connectiq-apps](https://github.com/garmin/connectiq-apps) and fix some minor issues it revealed
