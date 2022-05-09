@@ -59,21 +59,24 @@ function collectClassInfo(state) {
 
 async function analyze(fnMap) {
   let excludeAnnotations;
+  let hasTests = false;
   const allImports = [];
   const state = {
     allFunctions: [],
     allClasses: [],
     shouldExclude(node) {
       if (node.attrs && node.attrs.attrs) {
-        if (
-          node.attrs.attrs.some((attr) => {
-            if (attr.type != "UnaryExpression") return false;
-            if (attr.argument.type != "Identifier") return false;
-            return hasProperty(excludeAnnotations, attr.argument.name);
-          })
-        ) {
-          return true;
-        }
+        return node.attrs.attrs.reduce((drop, attr) => {
+          if (attr.type != "UnaryExpression") return drop;
+          if (attr.argument.type != "Identifier") return drop;
+          if (hasProperty(excludeAnnotations, attr.argument.name)) {
+            return true;
+          }
+          if (attr.argument.name == "test") {
+            hasTests = true;
+          }
+          return drop;
+        }, false);
       }
     },
     post(node) {
@@ -120,14 +123,15 @@ async function analyze(fnMap) {
     });
     ast.source = source;
     ast.monkeyCSource = monkeyCSource;
+    hasTests = false;
     collectNamespaces(ast, state);
-    return ast;
+    return { ast, hasTests };
   };
   const files = await Promise.all(
     Object.entries(fnMap).map(([name, { excludeAnnotations }]) =>
       fs.readFile(name).then((data) => ({
         name,
-        ast: getAst(
+        ...getAst(
           name,
           data.toString().replace(/\r\n/g, "\n"),
           excludeAnnotations
@@ -397,6 +401,18 @@ export async function optimizeMonkeyC(fnMap) {
       return true;
     }
     if (hasProperty(state.exposed, func.id.name)) return true;
+    if (
+      func.attrs &&
+      func.attrs.attrs &&
+      func.attrs.attrs.some((attr) => {
+        if (attr.type != "UnaryExpression") return false;
+        if (attr.argument.type != "Identifier") return false;
+        return attr.argument.name == "test";
+      })
+    ) {
+      return true;
+    }
+
     if (hasProperty(state.calledFunctions, func.id.name)) {
       return (
         state.calledFunctions[func.id.name].find((f) => f === func) !== null

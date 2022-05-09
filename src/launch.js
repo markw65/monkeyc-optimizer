@@ -12,9 +12,11 @@ export function launchSimulator() {
   });
 }
 
-export function simulateProgram(prg, device) {
+export function simulateProgram(prg, device, test) {
+  const args = [prg, device];
+  if (test) args.push("-t");
   return getSdkPath().then((sdk) =>
-    spawnByLine(path.resolve(sdk, "bin", "monkeydo"), [prg, device], (line) =>
+    spawnByLine(path.resolve(sdk, "bin", "monkeydo"), args, (line) =>
       console.log(line)
     )
   );

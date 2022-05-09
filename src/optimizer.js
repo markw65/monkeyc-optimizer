@@ -77,10 +77,15 @@ export async function buildOptimizedProject(product, options) {
   const config = await getConfig(options);
   if (product) {
     config.products = [product];
-  } else if (!hasProperty(config, "releaseBuild")) {
-    config.releaseBuild = true;
+  } else {
+    delete config.testBuild;
+    if (!hasProperty(config, "releaseBuild")) {
+      config.releaseBuild = true;
+    }
   }
-  const { jungleFiles, program } = await generateOptimizedProject(config);
+  const { jungleFiles, program, hasTests } = await generateOptimizedProject(
+    config
+  );
   config.jungleFiles = jungleFiles;
   let bin = config.buildDir || "bin";
   let name = `optimized-${program}.prg`;
@@ -94,7 +99,11 @@ export async function buildOptimizedProject(product, options) {
     name = `${program}.iq`;
   }
   config.program = path.join(bin, name);
-  return build_project(product, config);
+  if (!hasTests) delete config.testBuild;
+  return build_project(product, config).then((result) => ({
+    hasTests,
+    ...result,
+  }));
 }
 
 /**
@@ -265,6 +274,7 @@ export async function generateOptimizedProject(options) {
         targets.map((t) => t.product)
       ))) &&
     !dropBarrels;
+  let hasTests = false;
   const promises = Object.keys(buildConfigs)
     .sort()
     .map((key) => {
@@ -277,13 +287,15 @@ export async function generateOptimizedProject(options) {
             buildConfig,
             outputPath,
             dependencyFiles,
-          }).catch((e) => {
-            if (!e.stack) {
-              e = new Error(e.toString());
-            }
-            e.products = products[key];
-            throw e;
           })
+            .catch((e) => {
+              if (!e.stack) {
+                e = new Error(e.toString());
+              }
+              e.products = products[key];
+              throw e;
+            })
+            .then((t) => t && (hasTests = true))
         : fs.rm(path.resolve(workspace, outputPath), {
             recursive: true,
             force: true,
@@ -372,6 +384,7 @@ export async function generateOptimizedProject(options) {
   return {
     jungleFiles,
     program: path.basename(path.dirname(manifest)),
+    hasTests,
   };
 }
 
@@ -452,6 +465,9 @@ async function generateOneConfig(config) {
     // note: exclude debug in release builds, and release in debug builds
     [config.releaseBuild ? "debug" : "release"]: true,
   };
+  if (!config.testBuild) {
+    buildModeExcludes.test = true;
+  }
 
   const fnMap = await fileInfoFromConfig(
     workspace,
@@ -525,9 +541,9 @@ async function generateOneConfig(config) {
 
       const opt_source = formatAst(file.ast);
       await fs.writeFile(name, opt_source);
-      return name;
+      return file.hasTests;
     })
-  );
+  ).then((results) => results.some((v) => v));
 }
 
 export async function generateApiMirTests(options) {

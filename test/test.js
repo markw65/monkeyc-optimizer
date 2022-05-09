@@ -23,6 +23,7 @@ async function test() {
   let skipOptimization;
   let extraMonkeycArgs = [];
   let execute = false;
+  let testBuild = false;
 
   const prev = process.argv.slice(2).reduce((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
@@ -94,6 +95,9 @@ async function test() {
       case "execute":
         execute = !value || /^true|1$/i.test(value);
         break;
+      case "run-tests":
+        testBuild = !value || /^true|1$/i.test(value);
+        break;
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -108,6 +112,7 @@ async function test() {
   }
   await promise;
   if (!jungles.length) throw new Error("No inputs!");
+  if (testBuild) execute = true;
   if (execute) {
     if (jungleOnly || generateOnly) {
       error(
@@ -140,6 +145,7 @@ async function test() {
       outputPath,
       products,
       releaseBuild,
+      testBuild,
       compilerWarnings,
       typeCheckLevel,
       skipOptimization,
@@ -155,7 +161,7 @@ async function test() {
         genOnly
           ? generateOptimizedProject(options).then(() => null)
           : buildOptimizedProject(products ? products[0] : null, options).then(
-              ({ exe, args, program, product }) => {
+              ({ exe, args, program, product, hasTests }) => {
                 args.push(...extraMonkeycArgs);
                 console.log(
                   [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
@@ -165,20 +171,27 @@ async function test() {
                 }).then(() => ({
                   program,
                   product,
+                  hasTests,
                 }));
               }
             )
       )
       .then(
         (res) =>
-          execute &&
+          (testBuild ? res.hasTests : execute) &&
           res &&
           res.program &&
           res.product &&
-          (console.log(`Executing ${res.program} on ${res.product}`),
-          simulateProgram(res.program, res.product).catch(() =>
-            console.error("Simulation failed")
-          ))
+          (console.log(
+            `${testBuild && res.hasTests ? "Running tests" : "Executing"} ${
+              res.program
+            } on ${res.product}`
+          ),
+          simulateProgram(
+            res.program,
+            res.product,
+            res.hasTests && testBuild
+          ).catch(() => console.error("Simulation failed")))
       )
       .then(() => console.log(`Done: ${jungleFiles}`))
       .catch((e) => {

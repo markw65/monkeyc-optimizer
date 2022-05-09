@@ -10,6 +10,7 @@ export async function build_project(product, options, lineCallback) {
     developerKeyPath,
     simulatorBuild,
     releaseBuild,
+    testBuild,
     compilerOptions,
     compilerWarnings,
     typeCheckLevel,
@@ -23,7 +24,9 @@ export async function build_project(product, options, lineCallback) {
   if (compilerWarnings) {
     extraArgs.push("-w");
   }
-  if (releaseBuild) {
+  if (testBuild) {
+    extraArgs.push("-t");
+  } else if (releaseBuild) {
     extraArgs.push("-r");
   }
   if (!product) {
@@ -44,7 +47,12 @@ export async function build_project(product, options, lineCallback) {
       break;
   }
   if (product) {
-    extraArgs.push("-d", simulatorBuild !== false ? `${product}_sim` : product);
+    extraArgs.push(
+      "-d",
+      testBuild || simulatorBuild !== false ? `${product}_sim` : product
+    );
+  } else if (testBuild) {
+    throw new Error("Building for tests requires a device to build for!");
   }
   const exe = path.resolve(sdk, "bin", isWin ? "monkeyc.bat" : "monkeyc");
   const args = [
@@ -54,13 +62,14 @@ export async function build_project(product, options, lineCallback) {
     extraArgs,
   ].flat();
 
-  const handlers = [
-    lineCallback || ((line) => console.log(line)),
-    (line) => console.error(line),
-  ];
-  return returnCommand
-    ? { exe, args, program: path.resolve(workspace, program), product }
-    : spawnByLine(exe, args, handlers, {
-        cwd: workspace,
-      });
+  if (!returnCommand) {
+    const handlers = [
+      lineCallback || ((line) => console.log(line)),
+      (line) => console.error(line),
+    ];
+    await spawnByLine(exe, args, handlers, {
+      cwd: workspace,
+    });
+  }
+  return { exe, args, program: path.resolve(workspace, program), product };
 }
