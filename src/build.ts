@@ -1,8 +1,12 @@
 import * as path from "path";
-import { getSdkPath, isWin } from "./sdk-util.js";
-import { spawnByLine } from "./util.js";
+import { getSdkPath, isWin } from "src/sdk-util";
+import { spawnByLine } from "src/util";
 
-export async function build_project(product, options, lineCallback) {
+export async function build_project(
+  product: string,
+  options: BuildConfig,
+  lineCallback?: (line: string) => void
+) {
   const {
     workspace,
     program,
@@ -64,8 +68,8 @@ export async function build_project(product, options, lineCallback) {
 
   if (!returnCommand) {
     const handlers = [
-      lineCallback || ((line) => console.log(line)),
-      (line) => console.error(line),
+      lineCallback || ((line: string) => console.log(line)),
+      (line: string) => console.error(line),
     ];
     await spawnByLine(exe, args, handlers, {
       cwd: workspace,

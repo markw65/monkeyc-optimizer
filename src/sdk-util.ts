@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
-import { globa } from "./util.js";
+import { globa } from "src/util";
 
 export const isWin = process.platform == "win32";
 
@@ -17,7 +17,12 @@ export function getSdkPath() {
     .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"));
 }
 
-export async function getDeviceInfo() {
+export async function getDeviceInfo(): Promise<{
+  [key: string]: {
+    appTypes: { memoryLimit: number; type: string }[];
+    deviceFamily: string;
+  };
+}> {
   const files = await globa(`${connectiq}/Devices/*/compiler.json`);
   return Promise.all(
     files.map((file) => {

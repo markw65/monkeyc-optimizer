@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "outDir": "dist",
+    "module": "es2020",
+    "target": "es2020",
+    "checkJs": true /* Typecheck .js files. */,
+    "lib": ["ES2020"],
+    "moduleResolution": "node",
+    "paths": {
+      "src/*": ["./src/*"]
+    },
+    "allowSyntheticDefaultImports": true
+  },
+  "exclude": ["build", "node_modules"]
+}

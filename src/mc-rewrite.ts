@@ -6,8 +6,93 @@ import {
   hasProperty,
   traverseAst,
   LiteralIntegerRe,
-} from "./api.js";
-import { pushUnique } from "./util.js";
+} from "src/api";
+import { pushUnique } from "src/util";
+import {
+  Node as ESTreeNode,
+  UnaryExpression as ESTreeUnaryExpression,
+  Identifier as ESTreeIdentifier,
+  ModuleDeclaration as ESTreeModuleDeclaration,
+  ClassDeclaration as ESTreeClassDeclaration,
+  FunctionDeclaration as ESTreeFunctionDeclaration,
+  Literal as ESTreeLiteral,
+  BlockStatement as ESTreeBlockStatement,
+} from "src/estree-types";
+declare global {
+  type StateNodeDecls = { [key: string]: (StateNode | ESTreeLiteral)[] };
+  type ProgramStateNode = {
+    type: "Program";
+    node?: null | undefined;
+    name: "$";
+    fullName: "$";
+    decls?: null | undefined;
+    stack?: null | undefined;
+  };
+  type ModuleStateNode = {
+    type: "ModuleDeclaration";
+    name: string;
+    fullName: string;
+    node: ESTreeModuleDeclaration;
+    stack?: ProgramStateStack;
+    decls?: StateNodeDecls;
+  };
+  type ClassStateNode = {
+    type: "ClassDeclaration";
+    name: string;
+    fullName: string;
+    node: ESTreeClassDeclaration;
+    decls?: StateNodeDecls;
+    stack?: ProgramStateStack;
+    superClass: ClassStateNode[] | true;
+  };
+  type FunctionStateNode = {
+    type: "FunctionDeclaration";
+    name: string;
+    fullName: string;
+    node: ESTreeFunctionDeclaration;
+    // decls?: { [key: string]: (StateNode | string)[] };
+    stack?: ProgramStateStack;
+    decls?: undefined;
+  };
+  type BlockStateNode = {
+    type: "BlockStatement";
+    name?: null | undefined;
+    fullName?: null | undefined;
+    node: ESTreeBlockStatement;
+    decls?: StateNodeDecls;
+    stack?: null | undefined;
+  };
+  type StateNode =
+    | ProgramStateNode
+    | FunctionStateNode
+    | BlockStateNode
+    | ClassStateNode
+    | ModuleStateNode;
+  type ProgramStateStack = StateNode[];
+  type ProgramState = {
+    allFunctions?: FunctionStateNode[];
+    allClasses?: ClassStateNode[];
+    stack?: ProgramStateStack;
+    shouldExclude?: (node: any) => any;
+    pre?: (node: ESTreeNode) => void | false | string[];
+    post?: (node: ESTreeNode) => void | false | ESTreeNode;
+    lookup?: (
+      node: ESTreeNode,
+      name?: string,
+      stack?: ProgramStateStack
+    ) => [string, StateNode[]];
+    traverse?: (node: ESTreeNode) => void | boolean | ESTreeNode;
+    exposed?: { [key: string]: true };
+    calledFunctions?: { [key: string]: unknown[] };
+    localsStack?: {
+      node?: ESTreeNode;
+      map?: { [key: string]: true };
+      inners?: { [key: string]: true };
+    }[];
+    index?: unknown;
+    constants?: { [key: string]: ESTreeLiteral };
+  };
+}
 
 function processImports(allImports, lookup) {
   allImports.forEach(({ node, stack }) => {
@@ -25,28 +110,36 @@ function processImports(allImports, lookup) {
   });
 }
 
-function collectClassInfo(state) {
+function collectClassInfo(state: ProgramState) {
   state.allClasses.forEach((elm) => {
     if (elm.node.superClass) {
       const [, classes] = state.lookup(elm.node.superClass, null, elm.stack);
-      if (classes) {
-        elm.superClass = classes.filter((c) => c.type == "ClassDeclaration");
-      }
+      const superClass =
+        classes &&
+        classes.filter(
+          (c): c is ClassStateNode => c.type === "ClassDeclaration"
+        );
       // set it "true" if there is a superClass, but we can't find it.
-      if (!elm.superClass || !elm.superClass.length) elm.superClass = true;
+      elm.superClass = superClass && superClass.length ? superClass : true;
     }
   });
 
-  const markOverrides = (cls, scls) => {
+  const markOverrides = (
+    cls: ClassStateNode,
+    scls: ClassStateNode[] | true
+  ) => {
     if (scls === true) return;
     scls.forEach((c) => {
       c.decls &&
-        Object.values(c.decls).forEach((f) => {
-          if (f.type == "FunctionDeclaration") {
-            if (hasProperty(cls.decls, f.name)) {
-              f.hasOverride = true;
+        Object.values(c.decls).forEach((funcs) => {
+          funcs.forEach((f) => {
+            if (
+              f.type === "FunctionDeclaration" &&
+              hasProperty(cls.decls, f.name)
+            ) {
+              f.node.hasOverride = true;
             }
-          }
+          });
         });
       if (c.superClass) markOverrides(cls, c.superClass);
     });
@@ -57,11 +150,11 @@ function collectClassInfo(state) {
   });
 }
 
-async function analyze(fnMap) {
+async function analyze(fnMap: FilesToOptimizeMap) {
   let excludeAnnotations;
   let hasTests = false;
   const allImports = [];
-  const state = {
+  const state: ProgramState = {
     allFunctions: [],
     allClasses: [],
     shouldExclude(node) {
@@ -86,10 +179,11 @@ async function analyze(fnMap) {
           const [scope] = state.stack.slice(-1);
           const stack = state.stack.slice(0, -1);
           scope.stack = stack;
-          (node.type == "FunctionDeclaration"
-            ? state.allFunctions
-            : state.allClasses
-          ).push(scope);
+          if (scope.type == "FunctionDeclaration") {
+            state.allFunctions.push(scope);
+          } else {
+            state.allClasses.push(scope as ClassStateNode);
+          }
           return;
         }
         case "Using":
@@ -360,7 +454,7 @@ function evaluateFunction(func, args) {
   }
 }
 
-export async function optimizeMonkeyC(fnMap) {
+export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   const { files, state } = await analyze(fnMap);
   const replace = (node, obj) => {
     for (const k of Object.keys(node)) {
@@ -657,8 +751,11 @@ export async function optimizeMonkeyC(fnMap) {
         if (!callees || !callees.length) {
           const n =
             name ||
-            node.callee.name ||
-            (node.callee.property && node.callee.property.name);
+            ("name" in node.callee && node.callee.name) ||
+            ("property" in node.callee &&
+              node.callee.property &&
+              "name" in node.callee.property &&
+              node.callee.property.name);
           if (n) {
             state.exposed[n] = true;
           } else {
@@ -670,6 +767,7 @@ export async function optimizeMonkeyC(fnMap) {
         if (callees.length == 1) {
           const callee = callees[0].node;
           if (
+            callee.type == "FunctionDeclaration" &&
             callee.optimizable &&
             !callee.hasOverride &&
             node.arguments.every((n) => getNodeValue(n)[0] !== null)
@@ -698,7 +796,7 @@ export async function optimizeMonkeyC(fnMap) {
         case "EnumStringBody":
           if (
             node.members.every((m) => {
-              const name = m.name || m.id.name;
+              const name = "name" in m ? m.name : m.id.name;
               return (
                 hasProperty(state.index, name) &&
                 !hasProperty(state.exposed, name)
@@ -708,7 +806,7 @@ export async function optimizeMonkeyC(fnMap) {
             node.enumType = [
               ...new Set(
                 node.members.map((m) => {
-                  if (!m.init) return "Number";
+                  if (!("init" in m)) return "Number";
                   const [node, type] = getNodeValue(m.init);
                   if (!node) {
                     throw new Error("Failed to get type for eliminated enum");
@@ -723,7 +821,7 @@ export async function optimizeMonkeyC(fnMap) {
         case "EnumDeclaration":
           if (!node.body.members.length) {
             if (!node.id) return false;
-            if (!node.body.enumType) {
+            if (!node.body["enumType"]) {
               throw new Error("Missing enumType on optimized enum");
             }
             replace(node, {

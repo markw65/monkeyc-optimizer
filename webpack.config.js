@@ -19,6 +19,13 @@ export default (env, argv) => {
         devtoolModuleFilenameTemplate: "webpack://[resource-path]",
       },
       devtool: argv.mode != "production" ? "source-map" : false,
+      resolve: {
+        enforceExtension: false,
+        extensions: [".ts", ".js"],
+        alias: {
+          src: path.resolve(__dirname, "src"),
+        },
+      },
     };
     return { ...config, ...extra };
   }
@@ -98,13 +105,31 @@ export default (env, argv) => {
   const optimizer = getConfig({
     name: "monkeyc-optimizer",
     entry: {
-      optimizer: "./src/optimizer.js",
-      util: "./src/util.js",
-      "sdk-util": "./src/sdk-util.js",
-      api: "./src/api.js",
+      optimizer: "./src/optimizer.ts",
+      util: "./src/util.ts",
+      "sdk-util": "./src/sdk-util.ts",
+      api: "./src/api.ts",
     },
     optimization: { minimize: false },
     dependencies: ["jungle"],
+    module: {
+      rules: [
+        {
+          test: /\.ts$/,
+          loader: "ts-loader",
+          exclude: /node_modules/,
+          options: {
+            // set to true for faster builds, or to transpile even
+            // when there are errors.
+            transpileOnly: false,
+
+            //compilerOptions: {
+            //  declaration,
+            //},
+          },
+        },
+      ],
+    },
     externals({ request }, callback) {
       const obj = {
         "prettier/standalone.js": "commonjs prettier/standalone.js",
@@ -128,8 +153,9 @@ export default (env, argv) => {
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);
       }
-      if (/^\.\/(util|api|sdk-util)\.js$/.test(request)) {
-        return callback(null, request.replace(/\.js$/, ".cjs"));
+      const match = request.match(/^(\.|src)\/(util|api|sdk-util)(\.js)?$/);
+      if (match) {
+        return callback(null, `./${match[2]}.cjs`);
       }
       callback();
     },
@@ -182,26 +208,30 @@ export default (env, argv) => {
            */
           const fileToExports = {};
           const recordExport = (request, name) => {
+            request = request
+              .replace(/\.(js|ts)$/, "")
+              .replace(/^\.[\\\/]/, "");
             if (!fileToExports.hasOwnProperty(request)) {
               fileToExports[request] = [];
             }
             fileToExports[request].push(name);
           };
           compiler.hooks.normalModuleFactory.tap(pluginName, (factory) => {
-            factory.hooks.parser
-              .for("javascript/esm")
-              .tap(pluginName, (parser) => {
-                parser.hooks.exportSpecifier.tap(
-                  pluginName,
-                  (statement, id, name) =>
-                    recordExport(parser.state.module.rawRequest, name)
-                );
-                parser.hooks.exportImportSpecifier.tap(
-                  pluginName,
-                  (statement, source, id, name) =>
-                    recordExport(parser.state.module.rawRequest, name)
-                );
-              });
+            const exportParser = (parser) => {
+              parser.hooks.exportSpecifier.tap(
+                pluginName,
+                (statement, id, name) =>
+                  recordExport(parser.state.module.rawRequest, name)
+              );
+              parser.hooks.exportImportSpecifier.tap(
+                pluginName,
+                (statement, source, id, name) =>
+                  recordExport(parser.state.module.rawRequest, name)
+              );
+            };
+            ["javascript/esm", "javascript/auto"].forEach((target) =>
+              factory.hooks.parser.for(target).tap(pluginName, exportParser)
+            );
           });
           /*
            * Now we insert the fake exports line into each of the .cjs
@@ -221,7 +251,7 @@ export default (env, argv) => {
                 Object.entries(assets).forEach(([file, asset]) => {
                   const match = file.match(/^(.*)\.cjs/);
                   if (match) {
-                    const original = `./src/${match[1]}.js`;
+                    const original = `src/${match[1]}`;
                     const exports = fileToExports[original];
                     if (exports) {
                       const fakeExportLine = `0 && (module.exports = {${exports.join(

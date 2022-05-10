@@ -1,9 +1,9 @@
 import path from "path";
 import { execFile } from "child_process";
-import { getSdkPath, isWin } from "./sdk-util.js";
-import { spawnByLine } from "./util.js";
+import { getSdkPath, isWin } from "src/sdk-util";
+import { spawnByLine } from "src/util";
 
-export function launchSimulator() {
+export function launchSimulator(): Promise<void> {
   return getSdkPath().then((sdk) => {
     const child = execFile(
       path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq")
@@ -12,12 +12,16 @@ export function launchSimulator() {
   });
 }
 
-export function simulateProgram(prg, device, test) {
+export function simulateProgram(
+  prg: string,
+  device: string,
+  test?: boolean
+): Promise<void> {
   const args = [prg, device];
   if (test) args.push("-t");
   return getSdkPath().then((sdk) =>
-    spawnByLine(path.resolve(sdk, "bin", "monkeydo"), args, (line) =>
+    spawnByLine(path.resolve(sdk, "bin", "monkeydo"), args, (line: string) =>
       console.log(line)
-    )
+    ).then(() => {})
   );
 }

@@ -9,7 +9,10 @@ import * as readline from "readline";
 // recognize global.lastModifiedSource.
 global["lastModifiedSource" + ""] = 0;
 
-export function globa(pattern, options) {
+export function globa(
+  pattern,
+  options?: { [key: string]: unknown }
+): Promise<Array<string>> {
   return new Promise((resolve, reject) => {
     glob.glob(pattern, options, (er, files) => {
       if (er) {
@@ -47,12 +50,18 @@ export function pushUnique(arr, value) {
   arr.push(value);
 }
 
+type LineHandler = (line: string) => void;
 // return a promise that will process the output of command
 // line-by-line via lineHandlers.
-export function spawnByLine(command, args, lineHandlers, options) {
+export function spawnByLine(
+  command: string,
+  args: string[],
+  lineHandlers: LineHandler | LineHandler[],
+  options?: { [key: string]: unknown }
+): Promise<void> {
   const [lineHandler, errHandler] = Array.isArray(lineHandlers)
     ? lineHandlers
-    : [lineHandlers, (data) => console.error(data.toString())];
+    : [lineHandlers, (line: string) => console.error(line)];
   return new Promise((resolve, reject) => {
     const proc = child_process.spawn(command, args, {
       ...(options || {}),

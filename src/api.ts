@@ -1,10 +1,11 @@
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
-import { getLiteralNode } from "./mc-rewrite.js";
-import { negativeFixups } from "./negative-fixups.js";
-import { getSdkPath } from "./sdk-util.js";
-import { pushUnique } from "./util.js";
+import { getLiteralNode } from "src/mc-rewrite";
+import { negativeFixups } from "src/negative-fixups";
+import { getSdkPath } from "src/sdk-util";
+import { pushUnique } from "src/util";
+import { Program, Node as ESTreeNode } from "src/estree-types";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
 /*
@@ -18,7 +19,7 @@ export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
  */
 
 // Extract all enum values from api.mir
-export async function getApiMapping(state) {
+export async function getApiMapping(state?: ProgramState) {
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
 
@@ -61,7 +62,7 @@ export function hasProperty(obj, prop) {
   return obj && Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-export function collectNamespaces(ast, state) {
+export function collectNamespaces(ast: Program, state: ProgramState) {
   state = state || {};
   if (!state.index) state.index = {};
   if (!state.stack) {
@@ -119,9 +120,6 @@ export function collectNamespaces(ast, state) {
               if (state.stack.length != 1) {
                 throw new Error("Unexpected stack length for Program node");
               }
-              if (node.source) {
-                state.stack[0].source = node.source;
-              }
               break;
             case "BlockStatement": {
               const [parent] = state.stack.slice(-1);
@@ -135,39 +133,41 @@ export function collectNamespaces(ast, state) {
             }
             case "ClassDeclaration":
             case "FunctionDeclaration":
-            case "ModuleDeclaration":
-              if (node.id || node.type == "BlockStatement") {
-                const [parent] = state.stack.slice(-1);
-                const elm = {
-                  type: node.type,
-                  name: node.id && node.id.name,
-                  node,
-                };
-                state.stack.push(elm);
-                elm.fullName = state.stack
-                  .map((e) => e.name)
-                  .filter((e) => e != null)
-                  .join(".");
-                if (elm.name) {
-                  if (!parent.decls) parent.decls = {};
-                  if (hasProperty(parent.decls, elm.name)) {
-                    const what =
-                      node.type == "ModuleDeclaration" ? "type" : "node";
-                    const e = parent.decls[elm.name].find(
-                      (d) => d[what] == elm[what]
-                    );
-                    if (e != null) {
-                      e.node = node;
-                      state.stack.splice(-1, 1, e);
-                      break;
-                    }
-                  } else {
-                    parent.decls[elm.name] = [];
+            case "ModuleDeclaration": {
+              const [parent] = state.stack.slice(-1);
+              const name = "id" in node && node.id && node.id.name;
+              const fullName = state.stack
+                .map((e) => e.name)
+                .concat(name)
+                .filter((e) => e != null)
+                .join(".");
+              const elm = {
+                type: node.type,
+                name,
+                fullName,
+                node,
+              } as StateNode;
+              state.stack.push(elm);
+              if (name) {
+                if (!parent.decls) parent.decls = {};
+                if (hasProperty(parent.decls, elm.name)) {
+                  const what =
+                    node.type == "ModuleDeclaration" ? "type" : "node";
+                  const e = parent.decls[name].find(
+                    (d) => d[what] == elm[what]
+                  ) as StateNode | null;
+                  if (e != null) {
+                    e.node = node;
+                    state.stack.splice(-1, 1, e);
+                    break;
                   }
-                  parent.decls[elm.name].push(elm);
+                } else {
+                  parent.decls[elm.name] = [];
                 }
+                parent.decls[elm.name].push(elm);
               }
               break;
+            }
             // an EnumDeclaration doesn't create a scope, but
             // it does create a type (if it has a name)
             case "EnumDeclaration": {
@@ -177,7 +177,9 @@ export function collectNamespaces(ast, state) {
                 /^\$\./,
                 ""
               );
-              node.body.members.forEach((m) => ((m.init || m).enumType = name));
+              node.body.members.forEach(
+                (m) => (("init" in m ? m.init : m).enumType = name)
+              );
             }
             // fall through
             case "TypedefDeclaration": {
@@ -188,7 +190,7 @@ export function collectNamespaces(ast, state) {
               }
               pushUnique(
                 parent.decls[node.id.name],
-                node.ts ? formatAst(node.ts.argument) : node.id.name
+                "ts" in node ? formatAst(node.ts.argument) : node.id.name
               );
               break;
             }
@@ -306,7 +308,11 @@ export function collectNamespaces(ast, state) {
  *  - if post returns false, the node it was called on is
  *    removed.
  */
-export function traverseAst(node, pre, post) {
+export function traverseAst(
+  node: ESTreeNode,
+  pre?: (node: ESTreeNode) => void | null | false | string[],
+  post?: (node: ESTreeNode) => void | null | boolean | ESTreeNode
+) {
   const nodes = pre && pre(node);
   if (nodes === false) return;
   for (const key of nodes || Object.keys(node)) {
@@ -342,8 +348,12 @@ export function traverseAst(node, pre, post) {
   return post && post(node);
 }
 
-export function formatAst(node, options) {
-  if (!node.monkeyCSource && node.comments) {
+export function formatAst(
+  node: ESTreeNode,
+  options?: { [key: string]: unknown }
+) {
+  const monkeyCSource = "monkeyCSource" in node && node.monkeyCSource + "\n";
+  if ("comments" in node && !monkeyCSource) {
     // Prettier inserts comments by using the source location to
     // find the original comment, rather than using the contents
     // of the comment as reported by the comment nodes themselves.
@@ -356,9 +366,7 @@ export function formatAst(node, options) {
   // json. The parser knows to just treat the last line of the input
   // as the ast itself, and the printers will find what they're
   // looking for in the source.
-  const source =
-    (node.monkeyCSource ? node.monkeyCSource + "\n" : "") +
-    JSON.stringify(node);
+  const source = (monkeyCSource || "") + JSON.stringify(node);
   return Prettier.format(source, {
     ...(options || {}),
     parser: "monkeyc-json",
@@ -375,9 +383,10 @@ function handleException(state, node, exception) {
       .concat(node.name)
       .filter((e) => e != null)
       .join(".");
-    const location = state.stack[0].source
-      ? `${state.stack[0].source}:${node.start || 0}:${node.end || 0}`
-      : "<unknown>";
+    const location =
+      node.loc && node.loc.source
+        ? `${node.loc.source}:${node.start || 0}:${node.end || 0}`
+        : "<unknown>";
     message = `Got exception \`${exception.toString()}' while processing node ${fullName}:${
       node.type
     } from ${location}`;

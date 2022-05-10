@@ -4,29 +4,35 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
 import * as jungle from "../build/jungle.js";
-import { hasProperty } from "./api.js";
+import { hasProperty } from "src/api";
 import {
   manifestAnnotations,
   manifestBarrelName,
   manifestBarrels,
   manifestProducts,
   readManifest,
-} from "./manifest.js";
-import { getDeviceInfo, getLanguages } from "./sdk-util.js";
-import { globa } from "./util.js";
+  jsxml,
+} from "src/manifest";
+import { getDeviceInfo, getLanguages } from "src/sdk-util";
+import { globa } from "src/util";
 
-async function default_jungle() {
+type Literal = {
+  type: "Literal";
+  value: string;
+};
+
+async function default_jungle(): Promise<any> {
   const assignments = [];
   const devices = await getDeviceInfo();
   const languages = await getLanguages();
-  const literal = (value) => ({ type: "Literal", value });
+  const literal = (value: string): Literal => ({ type: "Literal", value });
   const qname = (name) => ({ type: "QualifiedName", names: name.split(".") });
   const assign = (name, values) =>
     assignments.push({ names: name.split("."), values });
   const rassign = (name, values, base) => {
     assign(name, base ? [qname(name)].concat(values) : values);
   };
-  const rezAndLang = (id, rez, base) => {
+  const rezAndLang = (id, rez, base = null) => {
     if (base) {
       assign(id, [qname(base)]);
     }
@@ -199,7 +205,7 @@ function resolve_node_list(state, list) {
   return list;
 }
 
-function check_non_leaf_dot(dot, path, i) {
+function check_non_leaf_dot(dot, path = null, i = 0) {
   if (dot.length !== 1 || dot[0].type) {
     throw new Error(
       `'.' node at ${(path || [])
@@ -260,13 +266,16 @@ function resolve_node(state, node) {
   return node;
 }
 
-function resolve_filename(literal, default_source) {
+function resolve_filename(literal, default_source = null) {
   if (typeof literal === "string") return literal;
   const root = path.dirname(literal.source || default_source);
   return path.resolve(root, literal.value);
 }
 
-async function resolve_literals(qualifier, default_source) {
+async function resolve_literals(
+  qualifier: JungleQualifier,
+  default_source: string
+): Promise<void> {
   const resolve_file_list = async (literals) =>
     literals &&
     (
@@ -327,8 +336,8 @@ async function resolve_literals(qualifier, default_source) {
   //   qualifier.annotations.BarrelName = Foo;Bar
   const annotations = {};
   Object.entries(qualifier).forEach(([k, v]) => {
-    if (hasProperty(v, "annotations")) {
-      annotations[k] = v.annotations;
+    if ("annotations" in <object>v) {
+      annotations[k] = v["annotations"];
       resolve_literal_list(annotations, k);
       delete qualifier[k];
     }
@@ -557,38 +566,44 @@ function find_barrels(barrelPath) {
     );
 }
 
-/**
- *@typedef {Object} Target - Build instructions for a particular product in a jungle
- *
- * @typedef {Object} JungleInfoBase - The result of parsing a jungle file, without resolving any products
- * @property {string[]} jungles - Paths to the barrel's jungle files
- * @property {string} manifest - Path to the barrel's manifest file
- * @property {Object} xml - The xml content of the manifest, as returned by xml2js
- * @property {string[]=} annotations - Array of annotations supported by this barrel
- *
- * @typedef {Object} PartialJungle - Used to extend JungleInfoBase to ResolvedJungle
- * @property {Target[]} targets - All of the supported targets in the manifest
- *
- * @typedef {Object} PartialBarrel - Used to extend JungleInfoBase to ResolvedBarrel
- * @property {JungleQualifier} qualifier - the qualifier for this PartialBarrel's target
- *
- * @typedef {JungleInfoBase & PartialJungle} ResolvedJungle - The result of parsing an application's jungle file
- * @typedef {JungleInfoBase & PartialBarrel} ResolvedBarrel - The result of parsing a barrel's jungle file for a particular product
- *
- * @typedef {Object} JungleQualifier
- * @property {string[]=} sourcePath - locations to find source file
- * @property {string[]=} sourceExcludes - array of files to exclude from the build (from resource build instructions)
- * @property {string[]=} excludeAnnotations - array of excludeAnnotations
- * @property {string[]=} resourcePath - locations to find resource files
- * @property {LangResourcePaths} lang - locations to find resource files
- * @property {(string|string[])[]=} barrelPath - locations to find barrels
- * @property {BarrelAnnotations=} annotations - map from barrel names to arrays of annotations
- * @property {BarrelMap=} barrelMap
- *
- * @typedef {{[key:string]:string[]}} LangResourcePaths - Map from language codes to the corresponding resource paths
- * @typedef {{[key:string]:string[]}} BarrelAnnotations - Map from barrel name to imported annotations
- * @typedef {{[key:string]:ResolvedBarrel}} BarrelMap - Map from barrel name to the set of resolved barrel projects for that name. Note that they must all share a manifest.
- */
+export type Target = {
+  product: string;
+  qualifier: JungleQualifier;
+  shape?: string;
+  group?: { optimizerConfig: JungleQualifier; dir?: string };
+};
+
+type LangResourcePaths = { [key: string]: string[] }; // Map from language codes to the corresponding resource paths
+type BarrelAnnotations = { [key: string]: string[] }; // Map from barrel name to imported annotations
+type BarrelMap = { [key: string]: ResolvedBarrel }; // Map from barrel name to the set of resolved barrel projects for that name. Note that they must all share a manifest.
+
+export type JungleQualifier = {
+  sourcePath?: string[]; // locations to find source file
+  sourceExcludes?: string[]; // array of files to exclude from the build (from resource build instructions)
+  excludeAnnotations?: string[]; // array of excludeAnnotations
+  resourcePath?: string[]; // locations to find resource files
+  lang?: LangResourcePaths; // locations to find resource files
+  barrelPath?: (string | string[])[]; // locations to find barrels
+  annotations?: BarrelAnnotations; // map from barrel names to arrays of annotations
+  barrelMap?: BarrelMap;
+  optBarrels?: unknown;
+};
+
+// The result of parsing a jungle file, without resolving any products
+type JungleInfoBase = {
+  jungles: string[]; // Paths to the project's jungle files
+  manifest: string; // Path to the project's manifest file
+  xml: jsxml; // The xml content of the manifest, as returned by xml2js
+  annotations?: string[]; // Array of annotations supported by this barrel
+};
+
+// The result of parsing an application's jungle file
+type ResolvedJungle = JungleInfoBase & { targets: Target[] };
+
+// The result of parsing a barrel's jungle file for a particular product
+type ResolvedBarrel = JungleInfoBase & {
+  qualifier: JungleQualifier; // The qualifier for this barrel's target
+};
 
 /**
  * Given a .barrel file, unpack it into barrelDir, then process its .jungle file as below
@@ -597,10 +612,10 @@ function find_barrels(barrelPath) {
  * @param {string} barrel Path to a .jungle or .barrel file to resolve
  * @param {string} barrelDir Directory where .barrel files should be unpacked
  * @param {string[]} products The products supported by the importing project
- * @param {*} options
+ * @param {BuildConfig} options
  * @returns {Promise<ResolvedJungle>}
  */
-function resolve_barrel(barrel, barrelDir, products, options) {
+function resolve_barrel(barrel, barrelDir, products, options: BuildConfig) {
   const cache = options._cache;
   if (hasProperty(cache.barrels, barrel)) {
     return cache.barrels[barrel];
@@ -655,10 +670,16 @@ function resolve_barrel(barrel, barrelDir, products, options) {
  * @param {JungleQualifier} qualifier The qualifier for product from the main jungle
  * @param {string[]} barrels The barrels imported by the project's manifest
  * @param {string[]} products The products supported by the importing project (used when the barrel project has none)
- * @param {*} options
+ * @param {BuildConfig} options
  * @returns {Promise<void>}
  */
-function resolve_barrels(product, qualifier, barrels, products, options) {
+function resolve_barrels(
+  product: string,
+  qualifier: JungleQualifier,
+  barrels: string[],
+  products: string[],
+  options: BuildConfig
+) {
   if (qualifier.annotations) {
     Object.keys(qualifier.annotations).forEach((key) => {
       // delete annotations for non-existent barrels such as
@@ -745,10 +766,14 @@ function resolve_barrels(product, qualifier, barrels, products, options) {
  *
  * @param {string} jungleFiles Semicolon separated list of jungle files
  * @param {string[]} defaultProducts Default set of products. Only used by a barrel with no products of its own
- * @param {*} options
+ * @param {BuildConfig} options
  * @returns {Promise<ResolvedJungle>}
  */
-async function get_jungle_and_barrels(jungleFiles, defaultProducts, options) {
+async function get_jungle_and_barrels(
+  jungleFiles: string,
+  defaultProducts: string[],
+  options: BuildConfig
+): Promise<ResolvedJungle> {
   const jungles = jungleFiles
     .split(";")
     .map((jungle) => path.resolve(options.workspace || "./", jungle));
@@ -785,7 +810,7 @@ async function get_jungle_and_barrels(jungleFiles, defaultProducts, options) {
   const products = manifestProducts(xml);
   if (products.length === 0) products.push(...defaultProducts);
   let promise = Promise.resolve();
-  const add_one = (product, shape) => {
+  const add_one = (product, shape = null) => {
     const qualifier = resolve_node(state, state[product]);
     if (!qualifier) return;
     promise = promise
@@ -811,7 +836,10 @@ async function get_jungle_and_barrels(jungleFiles, defaultProducts, options) {
   return { manifest, targets, xml, annotations, jungles };
 }
 
-export async function get_jungle(jungles, options) {
+export async function get_jungle(
+  jungles: string,
+  options: BuildConfig
+): Promise<ResolvedJungle> {
   options = options || {};
   const result = await get_jungle_and_barrels(jungles, [], options);
   identify_optimizer_groups(result.targets, options);

@@ -2,10 +2,10 @@ import * as path from "path";
 import {
   buildOptimizedProject,
   generateOptimizedProject,
+  launchSimulator,
+  simulateProgram,
 } from "../build/optimizer.cjs";
-import { globa } from "../build/util.cjs";
-import { launchSimulator, simulateProgram } from "../src/launch.js";
-import { spawnByLine } from "../src/util.js";
+import { globa, spawnByLine } from "../build/util.cjs";
 import { fetchGitProjects, githubProjects } from "./projects.js";
 
 async function test() {

@@ -1,25 +1,26 @@
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import path from "path";
-import { formatAst, getApiMapping, hasProperty } from "./api.js";
-import { build_project } from "./build.js";
-import { get_jungle } from "./jungles.js";
-import { launchSimulator } from "./launch.js";
+import { formatAst, getApiMapping, hasProperty } from "src/api";
+import { build_project } from "src/build";
+import { get_jungle, JungleQualifier, Target } from "src/jungles";
+import { launchSimulator, simulateProgram } from "src/launch";
 import {
   checkManifest,
   writeManifest,
   manifestDropBarrels,
-} from "./manifest.js";
-import { optimizeMonkeyC } from "./mc-rewrite.js";
-import { appSupport } from "./sdk-util.js";
+} from "src/manifest";
+import { optimizeMonkeyC } from "src/mc-rewrite";
+import { appSupport } from "src/sdk-util";
 import {
   copyRecursiveAsNeeded,
   first_modified,
   globa,
   last_modified,
-} from "./util.js";
+} from "src/util";
+import { Node as ESTreeNode } from "src/estree-types";
 
-export { copyRecursiveAsNeeded, launchSimulator };
+export { copyRecursiveAsNeeded, launchSimulator, simulateProgram };
 
 function relative_path_no_dotdot(relative) {
   return relative.replace(
@@ -42,33 +43,46 @@ export const defaultConfig = {
   workspace: "./",
 };
 
+declare global {
+  // Configuration options for build
+  type BuildConfig = {
+    workspace?: string; // The project's workspace directory
+    jungleFiles?: string; // Semicolon separated list of jungle files
+    developerKeyPath?: string; // Path to the developer key file to be used by the garmin tools
+    typeCheckLevel?: string; // monkeyC.typeCheckLevel
+    compilerOptions?: string; // monkeyC.compilerOptions
+    compilerWarnings?: boolean; // monkeyC.compilerWarnings
+    simulatorBuild?: boolean; // build for the simulator
+    releaseBuild?: boolean; // do a release build
+    testBuild?: boolean; // do a test build
+    products?: string[]; // list of products to build for
+    buildDir?: string; // output directory for binaries, default "bin"
+    outputPath?: string; // output directory for optimized project, default "bin/optimized"
+    program?: string; // name of the built binary
+    skipOptimization?: boolean; // Run the build with the specified options on the original project
+    checkManifest?: boolean; // Do some basic sanitization on the manifest file, and create a new one for the optimized build if they fail
+    device?: string; // The device to build for
+    ignoredExcludeAnnotations?: string; // Semicolon separated list of exclude annoations to ignore when finding optimizer groups
+    ignoredAnnotations?: string; // Semicolon separated list of annoations to ignore when finding optimizer groups
+    ignoredSourcePaths?: string; // Semicolon separated list of source path regexes
+    returnCommand?: boolean; // If true, build_project just returns the command to run the build, rather than building it
+    _cache?: { [key: string]: unknown };
+  };
+
+  type ExcludeAnnotationsMap = { [key: string]: boolean };
+  type FilesToOptimizeMap = {
+    [key: string]: {
+      output: string;
+      excludeAnnotations: ExcludeAnnotationsMap;
+    };
+  };
+}
+
 /**
- * @typedef {Object} BuildConfig - Configuration options for build
- * @property {String=} workspace - The project's workspace directory
- * @property {String=} jungleFiles - Semicolon separated list of jungle files
- * @property {String=} developerKeyPath - Path to the developer key file to be used by the garmin tools
- * @property {String=} typeCheckLevel - monkeyC.typeCheckLevel
- * @property {String=} compilerOptions - monkeyC.compilerOptions
- * @property {Boolean=} compilerWarnings - monkeyC.compilerWarnings
- * @property {Boolean=} simulatorBuild - build for the simulator
- * @property {Boolean=} releaseBuild - do a release build
- * @property {Boolean=} testBuild - do a test build
- * @property {string[]=} products - list of products to build for
- * @property {string=} buildDir - output directory for binaries, default "bin"
- * @property {string=} outputPath - output directory for optimized project, default "bin/optimized"
- * @property {string=} program - name of the built binary
- * @property {Boolean=} skipOptimization - Run the build with the specified options on the original project
- * @property {Boolean=} checkManifest - Do some basic sanitization on the manifest file, and create a new one for the optimized build if they fail
- * @property {string=} device - The device to build for
- * @property {string=} ignoredExcludeAnnotations - Semicolon separated list of exclude annoations to ignore when finding optimizer groups
- * @property {string=} ignoredAnnotations - Semicolon separated list of annoations to ignore when finding optimizer groups
- * @property {string=} ignoredSourcePaths - Semicolon separated list of source path regexes
- *
  * @param {BuildConfig} options
  * @returns {Promise<BuildConfig>}
  */
-
-function getConfig(options) {
+function getConfig(options: BuildConfig) {
   const config = { ...defaultConfig, ...(options || {}) };
   return [
     "jungleFiles",
@@ -161,7 +175,7 @@ export async function buildOptimizedProject(product, options) {
  * @param {BuildConfig} options
  * @param {import("./jungles.js").Target[]} targets
  */
-async function createLocalBarrels(targets, options) {
+async function createLocalBarrels(targets: Target[], options) {
   if (
     targets.every(
       (target) =>
@@ -184,7 +198,7 @@ async function createLocalBarrels(targets, options) {
   );
   return targets.reduce((promise, target) => {
     const barrelMap = target.group.optimizerConfig.barrelMap;
-    if (!barrelMap || target.group.optBarrels) {
+    if (!barrelMap || target.group.optimizerConfig.optBarrels) {
       return promise;
     }
     const optBarrels = (target.group.optimizerConfig.optBarrels = {});
@@ -356,7 +370,7 @@ export async function generateOptimizedProject(options) {
   }
 
   const parts = [`project.manifest=${relative_manifest}`];
-  const process_field = (prefix, base, name, mapper) => {
+  const process_field = (prefix, base, name, mapper = null) => {
     if (!base[name]) return;
     const map_one = (s) => (mapper ? mapper(s) : s);
     const map = (s) =>
@@ -433,11 +447,11 @@ export async function generateOptimizedProject(options) {
 }
 
 async function fileInfoFromConfig(
-  workspace,
-  output,
-  buildConfig,
-  extraExcludes
-) {
+  workspace: string,
+  output: string,
+  buildConfig: JungleQualifier,
+  extraExcludes: ExcludeAnnotationsMap
+): Promise<FilesToOptimizeMap> {
   const paths = (
     await Promise.all(
       buildConfig.sourcePath.map((pattern) =>
@@ -515,7 +529,11 @@ const configOptionsToCheck = [
  * @param {string[]} dependencyFiles
  * @returns
  */
-async function generateOneConfig(buildConfig, dependencyFiles, config) {
+async function generateOneConfig(
+  buildConfig: JungleQualifier,
+  dependencyFiles,
+  config
+) {
   const { workspace } = config;
   const output = path.join(workspace, config.outputPath);
 
@@ -638,7 +656,7 @@ export async function generateApiMirTests(options) {
   const config = { ...defaultConfig, ...(options || {}) };
   const tests = [];
   const api = await getApiMapping();
-  const findConstants = (node) => {
+  const findConstants = (node: StateNode) => {
     Object.entries(node.decls).forEach(([key, decl]) => {
       if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
       if (decl.length != 1) return;
