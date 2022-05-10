@@ -42,37 +42,75 @@ export const defaultConfig = {
   workspace: "./",
 };
 
-async function getConfig(options) {
+/**
+ * @typedef {Object} BuildConfig - Configuration options for build
+ * @property {String=} workspace - The project's workspace directory
+ * @property {String=} jungleFiles - Semicolon separated list of jungle files
+ * @property {String=} developerKeyPath - Path to the developer key file to be used by the garmin tools
+ * @property {String=} typeCheckLevel - monkeyC.typeCheckLevel
+ * @property {String=} compilerOptions - monkeyC.compilerOptions
+ * @property {Boolean=} compilerWarnings - monkeyC.compilerWarnings
+ * @property {Boolean=} simulatorBuild - build for the simulator
+ * @property {Boolean=} releaseBuild - do a release build
+ * @property {Boolean=} testBuild - do a test build
+ * @property {string[]=} products - list of products to build for
+ * @property {string=} buildDir - output directory for binaries, default "bin"
+ * @property {string=} outputPath - output directory for optimized project, default "bin/optimized"
+ * @property {string=} program - name of the built binary
+ * @property {Boolean=} skipOptimization - Run the build with the specified options on the original project
+ * @property {Boolean=} checkManifest - Do some basic sanitization on the manifest file, and create a new one for the optimized build if they fail
+ * @property {string=} device - The device to build for
+ * @property {string=} ignoredExcludeAnnotations - Semicolon separated list of exclude annoations to ignore when finding optimizer groups
+ * @property {string=} ignoredAnnotations - Semicolon separated list of annoations to ignore when finding optimizer groups
+ * @property {string=} ignoredSourcePaths - Semicolon separated list of source path regexes
+ *
+ * @param {BuildConfig} options
+ * @returns {Promise<BuildConfig>}
+ */
+
+function getConfig(options) {
   const config = { ...defaultConfig, ...(options || {}) };
-  let promise;
-  [
+  return [
     "jungleFiles",
     "developerKeyPath",
     "typeCheckLevel",
     "compilerOptions",
     "compilerWarnings",
-  ].forEach((key) => {
-    if (config[key]) return;
-    if (!promise) {
-      promise = Promise.resolve()
-        .then(() => getVSCodeSettings(`${appSupport}/Code/User/settings.json`))
-        .then((globals) =>
-          getVSCodeSettings(`${config.workspace}/.vscode/settings.json`).then(
-            (locals) => ({ ...globals, ...locals })
-          )
-        );
-    }
-    promise.then((settings) => {
-      const value = settings[`monkeyC.${key}`];
-      if (value) {
-        config[key] = value;
-      }
-    });
-  });
-  promise && (await promise);
-  return config;
+    "ignoredExcludeAnnotations",
+    "ignoredAnnotations",
+    "ignoredSourcePaths",
+  ]
+    .reduce((promise, key) => {
+      if (config[key]) return promise;
+      return promise
+        .then(
+          (v) =>
+            v ||
+            getVSCodeSettings(`${appSupport}/Code/User/settings.json`).then(
+              (globals) =>
+                getVSCodeSettings(
+                  `${config.workspace}/.vscode/settings.json`
+                ).then((locals) => ({ ...globals, ...locals }))
+            )
+        )
+        .then((settings) => {
+          const value =
+            settings[`monkeyC.${key}`] || settings[`prettierMonkeyC.${key}`];
+          if (value) {
+            config[key] = value;
+          }
+          return settings;
+        });
+    }, Promise.resolve(null))
+    .then(() => config);
 }
 
+/**
+ *
+ * @param {string | null} product
+ * @param {BuildConfig} options
+ * @returns
+ */
 export async function buildOptimizedProject(product, options) {
   const config = await getConfig(options);
   if (product) {
@@ -119,6 +157,9 @@ export async function buildOptimizedProject(product, options) {
  * files corresponding to an input barrel), we create a copy of
  * the barrel with all the sources removed (and pick up the sources
  * from the input barrel)
+ *
+ * @param {BuildConfig} options
+ * @param {import("./jungles.js").Target[]} targets
  */
 async function createLocalBarrels(targets, options) {
   if (
@@ -200,6 +241,11 @@ async function createLocalBarrels(targets, options) {
   }, Promise.resolve());
 }
 
+/**
+ *
+ * @param {BuildConfig} options
+ * @returns
+ */
 export async function generateOptimizedProject(options) {
   const config = await getConfig(options);
   const workspace = config.workspace;
@@ -282,11 +328,9 @@ export async function generateOptimizedProject(options) {
       const outputPath = path.join(config.outputPath, key);
 
       return buildConfig
-        ? generateOneConfig({
+        ? generateOneConfig(buildConfig, dependencyFiles, {
             ...config,
-            buildConfig,
             outputPath,
-            dependencyFiles,
           })
             .catch((e) => {
               if (!e.stack) {
@@ -455,11 +499,25 @@ function excludesFromAnnotations(barrel, annotations, resolvedBarrel) {
   return excludes;
 }
 
-async function generateOneConfig(config) {
-  const { workspace, buildConfig } = config;
-  const output = path.join(workspace, config.outputPath);
+const configOptionsToCheck = [
+  "workspace",
+  "releaseBuild",
+  "testBuild",
+  "checkManifest",
+  "ignoredExcludeAnnotations",
+  "ignoredAnnotations",
+  "ignoredSourcePaths",
+];
 
-  const dependencyFiles = [...config.dependencyFiles];
+/**
+ * @param {BuildConfig} config
+ * @param {*} buildConfig
+ * @param {string[]} dependencyFiles
+ * @returns
+ */
+async function generateOneConfig(buildConfig, dependencyFiles, config) {
+  const { workspace } = config;
+  const output = path.join(workspace, config.outputPath);
 
   const buildModeExcludes = {
     // note: exclude debug in release builds, and release in debug builds
@@ -480,8 +538,8 @@ async function generateOneConfig(config) {
     const barrelFnMaps = await Promise.all(
       Object.entries(buildConfig.barrelMap)
         .map(([barrel, resolvedBarrel]) => {
-          dependencyFiles.push(
-            ...resolvedBarrel.jungles,
+          dependencyFiles = dependencyFiles.concat(
+            resolvedBarrel.jungles,
             resolvedBarrel.manifest
           );
           return fileInfoFromConfig(
@@ -509,10 +567,21 @@ async function generateOneConfig(config) {
     .filter((file) => !file.endsWith("/"))
     .sort();
 
+  const { hasTests, ...prevOptions } = JSON.parse(
+    await fs
+      .readFile(path.join(output, "build-info.json"), "utf-8")
+      .catch(() => "{}")
+  );
+
   // check that the set of files thats actually there is the same as the
   // set of files we're going to generate (in case eg a jungle file change
-  // might have altered it)
+  // might have altered it), and that the options we care about haven't
+  // changed
   if (
+    hasTests != null &&
+    configOptionsToCheck.every(
+      (option) => prevOptions[option] === config[option]
+    ) &&
     actualOptimizedFiles.length == Object.values(fnMap).length &&
     Object.values(fnMap)
       .map((v) => v.output)
@@ -527,13 +596,15 @@ async function generateOneConfig(config) {
     const opt_time = await first_modified(
       Object.values(fnMap).map((v) => v.output)
     );
-    if (source_time < opt_time && global.lastModifiedSource < opt_time) return;
+    if (source_time < opt_time && global.lastModifiedSource < opt_time) {
+      return hasTests;
+    }
   }
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
   const optFiles = await optimizeMonkeyC(fnMap);
-  return await Promise.all(
+  return Promise.all(
     optFiles.map(async (file) => {
       const name = fnMap[file.name].output;
       const dir = path.dirname(name);
@@ -543,9 +614,26 @@ async function generateOneConfig(config) {
       await fs.writeFile(name, opt_source);
       return file.hasTests;
     })
-  ).then((results) => results.some((v) => v));
+  ).then((results) => {
+    const hasTests = results.some((v) => v);
+    fs.writeFile(
+      path.join(output, "build-info.json"),
+      JSON.stringify({
+        hasTests,
+        ...Object.fromEntries(
+          configOptionsToCheck.map((option) => [option, config[option]])
+        ),
+      })
+    );
+    return hasTests;
+  });
 }
 
+/**
+ *
+ * @param {BuildConfig} options
+ * @returns
+ */
 export async function generateApiMirTests(options) {
   const config = { ...defaultConfig, ...(options || {}) };
   const tests = [];
