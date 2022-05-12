@@ -25,7 +25,7 @@ declare global {
     node?: null | undefined;
     name: "$";
     fullName: "$";
-    decls?: null | undefined;
+    decls?: StateNodeDecls;
     stack?: null | undefined;
   };
   type ModuleStateNode = {
@@ -74,8 +74,8 @@ declare global {
     allClasses?: ClassStateNode[];
     stack?: ProgramStateStack;
     shouldExclude?: (node: any) => any;
-    pre?: (node: ESTreeNode) => void | false | string[];
-    post?: (node: ESTreeNode) => void | false | ESTreeNode;
+    pre?: (node: ESTreeNode) => null | false | string[];
+    post?: (node: ESTreeNode) => null | false | ESTreeNode;
     lookup?: (
       node: ESTreeNode,
       name?: string,
@@ -184,12 +184,12 @@ async function analyze(fnMap: FilesToOptimizeMap) {
           } else {
             state.allClasses.push(scope as ClassStateNode);
           }
-          return;
+          return null;
         }
         case "Using":
         case "ImportModule":
           allImports.push({ node, stack: state.stack.slice() });
-          return;
+          return null;
       }
     },
   };
@@ -512,6 +512,8 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         state.calledFunctions[func.id.name].find((f) => f === func) !== null
       );
     }
+
+    return false;
   };
   /*
    * Does elm (a class) have a maybeCalled function called name,
@@ -574,7 +576,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             }
           }
         }
-        return;
+        return null;
 
       case "EnumDeclaration":
         return false;
@@ -720,6 +722,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         }
       }
     }
+    return null;
   };
   state.post = (node) => {
     if (state.localsStack.slice(-1).pop().node === node) {
@@ -728,7 +731,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     const opt = optimizeNode(node);
     if (opt) {
       replace(node, opt);
-      return;
+      return null;
     }
     switch (node.type) {
       case "ConditionalExpression":
@@ -762,7 +765,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             // There are unnamed CallExpressions, such as new [size]
             // So there's nothing to do here.
           }
-          return;
+          return null;
         }
         if (callees.length == 1) {
           const callee = callees[0].node;
@@ -775,7 +778,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             const ret = evaluateFunction(callee, node.arguments);
             if (ret) {
               replace(node, ret);
-              return;
+              return null;
             }
           }
         }
@@ -786,6 +789,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         break;
       }
     }
+    return null;
   };
   files.forEach((f) => {
     collectNamespaces(f.ast, state);
@@ -858,6 +862,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
           }
           break;
       }
+      return null;
     });
   });
 

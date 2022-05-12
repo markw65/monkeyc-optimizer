@@ -348,29 +348,27 @@ async function resolve_literals(
 async function find_build_instructions_in_resource(file) {
   const data = await fs.readFile(file);
   const rez = await parseStringPromise(data).catch(() => ({}));
-  if (rez.build && rez.build.exclude) {
-    const dir = path.dirname(file);
-    const sourceExcludes = rez.build.exclude
-      .map((e) => e.$.file)
-      .filter((f) => f != null)
-      .map((f) => path.resolve(dir, f).replace(/\\/g, "/"));
+  if (!rez.build || !rez.build.exclude) return null;
+  const dir = path.dirname(file);
+  const sourceExcludes = rez.build.exclude
+    .map((e) => e.$.file)
+    .filter((f) => f != null)
+    .map((f) => path.resolve(dir, f).replace(/\\/g, "/"));
 
-    const filePatterns = rez.build.exclude
-      .map((e) => e.$.dir)
-      .filter((f) => f != null)
-      .map((f) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
-    if (filePatterns.length) {
-      const files = (
-        await Promise.all(filePatterns.map((p) => globa(p)))
-      ).flat();
-      sourceExcludes.push(...files);
-    }
-    const excludeAnnotations = rez.build.exclude
-      .map((e) => e.$.annotation)
-      .filter((f) => f != null);
-    return { sourceExcludes, excludeAnnotations };
+  const filePatterns = rez.build.exclude
+    .map((e) => e.$.dir)
+    .filter((f) => f != null)
+    .map((f) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
+  if (filePatterns.length) {
+    const files = (await Promise.all(filePatterns.map((p) => globa(p)))).flat();
+    sourceExcludes.push(...files);
   }
+  const excludeAnnotations = rez.build.exclude
+    .map((e) => e.$.annotation)
+    .filter((f) => f != null);
+  return { sourceExcludes, excludeAnnotations };
 }
+
 async function find_build_instructions(targets) {
   const resourceGroups = {};
   await Promise.all(
@@ -690,7 +688,7 @@ function resolve_barrels(
   }
   if (!barrels.length) {
     delete qualifier.barrelPath;
-    return;
+    return null;
   }
   const cache = options._cache || (options._cache = {});
   const barrelMapKey = JSON.stringify([barrels, qualifier.barrelPath]);
@@ -708,7 +706,7 @@ function resolve_barrels(
   };
   if (hasProperty(cache.barrelMap, barrelMapKey)) {
     setBarrelMap(cache.barrelMap[barrelMapKey]);
-    return;
+    return null;
   }
   const barrelDir = path.resolve(
     options.workspace,

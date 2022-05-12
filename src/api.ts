@@ -19,7 +19,9 @@ export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
  */
 
 // Extract all enum values from api.mir
-export async function getApiMapping(state?: ProgramState) {
+export async function getApiMapping(
+  state?: ProgramState
+): Promise<ProgramStateNode | null> {
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
 
@@ -35,7 +37,7 @@ export async function getApiMapping(state?: ProgramState) {
   try {
     const result = collectNamespaces(parser.parse(api, {}), state);
     negativeFixups.forEach((fixup) => {
-      const value = fixup.split(".").reduce((state, part) => {
+      const value = fixup.split(".").reduce((state: StateNode, part) => {
         const decls = state.decls[part];
         if (!Array.isArray(decls) || decls.length != 1 || !decls[0]) {
           throw `Failed to find and fix negative constant ${fixup}`;
@@ -55,6 +57,7 @@ export async function getApiMapping(state?: ProgramState) {
     return result;
   } catch (e) {
     console.error(e.toString());
+    return null;
   }
 }
 
@@ -62,7 +65,10 @@ export function hasProperty(obj, prop) {
   return obj && Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-export function collectNamespaces(ast: Program, state: ProgramState) {
+export function collectNamespaces(
+  ast: Program,
+  state: ProgramState
+): ProgramStateNode {
   state = state || {};
   if (!state.index) state.index = {};
   if (!state.stack) {
@@ -270,6 +276,7 @@ export function collectNamespaces(ast: Program, state: ProgramState) {
         } catch (e) {
           handleException(state, node, e);
         }
+        return null;
       },
       (node) => {
         try {
@@ -291,6 +298,9 @@ export function collectNamespaces(ast: Program, state: ProgramState) {
   state.traverse(ast);
   if (state.stack.length != 1) {
     throw new Error("Invalid AST!");
+  }
+  if (state.stack[0].type != "Program") {
+    throw new Error("Bottom of stack was not a Program!");
   }
   return state.stack[0];
 }

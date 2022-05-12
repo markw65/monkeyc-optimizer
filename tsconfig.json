@@ -9,7 +9,8 @@
     "paths": {
       "src/*": ["./src/*"]
     },
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "noImplicitReturns": true
   },
   "exclude": ["build", "node_modules"]
 }
