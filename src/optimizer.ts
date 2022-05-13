@@ -3,7 +3,13 @@ import * as fs from "fs/promises";
 import path from "path";
 import { formatAst, getApiMapping, hasProperty } from "src/api";
 import { build_project } from "src/build";
-import { get_jungle, JungleQualifier, Target } from "src/jungles";
+import {
+  get_jungle,
+  JungleQualifier,
+  Target,
+  ResolvedBarrel,
+  ResolvedJungle,
+} from "src/jungles";
 import { launchSimulator, simulateProgram } from "src/launch";
 import {
   checkManifest,
@@ -22,14 +28,16 @@ import { Node as ESTreeNode } from "src/estree-types";
 
 export { copyRecursiveAsNeeded, launchSimulator, simulateProgram };
 
-function relative_path_no_dotdot(relative) {
+function relative_path_no_dotdot(relative: string) {
   return relative.replace(
     /^(\.\.[\\\/])+/,
     (str) => `__${"dot".repeat(str.length / 3)}__${str.slice(-1)}`
   );
 }
 
-async function getVSCodeSettings(path) {
+async function getVSCodeSettings(
+  path: string
+): Promise<Record<string, unknown>> {
   try {
     const settings = await fs.readFile(path);
     return JSON.parse(settings.toString());
@@ -66,7 +74,10 @@ declare global {
     ignoredAnnotations?: string; // Semicolon separated list of annoations to ignore when finding optimizer groups
     ignoredSourcePaths?: string; // Semicolon separated list of source path regexes
     returnCommand?: boolean; // If true, build_project just returns the command to run the build, rather than building it
-    _cache?: { [key: string]: unknown };
+    _cache?: {
+      barrels?: Record<string, ResolvedJungle>;
+      barrelMap?: Record<string, Record<string, ResolvedJungle>>;
+    };
   };
 
   type ExcludeAnnotationsMap = { [key: string]: boolean };
@@ -76,6 +87,7 @@ declare global {
       excludeAnnotations: ExcludeAnnotationsMap;
     };
   };
+  var lastModifiedSource: number;
 }
 
 /**
@@ -83,7 +95,7 @@ declare global {
  * @returns {Promise<BuildConfig>}
  */
 function getConfig(options: BuildConfig) {
-  const config = { ...defaultConfig, ...(options || {}) };
+  const config: BuildConfig = { ...defaultConfig, ...(options || {}) };
   return [
     "jungleFiles",
     "developerKeyPath",
@@ -94,8 +106,8 @@ function getConfig(options: BuildConfig) {
     "ignoredAnnotations",
     "ignoredSourcePaths",
   ]
-    .reduce((promise, key) => {
-      if (config[key]) return promise;
+    .reduce((promise: Promise<null | Record<string, unknown>>, key) => {
+      if (key in config) return promise;
       return promise
         .then(
           (v) =>
@@ -110,8 +122,8 @@ function getConfig(options: BuildConfig) {
         .then((settings) => {
           const value =
             settings[`monkeyC.${key}`] || settings[`prettierMonkeyC.${key}`];
-          if (value) {
-            config[key] = value;
+          if (value !== undefined) {
+            (config as Record<string, unknown>)[key] = value;
           }
           return settings;
         });
@@ -125,7 +137,10 @@ function getConfig(options: BuildConfig) {
  * @param {BuildConfig} options
  * @returns
  */
-export async function buildOptimizedProject(product, options) {
+export async function buildOptimizedProject(
+  product: string,
+  options: BuildConfig
+) {
   const config = await getConfig(options);
   if (product) {
     config.products = [product];
@@ -173,9 +188,9 @@ export async function buildOptimizedProject(product, options) {
  * from the input barrel)
  *
  * @param {BuildConfig} options
- * @param {import("./jungles.js").Target[]} targets
+ * @param {Target[]} targets
  */
-async function createLocalBarrels(targets: Target[], options) {
+async function createLocalBarrels(targets: Target[], options: BuildConfig) {
   if (
     targets.every(
       (target) =>
@@ -188,7 +203,7 @@ async function createLocalBarrels(targets: Target[], options) {
     // there are no barrels, or every barrel has no resources.
     // we can drop any barrels altogether (we'll need to drop them
     // from the manifest file too).
-    return;
+    return null;
   }
   // where to create the local barrel projects.
   const barrelDir = path.resolve(
@@ -201,7 +216,8 @@ async function createLocalBarrels(targets: Target[], options) {
     if (!barrelMap || target.group.optimizerConfig.optBarrels) {
       return promise;
     }
-    const optBarrels = (target.group.optimizerConfig.optBarrels = {});
+    const optBarrels: JungleQualifier["optBarrels"] =
+      (target.group.optimizerConfig.optBarrels = {});
     return Object.entries(barrelMap).reduce(
       (promise, [barrel, resolvedBarrel]) => {
         const { manifest, jungles } = resolvedBarrel;
@@ -226,7 +242,7 @@ async function createLocalBarrels(targets: Target[], options) {
             copyRecursiveAsNeeded(
               rawBarrelDir,
               optBarrelDir,
-              (src) => !src.endsWith(".mc")
+              (src: string) => !src.endsWith(".mc")
             )
           );
         }
@@ -260,7 +276,7 @@ async function createLocalBarrels(targets: Target[], options) {
  * @param {BuildConfig} options
  * @returns
  */
-export async function generateOptimizedProject(options) {
+export async function generateOptimizedProject(options: BuildConfig) {
   const config = await getConfig(options);
   const workspace = config.workspace;
 
@@ -272,8 +288,8 @@ export async function generateOptimizedProject(options) {
   const dependencyFiles = [manifest, ...jungles];
   await createLocalBarrels(targets, options);
 
-  const buildConfigs = {};
-  const products = {};
+  const buildConfigs: Record<string, JungleQualifier | null> = {};
+  const products: Record<string, string[]> = {};
   let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   if (config.skipOptimization) {
     if (pick_one >= 0) {
@@ -286,7 +302,7 @@ export async function generateOptimizedProject(options) {
     };
   }
   let dropBarrels = false;
-  const configKey = (p) =>
+  const configKey = (p: Target) =>
     p.group.key + (config.releaseBuild ? "-release" : "-debug");
   targets.forEach((p) => {
     const key = configKey(p);
@@ -325,7 +341,7 @@ export async function generateOptimizedProject(options) {
 
   const jungle_dir = path.resolve(workspace, config.outputPath);
   await fs.mkdir(jungle_dir, { recursive: true });
-  const relative_path = (s) => path.relative(jungle_dir, s);
+  const relative_path = (s: string) => path.relative(jungle_dir, s);
   let relative_manifest = relative_path(manifest);
   const manifestOk =
     (!config.checkManifest ||
@@ -370,10 +386,15 @@ export async function generateOptimizedProject(options) {
   }
 
   const parts = [`project.manifest=${relative_manifest}`];
-  const process_field = (prefix, base, name, mapper = null) => {
+  const process_field = <T extends string>(
+    prefix: string,
+    base: { [k in T]?: string[] },
+    name: T,
+    mapper: (s: string) => string = null
+  ) => {
     if (!base[name]) return;
-    const map_one = (s) => (mapper ? mapper(s) : s);
-    const map = (s) =>
+    const map_one = (s: string) => (mapper ? mapper(s) : s);
+    const map = (s: string | string[]) =>
       Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
     parts.push(`${prefix}${name} = ${base[name].map(map).join(";")}`);
   };
@@ -501,7 +522,11 @@ async function fileInfoFromConfig(
   );
 }
 
-function excludesFromAnnotations(barrel, annotations, resolvedBarrel) {
+function excludesFromAnnotations(
+  barrel: string,
+  annotations: JungleQualifier["annotations"],
+  resolvedBarrel: ResolvedBarrel
+) {
   const excludes = resolvedBarrel.annotations
     ? Object.fromEntries(resolvedBarrel.annotations.map((a) => [a, true]))
     : {};
@@ -513,7 +538,7 @@ function excludesFromAnnotations(barrel, annotations, resolvedBarrel) {
   return excludes;
 }
 
-const configOptionsToCheck = [
+const configOptionsToCheck: Array<keyof BuildConfig> = [
   "workspace",
   "releaseBuild",
   "testBuild",
@@ -531,8 +556,8 @@ const configOptionsToCheck = [
  */
 async function generateOneConfig(
   buildConfig: JungleQualifier,
-  dependencyFiles,
-  config
+  dependencyFiles: string[],
+  config: BuildConfig
 ) {
   const { workspace } = config;
   const output = path.join(workspace, config.outputPath);
@@ -652,23 +677,25 @@ async function generateOneConfig(
  * @param {BuildConfig} options
  * @returns
  */
-export async function generateApiMirTests(options) {
+export async function generateApiMirTests(options: BuildConfig) {
   const config = { ...defaultConfig, ...(options || {}) };
-  const tests = [];
+  const tests: Array<[string, string]> = [];
   const api = await getApiMapping();
   const findConstants = (node: StateNode) => {
     Object.entries(node.decls).forEach(([key, decl]) => {
       if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
       if (decl.length != 1) return;
-      if (decl[0].type == "Literal") {
-        tests.push([`${node.fullName}.${key}`, formatAst(decl[0])]);
-      } else if (decl[0].decls) {
-        findConstants(decl[0]);
+      const d = decl[0];
+      if (typeof d === "string") return;
+      if (d.type == "Literal") {
+        tests.push([`${node.fullName}.${key}`, formatAst(d)]);
+      } else if (d.decls) {
+        findConstants(d);
       }
     });
   };
   findConstants(api);
-  function hasTests(name) {
+  function hasTests(name: string) {
     const names = name.split(".");
     return names
       .map((t, i, arr) => arr.slice(0, i).join(".") + " has :" + t)

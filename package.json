@@ -28,6 +28,9 @@
     "@markw65/prettier-plugin-monkeyc": "^1.0.16"
   },
   "devDependencies": {
+    "@types/glob": "^7.2.0",
+    "@types/prettier": "^2.6.1",
+    "@types/xml2js": "^0.4.11",
     "eslint": "^8.12.0",
     "extract-zip": "^2.0.1",
     "glob": "^7.2.0",

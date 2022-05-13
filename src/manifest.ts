@@ -2,23 +2,61 @@ import { parseStringPromise, Builder } from "xml2js";
 import * as fs from "fs/promises";
 import { getDeviceInfo } from "src/sdk-util";
 
-export type jsxml = object;
+type iqApplication = {
+  $: {
+    id: string;
+    entry: string;
+    launcherIcon: string;
+    minSdkVersion: string;
+    name: string;
+    type: string;
+    version: string;
+  };
+  "iq:products"?: Array<{
+    "iq:product"?: Array<{ $: { id: string } }>;
+  }>;
+  "iq:barrels"?: Array<{
+    "iq:depends"?: Array<{ $: { name: string; version: string } }>;
+  }>;
+  "iq:permissions"?: Array<{
+    "iq:uses-permission"?: Array<{ $: { id: string } }>;
+  }>;
+  "iq:languages"?: Array<{
+    "iq:language"?: Array<string>;
+  }>;
+};
+type iqBarrel = {
+  $: { id: string; module: string; version: string };
+  "iq:products"?: Array<{
+    "iq:product"?: Array<{ $: { id: string } }>;
+  }>;
+  "iq:annotations"?: Array<{
+    "iq:annotation"?: Array<string>;
+  }>;
+};
+export type ManifestXML = {
+  "iq:manifest": {
+    $: { "xmlns:iq": string };
+    "iq:application": Array<iqApplication>;
+    "iq:barrel": Array<iqBarrel>;
+  };
+};
 
-export async function readManifest(manifest: string): Promise<object> {
+export async function readManifest(manifest: string): Promise<ManifestXML> {
   const data = await fs.readFile(manifest);
   return parseStringPromise(data.toString(), { trim: true });
 }
 
 export async function writeManifest(
   filename: string,
-  xml: jsxml
+  xml: ManifestXML
 ): Promise<void> {
   let builder = new Builder();
   let text = builder.buildObject(xml);
   return fs.writeFile(filename, text);
 }
 
-export function manifestProducts(manifest: jsxml): string[] {
+export function manifestProducts(manifest: ManifestXML): string[] {
   const app =
     manifest["iq:manifest"]["iq:application"] ||
     manifest["iq:manifest"]["iq:barrel"];
@@ -28,7 +66,7 @@ export function manifestProducts(manifest: jsxml): string[] {
     .filter((p, i, a) => !i || p !== a[i - 1]);
 }
 
-export function manifestBarrels(manifest: jsxml): string[] {
+export function manifestBarrels(manifest: ManifestXML): string[] {
   const app = manifest["iq:manifest"]["iq:application"];
   if (
     Array.isArray(app) &&
@@ -46,20 +84,20 @@ export function manifestBarrels(manifest: jsxml): string[] {
   return [];
 }
 
-export function manifestDropBarrels(manifest: jsxml): void {
+export function manifestDropBarrels(manifest: ManifestXML): void {
   delete manifest["iq:manifest"]["iq:application"][0]["iq:barrels"];
 }
 
 export function manifestBarrelName(
   manifestName: string,
-  manifest: jsxml
+  manifest: ManifestXML
 ): string {
   const barrel = manifest["iq:manifest"]["iq:barrel"];
   if (!barrel) throw new Error(`Not a barrel manifest: ${manifestName}`);
   return barrel[0].$.module;
 }
 
-export function manifestAnnotations(manifest: jsxml): string[] {
+export function manifestAnnotations(manifest: ManifestXML): string[] {
   const barrel = manifest["iq:manifest"]["iq:barrel"];
   if (!barrel) return null;
   const annotations = barrel[0]["iq:annotations"];
@@ -67,7 +105,7 @@ export function manifestAnnotations(manifest: jsxml): string[] {
 }
 
 export async function checkManifest(
-  manifest: jsxml,
+  manifest: ManifestXML,
   products: string[]
 ): Promise<boolean> {
   let ok = true;
@@ -116,7 +154,7 @@ export async function checkManifest(
       ].includes(key)
     ) {
       ok = false;
-      delete elm[key];
+      delete elm[key as keyof iqApplication];
     }
   });
 

@@ -7,10 +7,11 @@ import * as readline from "readline";
 
 // Write it this way so that webpack.DefinePlugin doesn't
 // recognize global.lastModifiedSource.
+// @ts-ignore
 global["lastModifiedSource" + ""] = 0;
 
 export function globa(
-  pattern,
+  pattern: string,
   options?: { [key: string]: unknown }
 ): Promise<Array<string>> {
   return new Promise((resolve, reject) => {
@@ -24,7 +25,7 @@ export function globa(
   });
 }
 
-async function modified_times(inputs, missing) {
+async function modified_times(inputs: string[], missing: number) {
   return Promise.all(
     inputs.map(async (path) => {
       try {
@@ -37,15 +38,15 @@ async function modified_times(inputs, missing) {
   );
 }
 
-export async function last_modified(inputs) {
+export async function last_modified(inputs: string[]) {
   return Math.max(...(await modified_times(inputs, Infinity)));
 }
 
-export async function first_modified(inputs) {
+export async function first_modified(inputs: string[]) {
   return Math.min(...(await modified_times(inputs, 0)));
 }
 
-export function pushUnique(arr, value) {
+export function pushUnique(arr: unknown[], value: unknown) {
   if (arr.find((v) => v === value) != null) return;
   arr.push(value);
 }
@@ -85,7 +86,7 @@ export function spawnByLine(
 
 // return a promise that will process file
 // line-by-line via lineHandler.
-export function readByLine(file, lineHandler) {
+export function readByLine(file: string, lineHandler: LineHandler) {
   return fs.open(file, "r").then(
     (fh) =>
       new Promise((resolve, _reject) => {
@@ -99,19 +100,22 @@ export function readByLine(file, lineHandler) {
   );
 }
 
-export async function promiseAll(promiseFn, parallelism) {
+export async function promiseAll<T>(
+  promiseFn: (i: number) => Promise<T>,
+  parallelism: number
+) {
   parallelism = parallelism || 4;
   const serializer = [];
-  const results = [];
+  const results: T[] = [];
   let done = false;
   let i = 0;
-  const next = () => {
+  const next = (): Promise<T> | null => {
     const index = i++;
-    if (done) return;
+    if (done) return null;
     const promise = promiseFn(index);
     if (!promise) {
       done = true;
-      return;
+      return null;
     }
     return promise
       .then((r) => {
@@ -125,7 +129,11 @@ export async function promiseAll(promiseFn, parallelism) {
   return Promise.all(serializer).then(() => results);
 }
 
-export async function copyRecursiveAsNeeded(source, target, filter) {
+export async function copyRecursiveAsNeeded(
+  source: string,
+  target: string,
+  filter: (src: string, tgt: string) => boolean
+): Promise<void> {
   const fstat = fs.stat;
   const sstat = await fstat(source);
   if (sstat.isDirectory()) {
@@ -143,7 +151,7 @@ export async function copyRecursiveAsNeeded(source, target, filter) {
         var tgt = path.join(target, file);
         return copyRecursiveAsNeeded(src, tgt, filter);
       })
-    );
+    ).then(() => {});
   } else {
     if (filter && !filter(source, target)) {
       return;

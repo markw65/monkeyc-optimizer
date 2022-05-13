@@ -10,7 +10,9 @@
       "src/*": ["./src/*"]
     },
     "allowSyntheticDefaultImports": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "noImplicitAny": true,
+    "sourceMap": true
   },
-  "exclude": ["build", "node_modules"]
+  "exclude": ["build", "node_modules", "webpack.config.js"]
 }

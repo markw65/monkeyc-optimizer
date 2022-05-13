@@ -46,8 +46,10 @@ async function getProjectInfo() {
 
 export async function getLanguages() {
   const projectInfo = await getProjectInfo();
-  return projectInfo["monkeybrains"]["languages"][0]["language"].map((p) => ({
-    id: p.$.id,
-    name: p.$.name,
-  }));
+  return projectInfo["monkeybrains"]["languages"][0]["language"].map(
+    (p: { $: { id: string; name: string } }) => ({
+      id: p.$.id,
+      name: p.$.name,
+    })
+  );
 }

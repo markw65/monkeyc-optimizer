@@ -11,38 +11,68 @@ import {
   manifestBarrels,
   manifestProducts,
   readManifest,
-  jsxml,
+  ManifestXML,
 } from "src/manifest";
 import { getDeviceInfo, getLanguages } from "src/sdk-util";
 import { globa } from "src/util";
+import { stringWriter } from "../build/sdk-util.cjs";
 
+type JNode = Literal | QName | SubList;
 type Literal = {
   type: "Literal";
   value: string;
+  source?: string;
+};
+type QName = {
+  type: "QualifiedName";
+  names: string[];
+  source?: string;
+};
+type SubList = {
+  type: "SubList";
+  values: JNode[];
+  source?: string;
 };
 
+type NestedStringArray = Array<string | NestedStringArray>;
+type RawJungleArrays = JNode[] | [RawJungle];
+type RawJungleValue = RawJungle | RawJungleArrays | NestedStringArray;
+interface RawJungle {
+  [k: string]: RawJungleValue;
+  "."?: RawJungleArrays;
+  products?: string[];
+}
+
+function isJNode(obj: unknown): obj is JNode {
+  return hasProperty(obj, "type");
+}
+
+type Assignment = { names: string[]; values: JNode[] };
 async function default_jungle(): Promise<any> {
-  const assignments = [];
+  const assignments: Array<Assignment> = [];
   const devices = await getDeviceInfo();
   const languages = await getLanguages();
   const literal = (value: string): Literal => ({ type: "Literal", value });
-  const qname = (name) => ({ type: "QualifiedName", names: name.split(".") });
-  const assign = (name, values) =>
+  const qname = (name: string): JNode => ({
+    type: "QualifiedName",
+    names: name.split("."),
+  });
+  const assign = (name: string, values: JNode[]) =>
     assignments.push({ names: name.split("."), values });
-  const rassign = (name, values, base) => {
+  const rassign = (name: string, values: JNode[], base: string | null) => {
     assign(name, base ? [qname(name)].concat(values) : values);
   };
-  const rezAndLang = (id, rez, base = null) => {
+  const rezAndLang = (id: string, rez: string, base: string | null = null) => {
     if (base) {
       assign(id, [qname(base)]);
     }
     rassign(`${id}.resourcePath`, [literal(rez)], base);
 
-    languages.forEach((l) =>
+    languages.forEach((l: { id: string; name: string }) =>
       rassign(`${id}.lang.${l.id}`, [literal(`${rez}-${l.id}`)], base)
     );
   };
-  const done = {};
+  const done: Record<string, true> = {};
 
   assign("base.sourcePath", [literal("./**.mc")]);
   rezAndLang("base", "resources");
@@ -67,13 +97,13 @@ async function default_jungle(): Promise<any> {
   return process_assignments(assignments, {});
 }
 
-function process_assignments(assignments, current) {
+function process_assignments(assignments: Assignment[], current: RawJungle) {
   return assignments.reduce((state, a) => {
     const { node, dot, dotnames } = a.names.reduce(
       (r, name) => {
-        if (!hasProperty(r.node, name)) r.node[name] = {};
+        if (!hasProperty(r.node, name)) r.node[name] = {} as RawJungle;
         r.dotnames.push(name);
-        r.node = r.node[name];
+        r.node = r.node[name] as RawJungle;
         if (r.node["."]) {
           r.dot = r.node["."];
           r.dotnames = [];
@@ -84,7 +114,7 @@ function process_assignments(assignments, current) {
     );
     // an assignment to a node overwrites its old value
     Object.keys(node).forEach((k) => delete node[k]);
-    const process_list = (values) => {
+    const process_list = (values: JNode[]) => {
       for (let i = values.length; i--; ) {
         const v = values[i];
         if (
@@ -95,7 +125,7 @@ function process_assignments(assignments, current) {
             i,
             1,
             ...(dot
-              ? dot.map((v) =>
+              ? dot.map((v: JNode) =>
                   v.type == "QualifiedName"
                     ? { ...v, names: v.names.concat(dotnames) }
                     : v
@@ -124,8 +154,10 @@ function process_assignments(assignments, current) {
       const match = a.values[0].names[0].match(/^(\w+)-(\w+)$/);
       if (match) {
         const key = `${match[1]}_watch`;
-        if (!state[key]) state[key] = { products: [] };
-        state[key].products.push(a.names[0]);
+        if (!current[key]) current[key] = { products: [] };
+        ((current[key] as RawJungle).products as unknown as string[]).push(
+          a.names[0]
+        );
       }
     }
     node["."] = a.values;
@@ -133,8 +165,8 @@ function process_assignments(assignments, current) {
   }, current);
 }
 
-function evaluate_locals(assignments) {
-  const locals = {};
+function evaluate_locals(assignments: Assignment[]) {
+  const locals: Record<string, JNode[]> = {};
   while (true) {
     assignments = assignments.filter((a) => {
       if (a.names.length == 1 && a.values.every((v) => typeof v === "string")) {
@@ -144,7 +176,7 @@ function evaluate_locals(assignments) {
       return true;
     });
     if (!Object.keys(locals).length) break;
-    const process_list = (values) => {
+    const process_list = (values: JNode[]) => {
       for (let i = values.length; i--; ) {
         const v = values[i];
         if (
@@ -163,7 +195,7 @@ function evaluate_locals(assignments) {
   return assignments;
 }
 
-async function parse_one(file) {
+async function parse_one(file: string | string[]) {
   const [fileName, grammarSource] = Array.isArray(file) ? file : [file, file];
   const source = await fs.readFile(fileName);
   const assignments = jungle.parse(source.toString(), { grammarSource });
@@ -173,7 +205,9 @@ async function parse_one(file) {
 // Read default.jungle, and all jungles in sources, and
 // return a jungle object with all local variables resolved,
 // but all qualifier references left unresolved.
-async function process_jungles(sources) {
+async function process_jungles(
+  sources: string | (string | string[])[]
+): Promise<RawJungle> {
   if (!Array.isArray(sources)) {
     sources = [sources];
   }
@@ -183,16 +217,20 @@ async function process_jungles(sources) {
   return state;
 }
 
-function resolve_node_list(state, list) {
+function resolve_node_list(state: RawJungle, list: RawJungleValue) {
+  if (!Array.isArray(list)) {
+    throw new Error("Expected an array");
+  }
   for (let i = list.length; i--; ) {
     const v = list[i];
+    if (typeof v === "string" || Array.isArray(v)) continue;
     if (v.type === "QualifiedName") {
       const rep = resolve_node(state, resolve_node_by_path(state, v.names));
       if (Array.isArray(rep)) {
-        if (rep.length !== 1 || rep[0].type) {
+        if (rep.length !== 1 || (isJNode(rep[0]) && rep[0].type)) {
           resolve_node_list(state, rep);
         }
-        list.splice(i, 1, ...rep);
+        list.splice(i, 1, ...(rep as JNode[]));
       } else if (rep != null) {
         list[i] = rep;
       } else {
@@ -205,7 +243,11 @@ function resolve_node_list(state, list) {
   return list;
 }
 
-function check_non_leaf_dot(dot, path = null, i = 0) {
+function check_non_leaf_dot(
+  dot: RawJungleArrays,
+  path: string[] = null,
+  i = 0
+) {
   if (dot.length !== 1 || dot[0].type) {
     throw new Error(
       `'.' node at ${(path || [])
@@ -215,25 +257,29 @@ function check_non_leaf_dot(dot, path = null, i = 0) {
   }
 }
 // return the resolved node at path
-function resolve_node_by_path(state, path) {
+function resolve_node_by_path(
+  state: RawJungle,
+  path: string[]
+): RawJungleValue {
   return path.reduce((s, n, i) => {
     if (!s[n] && s["."]) {
-      let resolved = resolve_node_list(state, s["."])[0][n];
-      if (resolved == null && s["."].every((e) => e.type == "Literal")) {
+      const sdot = s["."] as JNode[];
+      let resolved = (resolve_node_list(state, sdot)[0] as RawJungle)[n];
+      if (resolved == null && sdot.every((e) => e.type == "Literal")) {
         // foo = string
         // bar = $(foo.resourcePath)
         // is supposed to work as if you'd left out the (obviously
         // incorrect) ".resourcePath"
         return s;
       }
-      check_non_leaf_dot(s["."], path, i);
+      check_non_leaf_dot(sdot, path, i);
     }
     return s[n];
   }, state);
 }
 
 // fully resolve the given node, and all its children
-function resolve_node(state, node) {
+function resolve_node(state: RawJungle, node: RawJungleValue | null) {
   if (node == null || Array.isArray(node)) {
     // an already optimized leaf node
     return node;
@@ -266,21 +312,32 @@ function resolve_node(state, node) {
   return node;
 }
 
-function resolve_filename(literal, default_source = null) {
+function resolve_filename(
+  literal: string | Literal,
+  default_source: string = null
+) {
   if (typeof literal === "string") return literal;
   const root = path.dirname(literal.source || default_source);
   return path.resolve(root, literal.value);
 }
 
 async function resolve_literals(
-  qualifier: JungleQualifier,
+  qualifier: RawJungle,
   default_source: string
-): Promise<void> {
-  const resolve_file_list = async (literals) =>
+): Promise<JungleQualifier> {
+  const resolve_file_list = async (
+    literals: JNode[] | NestedStringArray
+  ): Promise<NestedStringArray> =>
     literals &&
     (
       await Promise.all(
         literals.map(async (v) => {
+          if (!isJNode(v)) {
+            return v;
+          }
+          if (v.type == "QualifiedName") {
+            throw new Error("Unexpected QualifiedName found!");
+          }
           if (v.type == "SubList") {
             return resolve_file_list(v.values);
           }
@@ -300,9 +357,11 @@ async function resolve_literals(
       )
     ).filter((name) => name != null);
 
-  const resolve_one_file_list = async (base, name) => {
+  const resolve_one_file_list = async (base: RawJungle, name: string) => {
     if (!base[name]) return;
-    const result = await resolve_file_list(base[name]);
+    const result = await resolve_file_list(
+      base[name] as JNode[] | NestedStringArray
+    );
     if (!result || !result.length) {
       delete base[name];
     } else {
@@ -313,7 +372,7 @@ async function resolve_literals(
   await resolve_one_file_list(qualifier, "sourcePath");
   await resolve_one_file_list(qualifier, "resourcePath");
   await resolve_one_file_list(qualifier, "barrelPath");
-  const lang = qualifier["lang"];
+  const lang = qualifier["lang"] as RawJungle;
   if (lang) {
     await Promise.all(
       Object.keys(lang).map((key) => resolve_one_file_list(lang, key))
@@ -323,8 +382,8 @@ async function resolve_literals(
     delete qualifier["lang"];
   }
 
-  const resolve_literal_list = (base, name) => {
-    const literals = base[name];
+  const resolve_literal_list = (base: RawJungle, name: string) => {
+    const literals = base[name] as Literal[];
     if (!literals || !literals.length) return;
     base[name] = literals.map((v) => v.value);
   };
@@ -334,43 +393,47 @@ async function resolve_literals(
   //   qualifier.BarrelName.annotations = Foo;Bar
   // but its more convenient as
   //   qualifier.annotations.BarrelName = Foo;Bar
-  const annotations = {};
+  const annotations: BarrelAnnotations = {};
   Object.entries(qualifier).forEach(([k, v]) => {
-    if ("annotations" in <object>v) {
-      annotations[k] = v["annotations"];
+    if (hasProperty(v, "annotations")) {
+      annotations[k] = (v as BarrelAnnotations)["annotations"];
       resolve_literal_list(annotations, k);
-      delete qualifier[k];
+      delete qualifier[k as keyof JungleQualifier];
     }
   });
   qualifier.annotations = annotations;
+  return qualifier as JungleQualifier;
 }
 
-async function find_build_instructions_in_resource(file) {
+async function find_build_instructions_in_resource(file: string) {
   const data = await fs.readFile(file);
   const rez = await parseStringPromise(data).catch(() => ({}));
   if (!rez.build || !rez.build.exclude) return null;
   const dir = path.dirname(file);
   const sourceExcludes = rez.build.exclude
-    .map((e) => e.$.file)
-    .filter((f) => f != null)
-    .map((f) => path.resolve(dir, f).replace(/\\/g, "/"));
+    .map((e: { $: { file?: string } }) => e.$.file)
+    .filter((f: string | null) => f != null)
+    .map((f: string) => path.resolve(dir, f).replace(/\\/g, "/"));
 
-  const filePatterns = rez.build.exclude
-    .map((e) => e.$.dir)
-    .filter((f) => f != null)
-    .map((f) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
+  const filePatterns: string[] = rez.build.exclude
+    .map((e: { $: { dir?: string } }) => e.$.dir)
+    .filter((f: string | null) => f != null)
+    .map((f: string) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
   if (filePatterns.length) {
     const files = (await Promise.all(filePatterns.map((p) => globa(p)))).flat();
     sourceExcludes.push(...files);
   }
   const excludeAnnotations = rez.build.exclude
-    .map((e) => e.$.annotation)
-    .filter((f) => f != null);
+    .map((e: { $: { annotation?: string } }) => e.$.annotation)
+    .filter((f: string | null) => f != null);
   return { sourceExcludes, excludeAnnotations };
 }
 
-async function find_build_instructions(targets) {
-  const resourceGroups = {};
+async function find_build_instructions(targets: Target[]) {
+  const resourceGroups: Record<
+    string,
+    { resourcePath: string[]; products: string[] }
+  > = {};
   await Promise.all(
     targets.map(async (p) => {
       if (!p.qualifier.resourcePath) return;
@@ -388,8 +451,8 @@ async function find_build_instructions(targets) {
           )
         ).flat();
 
-        const sourceExcludes = [];
-        const excludeAnnotations = [];
+        const sourceExcludes: string[] = [];
+        const excludeAnnotations: string[] = [];
         const resourceFiles = await Promise.all(
           paths.map((path) =>
             path.endsWith("/") ? globa(`${path}**/*.xml`, { mark: true }) : path
@@ -413,7 +476,7 @@ async function find_build_instructions(targets) {
         }
         if (excludeAnnotations.length) {
           if (p.qualifier.excludeAnnotations) {
-            p.qualifier.excludeAnnotations.push(excludeAnnotations);
+            p.qualifier.excludeAnnotations.push(...excludeAnnotations);
           } else {
             p.qualifier.excludeAnnotations = excludeAnnotations;
           }
@@ -424,23 +487,31 @@ async function find_build_instructions(targets) {
   );
 }
 
-function identify_optimizer_groups(targets, options) {
-  const groups = {};
+function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
+  const groups: Record<
+    string,
+    { key: string; optimizerConfig: JungleQualifier }
+  > = {};
   let key = 0;
-  const ignoreStrOption = (str) =>
+  const ignoreStrOption = (
+    str: string | null
+  ): Record<string, true> | string | null =>
     str == null
       ? null
       : str === "*"
       ? "*"
       : Object.fromEntries(str.split(";").map((e) => [e, true]));
-  const getStrsWithIgnore = (strs, option) => {
+  const getStrsWithIgnore = (
+    strs: string[],
+    option: Record<string, true> | string | null
+  ) => {
     if (option === "*") {
       return [];
     } else {
       return strs.filter((a) => !hasProperty(option, a));
     }
   };
-  const ignoreRegExpOption = (str) => {
+  const ignoreRegExpOption = (str: string): RegExp | null => {
     try {
       if (!str) return null;
       return new RegExp(str);
@@ -471,7 +542,10 @@ function identify_optimizer_groups(targets, options) {
           }
           return state;
         },
-        { keys: {}, paths: {} }
+        { keys: {}, paths: {} } as {
+          keys: Record<string, Record<string, true>>;
+          paths: Record<string, unknown>;
+        }
       ).paths
     : null;
 
@@ -537,7 +611,7 @@ function identify_optimizer_groups(targets, options) {
  * @param {string|string[]} barrelPath the path or paths to search
  * @returns {Promise<string[]>}
  */
-function find_barrels(barrelPath) {
+function find_barrels(barrelPath: string | string[]) {
   if (Array.isArray(barrelPath)) {
     // This is a sublist. The barrel has more than one jungle file.
     return Promise.all(
@@ -568,12 +642,21 @@ export type Target = {
   product: string;
   qualifier: JungleQualifier;
   shape?: string;
-  group?: { optimizerConfig: JungleQualifier; dir?: string };
+  group?: { optimizerConfig: JungleQualifier; dir?: string; key?: string };
 };
 
 type LangResourcePaths = { [key: string]: string[] }; // Map from language codes to the corresponding resource paths
 type BarrelAnnotations = { [key: string]: string[] }; // Map from barrel name to imported annotations
-type BarrelMap = { [key: string]: ResolvedBarrel }; // Map from barrel name to the set of resolved barrel projects for that name. Note that they must all share a manifest.
+type BarrelMap = { [key: string]: ResolvedBarrel }; // Map from barrel name to the resolved barrel project for that name.
+type OptBarrelMap = Record<
+  string,
+  {
+    rawBarrelDir: string;
+    manifest: string;
+    jungleFiles: string[];
+    optBarrelDir: string;
+  }
+>;
 
 export type JungleQualifier = {
   sourcePath?: string[]; // locations to find source file
@@ -584,22 +667,22 @@ export type JungleQualifier = {
   barrelPath?: (string | string[])[]; // locations to find barrels
   annotations?: BarrelAnnotations; // map from barrel names to arrays of annotations
   barrelMap?: BarrelMap;
-  optBarrels?: unknown;
+  optBarrels?: OptBarrelMap;
 };
 
 // The result of parsing a jungle file, without resolving any products
 type JungleInfoBase = {
   jungles: string[]; // Paths to the project's jungle files
   manifest: string; // Path to the project's manifest file
-  xml: jsxml; // The xml content of the manifest, as returned by xml2js
+  xml: ManifestXML; // The xml content of the manifest, as returned by xml2js
   annotations?: string[]; // Array of annotations supported by this barrel
 };
 
 // The result of parsing an application's jungle file
-type ResolvedJungle = JungleInfoBase & { targets: Target[] };
+export type ResolvedJungle = JungleInfoBase & { targets: Target[] };
 
 // The result of parsing a barrel's jungle file for a particular product
-type ResolvedBarrel = JungleInfoBase & {
+export type ResolvedBarrel = JungleInfoBase & {
   qualifier: JungleQualifier; // The qualifier for this barrel's target
 };
 
@@ -613,7 +696,12 @@ type ResolvedBarrel = JungleInfoBase & {
  * @param {BuildConfig} options
  * @returns {Promise<ResolvedJungle>}
  */
-function resolve_barrel(barrel, barrelDir, products, options: BuildConfig) {
+function resolve_barrel(
+  barrel: string,
+  barrelDir: string,
+  products: string[],
+  options: BuildConfig
+): ResolvedJungle | Promise<ResolvedJungle> {
   const cache = options._cache;
   if (hasProperty(cache.barrels, barrel)) {
     return cache.barrels[barrel];
@@ -692,17 +780,17 @@ function resolve_barrels(
   }
   const cache = options._cache || (options._cache = {});
   const barrelMapKey = JSON.stringify([barrels, qualifier.barrelPath]);
-  const setBarrelMap = (barrelMap) => {
+  const setBarrelMap = (barrelMap: Record<string, ResolvedJungle>) => {
     qualifier.barrelMap = barrels.reduce((result, barrel) => {
       const { targets, ...rest } = barrelMap[barrel];
       const target = targets.find((t) => t.product === product);
       if (!target) {
         throw new Error(`Barrel ${barrel} does not support device ${product}`);
       }
-      rest.qualifier = target.qualifier;
-      result[barrel] = rest;
+      const resolvedBarrel = { qualifier: target.qualifier, ...rest };
+      result[barrel] = resolvedBarrel;
       return result;
-    }, {});
+    }, {} as BarrelMap);
   };
   if (hasProperty(cache.barrelMap, barrelMapKey)) {
     setBarrelMap(cache.barrelMap[barrelMapKey]);
@@ -713,7 +801,9 @@ function resolve_barrels(
     options.outputPath,
     "raw-barrels"
   );
-  const barrelMap = Object.fromEntries(barrels.map((b) => [b, null]));
+  const barrelMap: Record<string, ResolvedJungle> = Object.fromEntries(
+    barrels.map((b) => [b, null])
+  );
   return (qualifier.barrelPath || [])
     .reduce(
       (promise, barrelPath) =>
@@ -734,7 +824,7 @@ function resolve_barrels(
               );
               if (!hasProperty(barrelMap, name)) return;
               if (barrelMap[name]) {
-                const bname = (r) => r.jungles.join(";");
+                const bname = (r: ResolvedJungle) => r.jungles.join(";");
                 throw new Error(
                   `Barrel ${name} already resolved to ${bname(
                     barrelMap[name]
@@ -795,38 +885,39 @@ async function get_jungle_and_barrels(
   const manifest_node = resolve_node(
     state,
     resolve_node_by_path(state, ["project", "manifest"])
-  );
+  ) as string[] | null;
   if (!manifest_node) throw new Error("No manifest found!");
   const manifest = resolve_filename(manifest_node[0]);
   if (!options.workspace) {
     options.workspace = path.dirname(manifest);
   }
   const xml = await readManifest(manifest);
-  const targets = [];
+  const targets: Target[] = [];
   const barrels = manifestBarrels(xml);
   const annotations = manifestAnnotations(xml);
   const products = manifestProducts(xml);
   if (products.length === 0) products.push(...defaultProducts);
   let promise = Promise.resolve();
-  const add_one = (product, shape = null) => {
-    const qualifier = resolve_node(state, state[product]);
-    if (!qualifier) return;
+  const add_one = (product: string, shape: string | null = null) => {
+    const rawQualifier = resolve_node(state, state[product]);
+    if (!rawQualifier || Array.isArray(rawQualifier)) return;
     promise = promise
-      .then(() => resolve_literals(qualifier, manifest))
-      .then(() =>
-        resolve_barrels(product, qualifier, barrels, products, options)
-      )
-      .then(() => {
+      .then(() => resolve_literals(rawQualifier, manifest))
+      .then((qualifier) => {
         targets.push({ product, qualifier, shape });
+        return resolve_barrels(product, qualifier, barrels, products, options);
       });
   };
   products.forEach((product) => {
-    if (hasProperty(state, product) && state[product].products) {
-      // this was something like round_watch. Add all the corresponding
-      // products.
-      state[product].products.forEach((p) => add_one(p, product));
-    } else {
-      add_one(product);
+    if (hasProperty(state, product)) {
+      const sp = state[product];
+      if (sp && !Array.isArray(sp) && sp.products) {
+        // this was something like round_watch. Add all the corresponding
+        // products.
+        sp.products.forEach((p: string) => add_one(p, product));
+      } else {
+        add_one(product);
+      }
     }
   });
   await promise;

@@ -1,15 +1,18 @@
+// @ts-ignore
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
   collectNamespaces,
   getApiMapping,
   hasProperty,
+  isStateNode,
   traverseAst,
   LiteralIntegerRe,
 } from "src/api";
 import { pushUnique } from "src/util";
 import {
   Node as ESTreeNode,
+  NodeAll as ESTreeAll,
   UnaryExpression as ESTreeUnaryExpression,
   Identifier as ESTreeIdentifier,
   ModuleDeclaration as ESTreeModuleDeclaration,
@@ -17,12 +20,17 @@ import {
   FunctionDeclaration as ESTreeFunctionDeclaration,
   Literal as ESTreeLiteral,
   BlockStatement as ESTreeBlockStatement,
+  ImportStatement as ESTreeImportStatement,
+  AsExpression as ESTreeAsExpression,
 } from "src/estree-types";
 declare global {
-  type StateNodeDecls = { [key: string]: (StateNode | ESTreeLiteral)[] };
+  type StateNodeDecl = StateNode | ESTreeLiteral | string;
+  type StateNodeDecls = {
+    [key: string]: StateNodeDecl[];
+  };
   type ProgramStateNode = {
     type: "Program";
-    node?: null | undefined;
+    node: null | undefined;
     name: "$";
     fullName: "$";
     decls?: StateNodeDecls;
@@ -74,35 +82,43 @@ declare global {
     allClasses?: ClassStateNode[];
     stack?: ProgramStateStack;
     shouldExclude?: (node: any) => any;
-    pre?: (node: ESTreeNode) => null | false | string[];
+    pre?: (node: ESTreeNode) => null | false | (keyof ESTreeAll)[];
     post?: (node: ESTreeNode) => null | false | ESTreeNode;
     lookup?: (
       node: ESTreeNode,
       name?: string,
       stack?: ProgramStateStack
-    ) => [string, StateNode[]];
+    ) => [string, StateNodeDecl[]];
     traverse?: (node: ESTreeNode) => void | boolean | ESTreeNode;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: unknown[] };
     localsStack?: {
       node?: ESTreeNode;
-      map?: { [key: string]: true };
+      map?: { [key: string]: true | string };
       inners?: { [key: string]: true };
     }[];
-    index?: unknown;
+    index?: { [key: string]: unknown[] };
     constants?: { [key: string]: ESTreeLiteral };
   };
 }
 
-function processImports(allImports, lookup) {
+type ImportItem = { node: ESTreeImportStatement; stack: ProgramStateStack };
+function processImports(
+  allImports: ImportItem[],
+  lookup: ProgramState["lookup"]
+) {
   allImports.forEach(({ node, stack }) => {
-    const [name, module] = lookup(node.id, node.as && node.as.name, stack);
+    const [name, module] = lookup(
+      node.id,
+      "as" in node && node.as && node.as.name,
+      stack
+    );
     if (name && module) {
       const [parent] = stack.slice(-1);
       if (!parent.decls) parent.decls = {};
       if (!hasProperty(parent.decls, name)) parent.decls[name] = [];
       module.forEach((m) => {
-        if (m.type == "ModuleDeclaration") {
+        if (isStateNode(m) && m.type == "ModuleDeclaration") {
           pushUnique(parent.decls[name], m);
         }
       });
@@ -117,7 +133,8 @@ function collectClassInfo(state: ProgramState) {
       const superClass =
         classes &&
         classes.filter(
-          (c): c is ClassStateNode => c.type === "ClassDeclaration"
+          (c): c is ClassStateNode =>
+            isStateNode(c) && c.type === "ClassDeclaration"
         );
       // set it "true" if there is a superClass, but we can't find it.
       elm.superClass = superClass && superClass.length ? superClass : true;
@@ -134,6 +151,7 @@ function collectClassInfo(state: ProgramState) {
         Object.values(c.decls).forEach((funcs) => {
           funcs.forEach((f) => {
             if (
+              isStateNode(f) &&
               f.type === "FunctionDeclaration" &&
               hasProperty(cls.decls, f.name)
             ) {
@@ -151,14 +169,14 @@ function collectClassInfo(state: ProgramState) {
 }
 
 async function analyze(fnMap: FilesToOptimizeMap) {
-  let excludeAnnotations;
+  let excludeAnnotations: ExcludeAnnotationsMap;
   let hasTests = false;
-  const allImports = [];
+  const allImports: ImportItem[] = [];
   const state: ProgramState = {
     allFunctions: [],
     allClasses: [],
-    shouldExclude(node) {
-      if (node.attrs && node.attrs.attrs) {
+    shouldExclude(node: ESTreeNode) {
+      if ("attrs" in node && node.attrs && node.attrs.attrs) {
         return node.attrs.attrs.reduce((drop, attr) => {
           if (attr.type != "UnaryExpression") return drop;
           if (attr.argument.type != "Identifier") return drop;
@@ -171,6 +189,7 @@ async function analyze(fnMap: FilesToOptimizeMap) {
           return drop;
         }, false);
       }
+      return null;
     },
     post(node) {
       switch (node.type) {
@@ -200,17 +219,22 @@ async function analyze(fnMap: FilesToOptimizeMap) {
   // setting their bodies to null. In api.mir, they're
   // all empty, which makes it look like they're
   // do-nothing functions.
-  const markApi = (node) => {
+  const markApi = (node: StateNodeDecl) => {
+    if (typeof node === "string") return;
     if (node.type == "FunctionDeclaration") {
       node.node.body = null;
     }
-    if (node.decls) {
-      Object.values(node.decls).forEach(markApi);
+    if ("decls" in node) {
+      Object.values(node.decls).forEach((v) => v.forEach(markApi));
     }
   };
   markApi(state.stack[0]);
 
-  const getAst = (source, monkeyCSource, exclude) => {
+  const getAst = (
+    source: string,
+    monkeyCSource: string,
+    exclude: ExcludeAnnotationsMap
+  ) => {
     excludeAnnotations = exclude;
     const ast = MonkeyC.parsers.monkeyc.parse(monkeyCSource, {
       grammarSource: source,
@@ -243,15 +267,17 @@ async function analyze(fnMap: FilesToOptimizeMap) {
   return { files, state };
 }
 
-export function getLiteralNode(node) {
+export function getLiteralNode(
+  node: ESTreeNode | StateNodeDecl | StateNodeDecl[]
+): null | ESTreeLiteral | ESTreeAsExpression {
   if (Array.isArray(node)) {
     if (!node.length) return null;
     if (node.length === 1) return getLiteralNode(node[0]);
-    let result;
+    let result: null | ESTreeLiteral = null;
     if (
       node.every((n) => {
         const lit = getLiteralNode(n);
-        if (!lit) return false;
+        if (!lit || !("value" in lit)) return false;
         if (!result) {
           result = lit;
         } else {
@@ -264,6 +290,7 @@ export function getLiteralNode(node) {
     }
     return null;
   }
+  if (typeof node === "string") return null;
   if (node.type == "Literal") return node;
   if (node.type == "BinaryExpression" && node.operator == "as") {
     return getLiteralNode(node.left) && node;
@@ -282,9 +309,10 @@ export function getLiteralNode(node) {
         }
     }
   }
+  return null;
 }
 
-function getNodeValue(node) {
+function getNodeValue(node: ESTreeNode): [ESTreeLiteral | null, string | null] {
   if (
     node.type == "BinaryExpression" &&
     node.operator == "as" &&
@@ -320,7 +348,7 @@ function getNodeValue(node) {
   return [node, type];
 }
 
-function optimizeNode(node) {
+function optimizeNode(node: ESTreeNode) {
   switch (node.type) {
     case "UnaryExpression": {
       const [arg, type] = getNodeValue(node.argument);
@@ -363,17 +391,21 @@ function optimizeNode(node) {
     }
     case "BinaryExpression": {
       const operators = {
-        "+": (left, right) => left + right,
-        "-": (left, right) => left - right,
-        "*": (left, right) => left * right,
-        "/": (left, right) => Math.trunc(left / right),
-        "%": (left, right) => left % right,
-        "&": (left, right, type) => (type === "Number" ? left & right : null),
-        "|": (left, right, type) => (type === "Number" ? left | right : null),
-        "<<": (left, right, type) => (type === "Number" ? left << right : null),
-        ">>": (left, right, type) => (type === "Number" ? left >> right : null),
+        "+": (left: number, right: number) => left + right,
+        "-": (left: number, right: number) => left - right,
+        "*": (left: number, right: number) => left * right,
+        "/": (left: number, right: number) => Math.trunc(left / right),
+        "%": (left: number, right: number) => left % right,
+        "&": (left: number, right: number, type: string) =>
+          type === "Number" ? left & right : null,
+        "|": (left: number, right: number, type: string) =>
+          type === "Number" ? left | right : null,
+        "<<": (left: number, right: number, type: string) =>
+          type === "Number" ? left << right : null,
+        ">>": (left: number, right: number, type: string) =>
+          type === "Number" ? left >> right : null,
       };
-      const op = operators[node.operator];
+      const op = operators[node.operator as keyof typeof operators];
       if (op) {
         const [left, left_type] = getNodeValue(node.left);
         const [right, right_type] = getNodeValue(node.right);
@@ -384,7 +416,11 @@ function optimizeNode(node) {
         ) {
           break;
         }
-        const value = op(left.value, right.value, left_type);
+        const value = op(
+          left.value as number,
+          right.value as number,
+          left_type
+        );
         if (value === null) break;
         return {
           ...left,
@@ -400,15 +436,19 @@ function optimizeNode(node) {
       }
       break;
   }
+  return null;
 }
 
-function evaluateFunction(func, args) {
+function evaluateFunction(
+  func: ESTreeFunctionDeclaration,
+  args: ESTreeNode[] | null
+) {
   if (args && args.length != func.params.length) {
     return false;
   }
   const paramValues =
     args && Object.fromEntries(func.params.map((p, i) => [p.name, args[i]]));
-  let ret = null;
+  let ret: ESTreeNode | null = null;
   const body = args ? JSON.parse(JSON.stringify(func.body)) : func.body;
   try {
     traverseAst(
@@ -431,10 +471,10 @@ function evaluateFunction(func, args) {
           switch (node.type) {
             case "ReturnStatement":
               ret = node.argument;
-              return;
+              return null;
             case "BlockStatement":
             case "Literal":
-              return;
+              return null;
             case "Identifier":
               if (hasProperty(paramValues, node.name)) {
                 return paramValues[node.name];
@@ -454,11 +494,13 @@ function evaluateFunction(func, args) {
   }
 }
 
+type ESTreeSome = { [k in keyof ESTreeAll]?: unknown };
+
 export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   const { files, state } = await analyze(fnMap);
-  const replace = (node, obj) => {
+  const replace = (node: ESTreeSome, obj: ESTreeSome) => {
     for (const k of Object.keys(node)) {
-      delete node[k];
+      delete node[k as keyof ESTreeSome];
     }
     if (obj.enumType) {
       obj = {
@@ -469,10 +511,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       };
     }
     for (const [k, v] of Object.entries(obj)) {
-      node[k] = v;
+      node[k as keyof ESTreeSome] = v;
     }
   };
-  const lookupAndReplace = (node) => {
+  const lookupAndReplace = (node: ESTreeNode) => {
     const [, objects] = state.lookup(node);
     if (!objects) {
       return false;
@@ -489,7 +531,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
    * Might this function be called from somewhere, including
    * callbacks from the api (eg getSettingsView, etc).
    */
-  const maybeCalled = (func) => {
+  const maybeCalled = (func: ESTreeFunctionDeclaration) => {
     if (!func.body) {
       // this is an api.mir function. It can be called
       return true;
@@ -519,13 +561,16 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
    * Does elm (a class) have a maybeCalled function called name,
    * anywhere in its superClass chain.
    */
-  const checkInherited = (elm, name) =>
+  const checkInherited = (elm: ClassStateNode, name: string): boolean =>
     elm.superClass === true ||
     elm.superClass.some(
       (sc) =>
         (hasProperty(sc.decls, name) &&
           sc.decls[name].some(
-            (f) => f.type == "FunctionDeclaration" && maybeCalled(f)
+            (f) =>
+              isStateNode(f) &&
+              f.type == "FunctionDeclaration" &&
+              maybeCalled(f.node)
           )) ||
         (sc.superClass && checkInherited(sc, name))
     );
@@ -562,7 +607,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
               } else {
                 node.alternate = null;
               }
-              node.test = result;
+              node.test = null;
             } else if (node.type === "WhileStatement") {
               if (result === false) {
                 node.body = null;
@@ -702,7 +747,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         break;
       }
       case "FunctionDeclaration": {
-        const map = {};
+        const map: Record<string, string | true> = {};
         node.params && node.params.forEach((p) => (map[p.name] = true));
         state.localsStack.push({ node, map });
         const [parent] = state.stack.slice(-2);
@@ -736,8 +781,8 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     switch (node.type) {
       case "ConditionalExpression":
       case "IfStatement":
-        if (typeof node.test === "boolean") {
-          const rep = node.test ? node.consequent : node.alternate;
+        if (node.test === null) {
+          const rep = node.consequent || node.alternate;
           if (!rep) return false;
           replace(node, rep);
         }
@@ -768,7 +813,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
           return null;
         }
         if (callees.length == 1) {
-          const callee = callees[0].node;
+          const callee = isStateNode(callees[0]) && callees[0].node;
           if (
             callee.type == "FunctionDeclaration" &&
             callee.optimizable &&
@@ -785,7 +830,9 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         if (!hasProperty(state.calledFunctions, name)) {
           state.calledFunctions[name] = [];
         }
-        callees.forEach((c) => state.calledFunctions[name].push(c.node));
+        callees.forEach(
+          (c) => isStateNode(c) && state.calledFunctions[name].push(c.node)
+        );
         break;
       }
     }

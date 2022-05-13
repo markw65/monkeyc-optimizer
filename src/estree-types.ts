@@ -1,4 +1,24 @@
-// Type definitions for ESTree AST specification
+// Type definitions for MonkeyC ESTree-like AST specification
+
+// Find the union of all keys across all components of U
+type InclusiveUnionKeys<U> = U extends unknown ? keyof U : never;
+
+// Create a type whose keys are InclusiveUnionKeys<U>, and whose
+// corresponding types are the union across all components of U[K]
+type InclusiveUnion<U> = {
+  [K in InclusiveUnionKeys<U>]: U extends any
+    ? K extends keyof U
+      ? U[K]
+      : never
+    : never;
+};
+type SubfieldsOfType<T, U> = {
+  [K in keyof T as T[K] extends U ? K : never]: T[K];
+};
+
+export type NodeAll = InclusiveUnion<Node>;
+export type NodeSubFields = SubfieldsOfType<NodeAll, Node>;
+export type NodeSubArrays = SubfieldsOfType<NodeAll, Node[]>;
 
 interface BaseNode {
   // Every leaf interface that extends BaseNode must specify a type property.
@@ -29,7 +49,8 @@ export type Node =
   | AsTypeSpec
   | TypeSpecList
   | ClassElement
-  | ClassBody;
+  | ClassBody
+  | Comment;
 
 export interface Comment extends BaseNode {
   type: "Line" | "Block";
@@ -193,6 +214,7 @@ type Expression =
   | UnaryExpression
   | UpdateExpression
   | BinaryExpression
+  | AsExpression
   | AssignmentExpression
   | LogicalExpression
   | MemberExpression
@@ -258,6 +280,13 @@ export interface BinaryExpression extends BaseExpression {
   operator: BinaryOperator;
   left: Expression;
   right: Expression;
+}
+
+export interface AsExpression extends BaseExpression {
+  type: "BinaryExpression";
+  operator: "as";
+  left: Expression;
+  right: TypeSpecList;
 }
 
 export interface AssignmentExpression extends BaseExpression {
@@ -463,7 +492,7 @@ export interface AttributeList extends BaseNode {
 
 type Attribute = SymbolExpression | CallExpression;
 
-type ImportStatement = ImportModule | Using;
+export type ImportStatement = ImportModule | Using;
 
 export interface ImportModule extends BaseNode {
   type: "ImportModule";

@@ -1,3 +1,4 @@
+// @ts-ignore
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
@@ -5,7 +6,13 @@ import { getLiteralNode } from "src/mc-rewrite";
 import { negativeFixups } from "src/negative-fixups";
 import { getSdkPath } from "src/sdk-util";
 import { pushUnique } from "src/util";
-import { Program, Node as ESTreeNode } from "src/estree-types";
+import {
+  Program,
+  Node as ESTreeNode,
+  NodeAll as ESTreeAll,
+  Literal as ESTreeLiteral,
+  NodeSubFields,
+} from "src/estree-types";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
 /*
@@ -44,7 +51,7 @@ export async function getApiMapping(
         }
         return decls[0];
       }, result);
-      if (value.type != "Literal") {
+      if (typeof value === "string" || value.type != "Literal") {
         throw `Negative constant ${fixup} was not a Literal`;
       }
       if (value.value > 0) {
@@ -61,8 +68,12 @@ export async function getApiMapping(
   }
 }
 
-export function hasProperty(obj, prop) {
+export function hasProperty(obj: unknown, prop: string) {
   return obj && Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+export function isStateNode(node: StateNodeDecl): node is StateNode {
+  return hasProperty(node, "node");
 }
 
 export function collectNamespaces(
@@ -72,10 +83,12 @@ export function collectNamespaces(
   state = state || {};
   if (!state.index) state.index = {};
   if (!state.stack) {
-    state.stack = [{ type: "Program", name: "$", fullName: "$" }];
+    state.stack = [
+      { type: "Program", name: "$", fullName: "$", node: undefined },
+    ];
   }
-  const checkOne = (ns, name) => {
-    if (hasProperty(ns.decls, name)) {
+  const checkOne = (ns: StateNodeDecl, name: string) => {
+    if (isStateNode(ns) && hasProperty(ns.decls, name)) {
       return ns.decls[name];
     }
     return null;
@@ -160,7 +173,7 @@ export function collectNamespaces(
                   const what =
                     node.type == "ModuleDeclaration" ? "type" : "node";
                   const e = parent.decls[name].find(
-                    (d) => d[what] == elm[what]
+                    (d) => isStateNode(d) && d[what] == elm[what]
                   ) as StateNode | null;
                   if (e != null) {
                     e.node = node;
@@ -241,7 +254,7 @@ export function collectNamespaces(
                     init.type == "Literal" &&
                     LiteralIntegerRe.test(init.raw)
                   ) {
-                    prev = init.value;
+                    prev = init.value as number;
                   }
                 } else {
                   name = m.name;
@@ -305,6 +318,10 @@ export function collectNamespaces(
   return state.stack[0];
 }
 
+function isESTreeNode(node: unknown): node is ESTreeNode {
+  return node && typeof node === "object" && "type" in node;
+}
+
 /*
  * Traverse the ast rooted at node, calling pre before
  * visiting each node, and post after.
@@ -320,38 +337,44 @@ export function collectNamespaces(
  */
 export function traverseAst(
   node: ESTreeNode,
-  pre?: (node: ESTreeNode) => void | null | false | string[],
-  post?: (node: ESTreeNode) => void | null | boolean | ESTreeNode
-) {
+  pre?: (node: ESTreeNode) => void | null | false | (keyof ESTreeAll)[],
+  post?: (node: ESTreeNode) => void | null | false | ESTreeNode
+): false | void | null | ESTreeNode {
   const nodes = pre && pre(node);
   if (nodes === false) return;
   for (const key of nodes || Object.keys(node)) {
-    const value = node[key];
+    const value = (node as ESTreeAll)[key as keyof ESTreeAll];
     if (!value) continue;
     if (Array.isArray(value)) {
-      const deletions = value.reduce((state, obj, i) => {
-        const repl = traverseAst(obj, pre, post);
-        if (repl === false) {
-          if (!state) state = {};
-          state[i] = true;
-        } else if (repl != null) {
-          value[i] = repl;
-        }
-        return state;
-      }, null);
+      const values = value as Array<unknown>;
+      const deletions = values.reduce<null | { [key: number]: true }>(
+        (state, obj, i) => {
+          if (isESTreeNode(obj)) {
+            const repl = traverseAst(obj, pre, post);
+            if (repl === false) {
+              if (!state) state = {};
+              state[i] = true;
+            } else if (repl != null) {
+              values[i] = repl;
+            }
+          }
+          return state;
+        },
+        null
+      );
       if (deletions) {
-        value.splice(
+        values.splice(
           0,
-          value.length,
-          ...value.filter((obj, i) => deletions[i] !== true)
+          values.length,
+          ...values.filter((obj, i) => deletions[i] !== true)
         );
       }
-    } else if (typeof value == "object" && value.type) {
+    } else if (isESTreeNode(value)) {
       const repl = traverseAst(value, pre, post);
       if (repl === false) {
-        delete node[key];
+        delete node[key as keyof ESTreeNode];
       } else if (repl != null) {
-        node[key] = repl;
+        (node as unknown as Record<string, unknown>)[key] = repl;
       }
     }
   }
@@ -385,12 +408,16 @@ export function formatAst(
   });
 }
 
-function handleException(state, node, exception) {
+function handleException(
+  state: ProgramState,
+  node: ESTreeNode,
+  exception: unknown
+): never {
   let message;
   try {
     const fullName = state.stack
       .map((e) => e.name)
-      .concat(node.name)
+      .concat("name" in node && node.name)
       .filter((e) => e != null)
       .join(".");
     const location =
