@@ -585,10 +585,24 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       annotations,
     };
 
-    const serialized = JSON.stringify(
-      optimizerConfig,
-      Object.keys(optimizerConfig).sort()
-    );
+    const toSortedEntries = (value: unknown) =>
+      Object.entries(value)
+        .filter(([, v]) => v != null)
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] === b[0] ? 0 : 1));
+
+    const serialized = JSON.stringify(optimizerConfig, function (key, value) {
+      if (!value || Array.isArray(value) || typeof value !== "object") {
+        return value;
+      }
+      if (key === "" && barrelMap) {
+        const bm = toSortedEntries(barrelMap).map(([k, v]) => {
+          const { jungles, qualifier } = v as ResolvedBarrel;
+          return [k, [jungles, qualifier]];
+        });
+        value = { ...value, barrelMap: bm };
+      }
+      return toSortedEntries(value);
+    });
     if (!hasProperty(groups, serialized)) {
       groups[serialized] = {
         key: "group" + key.toString().padStart(3, "0"),
