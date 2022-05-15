@@ -203,6 +203,7 @@ export interface VariableDeclarator extends BaseNode {
   type: "VariableDeclarator";
   id: Identifier;
   init?: Expression | null | undefined;
+  kind: "var" | "const";
 }
 
 type Expression =

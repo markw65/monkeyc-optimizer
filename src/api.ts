@@ -51,12 +51,19 @@ export async function getApiMapping(
         }
         return decls[0];
       }, result);
-      if (typeof value === "string" || value.type != "Literal") {
+      if (
+        value.type !== "EnumStringMember" &&
+        (value.type !== "VariableDeclarator" || value.kind != "const")
+      ) {
+        throw `Negative constant ${fixup} did not refer to a constant`;
+      }
+      const init = value.init;
+      if (init.type !== "Literal") {
         throw `Negative constant ${fixup} was not a Literal`;
       }
-      if (value.value > 0) {
-        value.value = -value.value;
-        value.raw = "-" + value.raw;
+      if (init.value > 0) {
+        init.value = -init.value;
+        init.raw = "-" + init.raw;
       } else {
         console.log(`Negative fixup ${fixup} was already negative!`);
       }
@@ -207,10 +214,7 @@ export function collectNamespaces(
               if (!hasProperty(parent.decls, node.id.name)) {
                 parent.decls[node.id.name] = [];
               }
-              pushUnique(
-                parent.decls[node.id.name],
-                "ts" in node ? formatAst(node.ts.argument) : node.id.name
-              );
+              pushUnique(parent.decls[node.id.name], node);
               break;
             }
             case "VariableDeclaration": {
@@ -220,17 +224,13 @@ export function collectNamespaces(
                 if (!hasProperty(parent.decls, decl.id.name)) {
                   parent.decls[decl.id.name] = [];
                 }
+                decl.kind = node.kind;
+                pushUnique(parent.decls[decl.id.name], decl);
                 if (node.kind == "const") {
-                  pushUnique(parent.decls[decl.id.name], decl.init);
                   if (!hasProperty(state.index, decl.id.name)) {
                     state.index[decl.id.name] = [];
                   }
                   pushUnique(state.index[decl.id.name], parent);
-                } else if (decl.id.ts) {
-                  pushUnique(
-                    parent.decls[decl.id.name],
-                    formatAst(decl.id.ts.argument)
-                  );
                 }
               });
               break;
@@ -239,44 +239,41 @@ export function collectNamespaces(
               const [parent] = state.stack.slice(-1);
               const values = parent.decls || (parent.decls = {});
               let prev = -1;
-              node.members.forEach((m) => {
-                let name, init;
-                if (m.type == "EnumStringMember") {
-                  name = m.id.name;
-                  init = getLiteralNode(m.init);
-                  if (!init) {
-                    throw new Error("Unexpected enum initializer");
-                  }
-                  if (init != m.init) {
-                    m.init = init;
-                  }
-                  if (
-                    init.type == "Literal" &&
-                    LiteralIntegerRe.test(init.raw)
-                  ) {
-                    prev = init.value as number;
-                  }
-                } else {
-                  name = m.name;
+              node.members.forEach((m, i) => {
+                if (m.type == "Identifier") {
                   prev += 1;
-                  if (!state.constants) {
-                    state.constants = {};
-                  }
-                  const key = m.enumType ? `${m.enumType}:${prev}` : prev;
-                  init = state.constants[key];
-                  if (!init) {
-                    init = state.constants[key] = {
+                  m = node.members[i] = {
+                    type: "EnumStringMember",
+                    loc: m.loc,
+                    start: m.start,
+                    end: m.end,
+                    id: m,
+                    init: {
                       type: "Literal",
                       value: prev,
                       raw: prev.toString(),
                       enumType: m.enumType,
-                    };
-                  }
+                      loc: m.loc,
+                      start: m.start,
+                      end: m.end,
+                    },
+                  };
+                }
+                const name = m.id.name;
+                const init = getLiteralNode(m.init);
+                if (!init) {
+                  throw new Error("Unexpected enum initializer");
+                }
+                if (init != m.init) {
+                  m.init = init;
+                }
+                if (init.type == "Literal" && LiteralIntegerRe.test(init.raw)) {
+                  prev = init.value as number;
                 }
                 if (!hasProperty(values, name)) {
                   values[name] = [];
                 }
-                pushUnique(values[name], init);
+                pushUnique(values[name], m);
                 if (!hasProperty(state.index, name)) {
                   state.index[name] = [];
                 }

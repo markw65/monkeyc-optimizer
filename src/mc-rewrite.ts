@@ -22,9 +22,22 @@ import {
   BlockStatement as ESTreeBlockStatement,
   ImportStatement as ESTreeImportStatement,
   AsExpression as ESTreeAsExpression,
+  EnumDeclaration as ESTreeEnumDeclaration,
+  VariableDeclarator as ESTreeVariableDeclarator,
+  TypedefDeclaration as ESTreeTypedefDeclaration,
+  EnumStringMember as ESTreeEnumStringMember,
+  BinaryExpression as ESTreeBinaryExpression,
 } from "src/estree-types";
+import { nodeType } from "../build/sdk-util.cjs";
 declare global {
-  type StateNodeDecl = StateNode | ESTreeLiteral | string;
+  type StateNodeDecl =
+    | StateNode
+    /* Enum values */
+    | ESTreeEnumStringMember
+    /* Other declarations */
+    | ESTreeEnumDeclaration
+    | ESTreeTypedefDeclaration
+    | ESTreeVariableDeclarator;
   type StateNodeDecls = {
     [key: string]: StateNodeDecl[];
   };
@@ -248,7 +261,6 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   // all empty, which makes it look like they're
   // do-nothing functions.
   const markApi = (node: StateNodeDecl) => {
-    if (typeof node === "string") return;
     if (node.type == "FunctionDeclaration") {
       node.node.body = null;
     }
@@ -276,30 +288,42 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   return state;
 }
 
-export function getLiteralNode(
-  node: ESTreeNode | StateNodeDecl | StateNodeDecl[]
-): null | ESTreeLiteral | ESTreeAsExpression {
-  if (Array.isArray(node)) {
-    if (!node.length) return null;
-    if (node.length === 1) return getLiteralNode(node[0]);
-    let result: null | ESTreeLiteral = null;
-    if (
-      node.every((n) => {
-        const lit = getLiteralNode(n);
-        if (!lit || !("value" in lit)) return false;
+function compareLiteralLike(a: ESTreeNode, b: ESTreeNode) {
+  while (a.type === "BinaryExpression") a = a.left;
+  while (b.type === "BinaryExpression") b = b.left;
+
+  return a.type === "Literal" && b.type === "Literal" && a.value === b.value;
+}
+
+export function getLiteralFromDecls(decls: StateNodeDecl[]) {
+  if (!decls.length) return null;
+  let result: null | ESTreeLiteral | ESTreeAsExpression = null;
+  if (
+    decls.every((d) => {
+      if (
+        d.type === "EnumStringMember" ||
+        (d.type === "VariableDeclarator" && d.kind === "const")
+      ) {
+        const init = getLiteralNode(d.init);
+        if (!init) return false;
         if (!result) {
-          result = lit;
+          result = init;
+          return true;
         } else {
-          if (lit.value !== result.value) return false;
+          return compareLiteralLike(init, result);
         }
-        return true;
-      })
-    ) {
-      return result;
-    }
-    return null;
+      }
+      return false;
+    })
+  ) {
+    return result;
   }
-  if (typeof node === "string") return null;
+  return null;
+}
+
+export function getLiteralNode(
+  node: ESTreeNode
+): null | ESTreeLiteral | ESTreeAsExpression {
   if (node.type == "Literal") return node;
   if (node.type == "BinaryExpression" && node.operator == "as") {
     return getLiteralNode(node.left) && node;
@@ -528,7 +552,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     if (!objects) {
       return false;
     }
-    const obj = getLiteralNode(objects);
+    const obj = getLiteralFromDecls(objects);
     if (!obj) {
       return false;
     }

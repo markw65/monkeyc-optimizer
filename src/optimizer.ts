@@ -1,7 +1,7 @@
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import path from "path";
-import { formatAst, getApiMapping, hasProperty } from "src/api";
+import { formatAst, getApiMapping, hasProperty, isStateNode } from "src/api";
 import { build_project } from "src/build";
 import {
   get_jungle,
@@ -743,10 +743,12 @@ export async function generateApiMirTests(options: BuildConfig) {
       if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
       if (decl.length != 1) return;
       const d = decl[0];
-      if (typeof d === "string") return;
-      if (d.type == "Literal") {
-        tests.push([`${node.fullName}.${key}`, formatAst(d)]);
-      } else if (d.decls) {
+      if (
+        d.type === "EnumStringMember" ||
+        (d.type === "VariableDeclarator" && d.kind === "const")
+      ) {
+        tests.push([`${node.fullName}.${key}`, formatAst(d.init)]);
+      } else if (isStateNode(d)) {
         findConstants(d);
       }
     });

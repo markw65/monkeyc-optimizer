@@ -46,7 +46,7 @@ export async function first_modified(inputs: string[]) {
   return Math.min(...(await modified_times(inputs, 0)));
 }
 
-export function pushUnique(arr: unknown[], value: unknown) {
+export function pushUnique<T>(arr: T[], value: T) {
   if (arr.find((v) => v === value) != null) return;
   arr.push(value);
 }
