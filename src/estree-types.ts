@@ -74,7 +74,6 @@ export interface Program extends BaseNode {
   type: "Program";
   body: Array<Declaration | ImportStatement>;
   comments?: Array<Comment> | undefined;
-  monkeyCSource?: string;
 }
 
 export interface ModuleDeclaration extends BaseDeclaration {

@@ -168,7 +168,35 @@ function collectClassInfo(state: ProgramState) {
   });
 }
 
-async function analyze(fnMap: FilesToOptimizeMap) {
+export function getFileSources(fnMap: FilesToOptimizeMap) {
+  return Promise.all(
+    Object.entries(fnMap).map(([name, value]) => {
+      return (
+        value.monkeyCSource ||
+        fs
+          .readFile(name)
+          .then(
+            (data) =>
+              (value.monkeyCSource = data.toString().replace(/\r\n/g, "\n"))
+          )
+      );
+    })
+  ).then(() => {});
+}
+
+export function getFileASTs(fnMap: FilesToOptimizeMap) {
+  return getFileSources(fnMap).then(() =>
+    Object.entries(fnMap).forEach(([name, value]) => {
+      if (!value.ast) {
+        value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, {
+          grammarSource: name,
+        });
+      }
+    })
+  );
+}
+
+export async function analyze(fnMap: FilesToOptimizeMap) {
   let excludeAnnotations: ExcludeAnnotationsMap;
   let hasTests = false;
   const allImports: ImportItem[] = [];
@@ -230,33 +258,14 @@ async function analyze(fnMap: FilesToOptimizeMap) {
   };
   markApi(state.stack[0]);
 
-  const getAst = (
-    source: string,
-    monkeyCSource: string,
-    exclude: ExcludeAnnotationsMap
-  ) => {
-    excludeAnnotations = exclude;
-    const ast = MonkeyC.parsers.monkeyc.parse(monkeyCSource, {
-      grammarSource: source,
-    });
-    ast.source = source;
-    ast.monkeyCSource = monkeyCSource;
+  await getFileASTs(fnMap);
+  Object.entries(fnMap).forEach(([name, value]) => {
+    const { ast } = value;
+    excludeAnnotations = value.excludeAnnotations;
     hasTests = false;
     collectNamespaces(ast, state);
-    return { ast, hasTests };
-  };
-  const files = await Promise.all(
-    Object.entries(fnMap).map(([name, { excludeAnnotations }]) =>
-      fs.readFile(name).then((data) => ({
-        name,
-        ...getAst(
-          name,
-          data.toString().replace(/\r\n/g, "\n"),
-          excludeAnnotations
-        ),
-      }))
-    )
-  );
+    value.hasTests = hasTests;
+  });
 
   delete state.shouldExclude;
   delete state.post;
@@ -264,7 +273,7 @@ async function analyze(fnMap: FilesToOptimizeMap) {
   processImports(allImports, state.lookup);
   collectClassInfo(state);
 
-  return { files, state };
+  return state;
 }
 
 export function getLiteralNode(
@@ -497,7 +506,7 @@ function evaluateFunction(
 type ESTreeSome = { [k in keyof ESTreeAll]?: unknown };
 
 export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
-  const { files, state } = await analyze(fnMap);
+  const state = await analyze(fnMap);
   const replace = (node: ESTreeSome, obj: ESTreeSome) => {
     for (const k of Object.keys(node)) {
       delete node[k as keyof ESTreeSome];
@@ -838,10 +847,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     }
     return null;
   };
-  files.forEach((f) => {
+  Object.values(fnMap).forEach((f) => {
     collectNamespaces(f.ast, state);
   });
-  files.forEach((f) => {
+  Object.values(fnMap).forEach((f) => {
     traverseAst(f.ast, null, (node) => {
       switch (node.type) {
         case "EnumStringBody":
@@ -912,6 +921,4 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       return null;
     });
   });
-
-  return files;
 }

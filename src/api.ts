@@ -381,11 +381,7 @@ export function traverseAst(
   return post && post(node);
 }
 
-export function formatAst(
-  node: ESTreeNode,
-  options?: { [key: string]: unknown }
-) {
-  const monkeyCSource = "monkeyCSource" in node && node.monkeyCSource + "\n";
+export function formatAst(node: ESTreeNode, monkeyCSource: string = null) {
   if ("comments" in node && !monkeyCSource) {
     // Prettier inserts comments by using the source location to
     // find the original comment, rather than using the contents
@@ -399,9 +395,8 @@ export function formatAst(
   // json. The parser knows to just treat the last line of the input
   // as the ast itself, and the printers will find what they're
   // looking for in the source.
-  const source = (monkeyCSource || "") + JSON.stringify(node);
+  const source = (monkeyCSource || "") + "\n" + JSON.stringify(node);
   return Prettier.format(source, {
-    ...(options || {}),
     parser: "monkeyc-json",
     plugins: [MonkeyC],
     endOfLine: "lf",

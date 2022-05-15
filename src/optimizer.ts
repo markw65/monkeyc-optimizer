@@ -16,7 +16,7 @@ import {
   writeManifest,
   manifestDropBarrels,
 } from "src/manifest";
-import { optimizeMonkeyC } from "src/mc-rewrite";
+import { analyze, getFileASTs, optimizeMonkeyC } from "src/mc-rewrite";
 import { appSupport } from "src/sdk-util";
 import {
   copyRecursiveAsNeeded,
@@ -24,9 +24,9 @@ import {
   globa,
   last_modified,
 } from "src/util";
-import { Node as ESTreeNode } from "src/estree-types";
+import { Program as ESTreeProgram } from "src/estree-types";
 
-export { copyRecursiveAsNeeded, launchSimulator, simulateProgram };
+export { copyRecursiveAsNeeded, launchSimulator, simulateProgram, get_jungle };
 
 function relative_path_no_dotdot(relative: string) {
   return relative.replace(
@@ -83,8 +83,20 @@ declare global {
   type ExcludeAnnotationsMap = { [key: string]: boolean };
   type FilesToOptimizeMap = {
     [key: string]: {
+      // Name of the optimized file
       output: string;
+      // ExcludeAnnotations to apply to this file
       excludeAnnotations: ExcludeAnnotationsMap;
+      // - On input to analyze, if provided, use this, rather than reading `key`
+      //   from disk.
+      // - After analyze, the source for `key`.
+      monkeyCSource?: string;
+      // - On input to analyze, if provided, use this, rather than parsing
+      //   monkeyCSource.
+      // - After analyze, the ast.
+      ast?: ESTreeProgram;
+      // After analyze, whether this file provides tests.
+      hasTests?: boolean;
     };
   };
   var lastModifiedSource: number;
@@ -467,12 +479,18 @@ export async function generateOptimizedProject(options: BuildConfig) {
   };
 }
 
+type Analysis = {
+  fnMap?: FilesToOptimizeMap;
+  paths?: string[];
+  state?: ProgramState;
+};
+
 async function fileInfoFromConfig(
   workspace: string,
   output: string,
   buildConfig: JungleQualifier,
   extraExcludes: ExcludeAnnotationsMap
-): Promise<FilesToOptimizeMap> {
+): Promise<Analysis> {
   const paths = (
     await Promise.all(
       buildConfig.sourcePath.map((pattern) =>
@@ -508,18 +526,21 @@ async function fileInfoFromConfig(
     extraExcludes
   );
 
-  return Object.fromEntries(
-    files.map((file) => [
-      file,
-      {
-        output: path.join(
-          output,
-          relative_path_no_dotdot(path.relative(workspace, file))
-        ),
-        excludeAnnotations,
-      },
-    ])
-  );
+  return {
+    fnMap: Object.fromEntries(
+      files.map((file) => [
+        file,
+        {
+          output: path.join(
+            output,
+            relative_path_no_dotdot(path.relative(workspace, file))
+          ),
+          excludeAnnotations,
+        },
+      ])
+    ),
+    paths: paths.filter((path) => path.endsWith("/")),
+  };
 }
 
 function excludesFromAnnotations(
@@ -538,7 +559,7 @@ function excludesFromAnnotations(
   return excludes;
 }
 
-const configOptionsToCheck: Array<keyof BuildConfig> = [
+const configOptionsToCheck = [
   "workspace",
   "releaseBuild",
   "testBuild",
@@ -546,7 +567,7 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
   "ignoredExcludeAnnotations",
   "ignoredAnnotations",
   "ignoredSourcePaths",
-];
+] as const;
 
 /**
  * @param {BuildConfig} config
@@ -570,7 +591,7 @@ async function generateOneConfig(
     buildModeExcludes.test = true;
   }
 
-  const fnMap = await fileInfoFromConfig(
+  const { fnMap } = await fileInfoFromConfig(
     workspace,
     path.join(output, "source"),
     buildConfig,
@@ -597,7 +618,7 @@ async function generateOneConfig(
                 resolvedBarrel
               ),
             }
-          );
+          ).then(({ fnMap }) => fnMap);
         })
         .flat()
     );
@@ -646,30 +667,66 @@ async function generateOneConfig(
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
-  const optFiles = await optimizeMonkeyC(fnMap);
+  await optimizeMonkeyC(fnMap);
   return Promise.all(
-    optFiles.map(async (file) => {
-      const name = fnMap[file.name].output;
+    Object.values(fnMap).map(async (info) => {
+      const name = info.output;
       const dir = path.dirname(name);
       await fs.mkdir(dir, { recursive: true });
 
-      const opt_source = formatAst(file.ast);
+      const opt_source = formatAst(info.ast, info.monkeyCSource);
       await fs.writeFile(name, opt_source);
-      return file.hasTests;
+      return info.hasTests;
     })
   ).then((results) => {
     const hasTests = results.some((v) => v);
-    fs.writeFile(
-      path.join(output, "build-info.json"),
-      JSON.stringify({
-        hasTests,
-        ...Object.fromEntries(
-          configOptionsToCheck.map((option) => [option, config[option]])
-        ),
-      })
-    );
-    return hasTests;
+    return fs
+      .writeFile(
+        path.join(output, "build-info.json"),
+        JSON.stringify({
+          hasTests,
+          ...Object.fromEntries(
+            configOptionsToCheck.map((option) => [option, config[option]])
+          ),
+        })
+      )
+      .then(() => hasTests);
   });
+}
+
+export async function getProjectAnalysis(
+  targets: Target[],
+  analysis: Analysis,
+  options: BuildConfig
+): Promise<Analysis> {
+  const sourcePath = targets
+    .map(({ qualifier: { sourcePath } }) => sourcePath)
+    .flat()
+    .sort()
+    .filter((s, i, arr) => !i || s !== arr[i - 1]);
+
+  const { fnMap, paths } = await fileInfoFromConfig(
+    options.workspace,
+    options.workspace,
+    { sourcePath },
+    {}
+  );
+
+  if (analysis.fnMap) {
+    Object.entries(fnMap).forEach(([k, v]) => {
+      if (hasProperty(analysis.fnMap, k)) {
+        const old = analysis.fnMap[k];
+        if (old.monkeyCSource) v.monkeyCSource = old.monkeyCSource;
+        if (old.ast) v.ast = old.ast;
+      }
+    });
+  }
+
+  await getFileASTs(fnMap);
+
+  const state = await analyze(fnMap);
+
+  return { fnMap, paths, state };
 }
 
 /**
