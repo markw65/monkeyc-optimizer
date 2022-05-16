@@ -117,8 +117,19 @@ export function collectNamespaces(
         }
         break;
       }
-      case "ThisExpression":
-        return [name, stack.slice(-1)];
+      case "ThisExpression": {
+        for (let i = stack.length; i--; ) {
+          const si = stack[i];
+          if (
+            si.type == "ModuleDeclaration" ||
+            si.type == "ClassDeclaration" ||
+            !i
+          ) {
+            return [name, [si]];
+          }
+        }
+        break;
+      }
       case "Identifier": {
         if (node.name == "$") {
           return [name || node.name, [stack[0]]];
