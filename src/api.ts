@@ -2,17 +2,17 @@
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
-import { getLiteralNode } from "src/mc-rewrite";
-import { negativeFixups } from "src/negative-fixups";
-import { getSdkPath } from "src/sdk-util";
-import { pushUnique } from "src/util";
+import { getLiteralNode } from "./mc-rewrite";
+import { negativeFixups } from "./negative-fixups";
+import { getSdkPath } from "./sdk-util";
+import { pushUnique } from "./util";
 import {
   Program,
   Node as ESTreeNode,
   NodeAll as ESTreeAll,
   Literal as ESTreeLiteral,
   NodeSubFields,
-} from "src/estree-types";
+} from "./estree-types";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
 /*

@@ -1,6 +1,6 @@
 import { parseStringPromise, Builder } from "xml2js";
 import * as fs from "fs/promises";
-import { getDeviceInfo } from "src/sdk-util";
+import { getDeviceInfo } from "./sdk-util";
 
 type iqApplication = {
   $: {

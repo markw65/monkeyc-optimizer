@@ -1,6 +1,6 @@
 import * as path from "path";
-import { getSdkPath, isWin } from "src/sdk-util";
-import { spawnByLine } from "src/util";
+import { getSdkPath, isWin } from "./sdk-util";
+import { spawnByLine } from "./util";
 
 export async function build_project(
   product: string,

@@ -1,32 +1,48 @@
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import path from "path";
-import { formatAst, getApiMapping, hasProperty, isStateNode } from "src/api";
-import { build_project } from "src/build";
+import { formatAst, getApiMapping, hasProperty, isStateNode } from "./api";
+import { build_project } from "./build";
 import {
   get_jungle,
   JungleQualifier,
   Target,
   ResolvedBarrel,
   ResolvedJungle,
-} from "src/jungles";
-import { launchSimulator, simulateProgram } from "src/launch";
-import {
-  checkManifest,
-  writeManifest,
-  manifestDropBarrels,
-} from "src/manifest";
-import { analyze, getFileASTs, optimizeMonkeyC } from "src/mc-rewrite";
-import { appSupport } from "src/sdk-util";
+} from "./jungles";
+import { launchSimulator, simulateProgram } from "./launch";
+import { checkManifest, writeManifest, manifestDropBarrels } from "./manifest";
+import { analyze, getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
+import { appSupport } from "./sdk-util";
 import {
   copyRecursiveAsNeeded,
   first_modified,
   globa,
   last_modified,
-} from "src/util";
-import { Program as ESTreeProgram } from "src/estree-types";
+} from "./util";
+import {
+  Node as ESTreeNode,
+  NodeAll as ESTreeAll,
+  Program as ESTreeProgram,
+  ModuleDeclaration as ESTreeModuleDeclaration,
+  ClassDeclaration as ESTreeClassDeclaration,
+  FunctionDeclaration as ESTreeFunctionDeclaration,
+  Literal as ESTreeLiteral,
+  BlockStatement as ESTreeBlockStatement,
+  EnumDeclaration as ESTreeEnumDeclaration,
+  VariableDeclarator as ESTreeVariableDeclarator,
+  TypedefDeclaration as ESTreeTypedefDeclaration,
+  EnumStringMember as ESTreeEnumStringMember,
+} from "./estree-types";
 
-export { copyRecursiveAsNeeded, launchSimulator, simulateProgram, get_jungle };
+export {
+  copyRecursiveAsNeeded,
+  launchSimulator,
+  simulateProgram,
+  get_jungle,
+  ESTreeProgram,
+  ESTreeNode,
+};
 
 function relative_path_no_dotdot(relative: string) {
   return relative.replace(
@@ -78,6 +94,89 @@ declare global {
       barrels?: Record<string, ResolvedJungle>;
       barrelMap?: Record<string, Record<string, ResolvedJungle>>;
     };
+  };
+  type StateNodeDecl =
+    | StateNode
+    /* Enum values */
+    | ESTreeEnumStringMember
+    /* Other declarations */
+    | ESTreeEnumDeclaration
+    | ESTreeTypedefDeclaration
+    | ESTreeVariableDeclarator;
+  type StateNodeDecls = {
+    [key: string]: StateNodeDecl[];
+  };
+  type ProgramStateNode = {
+    type: "Program";
+    node: null | undefined;
+    name: "$";
+    fullName: "$";
+    decls?: StateNodeDecls;
+    stack?: null | undefined;
+  };
+  type ModuleStateNode = {
+    type: "ModuleDeclaration";
+    name: string;
+    fullName: string;
+    node: ESTreeModuleDeclaration;
+    stack?: ProgramStateStack;
+    decls?: StateNodeDecls;
+  };
+  type ClassStateNode = {
+    type: "ClassDeclaration";
+    name: string;
+    fullName: string;
+    node: ESTreeClassDeclaration;
+    decls?: StateNodeDecls;
+    stack?: ProgramStateStack;
+    superClass: ClassStateNode[] | true;
+  };
+  type FunctionStateNode = {
+    type: "FunctionDeclaration";
+    name: string;
+    fullName: string;
+    node: ESTreeFunctionDeclaration;
+    // decls?: { [key: string]: (StateNode | string)[] };
+    stack?: ProgramStateStack;
+    decls?: undefined;
+  };
+  type BlockStateNode = {
+    type: "BlockStatement";
+    name?: null | undefined;
+    fullName?: null | undefined;
+    node: ESTreeBlockStatement;
+    decls?: StateNodeDecls;
+    stack?: null | undefined;
+  };
+  type StateNode =
+    | ProgramStateNode
+    | FunctionStateNode
+    | BlockStateNode
+    | ClassStateNode
+    | ModuleStateNode;
+  type ProgramStateStack = StateNode[];
+  export type ProgramState = {
+    allFunctions?: FunctionStateNode[];
+    allClasses?: ClassStateNode[];
+    stack?: ProgramStateStack;
+    shouldExclude?: (node: any) => any;
+    pre?: (node: ESTreeNode) => null | false | (keyof ESTreeAll)[];
+    post?: (node: ESTreeNode) => null | false | ESTreeNode;
+    lookup?: (
+      node: ESTreeNode,
+      name?: string | null,
+      stack?: ProgramStateStack
+    ) => [string, StateNodeDecl[]];
+    traverse?: (node: ESTreeNode) => void | boolean | ESTreeNode;
+    exposed?: { [key: string]: true };
+    calledFunctions?: { [key: string]: unknown[] };
+    localsStack?: {
+      node?: ESTreeNode;
+      map?: { [key: string]: true | string };
+      inners?: { [key: string]: true };
+    }[];
+    index?: { [key: string]: unknown[] };
+    constants?: { [key: string]: ESTreeLiteral };
   };
 
   type ExcludeAnnotationsMap = { [key: string]: boolean };
@@ -150,7 +249,7 @@ function getConfig(options: BuildConfig) {
  * @returns
  */
 export async function buildOptimizedProject(
-  product: string,
+  product: string | null,
   options: BuildConfig
 ) {
   const config = await getConfig(options);
@@ -479,10 +578,19 @@ export async function generateOptimizedProject(options: BuildConfig) {
   };
 }
 
-type Analysis = {
-  fnMap?: FilesToOptimizeMap;
-  paths?: string[];
-  state?: ProgramState;
+type PreAnalysis = {
+  fnMap: FilesToOptimizeMap;
+  paths: string[];
+};
+
+declare type RequiredNonNull<T> = {
+  [K1 in keyof T]-?: { [K2 in keyof T[K1]]-?: NonNullable<T[K1][K2]> };
+};
+
+export type Analysis = {
+  fnMap: RequiredNonNull<FilesToOptimizeMap>;
+  paths: string[];
+  state: ProgramState;
 };
 
 async function fileInfoFromConfig(
@@ -490,7 +598,7 @@ async function fileInfoFromConfig(
   output: string,
   buildConfig: JungleQualifier,
   extraExcludes: ExcludeAnnotationsMap
-): Promise<Analysis> {
+): Promise<PreAnalysis> {
   const paths = (
     await Promise.all(
       buildConfig.sourcePath.map((pattern) =>
@@ -696,7 +804,7 @@ async function generateOneConfig(
 
 export async function getProjectAnalysis(
   targets: Target[],
-  analysis: Analysis,
+  analysis: Analysis | null,
   options: BuildConfig
 ): Promise<Analysis> {
   const sourcePath = targets
@@ -712,7 +820,7 @@ export async function getProjectAnalysis(
     {}
   );
 
-  if (analysis.fnMap) {
+  if (analysis) {
     Object.entries(fnMap).forEach(([k, v]) => {
       if (hasProperty(analysis.fnMap, k)) {
         const old = analysis.fnMap[k];
@@ -726,7 +834,7 @@ export async function getProjectAnalysis(
 
   const state = await analyze(fnMap);
 
-  return { fnMap, paths, state };
+  return { fnMap: fnMap as Analysis["fnMap"], paths, state };
 }
 
 /**

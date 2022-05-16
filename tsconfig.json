@@ -1,18 +1,18 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
+    "baseUrl": "./",
+    "outDir": "build",
     "module": "es2020",
     "target": "es2020",
     "checkJs": true /* Typecheck .js files. */,
     "lib": ["ES2020"],
     "moduleResolution": "node",
-    "paths": {
-      "src/*": ["./src/*"]
-    },
     "allowSyntheticDefaultImports": true,
     "noImplicitReturns": true,
     "noImplicitAny": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "declaration": true
   },
+  "include": ["src/**/*.ts"],
   "exclude": ["build", "node_modules", "webpack.config.js", "test"]
 }

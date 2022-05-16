@@ -4,7 +4,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
 import * as jungle from "../build/jungle.js";
-import { hasProperty } from "src/api";
+import { hasProperty } from "./api";
 import {
   manifestAnnotations,
   manifestBarrelName,
@@ -12,10 +12,9 @@ import {
   manifestProducts,
   readManifest,
   ManifestXML,
-} from "src/manifest";
-import { getDeviceInfo, getLanguages } from "src/sdk-util";
-import { globa } from "src/util";
-import { stringWriter } from "../build/sdk-util.cjs";
+} from "./manifest";
+import { getDeviceInfo, getLanguages } from "./sdk-util";
+import { globa } from "./util";
 
 type JNode = Literal | QName | SubList;
 type Literal = {

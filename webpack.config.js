@@ -22,9 +22,6 @@ export default (env, argv) => {
       resolve: {
         enforceExtension: false,
         extensions: [".ts", ".js"],
-        alias: {
-          src: path.resolve(__dirname, "src"),
-        },
       },
     };
     return { ...config, ...extra };
@@ -122,10 +119,6 @@ export default (env, argv) => {
             // set to true for faster builds, or to transpile even
             // when there are errors.
             transpileOnly: false,
-
-            //compilerOptions: {
-            //  declaration,
-            //},
           },
         },
       ],

@@ -1,7 +1,7 @@
 import path from "path";
 import { execFile } from "child_process";
-import { getSdkPath, isWin } from "src/sdk-util";
-import { spawnByLine } from "src/util";
+import { getSdkPath, isWin } from "./sdk-util";
+import { spawnByLine } from "./util";
 
 export function launchSimulator(): Promise<void> {
   return getSdkPath().then((sdk) => {

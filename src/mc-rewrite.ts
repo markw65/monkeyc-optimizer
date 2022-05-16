@@ -8,112 +8,17 @@ import {
   isStateNode,
   traverseAst,
   LiteralIntegerRe,
-} from "src/api";
-import { pushUnique } from "src/util";
+} from "./api";
+import { pushUnique } from "./util";
 import {
   Node as ESTreeNode,
   NodeAll as ESTreeAll,
-  UnaryExpression as ESTreeUnaryExpression,
-  Identifier as ESTreeIdentifier,
-  ModuleDeclaration as ESTreeModuleDeclaration,
-  ClassDeclaration as ESTreeClassDeclaration,
   FunctionDeclaration as ESTreeFunctionDeclaration,
   Literal as ESTreeLiteral,
-  BlockStatement as ESTreeBlockStatement,
   ImportStatement as ESTreeImportStatement,
   AsExpression as ESTreeAsExpression,
-  EnumDeclaration as ESTreeEnumDeclaration,
-  VariableDeclarator as ESTreeVariableDeclarator,
-  TypedefDeclaration as ESTreeTypedefDeclaration,
-  EnumStringMember as ESTreeEnumStringMember,
-  BinaryExpression as ESTreeBinaryExpression,
-} from "src/estree-types";
-import { nodeType } from "../build/sdk-util.cjs";
-declare global {
-  type StateNodeDecl =
-    | StateNode
-    /* Enum values */
-    | ESTreeEnumStringMember
-    /* Other declarations */
-    | ESTreeEnumDeclaration
-    | ESTreeTypedefDeclaration
-    | ESTreeVariableDeclarator;
-  type StateNodeDecls = {
-    [key: string]: StateNodeDecl[];
-  };
-  type ProgramStateNode = {
-    type: "Program";
-    node: null | undefined;
-    name: "$";
-    fullName: "$";
-    decls?: StateNodeDecls;
-    stack?: null | undefined;
-  };
-  type ModuleStateNode = {
-    type: "ModuleDeclaration";
-    name: string;
-    fullName: string;
-    node: ESTreeModuleDeclaration;
-    stack?: ProgramStateStack;
-    decls?: StateNodeDecls;
-  };
-  type ClassStateNode = {
-    type: "ClassDeclaration";
-    name: string;
-    fullName: string;
-    node: ESTreeClassDeclaration;
-    decls?: StateNodeDecls;
-    stack?: ProgramStateStack;
-    superClass: ClassStateNode[] | true;
-  };
-  type FunctionStateNode = {
-    type: "FunctionDeclaration";
-    name: string;
-    fullName: string;
-    node: ESTreeFunctionDeclaration;
-    // decls?: { [key: string]: (StateNode | string)[] };
-    stack?: ProgramStateStack;
-    decls?: undefined;
-  };
-  type BlockStateNode = {
-    type: "BlockStatement";
-    name?: null | undefined;
-    fullName?: null | undefined;
-    node: ESTreeBlockStatement;
-    decls?: StateNodeDecls;
-    stack?: null | undefined;
-  };
-  type StateNode =
-    | ProgramStateNode
-    | FunctionStateNode
-    | BlockStateNode
-    | ClassStateNode
-    | ModuleStateNode;
-  type ProgramStateStack = StateNode[];
-  type ProgramState = {
-    allFunctions?: FunctionStateNode[];
-    allClasses?: ClassStateNode[];
-    stack?: ProgramStateStack;
-    shouldExclude?: (node: any) => any;
-    pre?: (node: ESTreeNode) => null | false | (keyof ESTreeAll)[];
-    post?: (node: ESTreeNode) => null | false | ESTreeNode;
-    lookup?: (
-      node: ESTreeNode,
-      name?: string,
-      stack?: ProgramStateStack
-    ) => [string, StateNodeDecl[]];
-    traverse?: (node: ESTreeNode) => void | boolean | ESTreeNode;
-    exposed?: { [key: string]: true };
-    calledFunctions?: { [key: string]: unknown[] };
-    localsStack?: {
-      node?: ESTreeNode;
-      map?: { [key: string]: true | string };
-      inners?: { [key: string]: true };
-    }[];
-    index?: { [key: string]: unknown[] };
-    constants?: { [key: string]: ESTreeLiteral };
-  };
-}
+} from "./estree-types";
+import { ESTreeProgram } from "./optimizer";
 
 type ImportItem = { node: ESTreeImportStatement; stack: ProgramStateStack };
 function processImports(

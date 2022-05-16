@@ -132,7 +132,7 @@ export async function promiseAll<T>(
 export async function copyRecursiveAsNeeded(
   source: string,
   target: string,
-  filter: (src: string, tgt: string) => boolean
+  filter?: (src: string, tgt: string) => boolean
 ): Promise<void> {
   const fstat = fs.stat;
   const sstat = await fstat(source);

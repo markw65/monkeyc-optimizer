@@ -4,6 +4,7 @@
   "version": "1.0.10",
   "description": "Source to source optimizer for Garmin Monkey C code",
   "main": "build/optimizer.cjs",
+  "types": "build/src/optimizer.d.ts",
   "exports": {
     ".": "./build/optimizer.cjs",
     "./*.js": "./build/*.cjs"
@@ -20,7 +21,8 @@
     "build/optimizer.cjs",
     "build/util.cjs",
     "build/sdk-util.cjs",
-    "build/api.cjs"
+    "build/api.cjs",
+    "build/src/*.d.ts"
   ],
   "author": "markw65",
   "license": "MIT",

@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
-import { globa } from "src/util";
+import { globa } from "./util";
 
 export const isWin = process.platform == "win32";
 
