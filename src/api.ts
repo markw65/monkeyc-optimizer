@@ -42,7 +42,10 @@ export async function getApiMapping(
     .replace(/^(\s*type)\s/gm, "$1def ");
 
   try {
-    const result = collectNamespaces(parser.parse(api, {}), state);
+    const result = collectNamespaces(
+      parser.parse(api, { grammarSource: "api.mir" }),
+      state
+    );
     negativeFixups.forEach((fixup) => {
       const value = fixup.split(".").reduce((state: StateNode, part) => {
         const decls = state.decls[part];
