@@ -1,4 +1,3 @@
-// @ts-ignore
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
@@ -17,8 +16,8 @@ import {
   Literal as ESTreeLiteral,
   ImportStatement as ESTreeImportStatement,
   AsExpression as ESTreeAsExpression,
+  Program as ESTreeProgram,
 } from "./estree-types";
-import { ESTreeProgram } from "./optimizer";
 
 type ImportItem = { node: ESTreeImportStatement; stack: ProgramStateStack };
 function processImports(
@@ -108,7 +107,7 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
       if (!value.ast) {
         value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, {
           grammarSource: name,
-        });
+        }) as ESTreeProgram;
       }
     })
   );

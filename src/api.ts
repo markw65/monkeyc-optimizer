@@ -1,4 +1,3 @@
-// @ts-ignore
 import MonkeyC from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
@@ -10,8 +9,7 @@ import {
   Program,
   Node as ESTreeNode,
   NodeAll as ESTreeAll,
-  Literal as ESTreeLiteral,
-  NodeSubFields,
+  Program as ESTreeProgram,
 } from "./estree-types";
 
 export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
@@ -43,7 +41,9 @@ export async function getApiMapping(
 
   try {
     const result = collectNamespaces(
-      parser.parse(api, { grammarSource: "api.mir" }),
+      parser.parse(api, {
+        grammarSource: "api.mir",
+      }) as ESTreeProgram,
       state
     );
     negativeFixups.forEach((fixup) => {
