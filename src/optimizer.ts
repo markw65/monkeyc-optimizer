@@ -166,7 +166,7 @@ declare global {
       node: ESTreeNode,
       name?: string | null,
       stack?: ProgramStateStack
-    ) => [string, StateNodeDecl[]];
+    ) => [string, StateNodeDecl[], ProgramStateStack];
     traverse?: (node: ESTreeNode) => void | boolean | ESTreeNode;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: unknown[] };

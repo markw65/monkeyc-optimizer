@@ -108,11 +108,15 @@ export function collectNamespaces(
     switch (node.type) {
       case "MemberExpression": {
         if (node.property.type != "Identifier" || node.computed) break;
-        const [, module] = state.lookup(node.object, name, stack);
+        const [, module, where] = state.lookup(node.object, name, stack);
         if (module && module.length === 1) {
           const result = checkOne(module[0], node.property.name);
           if (result) {
-            return [name || node.property.name, result];
+            return [
+              name || node.property.name,
+              result,
+              where.concat(module[0] as StateNode),
+            ];
           }
         }
         break;
@@ -125,25 +129,25 @@ export function collectNamespaces(
             si.type == "ClassDeclaration" ||
             !i
           ) {
-            return [name, [si]];
+            return [name || si.name, [si], stack.slice(0, i)];
           }
         }
         break;
       }
       case "Identifier": {
         if (node.name == "$") {
-          return [name || node.name, [stack[0]]];
+          return [name || node.name, [stack[0]], []];
         }
         for (let i = stack.length; i--; ) {
           const result = checkOne(stack[i], node.name);
           if (result) {
-            return [name || node.name, result];
+            return [name || node.name, result, stack.slice(0, i + 1)];
           }
         }
         break;
       }
     }
-    return [null, null];
+    return [null, null, null];
   };
 
   state.traverse = (root) =>
