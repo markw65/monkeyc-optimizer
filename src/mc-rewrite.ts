@@ -1,6 +1,7 @@
 import {
   default as MonkeyC,
   LiteralIntegerRe,
+  mctree,
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
@@ -11,18 +12,9 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
-import {
-  AsExpression as ESTreeAsExpression,
-  FunctionDeclaration as ESTreeFunctionDeclaration,
-  ImportStatement as ESTreeImportStatement,
-  Literal as ESTreeLiteral,
-  Node as ESTreeNode,
-  NodeAll as ESTreeAll,
-  Program as ESTreeProgram,
-} from "./estree-types";
 import { pushUnique } from "./util";
 
-type ImportItem = { node: ESTreeImportStatement; stack: ProgramStateStack };
+type ImportItem = { node: mctree.ImportStatement; stack: ProgramStateStack };
 function processImports(
   allImports: ImportItem[],
   lookup: ProgramState["lookup"]
@@ -110,7 +102,7 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
       if (!value.ast) {
         value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, null, {
           filepath: name,
-        }) as ESTreeProgram;
+        }) as mctree.Program;
       }
     })
   );
@@ -123,8 +115,13 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   const state: ProgramState = {
     allFunctions: [],
     allClasses: [],
-    shouldExclude(node: ESTreeNode) {
-      if ("attrs" in node && node.attrs && node.attrs.attrs) {
+    shouldExclude(node: mctree.Node) {
+      if (
+        "attrs" in node &&
+        node.attrs &&
+        "attrs" in node.attrs &&
+        node.attrs.attrs
+      ) {
         return node.attrs.attrs.reduce((drop, attr) => {
           if (attr.type != "UnaryExpression") return drop;
           if (attr.argument.type != "Identifier") return drop;
@@ -195,7 +192,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   return state;
 }
 
-function compareLiteralLike(a: ESTreeNode, b: ESTreeNode) {
+function compareLiteralLike(a: mctree.Node, b: mctree.Node) {
   while (a.type === "BinaryExpression") a = a.left;
   while (b.type === "BinaryExpression") b = b.left;
 
@@ -204,7 +201,7 @@ function compareLiteralLike(a: ESTreeNode, b: ESTreeNode) {
 
 export function getLiteralFromDecls(decls: StateNodeDecl[]) {
   if (!decls.length) return null;
-  let result: null | ESTreeLiteral | ESTreeAsExpression = null;
+  let result: null | mctree.Literal | mctree.AsExpression = null;
   if (
     decls.every((d) => {
       if (
@@ -229,8 +226,8 @@ export function getLiteralFromDecls(decls: StateNodeDecl[]) {
 }
 
 export function getLiteralNode(
-  node: ESTreeNode
-): null | ESTreeLiteral | ESTreeAsExpression {
+  node: mctree.Node
+): null | mctree.Literal | mctree.AsExpression {
   if (node.type == "Literal") return node;
   if (node.type == "BinaryExpression" && node.operator == "as") {
     return getLiteralNode(node.left) && node;
@@ -252,7 +249,9 @@ export function getLiteralNode(
   return null;
 }
 
-function getNodeValue(node: ESTreeNode): [ESTreeLiteral | null, string | null] {
+function getNodeValue(
+  node: mctree.Node
+): [mctree.Literal | null, string | null] {
   if (
     node.type == "BinaryExpression" &&
     node.operator == "as" &&
@@ -288,7 +287,7 @@ function getNodeValue(node: ESTreeNode): [ESTreeLiteral | null, string | null] {
   return [node, type];
 }
 
-function optimizeNode(node: ESTreeNode) {
+function optimizeNode(node: mctree.Node) {
   switch (node.type) {
     case "UnaryExpression": {
       const [arg, type] = getNodeValue(node.argument);
@@ -380,8 +379,8 @@ function optimizeNode(node: ESTreeNode) {
 }
 
 function evaluateFunction(
-  func: ESTreeFunctionDeclaration,
-  args: ESTreeNode[] | null
+  func: mctree.FunctionDeclaration,
+  args: mctree.Node[] | null
 ) {
   if (args && args.length != func.params.length) {
     return false;
@@ -391,7 +390,7 @@ function evaluateFunction(
     Object.fromEntries(
       func.params.map((p, i) => [variableDeclarationName(p), args[i]])
     );
-  let ret: ESTreeNode | null = null;
+  let ret: mctree.Node | null = null;
   const body = args ? JSON.parse(JSON.stringify(func.body)) : func.body;
   try {
     traverseAst(
@@ -437,13 +436,13 @@ function evaluateFunction(
   }
 }
 
-type ESTreeSome = { [k in keyof ESTreeAll]?: unknown };
+type MCTreeSome = { [k in keyof mctree.NodeAll]?: unknown };
 
 export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   const state = await analyze(fnMap);
-  const replace = (node: ESTreeSome, obj: ESTreeSome) => {
+  const replace = (node: MCTreeSome, obj: MCTreeSome) => {
     for (const k of Object.keys(node)) {
-      delete node[k as keyof ESTreeSome];
+      delete node[k as keyof MCTreeSome];
     }
     if (obj.enumType) {
       obj = {
@@ -454,10 +453,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       };
     }
     for (const [k, v] of Object.entries(obj)) {
-      node[k as keyof ESTreeSome] = v;
+      node[k as keyof MCTreeSome] = v;
     }
   };
-  const lookupAndReplace = (node: ESTreeNode) => {
+  const lookupAndReplace = (node: mctree.Node) => {
     const [, objects] = state.lookup(node);
     if (!objects) {
       return false;
@@ -474,7 +473,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
    * Might this function be called from somewhere, including
    * callbacks from the api (eg getSettingsView, etc).
    */
-  const maybeCalled = (func: ESTreeFunctionDeclaration) => {
+  const maybeCalled = (func: mctree.FunctionDeclaration) => {
     if (!func.body) {
       // this is an api.mir function. It can be called
       return true;

@@ -20,30 +20,15 @@ import {
   globa,
   last_modified,
 } from "./util";
-import {
-  Node as ESTreeNode,
-  NodeAll as ESTreeAll,
-  Program as ESTreeProgram,
-  ModuleDeclaration as ESTreeModuleDeclaration,
-  ClassDeclaration as ESTreeClassDeclaration,
-  FunctionDeclaration as ESTreeFunctionDeclaration,
-  Literal as ESTreeLiteral,
-  BlockStatement as ESTreeBlockStatement,
-  EnumDeclaration as ESTreeEnumDeclaration,
-  VariableDeclarator as ESTreeVariableDeclarator,
-  TypedefDeclaration as ESTreeTypedefDeclaration,
-  EnumStringMember as ESTreeEnumStringMember,
-  TypedIdentifier as ESTreeTypedIdentifier,
-} from "./estree-types";
+import { mctree } from "@markw65/prettier-plugin-monkeyc";
 
 export {
   copyRecursiveAsNeeded,
   launchSimulator,
   simulateProgram,
   get_jungle,
-  ESTreeProgram,
-  ESTreeNode,
   ResolvedJungle,
+  mctree,
 };
 
 function relative_path_no_dotdot(relative: string) {
@@ -100,13 +85,13 @@ declare global {
   type StateNodeDecl =
     | StateNode
     /* Enum values */
-    | ESTreeEnumStringMember
+    | mctree.EnumStringMember
     /* Function parameters */
-    | ESTreeTypedIdentifier
+    | mctree.TypedIdentifier
     /* Other declarations */
-    | ESTreeEnumDeclaration
-    | ESTreeTypedefDeclaration
-    | ESTreeVariableDeclarator;
+    | mctree.EnumDeclaration
+    | mctree.TypedefDeclaration
+    | mctree.VariableDeclarator;
   type StateNodeDecls = {
     [key: string]: StateNodeDecl[];
   };
@@ -122,7 +107,7 @@ declare global {
     type: "ModuleDeclaration";
     name: string;
     fullName: string;
-    node: ESTreeModuleDeclaration;
+    node: mctree.ModuleDeclaration;
     stack?: ProgramStateStack;
     decls?: StateNodeDecls;
   };
@@ -130,7 +115,7 @@ declare global {
     type: "ClassDeclaration";
     name: string;
     fullName: string;
-    node: ESTreeClassDeclaration;
+    node: mctree.ClassDeclaration;
     decls?: StateNodeDecls;
     stack?: ProgramStateStack;
     superClass: ClassStateNode[] | true;
@@ -139,7 +124,7 @@ declare global {
     type: "FunctionDeclaration";
     name: string;
     fullName: string;
-    node: ESTreeFunctionDeclaration;
+    node: mctree.FunctionDeclaration;
     // decls?: { [key: string]: (StateNode | string)[] };
     stack?: ProgramStateStack;
     decls?: undefined;
@@ -148,7 +133,7 @@ declare global {
     type: "BlockStatement";
     name?: null | undefined;
     fullName?: null | undefined;
-    node: ESTreeBlockStatement;
+    node: mctree.BlockStatement;
     decls?: StateNodeDecls;
     stack?: null | undefined;
   };
@@ -164,23 +149,23 @@ declare global {
     allClasses?: ClassStateNode[];
     stack?: ProgramStateStack;
     shouldExclude?: (node: any) => any;
-    pre?: (node: ESTreeNode) => null | false | (keyof ESTreeAll)[];
-    post?: (node: ESTreeNode) => null | false | ESTreeNode;
+    pre?: (node: mctree.Node) => null | false | (keyof mctree.NodeAll)[];
+    post?: (node: mctree.Node) => null | false | mctree.Node;
     lookup?: (
-      node: ESTreeNode,
+      node: mctree.Node,
       name?: string | null,
       stack?: ProgramStateStack
     ) => [string, StateNodeDecl[], ProgramStateStack];
-    traverse?: (node: ESTreeNode) => void | boolean | ESTreeNode;
+    traverse?: (node: mctree.Node) => void | boolean | mctree.Node;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: unknown[] };
     localsStack?: {
-      node?: ESTreeNode;
+      node?: mctree.Node;
       map?: { [key: string]: true | string };
       inners?: { [key: string]: true };
     }[];
     index?: { [key: string]: unknown[] };
-    constants?: { [key: string]: ESTreeLiteral };
+    constants?: { [key: string]: mctree.Literal };
   };
 
   type ExcludeAnnotationsMap = { [key: string]: boolean };
@@ -197,7 +182,7 @@ declare global {
       // - On input to analyze, if provided, use this, rather than parsing
       //   monkeyCSource.
       // - After analyze, the ast.
-      ast?: ESTreeProgram;
+      ast?: mctree.Program;
       // After analyze, whether this file provides tests.
       hasTests?: boolean;
     };

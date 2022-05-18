@@ -1,6 +1,7 @@
 import {
   default as MonkeyC,
   LiteralIntegerRe,
+  mctree,
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
@@ -8,13 +9,6 @@ import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique } from "./util";
-import {
-  Program,
-  Node as ESTreeNode,
-  NodeAll as ESTreeAll,
-  Program as ESTreeProgram,
-  TypedIdentifier as ESTreeTypedIdentifier,
-} from "./estree-types";
 
 /*
  * This is an unfortunate hack. I want to be able to extract things
@@ -46,7 +40,7 @@ export async function getApiMapping(
     const result = collectNamespaces(
       parser.parse(api, null, {
         filepath: "api.mir",
-      }) as ESTreeProgram,
+      }) as mctree.Program,
       state
     );
     negativeFixups.forEach((fixup) => {
@@ -89,12 +83,12 @@ export function isStateNode(node: StateNodeDecl): node is StateNode {
   return hasProperty(node, "node");
 }
 
-export function variableDeclarationName(node: ESTreeTypedIdentifier) {
+export function variableDeclarationName(node: mctree.TypedIdentifier) {
   return ("left" in node ? node.left : node).name;
 }
 
 export function collectNamespaces(
-  ast: Program,
+  ast: mctree.Program,
   state: ProgramState
 ): ProgramStateNode {
   state = state || {};
@@ -351,7 +345,7 @@ export function collectNamespaces(
   return state.stack[0];
 }
 
-function isESTreeNode(node: unknown): node is ESTreeNode {
+function isMCTreeNode(node: unknown): node is mctree.Node {
   return node && typeof node === "object" && "type" in node;
 }
 
@@ -369,20 +363,20 @@ function isESTreeNode(node: unknown): node is ESTreeNode {
  *    removed.
  */
 export function traverseAst(
-  node: ESTreeNode,
-  pre?: (node: ESTreeNode) => void | null | false | (keyof ESTreeAll)[],
-  post?: (node: ESTreeNode) => void | null | false | ESTreeNode
-): false | void | null | ESTreeNode {
+  node: mctree.Node,
+  pre?: (node: mctree.Node) => void | null | false | (keyof mctree.NodeAll)[],
+  post?: (node: mctree.Node) => void | null | false | mctree.Node
+): false | void | null | mctree.Node {
   const nodes = pre && pre(node);
   if (nodes === false) return;
   for (const key of nodes || Object.keys(node)) {
-    const value = (node as ESTreeAll)[key as keyof ESTreeAll];
+    const value = (node as mctree.NodeAll)[key as keyof mctree.NodeAll];
     if (!value) continue;
     if (Array.isArray(value)) {
       const values = value as Array<unknown>;
       const deletions = values.reduce<null | { [key: number]: true }>(
         (state, obj, i) => {
-          if (isESTreeNode(obj)) {
+          if (isMCTreeNode(obj)) {
             const repl = traverseAst(obj, pre, post);
             if (repl === false) {
               if (!state) state = {};
@@ -402,10 +396,10 @@ export function traverseAst(
           ...values.filter((obj, i) => deletions[i] !== true)
         );
       }
-    } else if (isESTreeNode(value)) {
+    } else if (isMCTreeNode(value)) {
       const repl = traverseAst(value, pre, post);
       if (repl === false) {
-        delete node[key as keyof ESTreeNode];
+        delete node[key as keyof mctree.Node];
       } else if (repl != null) {
         (node as unknown as Record<string, unknown>)[key] = repl;
       }
@@ -414,7 +408,7 @@ export function traverseAst(
   return post && post(node);
 }
 
-export function formatAst(node: ESTreeNode, monkeyCSource: string = null) {
+export function formatAst(node: mctree.Node, monkeyCSource: string = null) {
   if ("comments" in node && !monkeyCSource) {
     // Prettier inserts comments by using the source location to
     // find the original comment, rather than using the contents
@@ -438,14 +432,16 @@ export function formatAst(node: ESTreeNode, monkeyCSource: string = null) {
 
 function handleException(
   state: ProgramState,
-  node: ESTreeNode,
+  node: mctree.Node,
   exception: unknown
 ): never {
   let message;
   try {
     const fullName = state.stack
       .map((e) => e.name)
-      .concat("name" in node && node.name)
+      .concat(
+        "name" in node && typeof node.name === "string" ? node.name : null
+      )
       .filter((e) => e != null)
       .join(".");
     const location =
