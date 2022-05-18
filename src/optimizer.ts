@@ -42,6 +42,7 @@ export {
   get_jungle,
   ESTreeProgram,
   ESTreeNode,
+  ResolvedJungle,
 };
 
 function relative_path_no_dotdot(relative: string) {
@@ -578,7 +579,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
   };
 }
 
-type PreAnalysis = {
+export type PreAnalysis = {
   fnMap: FilesToOptimizeMap;
   paths: string[];
 };
@@ -804,7 +805,7 @@ async function generateOneConfig(
 
 export async function getProjectAnalysis(
   targets: Target[],
-  analysis: Analysis | null,
+  analysis: PreAnalysis | null,
   options: BuildConfig
 ): Promise<Analysis> {
   const sourcePath = targets
