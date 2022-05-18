@@ -1,4 +1,7 @@
-import MonkeyC from "@markw65/prettier-plugin-monkeyc";
+import {
+  default as MonkeyC,
+  LiteralIntegerRe,
+} from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
   collectNamespaces,
@@ -6,18 +9,18 @@ import {
   hasProperty,
   isStateNode,
   traverseAst,
-  LiteralIntegerRe,
+  variableDeclarationName,
 } from "./api";
-import { pushUnique } from "./util";
 import {
+  AsExpression as ESTreeAsExpression,
+  FunctionDeclaration as ESTreeFunctionDeclaration,
+  ImportStatement as ESTreeImportStatement,
+  Literal as ESTreeLiteral,
   Node as ESTreeNode,
   NodeAll as ESTreeAll,
-  FunctionDeclaration as ESTreeFunctionDeclaration,
-  Literal as ESTreeLiteral,
-  ImportStatement as ESTreeImportStatement,
-  AsExpression as ESTreeAsExpression,
   Program as ESTreeProgram,
 } from "./estree-types";
+import { pushUnique } from "./util";
 
 type ImportItem = { node: ESTreeImportStatement; stack: ProgramStateStack };
 function processImports(
@@ -105,8 +108,8 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
   return getFileSources(fnMap).then(() =>
     Object.entries(fnMap).forEach(([name, value]) => {
       if (!value.ast) {
-        value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, {
-          grammarSource: name,
+        value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, null, {
+          filepath: name,
         }) as ESTreeProgram;
       }
     })
@@ -384,7 +387,10 @@ function evaluateFunction(
     return false;
   }
   const paramValues =
-    args && Object.fromEntries(func.params.map((p, i) => [p.name, args[i]]));
+    args &&
+    Object.fromEntries(
+      func.params.map((p, i) => [variableDeclarationName(p), args[i]])
+    );
   let ret: ESTreeNode | null = null;
   const body = args ? JSON.parse(JSON.stringify(func.body)) : func.body;
   try {
@@ -573,11 +579,12 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         const locals = state.localsStack.slice(-1).pop();
         const { map } = locals;
         if (map) {
-          if (hasProperty(map, node.id.name)) {
+          const declName = variableDeclarationName(node.id);
+          if (hasProperty(map, declName)) {
             // We already have a variable with this name in scope
             // Recent monkeyc compilers complain, so rename it
             let suffix = 0;
-            let node_name = node.id.name;
+            let node_name = declName;
             const match = node_name.match(/^pmcr_(.*)_(\d+)$/);
             if (match) {
               node_name = match[1];
@@ -589,7 +596,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
               locals.inners = {};
               traverseAst(locals.node, (node) => {
                 if (node.type === "VariableDeclarator") {
-                  locals.inners[node.id.name] = true;
+                  locals.inners[variableDeclarationName(node.id)] = true;
                 }
               });
             }
@@ -621,11 +628,15 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
               }
               suffix++;
             }
-            map[node.id.name] = name;
+            map[declName] = name;
             map[name] = true;
-            node.id.name = name;
+            if (node.id.type === "Identifier") {
+              node.id.name = name;
+            } else {
+              node.id.left.name = name;
+            }
           } else {
-            map[node.id.name] = true;
+            map[declName] = true;
           }
         }
         return ["init"];
@@ -685,7 +696,8 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       }
       case "FunctionDeclaration": {
         const map: Record<string, string | true> = {};
-        node.params && node.params.forEach((p) => (map[p.name] = true));
+        node.params &&
+          node.params.forEach((p) => (map[variableDeclarationName(p)] = true));
         state.localsStack.push({ node, map });
         const [parent] = state.stack.slice(-2);
         if (parent.type == "ClassDeclaration" && !maybeCalled(node)) {
@@ -825,11 +837,13 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
           }
           break;
         case "VariableDeclaration": {
-          node.declarations = node.declarations.filter(
-            (d) =>
-              !hasProperty(state.index, d.id.name) ||
-              hasProperty(state.exposed, d.id.name)
-          );
+          node.declarations = node.declarations.filter((d) => {
+            const name = variableDeclarationName(d.id);
+            return (
+              !hasProperty(state.index, name) ||
+              hasProperty(state.exposed, name)
+            );
+          });
           if (!node.declarations.length) {
             return false;
           }

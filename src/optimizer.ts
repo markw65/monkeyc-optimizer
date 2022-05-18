@@ -33,6 +33,7 @@ import {
   VariableDeclarator as ESTreeVariableDeclarator,
   TypedefDeclaration as ESTreeTypedefDeclaration,
   EnumStringMember as ESTreeEnumStringMember,
+  TypedIdentifier as ESTreeTypedIdentifier,
 } from "./estree-types";
 
 export {
@@ -100,6 +101,8 @@ declare global {
     | StateNode
     /* Enum values */
     | ESTreeEnumStringMember
+    /* Function parameters */
+    | ESTreeTypedIdentifier
     /* Other declarations */
     | ESTreeEnumDeclaration
     | ESTreeTypedefDeclaration

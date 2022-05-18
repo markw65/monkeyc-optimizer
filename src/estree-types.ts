@@ -43,7 +43,6 @@ export type Node =
   | Statement
   | Expression
   | Property
-  | Identifier
   | Declaration
   | ImportStatement
   | AsTypeSpec
@@ -83,7 +82,7 @@ export interface ModuleDeclaration extends BaseDeclaration {
 }
 
 interface BaseFunction extends BaseNode {
-  params: Array<Identifier>;
+  params: Array<TypedIdentifier>;
   body: BlockStatement;
 }
 
@@ -201,7 +200,7 @@ export interface VariableDeclaration extends BaseDeclaration {
 
 export interface VariableDeclarator extends BaseNode {
   type: "VariableDeclarator";
-  id: Identifier;
+  id: TypedIdentifier;
   init?: Expression | null | undefined;
   kind: "var" | "const";
 }
@@ -215,6 +214,7 @@ type Expression =
   | UpdateExpression
   | BinaryExpression
   | AsExpression
+  | AsIdentifier
   | AssignmentExpression
   | LogicalExpression
   | MemberExpression
@@ -289,6 +289,10 @@ export interface AsExpression extends BaseExpression {
   right: TypeSpecList;
 }
 
+export interface AsIdentifier extends AsExpression {
+  left: Identifier;
+}
+
 export interface AssignmentExpression extends BaseExpression {
   type: "AssignmentExpression";
   operator: AssignmentOperator;
@@ -358,7 +362,6 @@ export interface CatchClauses extends BaseNode {
 export interface Identifier extends BaseNode, BaseExpression {
   type: "Identifier";
   name: string;
-  ts?: AsTypeSpec;
 }
 
 export interface Literal extends BaseNode, BaseExpression {
@@ -469,11 +472,13 @@ export interface TypeSpecPart extends BaseNode {
   generics?: Array<TypeSpecList>;
 }
 
+export type TypedIdentifier = Identifier | AsIdentifier;
+
 export interface MethodDefinition extends BaseNode {
   type: "MethodDefinition";
   kind: "method";
   key: "";
-  params: Array<Identifier>;
+  params: Array<TypedIdentifier>;
   returnType: AsTypeSpec;
 }
 

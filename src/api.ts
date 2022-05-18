@@ -1,4 +1,7 @@
-import MonkeyC from "@markw65/prettier-plugin-monkeyc";
+import {
+  default as MonkeyC,
+  LiteralIntegerRe,
+} from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import Prettier from "prettier/standalone.js";
 import { getLiteralNode } from "./mc-rewrite";
@@ -10,9 +13,9 @@ import {
   Node as ESTreeNode,
   NodeAll as ESTreeAll,
   Program as ESTreeProgram,
+  TypedIdentifier as ESTreeTypedIdentifier,
 } from "./estree-types";
 
-export const LiteralIntegerRe = /^(0x[0-9a-f]+|\d+)(l)?$/i;
 /*
  * This is an unfortunate hack. I want to be able to extract things
  * like the types of all of a Class's variables (in particular the type
@@ -41,8 +44,8 @@ export async function getApiMapping(
 
   try {
     const result = collectNamespaces(
-      parser.parse(api, {
-        grammarSource: "api.mir",
+      parser.parse(api, null, {
+        filepath: "api.mir",
       }) as ESTreeProgram,
       state
     );
@@ -84,6 +87,10 @@ export function hasProperty(obj: unknown, prop: string) {
 
 export function isStateNode(node: StateNodeDecl): node is StateNode {
   return hasProperty(node, "node");
+}
+
+export function variableDeclarationName(node: ESTreeTypedIdentifier) {
+  return ("left" in node ? node.left : node).name;
 }
 
 export function collectNamespaces(
@@ -179,7 +186,7 @@ export function collectNamespaces(
             case "FunctionDeclaration":
             case "ModuleDeclaration": {
               const [parent] = state.stack.slice(-1);
-              const name = "id" in node && node.id && node.id.name;
+              const name = "id" in node ? node.id && node.id.name : null;
               const fullName = state.stack
                 .map((e) => e.name)
                 .concat(name)
@@ -207,6 +214,16 @@ export function collectNamespaces(
                   }
                 } else {
                   parent.decls[elm.name] = [];
+                }
+                if (
+                  node.type === "FunctionDeclaration" &&
+                  node.params &&
+                  node.params.length
+                ) {
+                  elm.decls = {};
+                  node.params.forEach(
+                    (p) => (elm.decls[variableDeclarationName(p)] = [p])
+                  );
                 }
                 parent.decls[elm.name].push(elm);
               }
@@ -239,16 +256,17 @@ export function collectNamespaces(
               const [parent] = state.stack.slice(-1);
               if (!parent.decls) parent.decls = {};
               node.declarations.forEach((decl) => {
-                if (!hasProperty(parent.decls, decl.id.name)) {
-                  parent.decls[decl.id.name] = [];
+                const name = variableDeclarationName(decl.id);
+                if (!hasProperty(parent.decls, name)) {
+                  parent.decls[name] = [];
                 }
                 decl.kind = node.kind;
-                pushUnique(parent.decls[decl.id.name], decl);
+                pushUnique(parent.decls[name], decl);
                 if (node.kind == "const") {
-                  if (!hasProperty(state.index, decl.id.name)) {
-                    state.index[decl.id.name] = [];
+                  if (!hasProperty(state.index, name)) {
+                    state.index[name] = [];
                   }
-                  pushUnique(state.index[decl.id.name], parent);
+                  pushUnique(state.index[name], parent);
                 }
               });
               break;
