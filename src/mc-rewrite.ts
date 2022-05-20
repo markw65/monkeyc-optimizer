@@ -98,13 +98,23 @@ export function getFileSources(fnMap: FilesToOptimizeMap) {
 
 export function getFileASTs(fnMap: FilesToOptimizeMap) {
   return getFileSources(fnMap).then(() =>
-    Object.entries(fnMap).forEach(([name, value]) => {
+    Object.entries(fnMap).reduce((ok, [name, value]) => {
       if (!value.ast) {
-        value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, null, {
-          filepath: name,
-        }) as mctree.Program;
+        try {
+          value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, null, {
+            filepath: name,
+          }) as mctree.Program;
+        } catch (e) {
+          ok = false;
+          if (e instanceof Error) {
+            value.parserError = e;
+          } else {
+            value.parserError = new Error("An unknown parser error occurred");
+          }
+        }
       }
-    })
+      return ok;
+    }, true)
   );
 }
 
@@ -176,7 +186,10 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
 
   await getFileASTs(fnMap);
   Object.entries(fnMap).forEach(([name, value]) => {
-    const { ast } = value;
+    const { ast, parserError } = value;
+    if (!ast) {
+      throw parserError || new Error(`Failed to parse ${name}`);
+    }
     excludeAnnotations = value.excludeAnnotations;
     hasTests = false;
     collectNamespaces(ast, state);

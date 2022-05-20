@@ -183,6 +183,8 @@ declare global {
       //   monkeyCSource.
       // - After analyze, the ast.
       ast?: mctree.Program;
+      // If parsing failed, we have this instead of an ast.
+      parserError?: Error;
       // After analyze, whether this file provides tests.
       hasTests?: boolean;
     };
@@ -795,7 +797,7 @@ export async function getProjectAnalysis(
   targets: Target[],
   analysis: PreAnalysis | null,
   options: BuildConfig
-): Promise<Analysis> {
+): Promise<Analysis | PreAnalysis> {
   const sourcePath = targets
     .map(({ qualifier: { sourcePath } }) => sourcePath)
     .flat()
@@ -819,7 +821,9 @@ export async function getProjectAnalysis(
     });
   }
 
-  await getFileASTs(fnMap);
+  if (!(await getFileASTs(fnMap))) {
+    return { fnMap, paths };
+  }
 
   const state = await analyze(fnMap);
 
