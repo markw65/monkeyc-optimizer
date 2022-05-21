@@ -100,3 +100,22 @@ More fixes found via open source projects.
 - Add some typing via jsdoc, and turn on ts validation in vscode
 - Bump to @markw65/prettier-plugin-monkeyc:1.0.16 so ts recognizes its exports
 - Add [garmin/connectiq-apps](https://github.com/garmin/connectiq-apps) and fix some minor issues it revealed
+
+### 1.0.11
+
+- Improvements
+
+  - Add option to run tests (for projects that have them)
+  - Add getProjectAnalysis api, to support various language features in @markw65/prettier-extension-monkeyc
+
+- Bug fixes
+
+  - Fix lookup of self/me
+
+- Code cleanup
+  - More typing. Check that build options match previous ones before re-using the optimized files
+  - Move everything over to typescript
+    - The project was becoming hard to maintain due to too much ad-hoc dynamic typing. This should allow easier/safer refactors and code cleanup.
+  - Refactoring to make analysis available in prettier-extension-monkeyc
+  - Generate .d.ts, and drop unneeded paths/resolve.alias
+  - Pull in a typed version of @markw65/prettier-plugin-monkeyc
