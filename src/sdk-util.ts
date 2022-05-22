@@ -7,14 +7,24 @@ export const isWin = process.platform == "win32";
 
 export const appSupport = isWin
   ? `${process.env.APPDATA}`.replace(/\\/g, "/")
+  : process.platform == "linux"
+  ? `${process.env.HOME}/.config`
   : `${process.env.HOME}/Library/Application Support`;
 
-export const connectiq = `${appSupport}/Garmin/ConnectIQ`;
+export const connectiq =
+  process.platform == "linux"
+    ? `${process.env.HOME}/.Garmin/ConnectIQ`
+    : `${appSupport}/Garmin/ConnectIQ`;
 
 export function getSdkPath() {
   return fs
     .readFile(connectiq + "/current-sdk.cfg")
-    .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"));
+    .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"))
+    .catch(() => {
+      throw new Error(
+        `No sdk found at '${connectiq}'. Check your sdk is correctly installed`
+      );
+    });
 }
 
 export async function getDeviceInfo(): Promise<{
@@ -24,6 +34,11 @@ export async function getDeviceInfo(): Promise<{
   };
 }> {
   const files = await globa(`${connectiq}/Devices/*/compiler.json`);
+  if (!files.length) {
+    throw new Error(
+      `No devices found at '${connectiq}/Devices'. Check your sdk is correctly installed`
+    );
+  }
   return Promise.all(
     files.map((file) => {
       return fs.readFile(file).then((data) => {
