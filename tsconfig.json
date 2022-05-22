@@ -9,10 +9,10 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "noImplicitReturns": true,
-    "noImplicitAny": true,
     "sourceMap": true,
     "declaration": true,
-    "useUnknownInCatchVariables": true
+    "useUnknownInCatchVariables": true,
+    "strict": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["build", "node_modules", "webpack.config.js", "test"]

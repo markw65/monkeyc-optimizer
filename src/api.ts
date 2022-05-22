@@ -44,8 +44,8 @@ export async function getApiMapping(
       state
     );
     negativeFixups.forEach((fixup) => {
-      const value = fixup.split(".").reduce((state: StateNode, part) => {
-        const decls = state.decls[part];
+      const value = fixup.split(".").reduce((state: StateNodeDecl, part) => {
+        const decls = isStateNode(state) && state.decls?.[part];
         if (!Array.isArray(decls) || decls.length != 1 || !decls[0]) {
           throw `Failed to find and fix negative constant ${fixup}`;
         }
@@ -58,10 +58,12 @@ export async function getApiMapping(
         throw `Negative constant ${fixup} did not refer to a constant`;
       }
       const init = value.init;
-      if (init.type !== "Literal") {
+      if (!init || init.type !== "Literal") {
         throw `Negative constant ${fixup} was not a Literal`;
       }
-      if (init.value > 0) {
+      if (typeof init.value !== "number") {
+        console.log(`Negative fixup ${fixup} was already not a number!`);
+      } else if (init.value > 0) {
         init.value = -init.value;
         init.raw = "-" + init.raw;
       } else {
@@ -70,13 +72,21 @@ export async function getApiMapping(
     });
     return result;
   } catch (e) {
-    console.error(e.toString());
+    console.error(`${e}`);
     return null;
   }
 }
 
-export function hasProperty(obj: unknown, prop: string) {
-  return obj && Object.prototype.hasOwnProperty.call(obj, prop);
+// We can use hasProperty to remove undefined/null (as a side effect),
+// but we shouldn't apply it to things the compiler already knows are
+// non null because them the compiler will incorrectly infer never in the
+// false case.
+export function hasProperty<
+  T extends null extends T ? unknown : undefined extends T ? unknown : never
+>(obj: T, prop: string): obj is NonNullable<T>;
+export function hasProperty<T>(obj: T, prop: string): boolean;
+export function hasProperty<T>(obj: T, prop: string): boolean {
+  return obj ? Object.prototype.hasOwnProperty.call(obj, prop) : false;
 }
 
 export function isStateNode(node: StateNodeDecl): node is StateNode {
@@ -89,9 +99,9 @@ export function variableDeclarationName(node: mctree.TypedIdentifier) {
 
 export function collectNamespaces(
   ast: mctree.Program,
-  state: ProgramState
+  stateIn?: ProgramState
 ): ProgramStateNode {
-  state = state || {};
+  const state = (stateIn || {}) as ProgramStateLive;
   if (!state.index) state.index = {};
   if (!state.stack) {
     state.stack = [
@@ -130,7 +140,7 @@ export function collectNamespaces(
             si.type == "ClassDeclaration" ||
             !i
           ) {
-            return [name || si.name, [si], stack.slice(0, i)];
+            return [name || (si.name as string), [si], stack.slice(0, i)];
           }
         }
         break;
@@ -195,7 +205,7 @@ export function collectNamespaces(
               state.stack.push(elm);
               if (name) {
                 if (!parent.decls) parent.decls = {};
-                if (hasProperty(parent.decls, elm.name)) {
+                if (hasProperty(parent.decls, name)) {
                   const what =
                     node.type == "ModuleDeclaration" ? "type" : "node";
                   const e = parent.decls[name].find(
@@ -207,19 +217,19 @@ export function collectNamespaces(
                     break;
                   }
                 } else {
-                  parent.decls[elm.name] = [];
+                  parent.decls[name] = [];
                 }
                 if (
                   node.type === "FunctionDeclaration" &&
                   node.params &&
                   node.params.length
                 ) {
-                  elm.decls = {};
+                  const decls: StateNodeDecls = (elm.decls = {});
                   node.params.forEach(
-                    (p) => (elm.decls[variableDeclarationName(p)] = [p])
+                    (p) => (decls[variableDeclarationName(p)] = [p])
                   );
                 }
-                parent.decls[elm.name].push(elm);
+                parent.decls[name].push(elm);
               }
               break;
             }
@@ -238,24 +248,26 @@ export function collectNamespaces(
             }
             // fall through
             case "TypedefDeclaration": {
+              const name = node.id!.name;
               const [parent] = state.stack.slice(-1);
               if (!parent.decls) parent.decls = {};
-              if (!hasProperty(parent.decls, node.id.name)) {
-                parent.decls[node.id.name] = [];
+              if (!hasProperty(parent.decls, name)) {
+                parent.decls[name] = [];
               }
-              pushUnique(parent.decls[node.id.name], node);
+              pushUnique(parent.decls[name], node);
               break;
             }
             case "VariableDeclaration": {
               const [parent] = state.stack.slice(-1);
               if (!parent.decls) parent.decls = {};
+              const decls = parent.decls;
               node.declarations.forEach((decl) => {
                 const name = variableDeclarationName(decl.id);
-                if (!hasProperty(parent.decls, name)) {
-                  parent.decls[name] = [];
+                if (!hasProperty(decls, name)) {
+                  decls[name] = [];
                 }
                 decl.kind = node.kind;
-                pushUnique(parent.decls[name], decl);
+                pushUnique(decls[name], decl);
                 if (node.kind == "const") {
                   if (!hasProperty(state.index, name)) {
                     state.index[name] = [];
@@ -297,7 +309,11 @@ export function collectNamespaces(
                 if (init != m.init) {
                   m.init = init;
                 }
-                if (init.type == "Literal" && LiteralIntegerRe.test(init.raw)) {
+                if (
+                  init.type == "Literal" &&
+                  init.raw &&
+                  LiteralIntegerRe.test(init.raw)
+                ) {
                   prev = init.value as number;
                 }
                 if (!hasProperty(values, name)) {
@@ -312,7 +328,7 @@ export function collectNamespaces(
               break;
             }
           }
-          if (state.pre) return state.pre(node);
+          if (state.pre) return state.pre(node, state);
         } catch (e) {
           handleException(state, node, e);
         }
@@ -325,8 +341,8 @@ export function collectNamespaces(
             // delete the node.
             return false;
           }
-          if (state.post) ret = state.post(node);
-          if (state.stack.slice(-1).pop().node === node) {
+          if (state.post) ret = state.post(node, state);
+          if (state.stack.slice(-1).pop()?.node === node) {
             state.stack.pop();
           }
           return ret;
@@ -346,7 +362,7 @@ export function collectNamespaces(
 }
 
 function isMCTreeNode(node: unknown): node is mctree.Node {
-  return node && typeof node === "object" && "type" in node;
+  return node ? typeof node === "object" && "type" in node : false;
 }
 
 /*
@@ -364,7 +380,9 @@ function isMCTreeNode(node: unknown): node is mctree.Node {
  */
 export function traverseAst(
   node: mctree.Node,
-  pre?: (node: mctree.Node) => void | null | false | (keyof mctree.NodeAll)[],
+  pre?:
+    | null
+    | ((node: mctree.Node) => void | null | false | (keyof mctree.NodeAll)[]),
   post?: (node: mctree.Node) => void | null | false | mctree.Node
 ): false | void | null | mctree.Node {
   const nodes = pre && pre(node);
@@ -408,7 +426,10 @@ export function traverseAst(
   return post && post(node);
 }
 
-export function formatAst(node: mctree.Node, monkeyCSource: string = null) {
+export function formatAst(
+  node: mctree.Node,
+  monkeyCSource: string | null = null
+) {
   if ("comments" in node && !monkeyCSource) {
     // Prettier inserts comments by using the source location to
     // find the original comment, rather than using the contents
@@ -431,7 +452,7 @@ export function formatAst(node: mctree.Node, monkeyCSource: string = null) {
 }
 
 function handleException(
-  state: ProgramState,
+  state: ProgramStateLive,
   node: mctree.Node,
   exception: unknown
 ): never {
@@ -448,9 +469,9 @@ function handleException(
       node.loc && node.loc.source
         ? `${node.loc.source}:${node.start || 0}:${node.end || 0}`
         : "<unknown>";
-    message = `Got exception \`${exception.toString()}' while processing node ${fullName}:${
-      node.type
-    } from ${location}`;
+    message = `Got exception \`${Object.prototype.toString.call(
+      exception
+    )}' while processing node ${fullName}:${node.type} from ${location}`;
   } catch {
     throw exception;
   }

@@ -149,14 +149,20 @@ declare global {
     allClasses?: ClassStateNode[];
     stack?: ProgramStateStack;
     shouldExclude?: (node: any) => any;
-    pre?: (node: mctree.Node) => null | false | (keyof mctree.NodeAll)[];
-    post?: (node: mctree.Node) => null | false | mctree.Node;
+    pre?: (
+      node: mctree.Node,
+      state: ProgramStateLive
+    ) => null | false | (keyof mctree.NodeAll)[];
+    post?: (
+      node: mctree.Node,
+      state: ProgramStateLive
+    ) => null | false | mctree.Node;
     lookup?: (
       node: mctree.Node,
       name?: string | null,
       stack?: ProgramStateStack
-    ) => [string, StateNodeDecl[], ProgramStateStack];
-    traverse?: (node: mctree.Node) => void | boolean | mctree.Node;
+    ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
+    traverse?: (node: mctree.Node) => void | null | false | mctree.Node;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: unknown[] };
     localsStack?: {
@@ -167,7 +173,21 @@ declare global {
     index?: { [key: string]: unknown[] };
     constants?: { [key: string]: mctree.Literal };
   };
-
+  type Finalized<T, Keys extends keyof T> = T & {
+    [key in Keys]-?: NonNullable<T[key]>;
+  };
+  export type ProgramStateLive = Finalized<
+    ProgramState,
+    "stack" | "lookup" | "traverse" | "index" | "constants"
+  >;
+  export type ProgramStateAnalysis = Finalized<
+    ProgramStateLive,
+    "allClasses" | "allFunctions"
+  >;
+  export type ProgramStateOptimizer = Finalized<
+    ProgramStateAnalysis,
+    "localsStack" | "exposed" | "calledFunctions"
+  >;
   type ExcludeAnnotationsMap = { [key: string]: boolean };
   type FilesToOptimizeMap = {
     [key: string]: {
@@ -259,7 +279,7 @@ export async function buildOptimizedProject(
   let bin = config.buildDir || "bin";
   let name = `optimized-${program}.prg`;
   if (product) {
-    product = config.products[0];
+    product = config.products![0];
     if (config.simulatorBuild === false) {
       bin = path.join(bin, product);
     }
@@ -296,7 +316,7 @@ async function createLocalBarrels(targets: Target[], options: BuildConfig) {
   if (
     targets.every(
       (target) =>
-        !target.group.optimizerConfig.barrelMap ||
+        !target.group?.optimizerConfig.barrelMap ||
         Object.values(target.group.optimizerConfig.barrelMap).every(
           (resolvedBarrel) => !resolvedBarrel.qualifier.resourcePath
         )
@@ -309,11 +329,12 @@ async function createLocalBarrels(targets: Target[], options: BuildConfig) {
   }
   // where to create the local barrel projects.
   const barrelDir = path.resolve(
-    options.workspace,
-    options.outputPath,
+    options.workspace!,
+    options.outputPath!,
     "opt-barrels"
   );
   return targets.reduce((promise, target) => {
+    if (!target.group) return promise;
     const barrelMap = target.group.optimizerConfig.barrelMap;
     if (!barrelMap || target.group.optimizerConfig.optBarrels) {
       return promise;
@@ -380,10 +401,10 @@ async function createLocalBarrels(targets: Target[], options: BuildConfig) {
  */
 export async function generateOptimizedProject(options: BuildConfig) {
   const config = await getConfig(options);
-  const workspace = config.workspace;
+  const workspace = config.workspace!;
 
   const { manifest, targets, xml, jungles } = await get_jungle(
-    config.jungleFiles,
+    config.jungleFiles!,
     config
   );
 
@@ -395,7 +416,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
   let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   if (config.skipOptimization) {
     if (pick_one >= 0) {
-      options.products = [...options.products];
+      options.products = [...options.products!];
       options.products[pick_one] = targets[0].product;
     }
     return {
@@ -405,14 +426,17 @@ export async function generateOptimizedProject(options: BuildConfig) {
   }
   let dropBarrels = false;
   const configKey = (p: Target) =>
-    p.group.key + (config.releaseBuild ? "-release" : "-debug");
+    p.group!.key + (config.releaseBuild ? "-release" : "-debug");
   targets.forEach((p) => {
+    if (!p.group) {
+      throw new Error(`Missing group in build target ${p.product}`);
+    }
     const key = configKey(p);
     if (!hasProperty(buildConfigs, key)) {
-      p.group.dir = key;
+      p.group!.dir = key;
       if (
-        p.group.optimizerConfig.barrelMap &&
-        !p.group.optimizerConfig.optBarrels
+        p.group!.optimizerConfig.barrelMap &&
+        !p.group!.optimizerConfig.optBarrels
       ) {
         dropBarrels = true;
       }
@@ -427,7 +451,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
       if (pick_one >= 0) {
         // don't modify the original array since it may be shared
         // (and *is* shared when we're called from test.js)
-        options.products = [...options.products];
+        options.products = [...options.products!];
         options.products[pick_one] = p.product;
         pick_one = -1;
       }
@@ -441,7 +465,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
 
   // console.log(JSON.stringify(targets));
 
-  const jungle_dir = path.resolve(workspace, config.outputPath);
+  const jungle_dir = path.resolve(workspace, config.outputPath!);
   await fs.mkdir(jungle_dir, { recursive: true });
   const relative_path = (s: string) => path.relative(jungle_dir, s);
   let relative_manifest = relative_path(manifest);
@@ -457,7 +481,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
     .sort()
     .map((key) => {
       const buildConfig = buildConfigs[key];
-      const outputPath = path.join(config.outputPath, key);
+      const outputPath = path.join(config.outputPath!, key);
 
       return buildConfig
         ? generateOneConfig(buildConfig, dependencyFiles, {
@@ -492,22 +516,26 @@ export async function generateOptimizedProject(options: BuildConfig) {
     prefix: string,
     base: { [k in T]?: string[] },
     name: T,
-    mapper: (s: string) => string = null
+    mapper: ((s: string) => string) | null = null
   ) => {
-    if (!base[name]) return;
+    const obj = base[name];
+    if (!obj) return;
     const map_one = (s: string) => (mapper ? mapper(s) : s);
     const map = (s: string | string[]) =>
       Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
-    parts.push(`${prefix}${name} = ${base[name].map(map).join(";")}`);
+    parts.push(`${prefix}${name} = ${obj.map(map).join(";")}`);
   };
-  targets.forEach((jungle) => {
-    if (!buildConfigs[configKey(jungle)]) return;
-    const { product, qualifier, group } = jungle;
+  targets.forEach((target) => {
+    if (!buildConfigs[configKey(target)]) return;
+    const { product, qualifier, group } = target;
+    if (!group) {
+      throw new Error(`Missing group in target ${target.product}`);
+    }
     const prefix = `${product}.`;
     process_field(prefix, qualifier, "sourcePath", (s) =>
       path
         .join(
-          group.dir,
+          group.dir!,
           "source",
           relative_path_no_dotdot(path.relative(workspace, s))
         )
@@ -534,7 +562,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
                 const root = path.dirname(resolvedBarrel.jungles[0]);
                 return (resolvedBarrel.qualifier.sourcePath || []).map((s) =>
                   path
-                    .join(group.dir, "barrels", barrel, path.relative(root, s))
+                    .join(group.dir!, "barrels", barrel, path.relative(root, s))
                     .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
                 );
               })
@@ -548,9 +576,10 @@ export async function generateOptimizedProject(options: BuildConfig) {
     // annotations were handled via source transformations.
     process_field(prefix, qualifier, "resourcePath", relative_path);
     process_field(prefix, qualifier, "excludeAnnotations");
-    if (qualifier.lang) {
-      Object.keys(qualifier.lang).forEach((key) => {
-        process_field(`${prefix}lang.`, qualifier.lang, key, relative_path);
+    const qlang = qualifier.lang;
+    if (qlang) {
+      Object.keys(qlang).forEach((key) => {
+        process_field(`${prefix}lang.`, qlang, key, relative_path);
       });
     }
   });
@@ -592,9 +621,9 @@ async function fileInfoFromConfig(
 ): Promise<PreAnalysis> {
   const paths = (
     await Promise.all(
-      buildConfig.sourcePath.map((pattern) =>
+      buildConfig.sourcePath?.map((pattern) =>
         globa(pattern, { cwd: workspace, mark: true })
-      )
+      ) || []
     )
   ).flat();
 
@@ -680,7 +709,7 @@ async function generateOneConfig(
   config: BuildConfig
 ) {
   const { workspace } = config;
-  const output = path.join(workspace, config.outputPath);
+  const output = path.join(workspace!, config.outputPath!);
 
   const buildModeExcludes = {
     // note: exclude debug in release builds, and release in debug builds
@@ -691,7 +720,7 @@ async function generateOneConfig(
   }
 
   const { fnMap } = await fileInfoFromConfig(
-    workspace,
+    workspace!,
     path.join(output, "source"),
     buildConfig,
     buildModeExcludes
@@ -773,7 +802,7 @@ async function generateOneConfig(
       const dir = path.dirname(name);
       await fs.mkdir(dir, { recursive: true });
 
-      const opt_source = formatAst(info.ast, info.monkeyCSource);
+      const opt_source = formatAst(info.ast!, info.monkeyCSource);
       await fs.writeFile(name, opt_source);
       return info.hasTests;
     })
@@ -800,13 +829,14 @@ export async function getProjectAnalysis(
 ): Promise<Analysis | PreAnalysis> {
   const sourcePath = targets
     .map(({ qualifier: { sourcePath } }) => sourcePath)
+    .filter((sp): sp is NonNullable<typeof sp> => sp != null)
     .flat()
     .sort()
     .filter((s, i, arr) => !i || s !== arr[i - 1]);
 
   const { fnMap, paths } = await fileInfoFromConfig(
-    options.workspace,
-    options.workspace,
+    options.workspace!,
+    options.workspace!,
     { sourcePath },
     {}
   );
@@ -839,20 +869,27 @@ export async function generateApiMirTests(options: BuildConfig) {
   const config = { ...defaultConfig, ...(options || {}) };
   const tests: Array<[string, string]> = [];
   const api = await getApiMapping();
+  if (!api) {
+    throw new Error("Failed to read api.mir");
+  }
   const findConstants = (node: StateNode) => {
-    Object.entries(node.decls).forEach(([key, decl]) => {
-      if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
-      if (decl.length != 1) return;
-      const d = decl[0];
-      if (
-        d.type === "EnumStringMember" ||
-        (d.type === "VariableDeclarator" && d.kind === "const")
-      ) {
-        tests.push([`${node.fullName}.${key}`, formatAst(d.init)]);
-      } else if (isStateNode(d)) {
-        findConstants(d);
-      }
-    });
+    node.decls &&
+      Object.entries(node.decls).forEach(([key, decl]) => {
+        if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
+        if (decl.length != 1) return;
+        const d = decl[0];
+        if (
+          d.type === "EnumStringMember" ||
+          (d.type === "VariableDeclarator" && d.kind === "const")
+        ) {
+          if (!d.init) {
+            throw new Error(`Missing init for ${node.fullName}.${key}`);
+          }
+          tests.push([`${node.fullName}.${key}`, formatAst(d.init)]);
+        } else if (isStateNode(d)) {
+          findConstants(d);
+        }
+      });
   };
   findConstants(api);
   function hasTests(name: string) {

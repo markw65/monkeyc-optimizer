@@ -37,7 +37,7 @@ type NestedStringArray = Array<string | NestedStringArray>;
 type RawJungleArrays = JNode[] | [RawJungle];
 type RawJungleValue = RawJungle | RawJungleArrays | NestedStringArray;
 interface RawJungle {
-  [k: string]: RawJungleValue;
+  [k: string]: RawJungleValue | undefined;
   "."?: RawJungleArrays;
   products?: string[];
 }
@@ -109,7 +109,11 @@ function process_assignments(assignments: Assignment[], current: RawJungle) {
         }
         return r;
       },
-      { node: state, dot: null, dotnames: [] }
+      { node: state, dot: undefined, dotnames: [] } as {
+        node: RawJungle;
+        dot: RawJungleArrays | undefined;
+        dotnames: string[];
+      }
     );
     // an assignment to a node overwrites its old value
     Object.keys(node).forEach((k) => delete node[k]);
@@ -124,7 +128,7 @@ function process_assignments(assignments: Assignment[], current: RawJungle) {
             i,
             1,
             ...(dot
-              ? dot.map((v: JNode) =>
+              ? (dot as JNode[]).map((v) =>
                   v.type == "QualifiedName"
                     ? { ...v, names: v.names.concat(dotnames) }
                     : v
@@ -246,7 +250,7 @@ function resolve_node_list(state: RawJungle, list: RawJungleValue) {
 
 function check_non_leaf_dot(
   dot: RawJungleArrays,
-  path: string[] = null,
+  path: string[] | null = null,
   i = 0
 ) {
   if (dot.length !== 1 || dot[0].type) {
@@ -261,27 +265,51 @@ function check_non_leaf_dot(
 function resolve_node_by_path(
   state: RawJungle,
   path: string[]
-): RawJungleValue {
-  return path.reduce((s, n, i) => {
+): RawJungleValue | undefined {
+  return path.reduce((s: RawJungleValue | undefined, n, i) => {
+    if (!s || Array.isArray(s)) {
+      return s;
+    }
     if (!s[n] && s["."]) {
-      const sdot = s["."] as JNode[];
-      let resolved = (resolve_node_list(state, sdot)[0] as RawJungle)[n];
-      if (resolved == null && sdot.every((e) => e.type == "Literal")) {
-        // foo = string
-        // bar = $(foo.resourcePath)
-        // is supposed to work as if you'd left out the (obviously
-        // incorrect) ".resourcePath"
+      const sdot = s["."];
+      let resolved = resolve_node_list(state, sdot);
+      if (!resolved.length) return undefined;
+      const r = (resolved[0] as RawJungle)[n];
+      if (!r && (sdot as JNode[]).every((e) => e.type == "Literal")) {
+        /*
+         * We had something like:
+         *
+         *   foo = whatever
+         *   bar = $(foo.resourcePath)
+         *
+         * and its supposed to work as if you'd left out the (obviously
+         * incorrect) ".resourcePath"
+         */
         return s;
       }
+      /*
+       * This is a pretty unusual edge case.
+       *
+       * If we do something like:
+       *
+       *   fenix6 = $(base)
+       *   fenix5.sourcePath = $(fenix6.sourcePath)
+       *
+       * and fenix5 gets resolved before fenix6 (which it will,
+       * currently, because products are resolved in lexicographical
+       * order), we'll end up here when we try to resolve
+       * fenix6.sourcePath.
+       */
       check_non_leaf_dot(sdot, path, i);
+      return r;
     }
     return s[n];
   }, state);
 }
 
 // fully resolve the given node, and all its children
-function resolve_node(state: RawJungle, node: RawJungleValue | null) {
-  if (node == null || Array.isArray(node)) {
+function resolve_node(state: RawJungle, node: RawJungleValue | undefined) {
+  if (node === undefined || Array.isArray(node)) {
     // an already optimized leaf node
     return node;
   }
@@ -315,10 +343,10 @@ function resolve_node(state: RawJungle, node: RawJungleValue | null) {
 
 function resolve_filename(
   literal: string | Literal,
-  default_source: string = null
+  default_source: string | null = null
 ) {
   if (typeof literal === "string") return literal;
-  const root = path.dirname(literal.source || default_source);
+  const root = path.dirname(literal.source || default_source!);
   return path.resolve(root, literal.value);
 }
 
@@ -356,12 +384,13 @@ async function resolve_literals(
           }
         })
       )
-    ).filter((name) => name != null);
+    ).filter((name): name is NonNullable<typeof name> => name != null);
 
   const resolve_one_file_list = async (base: RawJungle, name: string) => {
-    if (!base[name]) return;
+    const bname = base[name];
+    if (!bname) return;
     const result = await resolve_file_list(
-      base[name] as JNode[] | NestedStringArray
+      bname as JNode[] | NestedStringArray
     );
     if (!result || !result.length) {
       delete base[name];
@@ -466,7 +495,7 @@ async function find_build_instructions(targets: Target[]) {
             .map((file) => find_build_instructions_in_resource(file))
         );
         buildInstructions
-          .filter((i) => i != null)
+          .filter((i): i is NonNullable<typeof i> => i != null)
           .map((i) => {
             if (i.sourceExcludes) sourceExcludes.push(...i.sourceExcludes);
             if (i.excludeAnnotations)
@@ -495,7 +524,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
   > = {};
   let key = 0;
   const ignoreStrOption = (
-    str: string | null
+    str: string | null | undefined
   ): Record<string, true> | string | null =>
     str == null
       ? null
@@ -512,7 +541,9 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       return strs.filter((a) => !hasProperty(option, a));
     }
   };
-  const ignoreRegExpOption = (str: string): RegExp | null => {
+  const ignoreRegExpOption = (
+    str: string | null | undefined
+  ): RegExp | null => {
     try {
       if (!str) return null;
       return new RegExp(str);
@@ -545,7 +576,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
         },
         { keys: {}, paths: {} } as {
           keys: Record<string, Record<string, true>>;
-          paths: Record<string, unknown>;
+          paths: Record<string, Record<string, true>>;
         }
       ).paths
     : null;
@@ -565,14 +596,15 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
         ignoredExcludeAnnotations
       );
     }
-    Object.entries(annotations).forEach(([key, value]) => {
-      if (ignoredAnnotations) {
-        annotations[key] = getStrsWithIgnore(value, ignoredAnnotations);
-      }
-    });
+    annotations &&
+      Object.entries(annotations).forEach(([key, value]) => {
+        if (ignoredAnnotations) {
+          annotations![key] = getStrsWithIgnore(value, ignoredAnnotations);
+        }
+      });
     if (ignoredSourcePaths) {
       sourcePath = sourcePath
-        .map((path) => Object.keys(ignoredSourcePaths[path]))
+        ?.map((path) => Object.keys(ignoredSourcePaths[path]))
         .flat()
         .sort()
         .filter((v, i, a) => i === 0 || v !== a[i - 1]);
@@ -586,7 +618,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       annotations,
     };
 
-    const toSortedEntries = (value: unknown) =>
+    const toSortedEntries = <T>(value: T) =>
       Object.entries(value)
         .filter(([, v]) => v != null)
         .sort((a, b) => (a[0] < b[0] ? -1 : a[0] === b[0] ? 0 : 1));
@@ -657,7 +689,7 @@ export type Target = {
   product: string;
   qualifier: JungleQualifier;
   shape?: string;
-  group?: { optimizerConfig: JungleQualifier; dir?: string; key?: string };
+  group?: { optimizerConfig: JungleQualifier; dir?: string; key: string };
 };
 
 type LangResourcePaths = { [key: string]: string[] }; // Map from language codes to the corresponding resource paths
@@ -717,7 +749,7 @@ function resolve_barrel(
   products: string[],
   options: BuildConfig
 ): ResolvedJungle | Promise<ResolvedJungle> {
-  const cache = options._cache;
+  const cache = options._cache!;
   if (hasProperty(cache.barrels, barrel)) {
     return cache.barrels[barrel];
   }
@@ -747,13 +779,12 @@ function resolve_barrel(
               .then((barrelStat) => localStat.mtimeMs < barrelStat.mtimeMs),
           () => true
         )
-        .then(
-          (needsUpdate) =>
-            needsUpdate &&
+        .then((needsUpdate) => {
+          needsUpdate &&
             fs
               .rm(localPath, { recursive: true, force: true })
-              .then(() => extract(barrel, { dir: localPath }))
-        )
+              .then(() => extract(barrel, { dir: localPath }));
+        })
     );
   }
   return promise
@@ -785,7 +816,7 @@ function resolve_barrels(
     Object.keys(qualifier.annotations).forEach((key) => {
       // delete annotations for non-existent barrels such as
       if (!barrels.includes(key)) {
-        delete qualifier.annotations[key];
+        delete qualifier.annotations![key];
       }
     });
   }
@@ -812,11 +843,11 @@ function resolve_barrels(
     return null;
   }
   const barrelDir = path.resolve(
-    options.workspace,
-    options.outputPath,
+    options.workspace!,
+    options.outputPath!,
     "raw-barrels"
   );
-  const barrelMap: Record<string, ResolvedJungle> = Object.fromEntries(
+  const barrelMap: Record<string, ResolvedJungle | null> = Object.fromEntries(
     barrels.map((b) => [b, null])
   );
   return (qualifier.barrelPath || [])
@@ -838,11 +869,12 @@ function resolve_barrels(
                 resolvedBarrel.xml
               );
               if (!hasProperty(barrelMap, name)) return;
-              if (barrelMap[name]) {
+              const bmapName = barrelMap[name];
+              if (bmapName) {
                 const bname = (r: ResolvedJungle) => r.jungles.join(";");
                 throw new Error(
                   `Barrel ${name} already resolved to ${bname(
-                    barrelMap[name]
+                    bmapName
                   )}; can't also resolve to ${bname(resolvedBarrel)}`
                 );
               }
@@ -860,9 +892,10 @@ function resolve_barrels(
             .join(",")}`
         );
       }
+      const finalMap = barrelMap as Record<string, ResolvedJungle>;
       if (!cache.barrelMap) cache.barrelMap = {};
-      cache.barrelMap[barrelMapKey] = barrelMap;
-      setBarrelMap(barrelMap);
+      cache.barrelMap[barrelMapKey] = finalMap;
+      setBarrelMap(finalMap);
     });
 }
 /**
@@ -913,7 +946,7 @@ async function get_jungle_and_barrels(
   const products = manifestProducts(xml);
   if (products.length === 0) products.push(...defaultProducts);
   let promise = Promise.resolve();
-  const add_one = (product: string, shape: string | null = null) => {
+  const add_one = (product: string, shape: string | undefined = undefined) => {
     const rawQualifier = resolve_node(state, state[product]);
     if (!rawQualifier || Array.isArray(rawQualifier)) return;
     promise = promise
@@ -921,7 +954,8 @@ async function get_jungle_and_barrels(
       .then((qualifier) => {
         targets.push({ product, qualifier, shape });
         return resolve_barrels(product, qualifier, barrels, products, options);
-      });
+      })
+      .then(() => {});
   };
   products.forEach((product) => {
     if (hasProperty(state, product)) {

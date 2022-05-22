@@ -178,8 +178,8 @@ async function test() {
       )
       .then(
         (res) =>
-          (testBuild ? res.hasTests : execute) &&
           res &&
+          (testBuild ? res.hasTests : execute) &&
           res.program &&
           res.product &&
           (console.log(

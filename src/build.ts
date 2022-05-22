@@ -3,7 +3,7 @@ import { getSdkPath, isWin } from "./sdk-util";
 import { spawnByLine } from "./util";
 
 export async function build_project(
-  product: string,
+  product: string | null,
   options: BuildConfig,
   lineCallback?: (line: string) => void
 ) {
@@ -60,9 +60,9 @@ export async function build_project(
   }
   const exe = path.resolve(sdk, "bin", isWin ? "monkeyc.bat" : "monkeyc");
   const args = [
-    ["-o", program],
-    ["-f", jungleFiles],
-    ["-y", developerKeyPath],
+    ["-o", program!],
+    ["-f", jungleFiles!],
+    ["-y", developerKeyPath!],
     extraArgs,
   ].flat();
 
@@ -75,5 +75,5 @@ export async function build_project(
       cwd: workspace,
     });
   }
-  return { exe, args, program: path.resolve(workspace, program), product };
+  return { exe, args, program: path.resolve(workspace!, program!), product };
 }

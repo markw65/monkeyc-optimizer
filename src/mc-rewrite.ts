@@ -17,28 +17,29 @@ import { pushUnique } from "./util";
 type ImportItem = { node: mctree.ImportStatement; stack: ProgramStateStack };
 function processImports(
   allImports: ImportItem[],
-  lookup: ProgramState["lookup"]
+  lookup: NonNullable<ProgramState["lookup"]>
 ) {
   allImports.forEach(({ node, stack }) => {
     const [name, module] = lookup(
       node.id,
-      "as" in node && node.as && node.as.name,
+      ("as" in node && node.as && node.as.name) || null,
       stack
     );
     if (name && module) {
       const [parent] = stack.slice(-1);
       if (!parent.decls) parent.decls = {};
+      const decls = parent.decls;
       if (!hasProperty(parent.decls, name)) parent.decls[name] = [];
       module.forEach((m) => {
         if (isStateNode(m) && m.type == "ModuleDeclaration") {
-          pushUnique(parent.decls[name], m);
+          pushUnique(decls[name], m);
         }
       });
     }
   });
 }
 
-function collectClassInfo(state: ProgramState) {
+function collectClassInfo(state: ProgramStateAnalysis) {
   state.allClasses.forEach((elm) => {
     if (elm.node.superClass) {
       const [, classes] = state.lookup(elm.node.superClass, null, elm.stack);
@@ -101,9 +102,13 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
     Object.entries(fnMap).reduce((ok, [name, value]) => {
       if (!value.ast) {
         try {
-          value.ast = MonkeyC.parsers.monkeyc.parse(value.monkeyCSource, null, {
-            filepath: name,
-          }) as mctree.Program;
+          value.ast = MonkeyC.parsers.monkeyc.parse(
+            value.monkeyCSource!,
+            null,
+            {
+              filepath: name,
+            }
+          ) as mctree.Program;
         } catch (e) {
           ok = false;
           if (e instanceof Error) {
@@ -122,7 +127,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   let excludeAnnotations: ExcludeAnnotationsMap;
   let hasTests = false;
   const allImports: ImportItem[] = [];
-  const state: ProgramState = {
+  const preState: ProgramState = {
     allFunctions: [],
     allClasses: [],
     shouldExclude(node: mctree.Node) {
@@ -146,7 +151,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
       }
       return null;
     },
-    post(node) {
+    post(node, state) {
       switch (node.type) {
         case "FunctionDeclaration":
         case "ClassDeclaration": {
@@ -154,9 +159,9 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
           const stack = state.stack.slice(0, -1);
           scope.stack = stack;
           if (scope.type == "FunctionDeclaration") {
-            state.allFunctions.push(scope);
+            state.allFunctions!.push(scope);
           } else {
-            state.allClasses.push(scope as ClassStateNode);
+            state.allClasses!.push(scope as ClassStateNode);
           }
           return null;
         }
@@ -164,11 +169,15 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
         case "ImportModule":
           allImports.push({ node, stack: state.stack.slice() });
           return null;
+        default:
+          return null;
       }
     },
   };
 
-  await getApiMapping(state);
+  await getApiMapping(preState);
+
+  const state = preState as ProgramStateAnalysis;
 
   // Mark all functions from api.mir as "special" by
   // setting their bodies to null. In api.mir, they're
@@ -178,7 +187,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
     if (node.type == "FunctionDeclaration") {
       node.node.body = null;
     }
-    if ("decls" in node) {
+    if (isStateNode(node) && node.decls) {
       Object.values(node.decls).forEach((v) => v.forEach(markApi));
     }
   };
@@ -239,8 +248,9 @@ export function getLiteralFromDecls(decls: StateNodeDecl[]) {
 }
 
 export function getLiteralNode(
-  node: mctree.Node
+  node: mctree.Node | null | undefined
 ): null | mctree.Literal | mctree.AsExpression {
+  if (node == null) return null;
   if (node.type == "Literal") return node;
   if (node.type == "BinaryExpression" && node.operator == "as") {
     return getLiteralNode(node.left) && node;
@@ -282,10 +292,10 @@ function getNodeValue(
   }
   let type = node.value === null ? "Null" : typeof node.value;
   if (type === "number") {
-    const match = LiteralIntegerRe.exec(node.raw);
+    const match = node.raw && LiteralIntegerRe.exec(node.raw);
     if (match) {
       type = match[2] == "l" ? "Long" : "Number";
-    } else if (node.raw.endsWith("d")) {
+    } else if (node.raw && node.raw.endsWith("d")) {
       type = "Double";
     } else {
       type = "Float";
@@ -315,8 +325,8 @@ function optimizeNode(node: mctree.Node) {
           if (type === "Number" || type === "Long") {
             return {
               ...arg,
-              value: -arg.value,
-              raw: (-arg.value).toString() + (type === "Long" ? "l" : ""),
+              value: -arg.value!,
+              raw: (-arg.value!).toString() + (type === "Long" ? "l" : ""),
             };
           }
           break;
@@ -325,7 +335,7 @@ function optimizeNode(node: mctree.Node) {
           {
             let value;
             if (type === "Number" || type === "Long") {
-              value = -arg.value - 1;
+              value = -arg.value! - 1;
             } else if (type === "Boolean" && node.operator == "!") {
               value = !arg.value;
             }
@@ -421,27 +431,28 @@ function evaluateFunction(
             throw new Error("Bad node type");
         }
       },
-      args &&
-        ((node) => {
-          switch (node.type) {
-            case "ReturnStatement":
-              ret = node.argument;
-              return null;
-            case "BlockStatement":
-            case "Literal":
-              return null;
-            case "Identifier":
-              if (hasProperty(paramValues, node.name)) {
-                return paramValues[node.name];
+      !args
+        ? undefined
+        : (node) => {
+            switch (node.type) {
+              case "ReturnStatement":
+                ret = node.argument || null;
+                return null;
+              case "BlockStatement":
+              case "Literal":
+                return null;
+              case "Identifier":
+                if (hasProperty(paramValues, node.name)) {
+                  return paramValues[node.name];
+                }
+              // fall through;
+              default: {
+                const repl = optimizeNode(node);
+                if (repl && repl.type === "Literal") return repl;
+                throw new Error("Didn't optimize");
               }
-            // fall through;
-            default: {
-              const repl = optimizeNode(node);
-              if (repl && repl.type === "Literal") return repl;
-              throw new Error("Didn't optimize");
             }
           }
-        })
     );
     return ret;
   } catch (e) {
@@ -452,7 +463,13 @@ function evaluateFunction(
 type MCTreeSome = { [k in keyof mctree.NodeAll]?: unknown };
 
 export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
-  const state = await analyze(fnMap);
+  const state = {
+    ...(await analyze(fnMap)),
+    localsStack: [{}],
+    exposed: {},
+    calledFunctions: {},
+  } as ProgramStateOptimizer;
+
   const replace = (node: MCTreeSome, obj: MCTreeSome) => {
     for (const k of Object.keys(node)) {
       delete node[k as keyof MCTreeSome];
@@ -482,6 +499,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     return true;
   };
 
+  const topLocals = () => state.localsStack[state.localsStack.length - 1];
   /*
    * Might this function be called from somewhere, including
    * callbacks from the api (eg getSettingsView, etc).
@@ -530,17 +548,15 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         (sc.superClass && checkInherited(sc, name))
     );
 
-  state.localsStack = [{}];
-  state.exposed = {};
-  state.calledFunctions = {};
   state.pre = (node) => {
     switch (node.type) {
       case "ConditionalExpression":
       case "IfStatement":
       case "DoWhileStatement":
       case "WhileStatement":
-        state.traverse(node.test);
-        const [value, type] = getNodeValue(node.test);
+        const test = (state.traverse(node.test) ||
+          node.test) as typeof node.test;
+        const [value, type] = getNodeValue(test);
         if (value) {
           let result = null;
           if (type === "Null") {
@@ -553,24 +569,16 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             result = !!value.value;
           }
           if (result !== null) {
+            node.test = { type: "Literal", value: result };
             if (
               node.type === "IfStatement" ||
               node.type === "ConditionalExpression"
             ) {
-              if (result === false) {
-                node.consequent = null;
-              } else {
-                node.alternate = null;
-              }
-              node.test = null;
+              return [result ? "consequent" : "alternate"];
             } else if (node.type === "WhileStatement") {
-              if (result === false) {
-                node.body = null;
-              }
+              return result === false ? [] : ["body"];
             } else if (node.type === "DoWhileStatement") {
-              if (result === false) {
-                node.test = null;
-              }
+              return ["body"];
             } else {
               throw new Error("Unexpected Node type");
             }
@@ -581,14 +589,14 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       case "EnumDeclaration":
         return false;
       case "ForStatement": {
-        const map = state.localsStack.slice(-1).pop().map;
+        const map = topLocals().map;
         if (map) {
           state.localsStack.push({ node, map: { ...map } });
         }
         break;
       }
       case "VariableDeclarator": {
-        const locals = state.localsStack.slice(-1).pop();
+        const locals = topLocals();
         const { map } = locals;
         if (map) {
           const declName = variableDeclarationName(node.id);
@@ -606,9 +614,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
               // find all the names declared in this scope, to avoid
               // more conflicts
               locals.inners = {};
-              traverseAst(locals.node, (node) => {
+              const inners = locals.inners;
+              traverseAst(locals.node!, (node) => {
                 if (node.type === "VariableDeclarator") {
-                  locals.inners[variableDeclarationName(node.id)] = true;
+                  inners[variableDeclarationName(node.id)] = true;
                 }
               });
             }
@@ -630,7 +639,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
                     if (hasProperty(elm.decls, name)) {
                       break;
                     }
-                  } else if (elm.node.type === "FunctionDeclaration") {
+                  } else if (
+                    elm.node &&
+                    elm.node.type === "FunctionDeclaration"
+                  ) {
                     ok = true;
                   }
                 }
@@ -667,7 +679,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         }
         break;
       case "Identifier": {
-        const map = state.localsStack.slice(-1).pop().map;
+        const map = topLocals().map;
         if (map) {
           if (hasProperty(map, node.name)) {
             const name = map[node.name];
@@ -697,7 +709,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         }
         break;
       case "BlockStatement": {
-        const map = state.localsStack.slice(-1).pop().map;
+        const map = topLocals().map;
         if (map) {
           state.localsStack.push({
             node,
@@ -731,7 +743,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     return null;
   };
   state.post = (node) => {
-    if (state.localsStack.slice(-1).pop().node === node) {
+    if (topLocals().node === node) {
       state.localsStack.pop();
     }
     const opt = optimizeNode(node);
@@ -742,17 +754,24 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     switch (node.type) {
       case "ConditionalExpression":
       case "IfStatement":
-        if (node.test === null) {
-          const rep = node.consequent || node.alternate;
+        if (
+          node.test.type === "Literal" &&
+          typeof node.test.value === "boolean"
+        ) {
+          const rep = node.test.value ? node.consequent : node.alternate;
           if (!rep) return false;
           replace(node, rep);
         }
         break;
       case "WhileStatement":
-        if (!node.body) return false;
+        if (node.test.type === "Literal" && node.test.value === false) {
+          return false;
+        }
         break;
       case "DoWhileStatement":
-        if (!node.test) return node.body;
+        if (node.test.type === "Literal" && node.test.value === false) {
+          return node.body;
+        }
         break;
 
       case "CallExpression": {
@@ -776,6 +795,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         if (callees.length == 1) {
           const callee = isStateNode(callees[0]) && callees[0].node;
           if (
+            callee &&
             callee.type == "FunctionDeclaration" &&
             callee.optimizable &&
             !callee.hasOverride &&
@@ -800,10 +820,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     return null;
   };
   Object.values(fnMap).forEach((f) => {
-    collectNamespaces(f.ast, state);
+    collectNamespaces(f.ast!, state);
   });
   Object.values(fnMap).forEach((f) => {
-    traverseAst(f.ast, null, (node) => {
+    traverseAst(f.ast!, undefined, (node) => {
       switch (node.type) {
         case "EnumStringBody":
           if (

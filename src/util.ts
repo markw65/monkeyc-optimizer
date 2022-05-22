@@ -12,10 +12,10 @@ global["lastModifiedSource" + ""] = 0;
 
 export function globa(
   pattern: string,
-  options?: { [key: string]: unknown }
+  options?: glob.IOptions
 ): Promise<Array<string>> {
   return new Promise((resolve, reject) => {
-    glob.glob(pattern, options, (er, files) => {
+    glob.glob(pattern, options || {}, (er, files) => {
       if (er) {
         reject(files);
       } else {
@@ -109,7 +109,7 @@ export async function promiseAll<T>(
   const results: T[] = [];
   let done = false;
   let i = 0;
-  const next = (): Promise<T> | null => {
+  const next = (): Promise<T | null> | null => {
     const index = i++;
     if (done) return null;
     const promise = promiseFn(index);

@@ -97,9 +97,11 @@ export function manifestBarrelName(
   return barrel[0].$.module;
 }
 
-export function manifestAnnotations(manifest: ManifestXML): string[] {
+export function manifestAnnotations(
+  manifest: ManifestXML
+): string[] | undefined {
   const barrel = manifest["iq:manifest"]["iq:barrel"];
-  if (!barrel) return null;
+  if (!barrel) return undefined;
   const annotations = barrel[0]["iq:annotations"];
   return annotations && annotations[0]["iq:annotation"];
 }
@@ -138,9 +140,13 @@ export async function checkManifest(
     JSON.stringify(manifestProducts(manifest))
   ) {
     ok = false;
-    elm["iq:products"][0]["iq:product"] = allowedProducts.map((id) => {
-      return { $: { id } };
-    });
+    elm["iq:products"] = [
+      {
+        "iq:product": allowedProducts.map((id) => {
+          return { $: { id } };
+        }),
+      },
+    ];
   }
   Object.keys(elm).forEach((key) => {
     if (
