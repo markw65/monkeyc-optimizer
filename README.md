@@ -119,3 +119,7 @@ More fixes found via open source projects.
   - Refactoring to make analysis available in prettier-extension-monkeyc
   - Generate .d.ts, and drop unneeded paths/resolve.alias
   - Pull in a typed version of @markw65/prettier-plugin-monkeyc
+
+### 1.0.12
+
+- Fix connectiq and vscode paths on linux, and better error reporting when they're missing
