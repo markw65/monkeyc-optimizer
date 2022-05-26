@@ -1,6 +1,6 @@
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
-import path from "path";
+import * as path from "path";
 import { formatAst, getApiMapping, hasProperty, isStateNode } from "./api";
 import { build_project } from "./build";
 import {

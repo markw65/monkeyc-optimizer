@@ -1,4 +1,4 @@
-import path from "path";
+import * as path from "path";
 import { execFile } from "child_process";
 import { getSdkPath, isWin } from "./sdk-util";
 import { spawnByLine } from "./util";

@@ -4,7 +4,7 @@ import {
   mctree,
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
-import Prettier from "prettier/standalone.js";
+import * as Prettier from "prettier";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";

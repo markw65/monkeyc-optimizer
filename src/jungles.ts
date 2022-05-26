@@ -1,5 +1,5 @@
 import * as crypto from "crypto";
-import extract from "extract-zip";
+import * as extract from "extract-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
