@@ -193,7 +193,9 @@ async function test() {
             res.hasTests && testBuild
           ).catch(() => console.error("Simulation failed")))
       )
-      .then(() => console.log(`Done: ${jungleFiles}`))
+      .then(() =>
+        console.log(`Done: ${new Date().toLocaleString()} - ${jungleFiles}`)
+      )
       .catch((e) => {
         const products = e && e.products && e.products.join(",");
         console.error(
