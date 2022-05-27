@@ -1,3 +1,4 @@
+import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -6,12 +7,17 @@ import { build_project } from "./build";
 import {
   get_jungle,
   JungleQualifier,
-  Target,
   ResolvedBarrel,
   ResolvedJungle,
+  Target,
 } from "./jungles";
 import { launchSimulator, simulateProgram } from "./launch";
-import { checkManifest, writeManifest, manifestDropBarrels } from "./manifest";
+import {
+  checkManifest,
+  manifestDropBarrels,
+  manifestProducts,
+  writeManifest,
+} from "./manifest";
 import { analyze, getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
 import { appSupport } from "./sdk-util";
 import {
@@ -20,15 +26,15 @@ import {
   globa,
   last_modified,
 } from "./util";
-import { mctree } from "@markw65/prettier-plugin-monkeyc";
 
 export {
   copyRecursiveAsNeeded,
-  launchSimulator,
-  simulateProgram,
   get_jungle,
-  ResolvedJungle,
+  launchSimulator,
+  manifestProducts,
   mctree,
+  ResolvedJungle,
+  simulateProgram,
 };
 
 function relative_path_no_dotdot(relative: string) {
@@ -53,6 +59,14 @@ export const defaultConfig = {
   outputPath: "bin/optimized",
   workspace: "./",
 };
+
+export interface ErrorWithLocation extends Error {
+  location?: NonNullable<mctree.Node["loc"]>;
+}
+
+export function isErrorWithLocation(e: Error): e is ErrorWithLocation {
+  return hasProperty(e, "location");
+}
 
 declare global {
   // Configuration options for build
@@ -394,11 +408,6 @@ async function createLocalBarrels(targets: Target[], options: BuildConfig) {
   }, Promise.resolve());
 }
 
-/**
- *
- * @param {BuildConfig} options
- * @returns
- */
 export async function generateOptimizedProject(options: BuildConfig) {
   const config = await getConfig(options);
   const workspace = config.workspace!;
@@ -407,7 +416,19 @@ export async function generateOptimizedProject(options: BuildConfig) {
     config.jungleFiles!,
     config
   );
-
+  if (!xml["iq:manifest"]["iq:application"]) {
+    const error = new Error(
+      xml["iq:manifest"]["iq:barrel"]
+        ? "Optimize the project that uses this barrel, not the barrel itself"
+        : "Manifest is missing an `iq:application` tag"
+    );
+    (error as ErrorWithLocation).location = {
+      start: { line: 1, column: 1 },
+      end: { line: 1, column: 1 },
+      source: manifest,
+    };
+    throw error;
+  }
   const dependencyFiles = [manifest, ...jungles];
   await createLocalBarrels(targets, options);
 
@@ -593,6 +614,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
   await Promise.all(promises);
   return {
     jungleFiles,
+    xml,
     program: path.basename(path.dirname(manifest)),
     hasTests,
   };
