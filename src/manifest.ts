@@ -37,8 +37,8 @@ type iqBarrel = {
 export type ManifestXML = {
   "iq:manifest": {
     $: { "xmlns:iq": string };
-    "iq:application": Array<iqApplication>;
-    "iq:barrel": Array<iqBarrel>;
+    "iq:application"?: Array<iqApplication>;
+    "iq:barrel"?: Array<iqBarrel>;
   };
 };
 
@@ -60,7 +60,7 @@ export function manifestProducts(manifest: ManifestXML): string[] {
   const app =
     manifest["iq:manifest"]["iq:application"] ||
     manifest["iq:manifest"]["iq:barrel"];
-  return ((app[0]["iq:products"] || [{}])[0]["iq:product"] || [])
+  return (app?.[0]["iq:products"]?.[0]["iq:product"] || [])
     .map((p) => p.$.id)
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);
@@ -85,7 +85,9 @@ export function manifestBarrels(manifest: ManifestXML): string[] {
 }
 
 export function manifestDropBarrels(manifest: ManifestXML): void {
-  delete manifest["iq:manifest"]["iq:application"][0]["iq:barrels"];
+  const app = manifest["iq:manifest"]["iq:application"];
+  if (!app) return;
+  delete app[0]["iq:barrels"];
 }
 
 export function manifestBarrelName(

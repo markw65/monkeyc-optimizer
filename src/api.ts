@@ -85,7 +85,7 @@ export function hasProperty<
   T extends null extends T ? unknown : undefined extends T ? unknown : never
 >(obj: T, prop: string): obj is NonNullable<T>;
 export function hasProperty<T>(obj: T, prop: string): boolean;
-export function hasProperty<T>(obj: T, prop: string): boolean {
+export function hasProperty(obj: unknown, prop: string): boolean {
   return obj ? Object.prototype.hasOwnProperty.call(obj, prop) : false;
 }
 
