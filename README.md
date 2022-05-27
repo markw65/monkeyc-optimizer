@@ -123,3 +123,21 @@ More fixes found via open source projects.
 ### 1.0.12
 
 - Fix connectiq and vscode paths on linux, and better error reporting when they're missing
+
+### 1.0.13
+
+- Improvements
+
+  - Add displayName to deviceInfo (for getTargetDevices in prettier-extenion-monkeyc)
+  - Throw a better error when we fail to read a jungle file
+  - Don't try to optimize barrel projects
+
+- Code cleanup
+
+  - Update to @markw65/prettier-plugin-monkeyc@1.0.20 for mctree fixes
+  - Enable typescript strict checks
+  - Turn off synthetic default imports, and fix issues
+  - Better manifest typing
+
+- Tests
+  - Add date/time to test logging
