@@ -31,6 +31,7 @@ export async function getDeviceInfo(): Promise<{
   [key: string]: {
     appTypes: { memoryLimit: number; type: string }[];
     deviceFamily: string;
+    displayName: string;
   };
 }> {
   const files = await globa(`${connectiq}/Devices/*/compiler.json`);
@@ -42,10 +43,10 @@ export async function getDeviceInfo(): Promise<{
   return Promise.all(
     files.map((file) => {
       return fs.readFile(file).then((data) => {
-        const { deviceId, appTypes, deviceFamily } = JSON.parse(
+        const { deviceId, appTypes, deviceFamily, displayName } = JSON.parse(
           data.toString()
         );
-        return [deviceId, { appTypes, deviceFamily }];
+        return [deviceId, { appTypes, deviceFamily, displayName }];
       });
     })
   ).then((info) => {
