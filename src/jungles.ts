@@ -907,7 +907,7 @@ function resolve_barrels(
  */
 async function get_jungle_and_barrels(
   jungleFiles: string,
-  defaultProducts: string[],
+  defaultProducts: string[] | null,
   options: BuildConfig
 ): Promise<ResolvedJungle> {
   const jungles = jungleFiles
@@ -944,7 +944,14 @@ async function get_jungle_and_barrels(
   const barrels = manifestBarrels(xml);
   const annotations = manifestAnnotations(xml);
   const products = manifestProducts(xml);
-  if (products.length === 0) products.push(...defaultProducts);
+  if (products.length === 0) {
+    if (defaultProducts) {
+      products.push(...defaultProducts);
+    } else if (xml["iq:manifest"]["iq:barrel"]) {
+      const deviceInfo = await getDeviceInfo();
+      products.push(...Object.keys(deviceInfo).sort());
+    }
+  }
   let promise = Promise.resolve();
   const add_one = (product: string, shape: string | undefined = undefined) => {
     const rawQualifier = resolve_node(state, state[product]);
@@ -979,7 +986,7 @@ export async function get_jungle(
   options: BuildConfig
 ): Promise<ResolvedJungle> {
   options = options || {};
-  const result = await get_jungle_and_barrels(jungles, [], options);
+  const result = await get_jungle_and_barrels(jungles, null, options);
   identify_optimizer_groups(result.targets, options);
   return result;
 }
