@@ -141,3 +141,17 @@ More fixes found via open source projects.
 
 - Tests
   - Add date/time to test logging
+
+### 1.0.14
+
+- Bug fixes
+
+  - When reading a barrel project with no products, add all products by default
+  - Only set language specific paths for languages that are supported by the device
+  - Remove comments that are completely contained within removed nodes
+
+- Code cleanup
+  - Upgrade to @markw65/prettier-plugin-monkeyc@1.0.21 for some typescript fixes
+  - npm upgrade to pickup ts 4.7.2
+  - Add types to package exports for ts 4.7.2
+  - Better handling of program-logic errors
