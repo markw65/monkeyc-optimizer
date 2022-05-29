@@ -114,6 +114,35 @@ export function collectNamespaces(
     }
     return null;
   };
+  state.removeNodeComments = (node: mctree.Node, ast: mctree.Program) => {
+    if (node.start && node.end && ast.comments && ast.comments.length) {
+      let low = 0,
+        high = ast.comments.length;
+      while (true) {
+        const mid = (low + high) >> 1;
+        if (mid == low) {
+          if (ast.comments[mid].start! < node.start) {
+            return;
+          }
+          break;
+        }
+        if (ast.comments[mid].start! < node.start) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      for (
+        high = low;
+        high < ast.comments.length && ast.comments[high].end! < node.end;
+        high++
+      ) {}
+      if (high > low) {
+        ast.comments.splice(low, high - low);
+      }
+    }
+  };
+
   state.lookup = (node, name, stack) => {
     stack || (stack = state.stack);
     switch (node.type) {
@@ -339,11 +368,15 @@ export function collectNamespaces(
           let ret;
           if (state.shouldExclude && state.shouldExclude(node)) {
             // delete the node.
-            return false;
+            ret = false as const;
+          } else {
+            if (state.post) ret = state.post(node, state);
+            if (state.stack.slice(-1).pop()?.node === node) {
+              state.stack.pop();
+            }
           }
-          if (state.post) ret = state.post(node, state);
-          if (state.stack.slice(-1).pop()?.node === node) {
-            state.stack.pop();
+          if (ret === false) {
+            state.removeNodeComments(node, ast);
           }
           return ret;
         } catch (e) {

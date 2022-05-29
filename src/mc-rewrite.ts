@@ -137,7 +137,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
         "attrs" in node.attrs &&
         node.attrs.attrs
       ) {
-        return node.attrs.attrs.reduce((drop, attr) => {
+        return node.attrs.attrs.reduce((drop: boolean, attr) => {
           if (attr.type != "UnaryExpression") return drop;
           if (attr.argument.type != "Identifier") return drop;
           if (hasProperty(excludeAnnotations, attr.argument.name)) {
@@ -149,7 +149,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
           return drop;
         }, false);
       }
-      return null;
+      return false;
     },
     post(node, state) {
       switch (node.type) {
@@ -822,77 +822,84 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   Object.values(fnMap).forEach((f) => {
     collectNamespaces(f.ast!, state);
   });
+
+  const cleanup = (node: mctree.Node) => {
+    switch (node.type) {
+      case "EnumStringBody":
+        if (
+          node.members.every((m) => {
+            const name = "name" in m ? m.name : m.id.name;
+            return (
+              hasProperty(state.index, name) &&
+              !hasProperty(state.exposed, name)
+            );
+          })
+        ) {
+          node.enumType = [
+            ...new Set(
+              node.members.map((m) => {
+                if (!("init" in m)) return "Number";
+                const [node, type] = getNodeValue(m.init);
+                if (!node) {
+                  throw new Error("Failed to get type for eliminated enum");
+                }
+                return type;
+              })
+            ),
+          ].join(" or ");
+          node.members.splice(0);
+        }
+        break;
+      case "EnumDeclaration":
+        if (!node.body.members.length) {
+          if (!node.id) return false;
+          if (!node.body["enumType"]) {
+            throw new Error("Missing enumType on optimized enum");
+          }
+          replace(node, {
+            type: "TypedefDeclaration",
+            id: node.id,
+            ts: {
+              type: "UnaryExpression",
+              argument: { type: "TypeSpecList", ts: [node.body.enumType] },
+              prefix: true,
+              operator: " as",
+            },
+          });
+        }
+        break;
+      case "VariableDeclaration": {
+        node.declarations = node.declarations.filter((d) => {
+          const name = variableDeclarationName(d.id);
+          return (
+            !hasProperty(state.index, name) || hasProperty(state.exposed, name)
+          );
+        });
+        if (!node.declarations.length) {
+          return false;
+        }
+        break;
+      }
+      case "ClassElement":
+        if (!node.item) {
+          return false;
+        }
+        break;
+      case "FunctionDeclaration":
+        if (!maybeCalled(node)) {
+          return false;
+        }
+        break;
+    }
+    return null;
+  };
   Object.values(fnMap).forEach((f) => {
     traverseAst(f.ast!, undefined, (node) => {
-      switch (node.type) {
-        case "EnumStringBody":
-          if (
-            node.members.every((m) => {
-              const name = "name" in m ? m.name : m.id.name;
-              return (
-                hasProperty(state.index, name) &&
-                !hasProperty(state.exposed, name)
-              );
-            })
-          ) {
-            node.enumType = [
-              ...new Set(
-                node.members.map((m) => {
-                  if (!("init" in m)) return "Number";
-                  const [node, type] = getNodeValue(m.init);
-                  if (!node) {
-                    throw new Error("Failed to get type for eliminated enum");
-                  }
-                  return type;
-                })
-              ),
-            ].join(" or ");
-            node.members.splice(0);
-          }
-          break;
-        case "EnumDeclaration":
-          if (!node.body.members.length) {
-            if (!node.id) return false;
-            if (!node.body["enumType"]) {
-              throw new Error("Missing enumType on optimized enum");
-            }
-            replace(node, {
-              type: "TypedefDeclaration",
-              id: node.id,
-              ts: {
-                type: "UnaryExpression",
-                argument: { type: "TypeSpecList", ts: [node.body.enumType] },
-                prefix: true,
-                operator: " as",
-              },
-            });
-          }
-          break;
-        case "VariableDeclaration": {
-          node.declarations = node.declarations.filter((d) => {
-            const name = variableDeclarationName(d.id);
-            return (
-              !hasProperty(state.index, name) ||
-              hasProperty(state.exposed, name)
-            );
-          });
-          if (!node.declarations.length) {
-            return false;
-          }
-          break;
-        }
-        case "ClassElement":
-          if (!node.item) {
-            return false;
-          }
-          break;
-        case "FunctionDeclaration":
-          if (!maybeCalled(node)) {
-            return false;
-          }
-          break;
+      const ret = cleanup(node);
+      if (ret === false) {
+        state.removeNodeComments(node, f.ast!);
       }
-      return null;
+      return ret;
     });
   });
 }

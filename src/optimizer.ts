@@ -162,7 +162,8 @@ declare global {
     allFunctions?: FunctionStateNode[];
     allClasses?: ClassStateNode[];
     stack?: ProgramStateStack;
-    shouldExclude?: (node: any) => any;
+    removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;
+    shouldExclude?: (node: mctree.Node) => boolean;
     pre?: (
       node: mctree.Node,
       state: ProgramStateLive
@@ -192,7 +193,12 @@ declare global {
   };
   export type ProgramStateLive = Finalized<
     ProgramState,
-    "stack" | "lookup" | "traverse" | "index" | "constants"
+    | "stack"
+    | "lookup"
+    | "traverse"
+    | "index"
+    | "constants"
+    | "removeNodeComments"
   >;
   export type ProgramStateAnalysis = Finalized<
     ProgramStateLive,
