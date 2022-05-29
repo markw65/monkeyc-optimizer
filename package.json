@@ -6,8 +6,14 @@
   "main": "build/optimizer.cjs",
   "types": "build/src/optimizer.d.ts",
   "exports": {
-    ".": "./build/optimizer.cjs",
-    "./*.js": "./build/*.cjs"
+    ".": {
+      "types": "./build/src/optimizer.d.ts",
+      "default": "./build/optimizer.cjs"
+    },
+    "./*.js": {
+      "types": "./build/src/*.d.ts",
+      "default": "./build/*.cjs"
+    }
   },
   "scripts": {
     "watch": "webpack --mode development --watch",
