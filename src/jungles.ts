@@ -13,7 +13,7 @@ import {
   readManifest,
   ManifestXML,
 } from "./manifest";
-import { getDeviceInfo, getLanguages } from "./sdk-util";
+import { DeviceInfo, getDeviceInfo, getLanguages } from "./sdk-util";
 import { globa } from "./util";
 
 type JNode = Literal | QName | SubList;
@@ -47,7 +47,7 @@ function isJNode(obj: unknown): obj is JNode {
 }
 
 type Assignment = { names: string[]; values: JNode[] };
-async function default_jungle(): Promise<any> {
+async function default_jungle() {
   const assignments: Array<Assignment> = [];
   const devices = await getDeviceInfo();
   const languages = await getLanguages();
@@ -93,7 +93,8 @@ async function default_jungle(): Promise<any> {
     }
     rezAndLang(deviceId, `resources-${deviceId}`, deviceFamily);
   });
-  return process_assignments(assignments, {});
+  const state = await process_assignments(assignments, {});
+  return { state, devices };
 }
 
 function process_assignments(assignments: Assignment[], current: RawJungle) {
@@ -210,16 +211,14 @@ async function parse_one(file: string | string[]) {
 // Read default.jungle, and all jungles in sources, and
 // return a jungle object with all local variables resolved,
 // but all qualifier references left unresolved.
-async function process_jungles(
-  sources: string | (string | string[])[]
-): Promise<RawJungle> {
+async function process_jungles(sources: string | (string | string[])[]) {
   if (!Array.isArray(sources)) {
     sources = [sources];
   }
   const results = await Promise.all(sources.map(parse_one));
-  const state = await default_jungle();
+  const { state, devices } = await default_jungle();
   results.forEach((r) => process_assignments(r, state));
-  return state;
+  return { state, devices };
 }
 
 function resolve_node_list(state: RawJungle, list: RawJungleValue) {
@@ -352,7 +351,8 @@ function resolve_filename(
 
 async function resolve_literals(
   qualifier: RawJungle,
-  default_source: string
+  default_source: string,
+  deviceInfo: DeviceInfo[string]
 ): Promise<JungleQualifier> {
   const resolve_file_list = async (
     literals: JNode[] | NestedStringArray
@@ -405,7 +405,13 @@ async function resolve_literals(
   const lang = qualifier["lang"] as RawJungle;
   if (lang) {
     await Promise.all(
-      Object.keys(lang).map((key) => resolve_one_file_list(lang, key))
+      Object.keys(lang).map((key) => {
+        if (!hasProperty(deviceInfo.languages, key)) {
+          delete lang[key];
+          return null;
+        }
+        return resolve_one_file_list(lang, key);
+      })
     );
     if (Object.keys(lang).length === 0) delete qualifier["lang"];
   } else {
@@ -927,7 +933,7 @@ async function get_jungle_and_barrels(
       jungles.push(barrels_jungle);
     }
   }
-  const state = await process_jungles(jungles);
+  const { state, devices } = await process_jungles(jungles);
   // apparently square_watch is an alias for rectangle_watch
   state["square_watch"] = state["rectangle_watch"];
   const manifest_node = resolve_node(
@@ -948,8 +954,7 @@ async function get_jungle_and_barrels(
     if (defaultProducts) {
       products.push(...defaultProducts);
     } else if (xml["iq:manifest"]["iq:barrel"]) {
-      const deviceInfo = await getDeviceInfo();
-      products.push(...Object.keys(deviceInfo).sort());
+      products.push(...Object.keys(devices).sort());
     }
   }
   let promise = Promise.resolve();
@@ -957,7 +962,7 @@ async function get_jungle_and_barrels(
     const rawQualifier = resolve_node(state, state[product]);
     if (!rawQualifier || Array.isArray(rawQualifier)) return;
     promise = promise
-      .then(() => resolve_literals(rawQualifier, manifest))
+      .then(() => resolve_literals(rawQualifier, manifest, devices[product]))
       .then((qualifier) => {
         targets.push({ product, qualifier, shape });
         return resolve_barrels(product, qualifier, barrels, products, options);

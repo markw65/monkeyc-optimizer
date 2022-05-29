@@ -27,13 +27,16 @@ export function getSdkPath() {
     });
 }
 
-export async function getDeviceInfo(): Promise<{
+export type DeviceInfo = {
   [key: string]: {
     appTypes: { memoryLimit: number; type: string }[];
     deviceFamily: string;
     displayName: string;
+    languages: Record<string, true>;
   };
-}> {
+};
+
+export async function getDeviceInfo(): Promise<DeviceInfo> {
   const files = await globa(`${connectiq}/Devices/*/compiler.json`);
   if (!files.length) {
     throw new Error(
@@ -43,10 +46,29 @@ export async function getDeviceInfo(): Promise<{
   return Promise.all(
     files.map((file) => {
       return fs.readFile(file).then((data) => {
-        const { deviceId, appTypes, deviceFamily, displayName } = JSON.parse(
-          data.toString()
+        const { deviceId, appTypes, deviceFamily, displayName, partNumbers } =
+          JSON.parse(data.toString()) as {
+            deviceId: string;
+            appTypes: { memoryLimit: number; type: string }[];
+            deviceFamily: string;
+            displayName: string;
+            partNumbers: Array<{
+              connectIqVersion: string;
+              firmwareVersion: string;
+              languages: Array<{ code: string; fontSet: string }>;
+            }>;
+          };
+        const languages = Object.fromEntries(
+          partNumbers
+            .map((part) =>
+              part.languages.map((lang) => [lang.code, true] as const)
+            )
+            .flat(1)
         );
-        return [deviceId, { appTypes, deviceFamily, displayName }];
+        return [
+          deviceId,
+          { appTypes, deviceFamily, displayName, languages },
+        ] as const;
       });
     })
   ).then((info) => {
