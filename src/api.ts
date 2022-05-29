@@ -489,7 +489,6 @@ function handleException(
   node: mctree.Node,
   exception: unknown
 ): never {
-  let message;
   try {
     const fullName = state.stack
       .map((e) => e.name)
@@ -502,11 +501,17 @@ function handleException(
       node.loc && node.loc.source
         ? `${node.loc.source}:${node.start || 0}:${node.end || 0}`
         : "<unknown>";
-    message = `Got exception \`${Object.prototype.toString.call(
-      exception
-    )}' while processing node ${fullName}:${node.type} from ${location}`;
-  } catch {
+    const message = `Got exception \`${
+      exception instanceof Error
+        ? exception.message
+        : Object.prototype.toString.call(exception)
+    }' while processing node ${fullName}:${node.type} from ${location}`;
+    if (exception instanceof Error) {
+      exception.message = message;
+    } else {
+      exception = new Error(message);
+    }
+  } finally {
     throw exception;
   }
-  throw new Error(message);
 }
