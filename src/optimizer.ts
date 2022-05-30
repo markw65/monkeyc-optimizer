@@ -132,7 +132,7 @@ declare global {
     node: mctree.ClassDeclaration;
     decls?: StateNodeDecls;
     stack?: ProgramStateStack;
-    superClass: ClassStateNode[] | true;
+    superClass?: ClassStateNode[] | true;
   };
   type FunctionStateNode = {
     type: "FunctionDeclaration";

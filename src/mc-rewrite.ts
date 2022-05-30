@@ -42,7 +42,11 @@ function processImports(
 function collectClassInfo(state: ProgramStateAnalysis) {
   state.allClasses.forEach((elm) => {
     if (elm.node.superClass) {
-      const [, classes] = state.lookup(elm.node.superClass, null, elm.stack);
+      const [name, classes] = state.lookup(
+        elm.node.superClass,
+        null,
+        elm.stack
+      );
       const superClass =
         classes &&
         classes.filter(
@@ -51,6 +55,33 @@ function collectClassInfo(state: ProgramStateAnalysis) {
         );
       // set it "true" if there is a superClass, but we can't find it.
       elm.superClass = superClass && superClass.length ? superClass : true;
+      if (name && elm.superClass !== true) {
+        /*
+         * The runtime behavior of monkeyc is strange. Lookups
+         * of the name of the superclass, either bare, or via self.<name>
+         * always find the superclass, even if there's a member variable
+         * or method of the same name. So its ok to just overwrite
+         * elm.decls[name] here.
+         *
+         * ie
+         *
+         * class A { function foo() as Number { return 1; } }
+         * class B { function foo() as String { return "B"; } }
+         * class C extends A {
+         *   var A as B = new B();
+         *   function initialize() {
+         *     A.initialize(); // class A's initialize
+         *     A.foo(); // returns 1
+         *     self.A.foo(); // still returns 1
+         *   }
+         * }
+         *
+         * The typechecker seems to get confused in some circumstances
+         * though (ie it doesn't always use the same rules)
+         */
+        if (!elm.decls) elm.decls = {};
+        elm.decls[name] = elm.superClass;
+      }
     }
   });
 
@@ -536,17 +567,18 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
    */
   const checkInherited = (elm: ClassStateNode, name: string): boolean =>
     elm.superClass === true ||
-    elm.superClass.some(
-      (sc) =>
-        (hasProperty(sc.decls, name) &&
-          sc.decls[name].some(
-            (f) =>
-              isStateNode(f) &&
-              f.type == "FunctionDeclaration" &&
-              maybeCalled(f.node)
-          )) ||
-        (sc.superClass && checkInherited(sc, name))
-    );
+    (elm.superClass != null &&
+      elm.superClass.some(
+        (sc) =>
+          (hasProperty(sc.decls, name) &&
+            sc.decls[name].some(
+              (f) =>
+                isStateNode(f) &&
+                f.type == "FunctionDeclaration" &&
+                maybeCalled(f.node)
+            )) ||
+          (sc.superClass && checkInherited(sc, name))
+      ));
 
   state.pre = (node) => {
     switch (node.type) {
