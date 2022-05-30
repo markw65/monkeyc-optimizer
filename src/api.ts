@@ -97,6 +97,68 @@ export function variableDeclarationName(node: mctree.TypedIdentifier) {
   return ("left" in node ? node.left : node).name;
 }
 
+type DeclKind = "decls" | "type_decls";
+
+function checkOne(ns: StateNodeDecl, decls: DeclKind, name: string) {
+  if (isStateNode(ns) && hasProperty(ns[decls], name)) {
+    return ns[decls]![name];
+  }
+  return null;
+}
+
+function lookup(
+  state: ProgramStateLive,
+  decls: DeclKind,
+  node: mctree.Node,
+  name?: string | null | undefined,
+  stack?: ProgramStateStack
+): ReturnType<ProgramStateLive["lookup"]> {
+  stack || (stack = state.stack);
+  switch (node.type) {
+    case "MemberExpression": {
+      if (node.property.type != "Identifier" || node.computed) break;
+      const [, module, where] = state.lookup(node.object, name, stack);
+      if (module && module.length === 1) {
+        const result = checkOne(module[0], decls, node.property.name);
+        if (result) {
+          return [
+            name || node.property.name,
+            result,
+            where.concat(module[0] as StateNode),
+          ];
+        }
+      }
+      break;
+    }
+    case "ThisExpression": {
+      for (let i = stack.length; i--; ) {
+        const si = stack[i];
+        if (
+          si.type == "ModuleDeclaration" ||
+          si.type == "ClassDeclaration" ||
+          !i
+        ) {
+          return [name || (si.name as string), [si], stack.slice(0, i)];
+        }
+      }
+      break;
+    }
+    case "Identifier": {
+      if (node.name == "$") {
+        return [name || node.name, [stack[0]], []];
+      }
+      for (let i = stack.length; i--; ) {
+        const result = checkOne(stack[i], decls, node.name);
+        if (result) {
+          return [name || node.name, result, stack.slice(0, i + 1)];
+        }
+      }
+      break;
+    }
+  }
+  return [null, null, null];
+}
+
 export function collectNamespaces(
   ast: mctree.Program,
   stateIn?: ProgramState
@@ -108,12 +170,6 @@ export function collectNamespaces(
       { type: "Program", name: "$", fullName: "$", node: undefined },
     ];
   }
-  const checkOne = (ns: StateNodeDecl, name: string) => {
-    if (isStateNode(ns) && hasProperty(ns.decls, name)) {
-      return ns.decls[name];
-    }
-    return null;
-  };
   state.removeNodeComments = (node: mctree.Node, ast: mctree.Program) => {
     if (node.start && node.end && ast.comments && ast.comments.length) {
       let low = 0,
@@ -143,52 +199,16 @@ export function collectNamespaces(
     }
   };
 
-  state.lookup = (node, name, stack) => {
-    stack || (stack = state.stack);
-    switch (node.type) {
-      case "MemberExpression": {
-        if (node.property.type != "Identifier" || node.computed) break;
-        const [, module, where] = state.lookup(node.object, name, stack);
-        if (module && module.length === 1) {
-          const result = checkOne(module[0], node.property.name);
-          if (result) {
-            return [
-              name || node.property.name,
-              result,
-              where.concat(module[0] as StateNode),
-            ];
-          }
-        }
-        break;
-      }
-      case "ThisExpression": {
-        for (let i = stack.length; i--; ) {
-          const si = stack[i];
-          if (
-            si.type == "ModuleDeclaration" ||
-            si.type == "ClassDeclaration" ||
-            !i
-          ) {
-            return [name || (si.name as string), [si], stack.slice(0, i)];
-          }
-        }
-        break;
-      }
-      case "Identifier": {
-        if (node.name == "$") {
-          return [name || node.name, [stack[0]], []];
-        }
-        for (let i = stack.length; i--; ) {
-          const result = checkOne(stack[i], node.name);
-          if (result) {
-            return [name || node.name, result, stack.slice(0, i + 1)];
-          }
-        }
-        break;
-      }
-    }
-    return [null, null, null];
-  };
+  state.lookup = (node, name, stack) =>
+    lookup(state, state.inType ? "type_decls" : "decls", node, name, stack);
+
+  state.lookupValue = (node, name, stack) =>
+    lookup(state, "decls", node, name, stack);
+
+  state.lookupType = (node, name, stack) =>
+    lookup(state, "type_decls", node, name, stack);
+
+  state.inType = false;
 
   state.traverse = (root) =>
     traverseAst(
@@ -204,6 +224,9 @@ export function collectNamespaces(
               if (state.stack.length != 1) {
                 throw new Error("Unexpected stack length for Program node");
               }
+              break;
+            case "TypeSpecList":
+              state.inType = true;
               break;
             case "BlockStatement": {
               const [parent] = state.stack.slice(-1);
@@ -288,6 +311,7 @@ export function collectNamespaces(
             }
             // fall through
             case "TypedefDeclaration": {
+              state.inType = true;
               const name = node.id!.name;
               const [parent] = state.stack.slice(-1);
               if (!parent.type_decls) parent.type_decls = {};
@@ -318,6 +342,7 @@ export function collectNamespaces(
               break;
             }
             case "EnumStringBody": {
+              state.inType = false;
               const [parent] = state.stack.slice(-1);
               const values = parent.decls || (parent.decls = {});
               let prev = -1;
@@ -381,7 +406,18 @@ export function collectNamespaces(
             // delete the node.
             ret = false as const;
           } else {
+            const type = node.type;
             if (state.post) ret = state.post(node, state);
+            switch (type) {
+              case "TypeSpecList":
+              case "TypedefDeclaration":
+              case "EnumDeclaration":
+                state.inType = false;
+                break;
+              case "EnumStringBody":
+                state.inType = true;
+                break;
+            }
             if (state.stack.slice(-1).pop()?.node === node) {
               state.stack.pop();
             }

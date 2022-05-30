@@ -179,7 +179,18 @@ declare global {
       name?: string | null,
       stack?: ProgramStateStack
     ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
+    lookupValue?: (
+      node: mctree.Node,
+      name?: string | null,
+      stack?: ProgramStateStack
+    ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
+    lookupType?: (
+      node: mctree.Node,
+      name?: string | null,
+      stack?: ProgramStateStack
+    ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
     traverse?: (node: mctree.Node) => void | null | false | mctree.Node;
+    inType?: boolean;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: unknown[] };
     localsStack?: {
@@ -197,10 +208,13 @@ declare global {
     ProgramState,
     | "stack"
     | "lookup"
+    | "lookupValue"
+    | "lookupType"
     | "traverse"
     | "index"
     | "constants"
     | "removeNodeComments"
+    | "inType"
   >;
   export type ProgramStateAnalysis = Finalized<
     ProgramStateLive,
@@ -640,7 +654,7 @@ declare type RequiredNonNull<T> = {
 export type Analysis = {
   fnMap: RequiredNonNull<FilesToOptimizeMap>;
   paths: string[];
-  state: ProgramState;
+  state: ProgramStateAnalysis;
 };
 
 async function fileInfoFromConfig(
