@@ -219,7 +219,7 @@ export function collectNamespaces(
             case "FunctionDeclaration":
             case "ModuleDeclaration": {
               const [parent] = state.stack.slice(-1);
-              const name = "id" in node ? node.id && node.id.name : null;
+              const name = "id" in node ? node.id && node.id.name : undefined;
               const fullName = state.stack
                 .map((e) => e.name)
                 .concat(name)
@@ -238,8 +238,9 @@ export function collectNamespaces(
                   const what =
                     node.type == "ModuleDeclaration" ? "type" : "node";
                   const e = parent.decls[name].find(
-                    (d) => isStateNode(d) && d[what] == elm[what]
-                  ) as StateNode | null;
+                    (d): d is StateNode =>
+                      isStateNode(d) && d[what] == elm[what]
+                  );
                   if (e != null) {
                     e.node = node;
                     state.stack.splice(-1, 1, e);
@@ -259,6 +260,16 @@ export function collectNamespaces(
                   );
                 }
                 parent.decls[name].push(elm);
+                if (
+                  node.type == "ModuleDeclaration" ||
+                  node.type == "ClassDeclaration"
+                ) {
+                  if (!parent.type_decls) parent.type_decls = {};
+                  if (!hasProperty(parent.type_decls, name)) {
+                    parent.type_decls[name] = [];
+                  }
+                  parent.type_decls[name].push(elm);
+                }
               }
               break;
             }
@@ -279,11 +290,11 @@ export function collectNamespaces(
             case "TypedefDeclaration": {
               const name = node.id!.name;
               const [parent] = state.stack.slice(-1);
-              if (!parent.decls) parent.decls = {};
-              if (!hasProperty(parent.decls, name)) {
-                parent.decls[name] = [];
+              if (!parent.type_decls) parent.type_decls = {};
+              if (!hasProperty(parent.type_decls, name)) {
+                parent.type_decls[name] = [];
               }
-              pushUnique(parent.decls[name], node);
+              pushUnique(parent.type_decls[name], node);
               break;
             }
             case "VariableDeclaration": {
@@ -493,7 +504,7 @@ function handleException(
     const fullName = state.stack
       .map((e) => e.name)
       .concat(
-        "name" in node && typeof node.name === "string" ? node.name : null
+        "name" in node && typeof node.name === "string" ? node.name : undefined
       )
       .filter((e) => e != null)
       .join(".");

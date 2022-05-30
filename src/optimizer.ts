@@ -109,48 +109,50 @@ declare global {
   type StateNodeDecls = {
     [key: string]: StateNodeDecl[];
   };
-  type ProgramStateNode = {
+  interface BaseStateNode {
+    type: string;
+    node: mctree.Node | null | undefined;
+    name: string | null | undefined;
+    fullName: string | null | undefined;
+    decls?: StateNodeDecls | undefined;
+    type_decls?: StateNodeDecls | undefined;
+    stack?: ProgramStateStack | undefined;
+  }
+  interface ProgramStateNode extends BaseStateNode {
     type: "Program";
     node: null | undefined;
     name: "$";
     fullName: "$";
-    decls?: StateNodeDecls;
-    stack?: null | undefined;
-  };
-  type ModuleStateNode = {
+    stack?: undefined;
+  }
+  interface ModuleStateNode extends BaseStateNode {
     type: "ModuleDeclaration";
-    name: string;
-    fullName: string;
     node: mctree.ModuleDeclaration;
-    stack?: ProgramStateStack;
-    decls?: StateNodeDecls;
-  };
-  type ClassStateNode = {
+    name: string;
+    fullName: string;
+  }
+  interface ClassStateNode extends BaseStateNode {
     type: "ClassDeclaration";
-    name: string;
-    fullName: string;
     node: mctree.ClassDeclaration;
-    decls?: StateNodeDecls;
-    stack?: ProgramStateStack;
-    superClass?: ClassStateNode[] | true;
-  };
-  type FunctionStateNode = {
-    type: "FunctionDeclaration";
     name: string;
     fullName: string;
+    superClass?: ClassStateNode[] | true;
+  }
+  interface FunctionStateNode extends BaseStateNode {
+    type: "FunctionDeclaration";
     node: mctree.FunctionDeclaration;
-    // decls?: { [key: string]: (StateNode | string)[] };
+    name: string;
+    fullName: string;
     stack?: ProgramStateStack;
     decls?: undefined;
-  };
-  type BlockStateNode = {
+  }
+  interface BlockStateNode extends BaseStateNode {
     type: "BlockStatement";
-    name?: null | undefined;
-    fullName?: null | undefined;
+    name: undefined;
+    fullName: undefined;
     node: mctree.BlockStatement;
-    decls?: StateNodeDecls;
-    stack?: null | undefined;
-  };
+    stack?: undefined;
+  }
   type StateNode =
     | ProgramStateNode
     | FunctionStateNode
