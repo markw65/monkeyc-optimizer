@@ -155,3 +155,9 @@ More fixes found via open source projects.
   - npm upgrade to pickup ts 4.7.2
   - Add types to package exports for ts 4.7.2
   - Better handling of program-logic errors
+
+### 1.0.15
+
+- Bug fixes
+  - Inject the superclass name into the classes namespace
+  - Separate type vs value lookup, and use the correct one based on context.
