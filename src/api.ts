@@ -309,8 +309,23 @@ export function collectNamespaces(
               if (!parent.type_decls) parent.type_decls = {};
               if (!hasProperty(parent.type_decls, name)) {
                 parent.type_decls[name] = [];
+              } else if (
+                parent.type_decls[name].find(
+                  (n) => (isStateNode(n) ? n.node : n) == node
+                )
+              ) {
+                break;
               }
-              pushUnique(parent.type_decls[name], node);
+              parent.type_decls[name].push(
+                node.type === "EnumDeclaration"
+                  ? node
+                  : {
+                      type: "TypedefDeclaration",
+                      node,
+                      name,
+                      fullName: parent.fullName + "." + name,
+                    }
+              );
               break;
             }
             case "VariableDeclaration": {

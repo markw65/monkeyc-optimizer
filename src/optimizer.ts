@@ -104,7 +104,6 @@ declare global {
     | mctree.TypedIdentifier
     /* Other declarations */
     | mctree.EnumDeclaration
-    | mctree.TypedefDeclaration
     | mctree.VariableDeclarator;
   type StateNodeDecls = {
     [key: string]: StateNodeDecl[];
@@ -153,12 +152,19 @@ declare global {
     node: mctree.BlockStatement;
     stack?: undefined;
   }
+  interface TypedefStateNode extends BaseStateNode {
+    type: "TypedefDeclaration";
+    node: mctree.TypedefDeclaration;
+    name: string;
+    fullName: string;
+  }
   type StateNode =
     | ProgramStateNode
     | FunctionStateNode
     | BlockStateNode
     | ClassStateNode
-    | ModuleStateNode;
+    | ModuleStateNode
+    | TypedefStateNode;
   type ProgramStateStack = StateNode[];
   export type ProgramState = {
     allFunctions?: FunctionStateNode[];
