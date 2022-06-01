@@ -103,8 +103,7 @@ declare global {
     /* Function parameters */
     | mctree.TypedIdentifier
     /* Other declarations */
-    | mctree.EnumDeclaration
-    | mctree.VariableDeclarator;
+    | mctree.EnumDeclaration;
   type StateNodeDecls = {
     [key: string]: StateNodeDecl[];
   };
@@ -158,13 +157,21 @@ declare global {
     name: string;
     fullName: string;
   }
+  interface VariableStateNode extends BaseStateNode {
+    type: "VariableDeclarator";
+    node: mctree.VariableDeclarator;
+    name: string;
+    fullName: string;
+    stack: ProgramStateStack;
+  }
   type StateNode =
     | ProgramStateNode
     | FunctionStateNode
     | BlockStateNode
     | ClassStateNode
     | ModuleStateNode
-    | TypedefStateNode;
+    | TypedefStateNode
+    | VariableStateNode;
   type ProgramStateStack = StateNode[];
   export type ProgramState = {
     allFunctions?: FunctionStateNode[];
@@ -930,12 +937,13 @@ export async function generateApiMirTests(options: BuildConfig) {
         const d = decl[0];
         if (
           d.type === "EnumStringMember" ||
-          (d.type === "VariableDeclarator" && d.kind === "const")
+          (d.type === "VariableDeclarator" && d.node.kind === "const")
         ) {
-          if (!d.init) {
+          const init = isStateNode(d) ? d.node.init : d.init;
+          if (!init) {
             throw new Error(`Missing init for ${node.fullName}.${key}`);
           }
-          tests.push([`${node.fullName}.${key}`, formatAst(d.init)]);
+          tests.push([`${node.fullName}.${key}`, formatAst(init)]);
         } else if (isStateNode(d)) {
           findConstants(d);
         }

@@ -267,9 +267,11 @@ export function getLiteralFromDecls(decls: StateNodeDecl[]) {
     decls.every((d) => {
       if (
         d.type === "EnumStringMember" ||
-        (d.type === "VariableDeclarator" && d.kind === "const")
+        (d.type === "VariableDeclarator" && d.node.kind === "const")
       ) {
-        const init = getLiteralNode(d.init);
+        const init = getLiteralNode(
+          d.type === "EnumStringMember" ? d.init : d.node.init
+        );
         if (!init) return false;
         if (!result) {
           result = init;

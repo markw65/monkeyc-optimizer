@@ -44,13 +44,14 @@ export async function getApiMapping(
       state
     );
     negativeFixups.forEach((fixup) => {
-      const value = fixup.split(".").reduce((state: StateNodeDecl, part) => {
+      const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
         const decls = isStateNode(state) && state.decls?.[part];
         if (!Array.isArray(decls) || decls.length != 1 || !decls[0]) {
           throw `Failed to find and fix negative constant ${fixup}`;
         }
         return decls[0];
       }, result);
+      const value = isStateNode(vs) ? vs.node! : vs;
       if (
         value.type !== "EnumStringMember" &&
         (value.type !== "VariableDeclarator" || value.kind != "const")
@@ -349,13 +350,24 @@ export function collectNamespaces(
               const [parent] = state.stack.slice(-1);
               if (!parent.decls) parent.decls = {};
               const decls = parent.decls;
+              const stack = state.stack.slice();
               node.declarations.forEach((decl) => {
                 const name = variableDeclarationName(decl.id);
                 if (!hasProperty(decls, name)) {
                   decls[name] = [];
+                } else if (
+                  decls[name].find((n) => (isStateNode(n) ? n.node : n) == decl)
+                ) {
+                  return;
                 }
                 decl.kind = node.kind;
-                pushUnique(decls[name], decl);
+                pushUnique(decls[name], {
+                  type: "VariableDeclarator",
+                  node: decl,
+                  name,
+                  fullName: parent.fullName + "." + name,
+                  stack,
+                });
                 if (node.kind == "const") {
                   if (!hasProperty(state.index, name)) {
                     state.index[name] = [];
