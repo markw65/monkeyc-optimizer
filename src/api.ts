@@ -99,9 +99,26 @@ export function variableDeclarationName(node: mctree.TypedIdentifier) {
 
 type DeclKind = "decls" | "type_decls";
 
-function checkOne(ns: StateNodeDecl, decls: DeclKind, name: string) {
-  if (isStateNode(ns) && hasProperty(ns[decls], name)) {
-    return ns[decls]![name];
+function checkOne(
+  ns: StateNodeDecl,
+  decls: DeclKind,
+  name: string
+): StateNodeDecl[] | null {
+  if (isStateNode(ns)) {
+    if (hasProperty(ns[decls], name)) {
+      return ns[decls]![name];
+    }
+    if (
+      ns.type == "ClassDeclaration" &&
+      ns.superClass &&
+      ns.superClass !== true
+    ) {
+      const found = ns.superClass
+        .map((cls) => checkOne(cls, decls, name))
+        .filter((n): n is NonNullable<typeof n> => n != null)
+        .flat(1);
+      return found.length ? found : null;
+    }
   }
   return null;
 }
