@@ -117,7 +117,7 @@ function lookup(
   switch (node.type) {
     case "MemberExpression": {
       if (node.property.type != "Identifier" || node.computed) break;
-      const [, module, where] = state.lookup(node.object, name, stack);
+      const [, module, where] = lookup(state, decls, node.object, name, stack);
       if (module && module.length === 1) {
         const result = checkOne(module[0], decls, node.property.name);
         if (result) {
