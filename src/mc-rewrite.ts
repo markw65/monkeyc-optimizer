@@ -12,6 +12,7 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
+import { shouldInline, inlineFunction } from "./inliner";
 import { pushUnique } from "./util";
 
 type ImportItem = { node: mctree.ImportStatement; stack: ProgramStateStack };
@@ -834,16 +835,21 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
           }
           return null;
         }
-        if (callees.length == 1) {
-          const callee = isStateNode(callees[0]) && callees[0].node;
+        if (callees.length == 1 && callees[0].type === "FunctionDeclaration") {
+          const callee = callees[0].node;
           if (
-            callee &&
-            callee.type == "FunctionDeclaration" &&
             callee.optimizable &&
             !callee.hasOverride &&
             node.arguments.every((n) => getNodeValue(n)[0] !== null)
           ) {
             const ret = evaluateFunction(callee, node.arguments);
+            if (ret) {
+              replace(node, ret);
+              return null;
+            }
+          }
+          if (shouldInline(state, callees[0], node.arguments)) {
+            const ret = inlineFunction(state, callees[0], node);
             if (ret) {
               replace(node, ret);
               return null;
@@ -864,6 +870,8 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   Object.values(fnMap).forEach((f) => {
     collectNamespaces(f.ast!, state);
   });
+  delete state.pre;
+  delete state.post;
 
   const cleanup = (node: mctree.Node) => {
     switch (node.type) {
