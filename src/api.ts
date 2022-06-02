@@ -174,25 +174,17 @@ export function collectNamespaces(
     if (node.start && node.end && ast.comments && ast.comments.length) {
       let low = 0,
         high = ast.comments.length;
-      while (true) {
+      while (high > low) {
         const mid = (low + high) >> 1;
-        if (mid == low) {
-          if (ast.comments[mid].start! < node.start) {
-            return;
-          }
-          break;
-        }
         if (ast.comments[mid].start! < node.start) {
-          low = mid;
+          low = mid + 1;
         } else {
           high = mid;
         }
       }
-      for (
-        high = low;
-        high < ast.comments.length && ast.comments[high].end! < node.end;
-        high++
-      ) {}
+      while (high < ast.comments.length && ast.comments[high].end! < node.end) {
+        high++;
+      }
       if (high > low) {
         ast.comments.splice(low, high - low);
       }
