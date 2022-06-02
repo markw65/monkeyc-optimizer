@@ -20,8 +20,9 @@
     "build-debug": "webpack --mode development",
     "build-release": "webpack --mode production",
     "prepack": "webpack --mode production",
-    "test": "npm run test-remote",
-    "test-remote": "node ./test/test.js --product=pick-one --github"
+    "test": "npm run test-inline && npm run test-remote",
+    "test-remote": "node ./test/test.js --product=pick-one --github",
+    "test-inline": "node test/test.js --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle"
   },
   "files": [
     "build/optimizer.cjs",

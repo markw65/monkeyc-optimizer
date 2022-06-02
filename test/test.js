@@ -112,7 +112,11 @@ async function test() {
   }
   await promise;
   if (!jungles.length) throw new Error("No inputs!");
-  if (testBuild) execute = true;
+  if (testBuild) {
+    execute = true;
+  } else {
+    products.splice(1);
+  }
   if (execute) {
     if (jungleOnly || generateOnly) {
       error(
@@ -131,7 +135,7 @@ async function test() {
     generateOnly = true;
   }
   const failures = [];
-  await jungles.reduce((promise, jungleFiles) => {
+  const runOne = (promise, products, jungleFiles) => {
     const genOnly = jungleFiles.build === false || generateOnly;
     const jungleOptions = jungleFiles.options || {};
     if (jungleFiles.jungle) {
@@ -216,7 +220,20 @@ async function test() {
         }
         failures.push([jungleFiles, e]);
       });
-  }, Promise.resolve());
+  };
+  await jungles.reduce(
+    (promise, jungleFiles) => {
+      if (testBuild) {
+        return products.reduce(
+          (promise, product) => runOne(promise, [product], jungleFiles),
+          promise
+        );
+      }
+      return runOne(promise, products, jungleFiles);
+    },
+
+    Promise.resolve()
+  );
   if (failures.length) {
     throw new Error(
       failures
@@ -229,7 +246,7 @@ async function test() {
 test()
   .then(() => console.log("Success"))
   .catch((e) => {
-    console.log("Failed: " + e.toString());
+    error("Failed: " + e.toString());
   });
 
 function error(message) {
