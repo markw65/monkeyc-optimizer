@@ -863,6 +863,7 @@ async function generateOneConfig(
       await fs.mkdir(dir, { recursive: true });
 
       const opt_source = formatAst(info.ast!, info.monkeyCSource);
+      await fs.writeFile(name, opt_source);
       if (config.checkBuildPragmas) {
         const matches = opt_source.matchAll(
           /^.*\/\*\s*@match\s+(\S+)\s+\*\/(.*)$/gm
@@ -875,7 +876,6 @@ async function generateOneConfig(
           }
         }
       }
-      await fs.writeFile(name, opt_source);
       return info.hasTests;
     })
   ).then((results) => {

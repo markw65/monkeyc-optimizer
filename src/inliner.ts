@@ -5,16 +5,18 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
+import { renameVariable } from "./variable-renamer";
 
 type Expression = mctree.BinaryExpression["left"];
 
-function canInline(
+function getArgSafety(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
-  args: mctree.Node[]
+  args: mctree.Node[],
+  requireAll: boolean
 ) {
   // determine whether decl might be changed by a function call
-  // during the evaluation of FunctionStateNode.
+  // or assignment during the evaluation of FunctionStateNode.
   const getSafety = (decl: StateNodeDecl) => {
     // enums are constant, they cant change
     if (decl.type === "EnumStringMember") return true;
@@ -42,15 +44,24 @@ function canInline(
         case "Identifier":
         case "MemberExpression": {
           const [, results] = state.lookup(arg);
-          if (!results || results.length !== 1) return false;
+          if (!results || results.length !== 1) {
+            safeArgs.push(null);
+            return !requireAll;
+          }
           const safety = getSafety(results[0]);
-          if (safety === null) return false;
-          if (!safety) allSafe = false;
           safeArgs.push(safety);
+          if (!safety) {
+            allSafe = false;
+            if (safety === null) {
+              return !requireAll;
+            }
+          }
           return true;
         }
       }
-      return false;
+      allSafe = false;
+      safeArgs.push(null);
+      return !requireAll;
     })
   ) {
     return false;
@@ -90,6 +101,8 @@ function canInline(
       switch (node.type) {
         case "CallExpression":
         case "NewExpression":
+        case "AssignmentExpression":
+        case "UpdateExpression":
           callSeen = true;
           break;
         case "Identifier":
@@ -98,12 +111,24 @@ function canInline(
             hasProperty(params, node.name) &&
             !safeArgs[params[node.name]]
           ) {
-            ok = false;
+            safeArgs[params[node.name]] = null;
           }
       }
     }
   );
-  return ok;
+  return safeArgs;
+}
+
+function canInline(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
+  args: mctree.Node[]
+) {
+  const safeArgs = getArgSafety(state, func, args, true);
+  if (safeArgs === true || safeArgs === false) {
+    return safeArgs;
+  }
+  return safeArgs.every((arg) => arg !== null);
 }
 
 function inliningLooksUseful(
@@ -132,107 +157,147 @@ function inliningLooksUseful(
   return false;
 }
 
+export enum InlineStatus {
+  Never,
+  AsExpression,
+  AsStatement,
+}
+
 export function shouldInline(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   args: mctree.Node[]
-) {
+): InlineStatus {
+  let autoInline: number | boolean = false;
+  let inlineAsExpression = false;
   if (
-    !func.node.body ||
-    func.node.body.body.length !== 1 ||
-    func.node.body.body[0].type !== "ReturnStatement" ||
-    !func.node.body.body[0].argument ||
-    func.node.params.length !== args.length
+    func.node.body &&
+    func.node.body.body.length === 1 &&
+    func.node.body.body[0].type === "ReturnStatement" &&
+    func.node.body.body[0].argument &&
+    func.node.params.length === args.length
   ) {
-    return false;
+    inlineAsExpression = true;
+    autoInline = inliningLooksUseful(
+      func.node,
+      func.node.body.body[0].argument
+    );
   }
 
-  const autoInline = inliningLooksUseful(
-    func.node,
-    func.node.body.body[0].argument
-  );
+  if (autoInline === 1) {
+    return InlineStatus.AsExpression;
+  }
+
   const excludeAnnotations =
     (func.node.loc?.source &&
-      state.fnMap[func.node.loc?.source].excludeAnnotations) ||
+      state.fnMap[func.node.loc?.source]?.excludeAnnotations) ||
     {};
-  return (
-    (autoInline ||
-      (func.node.attrs &&
-        func.node.attrs.attrs &&
-        func.node.attrs.attrs.some(
-          (attr) =>
-            attr.type === "UnaryExpression" &&
-            (attr.argument.name === "inline" ||
-              (attr.argument.name.startsWith("inline_") &&
-                hasProperty(
-                  excludeAnnotations,
-                  attr.argument.name.substring(7)
-                )))
-        ))) &&
-    (autoInline === 1 || canInline(state, func, args))
-  );
+
+  const inlineRequested =
+    func.node.attrs &&
+    func.node.attrs.attrs &&
+    func.node.attrs.attrs.some(
+      (attr) =>
+        attr.type === "UnaryExpression" &&
+        (attr.argument.name === "inline" ||
+          (attr.argument.name.startsWith("inline_") &&
+            hasProperty(excludeAnnotations, attr.argument.name.substring(7))))
+    );
+  if (autoInline || inlineRequested) {
+    return inlineAsExpression && canInline(state, func, args)
+      ? InlineStatus.AsExpression
+      : InlineStatus.AsStatement;
+  }
+  return InlineStatus.Never;
 }
 
-export function inlineFunction(
+type InlineBody =
+  | mctree.BlockStatement
+  | mctree.ExpressionStatement["expression"];
+type InlineBodyReturn<T extends InlineBody> = T extends mctree.BlockStatement
+  ? mctree.BlockStatement
+  : mctree.ExpressionStatement["expression"];
+
+function processInlineBody<T extends InlineBody>(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
-  call: mctree.CallExpression
-) {
-  const retArg = JSON.parse(
-    JSON.stringify(
-      (func.node!.body!.body[0] as mctree.ReturnStatement).argument!
-    )
-  );
-  const params = Object.fromEntries(
-    func.node.params.map(
-      (param, i) => [variableDeclarationName(param), i] as const
-    )
-  );
+  call: mctree.CallExpression,
+  root: T,
+  insertedVariableDecls: mctree.VariableDeclaration | boolean,
+  params?: Record<string, number>
+): InlineBodyReturn<T> | null {
+  if (!params) {
+    const safeArgs = getArgSafety(state, func, call.arguments, false);
+    params = Object.fromEntries(
+      func.node.params.map((param, i) => {
+        const argnum =
+          safeArgs === true || (safeArgs !== false && safeArgs[i] !== null)
+            ? i
+            : -1;
+        const name = variableDeclarationName(param);
+        return [name, argnum];
+      })
+    );
+  }
+
+  const pre = state.pre!;
+  const post = state.post!;
   try {
-    const result =
-      traverseAst(
-        retArg,
-        (node) => {
-          switch (node.type) {
-            case "MemberExpression":
-              if (!node.computed) {
-                return ["object"];
-              }
-              break;
-            case "BinaryExpression":
-              if (node.operator === "as") {
-                return ["left"];
-              }
-              break;
-            case "UnaryExpression":
-              if (node.operator === " as") {
-                return [];
-              }
-          }
-          return null;
-        },
-        (node) => {
-          switch (node.type) {
-            case "Identifier": {
-              if (hasProperty(params, node.name)) {
-                return call.arguments[params[node.name]];
-              }
-              const rep = fixNodeScope(state, node, func.stack!);
-              if (!rep) {
-                throw new Error(
-                  `Inliner: Couldn't fix the scope of '${node.name}`
-                );
-              }
-              return rep;
+    state.pre = (node: mctree.Node) => {
+      node.start = call.start;
+      node.end = call.end;
+      node.loc = call.loc;
+      if (node === insertedVariableDecls) return false;
+      const result = pre(node, state);
+      if (!insertedVariableDecls && node.type === "BlockStatement") {
+        const locals = state.localsStack![state.localsStack!.length - 1];
+        const { map } = locals;
+        if (!map) throw new Error("No local variable map!");
+        const declarations: mctree.VariableDeclarator[] = func.node.params
+          .map((param, i): mctree.VariableDeclarator | null => {
+            const paramName = variableDeclarationName(param);
+            if (params![paramName] >= 0) return null;
+            const name = renameVariable(state, locals, paramName) || paramName;
+
+            return {
+              type: "VariableDeclarator",
+              id: { type: "Identifier", name },
+              kind: "var",
+              init: call.arguments[i],
+            };
+          })
+          .filter((n): n is mctree.VariableDeclarator => n != null);
+        insertedVariableDecls = {
+          type: "VariableDeclaration",
+          declarations,
+          kind: "var",
+        };
+        node.body.unshift(insertedVariableDecls);
+      }
+      return result;
+    };
+    state.post = (node: mctree.Node) => {
+      let replacement = null;
+      switch (node.type) {
+        case "Identifier": {
+          if (state.inType) break;
+          if (hasProperty(params, node.name)) {
+            const ix = params[node.name];
+            if (ix >= 0) {
+              replacement = call.arguments[ix];
             }
+            break;
           }
-          return null;
+          replacement = fixNodeScope(state, node, func.stack!);
+          if (!replacement) {
+            throw new Error(`Inliner: Couldn't fix the scope of '${node.name}`);
+          }
+          break;
         }
-      ) || retArg;
-    result.loc = call.loc;
-    result.start = call.start;
-    result.end = call.end;
-    return result;
+      }
+      return post(replacement || node, state) || replacement;
+    };
+    return (state.traverse(root) as InlineBodyReturn<T>) || null;
   } catch (ex) {
     if (ex instanceof Error) {
       if (ex.message.startsWith("Inliner: ")) {
@@ -240,7 +305,82 @@ export function inlineFunction(
       }
     }
     throw ex;
+  } finally {
+    state.pre = pre;
+    state.post = post;
   }
+}
+
+function inlineWithArgs(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
+  call: mctree.CallExpression
+) {
+  if (!func.node || !func.node.body) {
+    return null;
+  }
+
+  let retStmtCount = 0;
+  traverseAst(func.node.body, (node) => {
+    node.type === "ReturnStatement" && retStmtCount++;
+  });
+  if (
+    retStmtCount > 1 ||
+    (retStmtCount === 1 &&
+      func.node.body.body.slice(-1)[0].type !== "ReturnStatement")
+  ) {
+    return null;
+  }
+
+  const body = JSON.parse(
+    JSON.stringify(func.node!.body)
+  ) as mctree.BlockStatement;
+
+  processInlineBody(
+    state,
+    func,
+    call,
+    body,
+    func.node.params.length ? false : true
+  );
+  if (retStmtCount) {
+    const last = body.body[body.body.length - 1];
+    if (last.type != "ReturnStatement") {
+      throw new Error("ReturnStatement got lost!");
+    }
+    if (last.argument) {
+      body.body[body.body.length - 1] = {
+        type: "ExpressionStatement",
+        expression: last.argument,
+      };
+    } else {
+      --body.body.length;
+    }
+  }
+  // We should cleanup unneeded assignments here...
+  return body;
+}
+
+export function inlineFunction(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
+  call: mctree.CallExpression,
+  inlineStatus: InlineStatus
+): InlineBody | null {
+  if (inlineStatus == InlineStatus.AsStatement) {
+    return inlineWithArgs(state, func, call);
+  }
+  const retArg = JSON.parse(
+    JSON.stringify(
+      (func.node!.body!.body[0] as mctree.ReturnStatement).argument!
+    )
+  ) as NonNullable<mctree.ReturnStatement["argument"]>;
+  const params = Object.fromEntries(
+    func.node.params.map(
+      (param, i) => [variableDeclarationName(param), i] as const
+    )
+  );
+  return processInlineBody(state, func, call, retArg, true, params) || retArg;
 }
 
 export function applyTypeIfNeeded(node: mctree.Node) {
@@ -260,6 +400,16 @@ function fixNodeScope(
   lookupNode: mctree.Identifier | mctree.MemberExpression,
   nodeStack: ProgramStateStack
 ) {
+  if (lookupNode.type === "Identifier") {
+    for (let i = state.stack.length; --i > nodeStack.length; ) {
+      const si = state.stack[i];
+      if (hasProperty(si.decls, lookupNode.name)) {
+        // its a local from the inlined function.
+        // Nothing to do.
+        return lookupNode;
+      }
+    }
+  }
   const [, original] = state.lookup(lookupNode, null, nodeStack);
   if (!original) {
     return null;
