@@ -151,16 +151,25 @@ export function shouldInline(
     func.node,
     func.node.body.body[0].argument
   );
+  const excludeAnnotations =
+    (func.node.loc?.source &&
+      state.fnMap[func.node.loc?.source].excludeAnnotations) ||
+    {};
   return (
-    autoInline === 1 ||
-    ((autoInline === true ||
+    (autoInline ||
       (func.node.attrs &&
         func.node.attrs.attrs &&
         func.node.attrs.attrs.some(
           (attr) =>
-            attr.type === "UnaryExpression" && attr.argument.name === "inline"
+            attr.type === "UnaryExpression" &&
+            (attr.argument.name === "inline" ||
+              (attr.argument.name.startsWith("inline_") &&
+                hasProperty(
+                  excludeAnnotations,
+                  attr.argument.name.substring(7)
+                )))
         ))) &&
-      canInline(state, func, args))
+    (autoInline === 1 || canInline(state, func, args))
   );
 }
 

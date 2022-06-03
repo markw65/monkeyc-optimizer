@@ -176,6 +176,7 @@ declare global {
   export type ProgramState = {
     allFunctions?: FunctionStateNode[];
     allClasses?: ClassStateNode[];
+    fnMap?: FilesToOptimizeMap;
     stack?: ProgramStateStack;
     removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;
     shouldExclude?: (node: mctree.Node) => boolean;
@@ -231,7 +232,7 @@ declare global {
   >;
   export type ProgramStateAnalysis = Finalized<
     ProgramStateLive,
-    "allClasses" | "allFunctions"
+    "allClasses" | "allFunctions" | "fnMap"
   >;
   export type ProgramStateOptimizer = Finalized<
     ProgramStateAnalysis,

@@ -164,10 +164,10 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
 }
 
 export async function analyze(fnMap: FilesToOptimizeMap) {
-  let excludeAnnotations: ExcludeAnnotationsMap;
   let hasTests = false;
   const allImports: ImportItem[] = [];
   const preState: ProgramState = {
+    fnMap,
     allFunctions: [],
     allClasses: [],
     shouldExclude(node: mctree.Node) {
@@ -175,19 +175,23 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
         "attrs" in node &&
         node.attrs &&
         "attrs" in node.attrs &&
-        node.attrs.attrs
+        node.attrs.attrs &&
+        node.loc?.source
       ) {
-        return node.attrs.attrs.reduce((drop: boolean, attr) => {
-          if (attr.type != "UnaryExpression") return drop;
-          if (attr.argument.type != "Identifier") return drop;
-          if (hasProperty(excludeAnnotations, attr.argument.name)) {
-            return true;
-          }
-          if (attr.argument.name == "test") {
-            hasTests = true;
-          }
-          return drop;
-        }, false);
+        const excludeAnnotations = fnMap[node.loc.source].excludeAnnotations;
+        if (excludeAnnotations) {
+          return node.attrs.attrs.reduce((drop: boolean, attr) => {
+            if (attr.type != "UnaryExpression") return drop;
+            if (attr.argument.type != "Identifier") return drop;
+            if (hasProperty(excludeAnnotations, attr.argument.name)) {
+              return true;
+            }
+            if (attr.argument.name == "test") {
+              hasTests = true;
+            }
+            return drop;
+          }, false);
+        }
       }
       return false;
     },
@@ -239,7 +243,6 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
     if (!ast) {
       throw parserError || new Error(`Failed to parse ${name}`);
     }
-    excludeAnnotations = value.excludeAnnotations;
     hasTests = false;
     collectNamespaces(ast, state);
     value.hasTests = hasTests;
