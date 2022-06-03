@@ -152,6 +152,7 @@ async function test() {
       ...jungleOptions,
       returnCommand: true,
       checkManifest: true,
+      checkBuildPragmas: testBuild == true,
     };
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k]

@@ -91,6 +91,7 @@ declare global {
     ignoredAnnotations?: string; // Semicolon separated list of annoations to ignore when finding optimizer groups
     ignoredSourcePaths?: string; // Semicolon separated list of source path regexes
     returnCommand?: boolean; // If true, build_project just returns the command to run the build, rather than building it
+    checkBuildPragmas?: boolean; // If true, check any build pragmas in the generated code
     _cache?: {
       barrels?: Record<string, ResolvedJungle>;
       barrelMap?: Record<string, Record<string, ResolvedJungle>>;
@@ -829,6 +830,7 @@ async function generateOneConfig(
   // changed
   if (
     hasTests != null &&
+    !config.checkBuildPragmas &&
     configOptionsToCheck.every(
       (option) => prevOptions[option] === config[option]
     ) &&
@@ -861,6 +863,18 @@ async function generateOneConfig(
       await fs.mkdir(dir, { recursive: true });
 
       const opt_source = formatAst(info.ast!, info.monkeyCSource);
+      if (config.checkBuildPragmas) {
+        const matches = opt_source.matchAll(
+          /^.*\/\*\s*@match\s+(\S+)\s+\*\/(.*)$/gm
+        );
+        for (const [line, needle, haystack] of matches) {
+          if (!haystack.includes(needle)) {
+            throw new Error(
+              `Checking build pragmas in ${name} failed at \n\n${line}\n\n - Didn't find '${needle}'`
+            );
+          }
+        }
+      }
       await fs.writeFile(name, opt_source);
       return info.hasTests;
     })
