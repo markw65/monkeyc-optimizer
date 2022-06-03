@@ -161,3 +161,20 @@ More fixes found via open source projects.
 - Bug fixes
   - Inject the superclass name into the classes namespace
   - Separate type vs value lookup, and use the correct one based on context.
+
+### 1.0.16
+
+- Bug fixes
+
+  - Fix off-by-one in removeNodeComments
+  - Fix lookup to consistently lookup types or values.
+  - Fix lookup of superclass names
+
+- New Features
+
+  - Add a simple inliner
+  - Add support for conditional inlining based on excludeAnnotations
+
+- Testing
+  - Add support for @match pragmas to check the optimization results
+  - Add a test project, with some inlining tests
