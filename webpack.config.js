@@ -126,6 +126,7 @@ export default (env, argv) => {
     externals({ request }, callback) {
       const obj = {
         "prettier/standalone.js": "commonjs prettier/standalone.js",
+        prettier: "prettier",
         "@markw65/prettier-plugin-monkeyc":
           "commonjs @markw65/prettier-plugin-monkeyc",
         "fs/promises": "fs/promises",
@@ -205,9 +206,9 @@ export default (env, argv) => {
               .replace(/\.(js|ts)$/, "")
               .replace(/^\.[\\\/]/, "");
             if (!fileToExports.hasOwnProperty(request)) {
-              fileToExports[request] = [];
+              fileToExports[request] = {};
             }
-            fileToExports[request].push(name);
+            fileToExports[request][name] = true;
           };
           compiler.hooks.normalModuleFactory.tap(pluginName, (factory) => {
             const exportParser = (parser) => {
@@ -247,9 +248,11 @@ export default (env, argv) => {
                     const original = `src/${match[1]}`;
                     const exports = fileToExports[original];
                     if (exports) {
-                      const fakeExportLine = `0 && (module.exports = {${exports.join(
-                        ","
-                      )}});\n`;
+                      const fakeExportLine = `0 && (module.exports = {${Object.keys(
+                        exports
+                      )
+                        .sort()
+                        .join(",")}});\n`;
                       compilation.updateAsset(
                         file,
                         new compiler.webpack.sources.ConcatSource(
