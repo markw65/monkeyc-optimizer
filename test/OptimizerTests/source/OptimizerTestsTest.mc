@@ -72,13 +72,13 @@ function inlineTests(logger as Logger) as Boolean {
   // h can be inlined unless its argument has side effects.
   x = /* @match 2 */ A.B.h(1);
   check(x, 2, logger);
-  x = /* @match A.B.x + A.B.x */ A.B.h(A.B.x);
+  x = /* @match "A.B.x + A.B.x" */ A.B.h(A.B.x);
   check(x, 8, logger);
   x = /* @match A.B.h */ A.B.h(A.B.a());
   check(x, 10, logger);
 
   // i can be inlined regardless of arguments
-  x = /* @match A.B.a(); */ A.B.i(A.B.a());
+  x = /* @match @^A\.B\.a\(\)$@ */ A.B.i(A.B.a());
   check(x, 6, logger);
   return ok;
 }

@@ -19,6 +19,7 @@ import {
   writeManifest,
 } from "./manifest";
 import { analyze, getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
+import { pragmaChecker } from "./pragma-checker";
 import { appSupport } from "./sdk-util";
 import {
   copyRecursiveAsNeeded,
@@ -865,16 +866,7 @@ async function generateOneConfig(
       const opt_source = formatAst(info.ast!, info.monkeyCSource);
       await fs.writeFile(name, opt_source);
       if (config.checkBuildPragmas) {
-        const matches = opt_source.matchAll(
-          /^.*\/\*\s*@match\s+(\S+)\s+\*\/(.*)$/gm
-        );
-        for (const [line, needle, haystack] of matches) {
-          if (!haystack.includes(needle)) {
-            throw new Error(
-              `Checking build pragmas in ${name} failed at \n\n${line}\n\n - Didn't find '${needle}'`
-            );
-          }
-        }
+        pragmaChecker(info.ast!);
       }
       return info.hasTests;
     })

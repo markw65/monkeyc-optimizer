@@ -555,16 +555,42 @@ export function formatAst(
     // the comments.
     delete node.comments;
   }
+  /*
+   * The estree printer sometimes looks at the parent node without
+   * checking that there *is* a parent node (eg it assumes all
+   * BinaryExpressions have a parent node, and crashes if they don't).
+   * To avoid issues, wrap nodes in an ExpressionStatement, and
+   * then remove the added ";" from the end.
+   */
+  let unwrap = false;
+  switch (node.type) {
+    case "Program":
+    case "BlockStatement":
+    case "ExpressionStatement":
+      break;
+    default: {
+      const e: mctree.ExpressionStatement = {
+        type: "ExpressionStatement",
+        expression: node as mctree.ExpressionStatement["expression"],
+      };
+      node = e;
+      unwrap = true;
+    }
+  }
   // If we *do* have the original source, pass that in ahead of the
   // json. The parser knows to just treat the last line of the input
   // as the ast itself, and the printers will find what they're
   // looking for in the source.
   const source = (monkeyCSource || "") + "\n" + JSON.stringify(node);
-  return Prettier.format(source, {
+  const result = Prettier.format(source, {
     parser: "monkeyc-json",
     plugins: [MonkeyC],
     endOfLine: "lf",
   });
+  if (unwrap) {
+    return result.replace(/;$/, "");
+  }
+  return result;
 }
 
 function handleException(
