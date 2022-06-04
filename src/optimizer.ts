@@ -189,7 +189,7 @@ declare global {
     post?: (
       node: mctree.Node,
       state: ProgramStateLive
-    ) => null | false | mctree.Node;
+    ) => null | false | mctree.Node | mctree.Node[];
     lookup?: (
       node: mctree.Node,
       name?: string | null,
@@ -205,7 +205,9 @@ declare global {
       name?: string | null,
       stack?: ProgramStateStack
     ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
-    traverse?: (node: mctree.Node) => void | null | false | mctree.Node;
+    traverse?: (
+      node: mctree.Node
+    ) => void | null | false | mctree.Node | mctree.Node[];
     inType?: boolean;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: unknown[] };

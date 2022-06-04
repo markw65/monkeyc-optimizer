@@ -12,7 +12,7 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
-import { shouldInline, inlineFunction, InlineStatus } from "./inliner";
+import { inlineFunction, InlineStatus, shouldInline, unused } from "./inliner";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 
@@ -784,6 +784,11 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
               return ret;
             }
             node.expression = ret;
+          }
+        } else {
+          const ret = unused(node.expression, true);
+          if (ret) {
+            return ret;
           }
         }
         break;

@@ -499,8 +499,10 @@ export function traverseAst(
   pre?:
     | null
     | ((node: mctree.Node) => void | null | false | (keyof mctree.NodeAll)[]),
-  post?: (node: mctree.Node) => void | null | false | mctree.Node
-): false | void | null | mctree.Node {
+  post?: (
+    node: mctree.Node
+  ) => void | null | false | mctree.Node | mctree.Node[]
+): false | void | null | mctree.Node | mctree.Node[] {
   const nodes = pre && pre(node);
   if (nodes === false) return;
   for (const key of nodes || Object.keys(node)) {
@@ -516,6 +518,7 @@ export function traverseAst(
               if (!state) state = {};
               state[i] = true;
             } else if (repl != null) {
+              if (!state) state = {};
               values[i] = repl;
             }
           }
@@ -527,7 +530,7 @@ export function traverseAst(
         values.splice(
           0,
           values.length,
-          ...values.filter((obj, i) => deletions[i] !== true)
+          ...values.filter((obj, i) => deletions[i] !== true).flat(1)
         );
       }
     } else if (isMCTreeNode(value)) {
@@ -535,6 +538,9 @@ export function traverseAst(
       if (repl === false) {
         delete node[key as keyof mctree.Node];
       } else if (repl != null) {
+        if (Array.isArray(repl)) {
+          throw new Error("Array returned by traverseAst in Node context");
+        }
         (node as unknown as Record<string, unknown>)[key] = repl;
       }
     }

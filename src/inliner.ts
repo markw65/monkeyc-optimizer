@@ -313,7 +313,15 @@ function processInlineBody<T extends InlineBody>(
 
 export function unused(
   expression: mctree.ExpressionStatement["expression"]
-): mctree.ExpressionStatement[] {
+): mctree.ExpressionStatement[];
+export function unused(
+  expression: mctree.ExpressionStatement["expression"],
+  top: true
+): mctree.ExpressionStatement[] | null;
+export function unused(
+  expression: mctree.ExpressionStatement["expression"],
+  top?: boolean
+): mctree.ExpressionStatement[] | null {
   switch (expression.type) {
     case "Literal":
       return [];
@@ -331,12 +339,14 @@ export function unused(
     case "MemberExpression":
       return unused(expression.object).concat(unused(expression.property));
   }
-  return [
-    {
-      type: "ExpressionStatement",
-      expression,
-    },
-  ];
+  return top
+    ? null
+    : [
+        {
+          type: "ExpressionStatement",
+          expression,
+        },
+      ];
 }
 
 function inlineWithArgs(

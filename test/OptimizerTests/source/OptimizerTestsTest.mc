@@ -188,3 +188,13 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
 
   return ok;
 }
+
+(:test)
+function unusedExpressionCleanupTests(logger as Logger) as Boolean {
+  ok = true;
+  A.B.x = 0;
+
+  (A.B.a() + 3) * (A.B.s1(A.B.x) - 4);
+  check(A.B.x, 3, logger);
+  return ok;
+}
