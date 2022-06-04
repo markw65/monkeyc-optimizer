@@ -178,3 +178,18 @@ More fixes found via open source projects.
 - Testing
   - Add support for @match pragmas to check the optimization results
   - Add a test project, with some inlining tests
+
+### 1.0.17
+
+- New Features
+
+  - Extend the inliner to support more complex functions when called in a void context
+  - Cleanup unused expressions. `0;x;foo.bar;a+b` will all now be optimized away.
+
+- Testing
+
+  - Rewrite the @match pragma implementation to have access to the next Node in the ast, rather than just the text of the remainder of the line.
+  - Add tests for the statement inliner, and the unused expression cleanup code.
+
+- Bug Fixes
+  - Fix a bug affecting lookup of types, which could cause definitions, references and links to the api docs to be missed in the vscode extension
