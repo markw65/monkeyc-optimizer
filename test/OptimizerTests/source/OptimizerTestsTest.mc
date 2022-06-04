@@ -1,6 +1,8 @@
 import Toybox.Test;
 import Toybox.Lang;
 
+var z as Number = 0;
+
 module A {
   module B {
     var x as Number = 0;
@@ -29,6 +31,21 @@ module A {
     function j(x as Number) as Number {
       return x + a();
     }
+
+    (:inline)
+    function s1(y as Number) as Void {
+      x += y;
+      a();
+    }
+    (:inline)
+    function s2(y as Number) as Void {
+      z += y;
+    }
+    (:inline)
+    function s3(y as Number) as Number {
+      z += y;
+      return z;
+    }
   }
   var x as Number = 1000;
   const K as Number = B.x;
@@ -38,14 +55,14 @@ var ok as Boolean = false;
 function check(x as Number, expected as Number, logger as Logger) as Void {
   if (x != expected) {
     logger.debug(
-      "x = " + x + " Should be " + expected + "(B.x = " + A.B.x + ")"
+      "Got " + x + " Should be " + expected + " (B.x = " + A.B.x + ")"
     );
     ok = false;
   }
 }
 
 (:test)
-function inlineTests(logger as Logger) as Boolean {
+function inlineAsExpressionTests(logger as Logger) as Boolean {
   ok = true;
   A.B.x = 0;
   var x = 0;
@@ -126,5 +143,40 @@ function inlineSpeedTests(logger as Logger) as Boolean {
   check(x, 3, logger);
   x = /* @match A.B.a */ A.B.j(A.B.x);
   check(x, 7, logger);
+  return ok;
+}
+
+(:test)
+function inlineAsStatementTests(logger as Logger) as Boolean {
+  ok = true;
+  z = 0;
+  A.B.x = 0;
+  var x = 0;
+
+  /* @match /A.B.x \+= 1/ */
+  A.B.s1(1);
+  check(A.B.x, 2, logger);
+  {
+    var y = 0;
+    /* @match /A.B.x \+= A.B.x/ */
+    A.B.s1(A.B.x);
+    check(A.B.x, 5, logger);
+    /* @match /var \w+y\w+ = A.B.a\(\)/ */
+    A.B.s1(A.B.a());
+    check(A.B.x, 13, logger);
+  }
+  /* @match /^\{\s*z\s*\+=\s*5;\s*\}$/ */
+  A.B.s2(5);
+  check(z, 5, logger);
+  {
+    var z = 2;
+    /* @match /^\{\s*\$.z\s*\+=\s*3;\s*\}$/ */
+    A.B.s2(3);
+    check($.z, 8, logger);
+    /* @match /^\{\s*\$.z\s*\+=\s*A\.B\.x;/ */
+    A.B.s3(A.B.x);
+    check($.z, 21, logger);
+  }
+
   return ok;
 }
