@@ -46,6 +46,11 @@ module A {
       z += y;
       return z;
     }
+    (:inline)
+    function s4(y as Number) as Number {
+      z += y;
+      return a();
+    }
   }
   var x as Number = 1000;
   const K as Number = B.x;
@@ -173,9 +178,12 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
     /* @match /^\{\s*\$.z\s*\+=\s*3;\s*\}$/ */
     A.B.s2(3);
     check($.z, 8, logger);
-    /* @match /^\{\s*\$.z\s*\+=\s*A\.B\.x;/ */
+    /* @match /^\{\s*\$.z\s*\+=\s*A\.B\.x;\s*\}$/ */
     A.B.s3(A.B.x);
     check($.z, 21, logger);
+    /* @match /^\{\s*\$.z\s*\+=\s*z;\s*A.B.a\(\);\s*\}$/ */
+    A.B.s4(z);
+    check($.z, 23, logger);
   }
 
   return ok;

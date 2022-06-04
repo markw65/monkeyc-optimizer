@@ -311,6 +311,34 @@ function processInlineBody<T extends InlineBody>(
   }
 }
 
+export function unused(
+  expression: mctree.ExpressionStatement["expression"]
+): mctree.ExpressionStatement[] {
+  switch (expression.type) {
+    case "Literal":
+      return [];
+    case "Identifier":
+      return [];
+    case "BinaryExpression":
+      if (expression.operator === "as") {
+        return unused(expression.left);
+      }
+    // fall through
+    case "LogicalExpression":
+      return unused(expression.left).concat(unused(expression.right));
+    case "UnaryExpression":
+      return unused(expression.argument);
+    case "MemberExpression":
+      return unused(expression.object).concat(unused(expression.property));
+  }
+  return [
+    {
+      type: "ExpressionStatement",
+      expression,
+    },
+  ];
+}
+
 function inlineWithArgs(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
@@ -349,15 +377,12 @@ function inlineWithArgs(
       throw new Error("ReturnStatement got lost!");
     }
     if (last.argument) {
-      body.body[body.body.length - 1] = {
-        type: "ExpressionStatement",
-        expression: last.argument,
-      };
+      const side_exprs = unused(last.argument);
+      body.body.splice(body.body.length - 1, 1, ...side_exprs);
     } else {
       --body.body.length;
     }
   }
-  // We should cleanup unneeded assignments here...
   return body;
 }
 
