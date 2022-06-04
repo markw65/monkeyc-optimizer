@@ -35,9 +35,11 @@ function processImports(
       module.forEach((m) => {
         if (isStateNode(m) && m.type == "ModuleDeclaration") {
           pushUnique(decls[name], m);
+          if (!parent.type_decls) parent.type_decls = {};
+          const tdecls = parent.type_decls;
+          if (!hasProperty(tdecls, name)) tdecls[name] = [];
+          pushUnique(tdecls[name], m);
           if (node.type == "ImportModule" && m.type_decls) {
-            if (!parent.type_decls) parent.type_decls = {};
-            const tdecls = parent.type_decls;
             Object.entries(m.type_decls).forEach(([name, decls]) => {
               if (!hasProperty(tdecls, name)) tdecls[name] = [];
               decls.forEach((decl) => pushUnique(tdecls[name], decl));
