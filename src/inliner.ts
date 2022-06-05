@@ -343,7 +343,16 @@ export function unused(
     case "UnaryExpression":
       return unused(expression.argument);
     case "MemberExpression":
-      return unused(expression.object).concat(unused(expression.property));
+      if (expression.computed) {
+        return unused(expression.object).concat(unused(expression.property));
+      }
+      return unused(expression.object);
+    case "ArrayExpression":
+      return expression.elements.map((e) => unused(e)).flat(1);
+    case "ObjectExpression":
+      return expression.properties
+        .map((p) => unused(p.key).concat(unused(p.value)))
+        .flat(1);
   }
   return top
     ? null
@@ -351,6 +360,9 @@ export function unused(
         {
           type: "ExpressionStatement",
           expression,
+          start: expression.start,
+          end: expression.end,
+          loc: expression.loc,
         },
       ];
 }
