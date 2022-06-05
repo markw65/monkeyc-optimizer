@@ -193,3 +193,8 @@ More fixes found via open source projects.
 
 - Bug Fixes
   - Fix a bug affecting lookup of types, which could cause definitions, references and links to the api docs to be missed in the vscode extension
+
+### 1.0.18
+
+- Bug Fixes
+  - The new inliner was too agressive at constant propagating literal parameters to their point of use.
