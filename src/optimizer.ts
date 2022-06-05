@@ -213,7 +213,7 @@ declare global {
     calledFunctions?: { [key: string]: unknown[] };
     localsStack?: {
       node?: mctree.Node;
-      map?: { [key: string]: true | string };
+      map?: { [key: string]: boolean | string };
       inners?: { [key: string]: true };
     }[];
     index?: { [key: string]: unknown[] };

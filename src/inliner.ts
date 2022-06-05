@@ -230,26 +230,14 @@ function processInlineBody<T extends InlineBody>(
   call: mctree.CallExpression,
   root: T,
   insertedVariableDecls: mctree.VariableDeclaration | boolean,
-  params?: Record<string, number>
+  params: Record<string, number>
 ): InlineBodyReturn<T> | null {
-  if (!params) {
-    const safeArgs = getArgSafety(state, func, call.arguments, false);
-    params = Object.fromEntries(
-      func.node.params.map((param, i) => {
-        const argnum =
-          safeArgs === true || (safeArgs !== false && safeArgs[i] !== null)
-            ? i
-            : -1;
-        const name = variableDeclarationName(param);
-        return [name, argnum];
-      })
-    );
-  }
-
+  let failed: string | null = null;
   const pre = state.pre!;
   const post = state.post!;
   try {
     state.pre = (node: mctree.Node) => {
+      if (failed) return [];
       node.start = call.start;
       node.end = call.end;
       node.loc = call.loc;
@@ -259,10 +247,15 @@ function processInlineBody<T extends InlineBody>(
         const locals = state.localsStack![state.localsStack!.length - 1];
         const { map } = locals;
         if (!map) throw new Error("No local variable map!");
+        // We still need to keep track of every local name that was
+        // already in use, but we don't want to use any of its renames.
+        // We also want to know whether a local is from the function being
+        // inlined, or the calling function, so set every element to false.
+        Object.keys(map).forEach((key) => (map[key] = false));
         const declarations: mctree.VariableDeclarator[] = func.node.params
           .map((param, i): mctree.VariableDeclarator | null => {
             const paramName = variableDeclarationName(param);
-            if (params![paramName] >= 0) return null;
+            if (params[paramName] >= 0) return null;
             const name = renameVariable(state, locals, paramName) || paramName;
 
             return {
@@ -283,6 +276,7 @@ function processInlineBody<T extends InlineBody>(
       return result;
     };
     state.post = (node: mctree.Node) => {
+      if (failed) return null;
       let replacement = null;
       switch (node.type) {
         case "Identifier": {
@@ -296,7 +290,8 @@ function processInlineBody<T extends InlineBody>(
           }
           replacement = fixNodeScope(state, node, func.stack!);
           if (!replacement) {
-            throw new Error(`Inliner: Couldn't fix the scope of '${node.name}`);
+            failed = `Inliner: Couldn't fix the scope of '${node.name}`;
+            return null;
           }
           break;
         }
@@ -304,13 +299,6 @@ function processInlineBody<T extends InlineBody>(
       return post(replacement || node, state) || replacement;
     };
     return (state.traverse(root) as InlineBodyReturn<T>) || null;
-  } catch (ex) {
-    if (ex instanceof Error) {
-      if (ex.message.startsWith("Inliner: ")) {
-        return null;
-      }
-    }
-    throw ex;
   } finally {
     state.pre = pre;
     state.post = post;
@@ -367,44 +355,85 @@ export function unused(
       ];
 }
 
+export type InlineContext =
+  | mctree.ReturnStatement
+  | mctree.AssignmentExpression
+  | mctree.ExpressionStatement;
+
 function inlineWithArgs(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
-  call: mctree.CallExpression
+  call: mctree.CallExpression,
+  context: InlineContext
 ) {
   if (!func.node || !func.node.body) {
     return null;
   }
 
   let retStmtCount = 0;
-  traverseAst(func.node.body, (node) => {
-    node.type === "ReturnStatement" && retStmtCount++;
-  });
-  if (
-    retStmtCount > 1 ||
-    (retStmtCount === 1 &&
-      func.node.body.body.slice(-1)[0].type !== "ReturnStatement")
-  ) {
-    return null;
+  if (context.type === "ReturnStatement") {
+    const last = func.node.body.body.slice(-1)[0];
+    if (!last || last.type !== "ReturnStatement") {
+      return null;
+    }
+  } else {
+    traverseAst(func.node.body, (node) => {
+      node.type === "ReturnStatement" && retStmtCount++;
+    });
+    if (
+      retStmtCount > 1 ||
+      (context.type === "AssignmentExpression" && retStmtCount !== 1)
+    ) {
+      return null;
+    }
+    if (retStmtCount === 1) {
+      const last = func.node.body.body.slice(-1)[0];
+      if (
+        !last ||
+        last.type !== "ReturnStatement" ||
+        (context.type === "AssignmentExpression" && !last.argument)
+      ) {
+        return null;
+      }
+    }
   }
 
   const body = JSON.parse(
     JSON.stringify(func.node!.body)
   ) as mctree.BlockStatement;
 
+  const safeArgs = getArgSafety(state, func, call.arguments, false);
+  const params = Object.fromEntries(
+    func.node.params.map((param, i) => {
+      const argnum =
+        safeArgs === true || (safeArgs !== false && safeArgs[i] !== null)
+          ? i
+          : -1;
+      const name = variableDeclarationName(param);
+      return [name, argnum];
+    })
+  );
+
   processInlineBody(
     state,
     func,
     call,
     body,
-    func.node.params.length ? false : true
+    func.node.params.length ? false : true,
+    params
   );
-  if (retStmtCount) {
+  if (context.type !== "ReturnStatement" && retStmtCount) {
     const last = body.body[body.body.length - 1];
     if (last.type != "ReturnStatement") {
       throw new Error("ReturnStatement got lost!");
     }
-    if (last.argument) {
+    if (context.type === "AssignmentExpression") {
+      context.right = last.argument!;
+      body.body[body.body.length - 1] = {
+        type: "ExpressionStatement",
+        expression: context,
+      };
+    } else if (last.argument) {
       const side_exprs = unused(last.argument);
       body.body.splice(body.body.length - 1, 1, ...side_exprs);
     } else {
@@ -418,10 +447,10 @@ export function inlineFunction(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   call: mctree.CallExpression,
-  inlineStatus: InlineStatus
+  context: InlineContext | null
 ): InlineBody | null {
-  if (inlineStatus == InlineStatus.AsStatement) {
-    return inlineWithArgs(state, func, call);
+  if (context) {
+    return inlineWithArgs(state, func, call, context);
   }
   const retArg = JSON.parse(
     JSON.stringify(
@@ -454,13 +483,13 @@ function fixNodeScope(
   nodeStack: ProgramStateStack
 ) {
   if (lookupNode.type === "Identifier") {
-    for (let i = state.stack.length; --i > nodeStack.length; ) {
-      const si = state.stack[i];
-      if (hasProperty(si.decls, lookupNode.name)) {
-        // its a local from the inlined function.
-        // Nothing to do.
-        return lookupNode;
-      }
+    const locals = state.localsStack![state.localsStack!.length - 1];
+    const { map } = locals;
+    if (!map) throw new Error("No local variable map!");
+    if (hasProperty(map, lookupNode.name) && map[lookupNode.name] !== false) {
+      // map[name] !== false means its an entry that was created during inlining
+      // so its definitely one of our locals.
+      return lookupNode;
     }
   }
   const [, original] = state.lookup(lookupNode, null, nodeStack);

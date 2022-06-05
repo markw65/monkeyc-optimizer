@@ -12,7 +12,13 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
-import { inlineFunction, InlineStatus, shouldInline, unused } from "./inliner";
+import {
+  InlineContext,
+  inlineFunction,
+  InlineStatus,
+  shouldInline,
+  unused,
+} from "./inliner";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 
@@ -682,7 +688,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         if (map) {
           if (hasProperty(map, node.name)) {
             const name = map[node.name];
-            if (name !== true) {
+            if (typeof name === "string") {
               node.name = name;
             }
           }
@@ -773,21 +779,26 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         }
         break;
 
+      case "ReturnStatement":
+        if (node.argument && node.argument.type === "CallExpression") {
+          return optimizeCall(state, node.argument, node);
+        }
+        break;
+
       case "CallExpression": {
-        const ret = optimizeCall(state, node, false);
+        const ret = optimizeCall(state, node, null);
         if (ret) {
           replace(node, ret);
         }
         break;
       }
+
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
-          const ret = optimizeCall(state, node.expression, true);
-          if (ret) {
-            if (ret.type === "BlockStatement") {
-              return ret;
-            }
-            node.expression = ret;
+          return optimizeCall(state, node.expression, node);
+        } else if (node.expression.type === "AssignmentExpression") {
+          if (node.expression.right.type === "CallExpression") {
+            return optimizeCall(state, node.expression.right, node.expression);
           }
         } else {
           const ret = unused(node.expression, true);
@@ -889,7 +900,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
 function optimizeCall(
   state: ProgramStateOptimizer,
   node: mctree.CallExpression,
-  asStatement: boolean
+  context: InlineContext | null
 ) {
   const [name, callees] = state.lookup(node.callee);
   if (!callees || !callees.length) {
@@ -911,6 +922,7 @@ function optimizeCall(
   if (callees.length == 1 && callees[0].type === "FunctionDeclaration") {
     const callee = callees[0].node;
     if (
+      !context &&
       callee.optimizable &&
       !callee.hasOverride &&
       node.arguments.every((n) => getNodeValue(n)[0] !== null)
@@ -923,9 +935,9 @@ function optimizeCall(
     const inlineStatus = shouldInline(state, callees[0], node.arguments);
     if (
       inlineStatus === InlineStatus.AsExpression ||
-      (asStatement && inlineStatus === InlineStatus.AsStatement)
+      (context && inlineStatus === InlineStatus.AsStatement)
     ) {
-      const ret = inlineFunction(state, callees[0], node, inlineStatus);
+      const ret = inlineFunction(state, callees[0], node, context);
       if (ret) {
         return ret;
       }
@@ -935,7 +947,7 @@ function optimizeCall(
     state.calledFunctions[name] = [];
   }
   callees.forEach(
-    (c) => isStateNode(c) && state.calledFunctions[name].push(c.node)
+    (c) => isStateNode(c) && pushUnique(state.calledFunctions[name], c.node)
   );
   return null;
 }

@@ -83,8 +83,12 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     check(x, 4, logger);
     x = /* @match A.B.a */ A.B.f(A.K);
     check(x, 3, logger);
-    x = /* @match A.B.f */ A.B.f(A.B.x);
-    check(x, 7, logger);
+    // Should fail to inline, because A.B.x might
+    // be modified before its used in the body of f
+    // The +1 is to prevent the statement inliner
+    // from inlining it.
+    x = /* @match A.B.f */ A.B.f(A.B.x) + 1;
+    check(x, 8, logger);
 
     A.B.x = 0;
     x = /* @match A.B.a */ A.B.g(1);
@@ -102,8 +106,8 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     check(x, 2, logger);
     x = /* @match "A.B.x + A.B.x" */ A.B.h(A.B.x);
     check(x, 8, logger);
-    x = /* @match A.B.h */ A.B.h(A.B.a());
-    check(x, 10, logger);
+    x = /* @match A.B.h */ A.B.h(A.B.a()) + 1;
+    check(x, 11, logger);
 
     // i can be inlined regardless of arguments
     x = /* @match @^A\.B\.a\(\)$@ */ A.B.i(A.B.a());
@@ -123,14 +127,14 @@ function inlineSizeTests(logger as Logger) as Boolean {
     A.B.x = 0;
     var x;
 
-    x = /* @match A.B.j */ A.B.j(1);
-    check(x, 2, logger);
-    x = /* @match A.B.j */ A.B.j(x);
-    check(x, 4, logger);
-    x = /* @match A.B.j */ A.B.j(A.K);
+    x = /* @match A.B.j */ A.B.j(1) + 1;
     check(x, 3, logger);
-    x = /* @match A.B.j */ A.B.j(A.B.x);
-    check(x, 7, logger);
+    x = /* @match A.B.j */ A.B.j(x) + 1;
+    check(x, 5, logger);
+    x = /* @match A.B.j */ A.B.j(A.K) + 1;
+    check(x, 4, logger);
+    x = /* @match A.B.j */ A.B.j(A.B.x) + 1;
+    check(x, 8, logger);
     return ok;
 }
 
@@ -214,5 +218,74 @@ function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     /* @match /^A.B.a/ /^A.B.s1/ /^check/ */
     ((A.B.a() || 3) * (A.B.s1(A.B.x) || 4));
     check(A.B.x, 7, logger);
+    return ok;
+}
+
+(:inline)
+function multipleReturns(y as Number) as Number {
+    if (y > 3) {
+        return 42;
+    }
+    return y * 9;
+}
+
+(:inline)
+function multipleReturnsNoFinalReturn(y as Number) as Number {
+    if (y > 3) {
+        return 42;
+    } else {
+        return y * 9;
+    }
+}
+
+function testMultipleReturns(y as Number) as Number {
+    /* @match /^\{.*\}$/ */
+    return multipleReturns(y);
+}
+
+function testMultipleReturnsNoFinalReturn(y as Number) as Number {
+    /* @match "return multipleReturnsNoFinalReturn(y);" */
+    return multipleReturnsNoFinalReturn(y);
+}
+
+(:test)
+function inlineReturnContext(logger as Logger) as Boolean {
+    var x;
+    ok = true;
+    A.B.x = 0;
+    A.B.a();
+    x = testMultipleReturns(A.B.x);
+    check(x, 9, logger);
+    x = testMultipleReturns(9);
+    check(x, 42, logger);
+    x = testMultipleReturnsNoFinalReturn(A.B.x);
+    check(x, 9, logger);
+    x = testMultipleReturnsNoFinalReturn(9);
+    check(x, 42, logger);
+    return ok;
+}
+
+(:inline)
+function assignContext(x as Number) as Number {
+    x++;
+    return x * z;
+}
+
+(:test)
+function inlineAssignContext(logger as Logger) as Boolean {
+    var x;
+    ok = true;
+    A.B.x = 4;
+    z = 3;
+    /* @match /var \w+x\w+ = 1;/ */
+    x = assignContext(1);
+    check(x, 6, logger);
+    /* @match /var \w+x\w+ = z;/ */
+    x = assignContext(z);
+    check(x, 12, logger);
+    var z = 15;
+    /* @match /\* \$\.z;\s*\}/ */
+    x = assignContext(A.B.x);
+    check(x, 15, logger);
     return ok;
 }
