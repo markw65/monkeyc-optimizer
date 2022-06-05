@@ -51,6 +51,12 @@ module A {
       z += y;
       return a();
     }
+    (:inline)
+    function s5(y as Number) as Number {
+      y += 3;
+      z += y;
+      return a();
+    }
   }
   var x as Number = 1000;
   const K as Number = B.x;
@@ -185,7 +191,9 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
     A.B.s4(z);
     check($.z, 23, logger);
   }
-
+  /* @match "var y = 3;" */
+  A.B.s5(3);
+  check(z, 29, logger);
   return ok;
 }
 

@@ -66,7 +66,7 @@ function getArgSafety(
   ) {
     return false;
   }
-  if (allSafe) return true;
+  if (allSafe && requireAll) return true;
   let callSeen = false;
   let ok = true;
   const params = Object.fromEntries(
@@ -99,10 +99,16 @@ function getArgSafety(
     },
     (node) => {
       switch (node.type) {
+        case "AssignmentExpression":
+        case "UpdateExpression": {
+          const v = node.type == "UpdateExpression" ? node.argument : node.left;
+          if (v.type === "Identifier" && hasProperty(params, v.name)) {
+            safeArgs[params[v.name]] = null;
+          }
+        }
+        // fall through
         case "CallExpression":
         case "NewExpression":
-        case "AssignmentExpression":
-        case "UpdateExpression":
           callSeen = true;
           break;
         case "Identifier":
