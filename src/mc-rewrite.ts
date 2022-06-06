@@ -793,12 +793,43 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         break;
       }
 
+      case "AssignmentExpression":
+        if (
+          node.operator === "=" &&
+          node.left.type === "Identifier" &&
+          node.right.type === "Identifier" &&
+          node.left.name === node.right.name
+        ) {
+          return { type: "Literal", value: null, raw: "null" };
+        }
+        break;
+
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
           return optimizeCall(state, node.expression, node);
         } else if (node.expression.type === "AssignmentExpression") {
           if (node.expression.right.type === "CallExpression") {
-            return optimizeCall(state, node.expression.right, node.expression);
+            let ok = false;
+            if (node.expression.left.type === "Identifier") {
+              if (hasProperty(topLocals().map, node.expression.left.type)) {
+                ok = true;
+              }
+            }
+            if (!ok && node.expression.operator == "=") {
+              const [, result] = state.lookup(node.expression.left);
+              ok = result != null;
+            }
+            if (ok) {
+              const ret = optimizeCall(
+                state,
+                node.expression.right,
+                node.expression
+              );
+              if (ret && ret.type === "BlockStatement") {
+                const r2 = state.traverse(ret);
+                return r2 === false || r2 ? r2 : ret;
+              }
+            }
           }
         } else {
           const ret = unused(node.expression, true);

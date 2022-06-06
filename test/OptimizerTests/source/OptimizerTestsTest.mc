@@ -277,15 +277,31 @@ function inlineAssignContext(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 4;
     z = 3;
+    var arr = [1,2,3];
+
     /* @match /var \w+x\w+ = 1;/ */
     x = assignContext(1);
     check(x, 6, logger);
     /* @match /var \w+x\w+ = z;/ */
     x = assignContext(z);
     check(x, 12, logger);
-    var z = 15;
-    /* @match /\* \$\.z;\s*\}/ */
-    x = assignContext(A.B.x);
-    check(x, 15, logger);
+    {
+        var z = 15;
+        /* @match /\* \$\.z;\s*\}/ */
+        x = assignContext(A.B.x);
+        check(x, 15, logger);
+    }
+    /* @match /^z \+= A.B.s3/ */
+    z += A.B.s3(2);
+    check(z, 8, logger);
+    /* @match /z \+= 2/ */
+    z = A.B.s3(2);
+    check(z, 10, logger);
+
+    z = 0;
+    /* @match /A.B.s3/ */
+    arr[z] = A.B.s3(1);
+    check(arr[0] as Number, 1, logger);
+
     return ok;
 }
