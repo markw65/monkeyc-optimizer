@@ -453,7 +453,7 @@ function evaluateFunction(
   func: mctree.FunctionDeclaration,
   args: mctree.Node[] | null
 ) {
-  if (args && args.length != func.params.length) {
+  if (!func.body || (args && args.length != func.params.length)) {
     return false;
   }
   const paramValues =
@@ -462,7 +462,9 @@ function evaluateFunction(
       func.params.map((p, i) => [variableDeclarationName(p), args[i]])
     );
   let ret: mctree.Node | null = null;
-  const body = args ? JSON.parse(JSON.stringify(func.body)) : func.body;
+  const body = args
+    ? (JSON.parse(JSON.stringify(func.body)) as typeof func.body)
+    : func.body;
   try {
     traverseAst(
       body,
