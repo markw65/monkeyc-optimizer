@@ -218,6 +218,17 @@ declare global {
     }[];
     index?: { [key: string]: unknown[] };
     constants?: { [key: string]: mctree.Literal };
+    diagnostics?: Record<
+      string,
+      {
+        type: "ERROR" | "WARNING" | "INFO";
+        loc: {
+          start: mctree.Position;
+          end: mctree.Position;
+        };
+        message: string;
+      }[]
+    >;
   };
   type Finalized<T, Keys extends keyof T> = T & {
     [key in Keys]-?: NonNullable<T[key]>;
@@ -326,9 +337,8 @@ export async function buildOptimizedProject(
       config.releaseBuild = true;
     }
   }
-  const { jungleFiles, program, hasTests } = await generateOptimizedProject(
-    config
-  );
+  const { jungleFiles, program, hasTests, diagnostics } =
+    await generateOptimizedProject(config);
   config.jungleFiles = jungleFiles;
   let bin = config.buildDir || "bin";
   let name = `optimized-${program}.prg`;
@@ -345,6 +355,7 @@ export async function buildOptimizedProject(
   if (!hasTests) delete config.testBuild;
   return build_project(product, config).then((result) => ({
     hasTests,
+    diagnostics,
     ...result,
   }));
 }
@@ -538,6 +549,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
       ))) &&
     !dropBarrels;
   let hasTests = false;
+  let diagnostics: NonNullable<ProgramState["diagnostics"]> = {};
   const promises = Object.keys(buildConfigs)
     .sort()
     .map((key) => {
@@ -556,7 +568,12 @@ export async function generateOptimizedProject(options: BuildConfig) {
               e.products = products[key];
               throw e;
             })
-            .then((t) => t && (hasTests = true))
+            .then((t) => {
+              if (t.hasTests) hasTests = true;
+              if (t.diagnostics) {
+                diagnostics = { ...diagnostics, ...t.diagnostics };
+              }
+            })
         : fs.rm(path.resolve(workspace, outputPath), {
             recursive: true,
             force: true,
@@ -657,6 +674,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
     xml,
     program: path.basename(path.dirname(manifest)),
     hasTests,
+    diagnostics,
   };
 }
 
@@ -769,7 +787,10 @@ async function generateOneConfig(
   buildConfig: JungleQualifier,
   dependencyFiles: string[],
   config: BuildConfig
-) {
+): Promise<{
+  hasTests: boolean;
+  diagnostics: ProgramState["diagnostics"];
+}> {
   const { workspace } = config;
   const output = path.join(workspace!, config.outputPath!);
 
@@ -821,11 +842,18 @@ async function generateOneConfig(
     .filter((file) => !file.endsWith("/"))
     .sort();
 
-  const { hasTests, ...prevOptions } = JSON.parse(
+  const {
+    hasTests,
+    diagnostics: prevDiagnostics,
+    ...prevOptions
+  } = JSON.parse(
     await fs
       .readFile(path.join(output, "build-info.json"), "utf-8")
       .catch(() => "{}")
-  );
+  ) as {
+    hasTests: boolean;
+    diagnostics: NonNullable<ProgramState["diagnostics"]>;
+  } & BuildConfig;
 
   // check that the set of files thats actually there is the same as the
   // set of files we're going to generate (in case eg a jungle file change
@@ -852,13 +880,13 @@ async function generateOneConfig(
       Object.values(fnMap).map((v) => v.output)
     );
     if (source_time < opt_time && global.lastModifiedSource < opt_time) {
-      return hasTests;
+      return { hasTests, diagnostics: prevDiagnostics };
     }
   }
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
-  await optimizeMonkeyC(fnMap);
+  const diagnostics = await optimizeMonkeyC(fnMap);
   return Promise.all(
     Object.values(fnMap).map(async (info) => {
       const name = info.output;
@@ -879,12 +907,13 @@ async function generateOneConfig(
         path.join(output, "build-info.json"),
         JSON.stringify({
           hasTests,
+          diagnostics,
           ...Object.fromEntries(
             configOptionsToCheck.map((option) => [option, config[option]])
           ),
         })
       )
-      .then(() => hasTests);
+      .then(() => ({ hasTests, diagnostics }));
   });
 }
 

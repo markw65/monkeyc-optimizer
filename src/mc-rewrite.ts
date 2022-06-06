@@ -895,6 +895,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       return ret;
     });
   });
+  return state.diagnostics;
 }
 
 function optimizeCall(
@@ -932,11 +933,7 @@ function optimizeCall(
         return ret;
       }
     }
-    const inlineStatus = shouldInline(state, callees[0], node.arguments);
-    if (
-      inlineStatus === InlineStatus.AsExpression ||
-      (context && inlineStatus === InlineStatus.AsStatement)
-    ) {
+    if (shouldInline(state, callees[0], node, context)) {
       const ret = inlineFunction(state, callees[0], node, context);
       if (ret) {
         return ret;

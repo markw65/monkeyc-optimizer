@@ -166,7 +166,17 @@ async function test() {
         genOnly
           ? generateOptimizedProject(options).then(() => null)
           : buildOptimizedProject(products ? products[0] : null, options).then(
-              ({ exe, args, program, product, hasTests }) => {
+              ({ exe, args, program, product, hasTests, diagnostics }) => {
+                Object.keys(diagnostics)
+                  .sort()
+                  .forEach((file) => {
+                    const diags = diagnostics[file];
+                    diags.forEach((diag) => {
+                      console.log(
+                        `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
+                      );
+                    });
+                  });
                 args.push(...extraMonkeycArgs);
                 console.log(
                   [exe, ...args].map((a) => JSON.stringify(a)).join(" ")

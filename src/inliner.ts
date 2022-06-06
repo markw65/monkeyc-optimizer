@@ -5,6 +5,7 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
+import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 
 type Expression = mctree.BinaryExpression["left"];
@@ -169,13 +170,37 @@ export enum InlineStatus {
   AsStatement,
 }
 
+function inlineRequested(state: ProgramStateAnalysis, func: FunctionStateNode) {
+  const excludeAnnotations =
+    (func.node.loc?.source &&
+      state.fnMap[func.node.loc?.source]?.excludeAnnotations) ||
+    {};
+
+  if (
+    func.node.attrs &&
+    func.node.attrs.attrs &&
+    func.node.attrs.attrs.some(
+      (attr) =>
+        attr.type === "UnaryExpression" &&
+        (attr.argument.name === "inline" ||
+          (attr.argument.name.startsWith("inline_") &&
+            hasProperty(excludeAnnotations, attr.argument.name.substring(7))))
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function shouldInline(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
-  args: mctree.Node[]
-): InlineStatus {
+  call: mctree.CallExpression,
+  context: InlineContext | null
+): boolean {
   let autoInline: number | boolean = false;
   let inlineAsExpression = false;
+  const args = call.arguments;
   if (
     func.node.body &&
     func.node.body.body.length === 1 &&
@@ -191,38 +216,37 @@ export function shouldInline(
   }
 
   if (autoInline === 1) {
-    return InlineStatus.AsExpression;
+    return true;
   }
 
-  const excludeAnnotations =
-    (func.node.loc?.source &&
-      state.fnMap[func.node.loc?.source]?.excludeAnnotations) ||
-    {};
-
-  const inlineRequested =
-    func.node.attrs &&
-    func.node.attrs.attrs &&
-    func.node.attrs.attrs.some(
-      (attr) =>
-        attr.type === "UnaryExpression" &&
-        (attr.argument.name === "inline" ||
-          (attr.argument.name.startsWith("inline_") &&
-            hasProperty(excludeAnnotations, attr.argument.name.substring(7))))
-    );
-  if (autoInline || inlineRequested) {
-    return inlineAsExpression && canInline(state, func, args)
-      ? InlineStatus.AsExpression
-      : InlineStatus.AsStatement;
+  const requested = inlineRequested(state, func);
+  if (autoInline || requested) {
+    if (inlineAsExpression) {
+      if (canInline(state, func, args)) {
+        return true;
+      }
+    }
+    if (!context && requested) {
+      inlineDiagnostic(
+        state,
+        func,
+        call,
+        "This function can only be inlined in statement, assignment, or return contexts"
+      );
+    }
+    return context != null;
   }
-  return InlineStatus.Never;
+  return false;
 }
 
 type InlineBody =
   | mctree.BlockStatement
   | mctree.ExpressionStatement["expression"];
-type InlineBodyReturn<T extends InlineBody> = T extends mctree.BlockStatement
-  ? mctree.BlockStatement
-  : mctree.ExpressionStatement["expression"];
+type InlineBodyReturn<T extends InlineBody> =
+  | T
+  | (T extends mctree.BlockStatement
+      ? mctree.BlockStatement
+      : mctree.ExpressionStatement["expression"]);
 
 function processInlineBody<T extends InlineBody>(
   state: ProgramStateAnalysis,
@@ -232,7 +256,7 @@ function processInlineBody<T extends InlineBody>(
   insertedVariableDecls: mctree.VariableDeclaration | boolean,
   params: Record<string, number>
 ): InlineBodyReturn<T> | null {
-  let failed: string | null = null;
+  let failed: boolean = false;
   const pre = state.pre!;
   const post = state.post!;
   try {
@@ -290,7 +314,13 @@ function processInlineBody<T extends InlineBody>(
           }
           replacement = fixNodeScope(state, node, func.stack!);
           if (!replacement) {
-            failed = `Inliner: Couldn't fix the scope of '${node.name}`;
+            failed = true;
+            inlineDiagnostic(
+              state,
+              func,
+              call,
+              `Failed to resolve '${node.name}'`
+            );
             return null;
           }
           break;
@@ -298,7 +328,19 @@ function processInlineBody<T extends InlineBody>(
       }
       return post(replacement || node, state) || replacement;
     };
-    return (state.traverse(root) as InlineBodyReturn<T>) || null;
+    let ret = state.traverse(root) as InlineBodyReturn<T>;
+    if (failed) {
+      return null;
+    }
+    if (ret === null) {
+      ret = root;
+    }
+    if (!ret) {
+      inlineDiagnostic(state, func, call, `Internal error`);
+      return null;
+    }
+    inlineDiagnostic(state, func, call, null);
+    return ret;
   } finally {
     state.pre = pre;
     state.post = post;
@@ -355,6 +397,43 @@ export function unused(
       ];
 }
 
+function diagnostic(
+  state: ProgramStateAnalysis,
+  loc: mctree.Node["loc"],
+  message: string | null
+) {
+  if (!loc || !loc.source) return;
+  const source = loc.source;
+  if (!state.diagnostics) state.diagnostics = {};
+  if (!hasProperty(state.diagnostics, source)) {
+    if (!message) return;
+    state.diagnostics[source] = [];
+  }
+  const diags = state.diagnostics[source];
+  let index = diags.findIndex((item) => item.loc === loc);
+  if (message) {
+    if (index < 0) index = diags.length;
+    diags[index] = { type: "INFO", loc, message };
+  } else if (index >= 0) {
+    diags.splice(index, 1);
+  }
+}
+
+function inlineDiagnostic(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
+  call: mctree.CallExpression,
+  message: string | null
+) {
+  if (inlineRequested(state, func)) {
+    diagnostic(
+      state,
+      call.loc,
+      message && `While inlining ${func.node.id.name}: ${message}`
+    );
+  }
+}
+
 export type InlineContext =
   | mctree.ReturnStatement
   | mctree.AssignmentExpression
@@ -374,16 +453,32 @@ function inlineWithArgs(
   if (context.type === "ReturnStatement") {
     const last = func.node.body.body.slice(-1)[0];
     if (!last || last.type !== "ReturnStatement") {
+      inlineDiagnostic(
+        state,
+        func,
+        call,
+        "Function didn't end with a return statement"
+      );
       return null;
     }
   } else {
     traverseAst(func.node.body, (node) => {
       node.type === "ReturnStatement" && retStmtCount++;
     });
-    if (
-      retStmtCount > 1 ||
-      (context.type === "AssignmentExpression" && retStmtCount !== 1)
-    ) {
+    if (retStmtCount > 1) {
+      inlineDiagnostic(
+        state,
+        func,
+        call,
+        "Function had more than one return statement"
+      );
+    } else if (context.type === "AssignmentExpression" && retStmtCount !== 1) {
+      inlineDiagnostic(
+        state,
+        func,
+        call,
+        "Function did not have a return statement"
+      );
       return null;
     }
     if (retStmtCount === 1) {
@@ -393,6 +488,12 @@ function inlineWithArgs(
         last.type !== "ReturnStatement" ||
         (context.type === "AssignmentExpression" && !last.argument)
       ) {
+        inlineDiagnostic(
+          state,
+          func,
+          call,
+          "There was a return statement, but not at the end of the function"
+        );
         return null;
       }
     }
@@ -414,14 +515,19 @@ function inlineWithArgs(
     })
   );
 
-  processInlineBody(
-    state,
-    func,
-    call,
-    body,
-    func.node.params.length ? false : true,
-    params
-  );
+  if (
+    !processInlineBody(
+      state,
+      func,
+      call,
+      body,
+      func.node.params.length ? false : true,
+      params
+    )
+  ) {
+    return null;
+  }
+  diagnostic(state, call.loc, null);
   if (context.type !== "ReturnStatement" && retStmtCount) {
     const last = body.body[body.body.length - 1];
     if (last.type != "ReturnStatement") {
@@ -462,7 +568,7 @@ export function inlineFunction(
       (param, i) => [variableDeclarationName(param), i] as const
     )
   );
-  return processInlineBody(state, func, call, retArg, true, params) || retArg;
+  return processInlineBody(state, func, call, retArg, true, params);
 }
 
 export function applyTypeIfNeeded(node: mctree.Node) {
