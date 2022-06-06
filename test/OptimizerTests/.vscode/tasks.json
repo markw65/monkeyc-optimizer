@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "omonkeyc",
+      "device": "approachs60",
+      "simulatorBuild": true,
+      "testBuild": true,
+      "problemMatcher": [
+        "$monkeyc.error",
+        "$monkeyc.fileWarning",
+        "$monkeyc.genericWarning"
+      ],
+      "label": "Optimized Test Build"
+    }
+  ]
+}
