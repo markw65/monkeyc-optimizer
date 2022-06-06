@@ -198,3 +198,25 @@ More fixes found via open source projects.
 
 - Bug Fixes
   - The new inliner was too agressive at constant propagating literal parameters to their point of use.
+
+### 1.0.19
+
+- Upgrade to @markw65/prettier-plugin-monkeyc@1.0.22
+
+  - fixes some minor typing issues for mctree
+  - special handling for certain parenthesized expressions.
+
+- Optimizer
+
+  - Handle more unused expressions, add tests, and prettify the OptimizerTests project
+  - Allow statement-style inlining in assignent and return contexts
+  - Add diagnostics for failure to inline
+
+- Tests
+
+  - More tweaks to pragma-checker
+  - Add launch and task configs for building/running tests
+
+- Code cleanup
+  - Properly type the results of JSON.parse
+  - Switch over to using ParenthesizedExpression for formatAst (depends on @markw65/prettier-plugin-monkeyc@1.0.22)
