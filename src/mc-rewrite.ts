@@ -518,6 +518,16 @@ function evaluateFunction(
 
 type MCTreeSome = { [k in keyof mctree.NodeAll]?: unknown };
 
+function markFunctionCalled(
+  state: ProgramStateOptimizer,
+  func: mctree.FunctionDeclaration
+) {
+  if (!hasProperty(state.calledFunctions, func.id.name)) {
+    state.calledFunctions[func.id.name] = [func];
+    return;
+  }
+  pushUnique(state.calledFunctions[func.id.name], func);
+}
 export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   const state = {
     ...(await analyze(fnMap)),
@@ -737,10 +747,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             used = checkInherited(parent, node.id.name);
           }
           if (used) {
-            if (!hasProperty(state.calledFunctions, node.id.name)) {
-              state.calledFunctions[node.id.name] = [];
-            }
-            state.calledFunctions[node.id.name].push(node);
+            markFunctionCalled(state, node);
           }
         }
       }
@@ -977,11 +984,8 @@ function optimizeCall(
       }
     }
   }
-  if (!hasProperty(state.calledFunctions, name)) {
-    state.calledFunctions[name] = [];
-  }
   callees.forEach(
-    (c) => isStateNode(c) && pushUnique(state.calledFunctions[name], c.node)
+    (c) => c.type === "FunctionDeclaration" && markFunctionCalled(state, c.node)
   );
   return null;
 }

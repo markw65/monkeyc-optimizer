@@ -210,7 +210,7 @@ declare global {
     ) => void | null | false | mctree.Node | mctree.Node[];
     inType?: boolean;
     exposed?: { [key: string]: true };
-    calledFunctions?: { [key: string]: unknown[] };
+    calledFunctions?: { [key: string]: mctree.FunctionDeclaration[] };
     localsStack?: {
       node?: mctree.Node;
       map?: { [key: string]: boolean | string };
