@@ -952,7 +952,13 @@ function optimizeCall(
   node: mctree.CallExpression,
   context: InlineContext | null
 ) {
-  const [name, callees] = state.lookup(node.callee);
+  const [name, results] = state.lookup(node.callee);
+  const callees =
+    results &&
+    results.filter(
+      (c): c is FunctionStateNode => c.type === "FunctionDeclaration"
+    );
+
   if (!callees || !callees.length) {
     const n =
       name ||
@@ -989,8 +995,6 @@ function optimizeCall(
       }
     }
   }
-  callees.forEach(
-    (c) => c.type === "FunctionDeclaration" && markFunctionCalled(state, c.node)
-  );
+  callees.forEach((c) => markFunctionCalled(state, c.node));
   return null;
 }
