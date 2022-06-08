@@ -215,7 +215,7 @@ function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     /* @match /^A.B.a/ /^check/ */
     { A.B.a() => A.B.x, "x" => 42 };
     check(A.B.x, 2, logger);
-    /* @match /^A.B.a/ /^A.B.s1/ /^check/ */
+    /* @match /^A.B.a/ /^\{.*\}/ /^check/ */
     ((A.B.a() || 3) * (A.B.s1(A.B.x) || 4));
     check(A.B.x, 7, logger);
     return ok;
@@ -223,6 +223,7 @@ function unusedExpressionCleanupTests(logger as Logger) as Boolean {
 
 (:inline)
 function multipleReturns(y as Number) as Number {
+    /* @match This should have been removed */
     if (y > 3) {
         return 42;
     }
@@ -267,6 +268,7 @@ function inlineReturnContext(logger as Logger) as Boolean {
 
 (:inline)
 function assignContext(x as Number) as Number {
+    /* @match This should have been removed */
     x++;
     return x * z;
 }
@@ -277,7 +279,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 4;
     z = 3;
-    var arr = [1,2,3];
+    var arr = [1, 2, 3];
 
     /* @match /var \w+x\w+ = 1;/ */
     x = assignContext(1);

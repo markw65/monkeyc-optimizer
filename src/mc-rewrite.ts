@@ -857,6 +857,11 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
   Object.values(fnMap).forEach((f) => {
     collectNamespaces(f.ast!, state);
   });
+  state.calledFunctions = {};
+  state.exposed = {};
+  Object.values(fnMap).forEach((f) => {
+    collectNamespaces(f.ast!, state);
+  });
   delete state.pre;
   delete state.post;
 
