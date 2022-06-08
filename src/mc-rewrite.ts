@@ -834,7 +834,13 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         } else {
           const ret = unused(node.expression, true);
           if (ret) {
-            return ret;
+            return ret
+              .map((s) => {
+                const r2 = state.traverse(s);
+                return r2 === false || r2 ? r2 : s;
+              })
+              .flat(1)
+              .filter((s): s is Exclude<typeof s, false> => s !== false);
           }
         }
         break;
