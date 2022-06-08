@@ -51,7 +51,7 @@ export function pushUnique<T, U extends T>(arr: T[], value: U) {
   arr.push(value);
 }
 
-type LineHandler = (line: string) => void;
+export type LineHandler = (line: string) => void;
 // return a promise that will process the output of command
 // line-by-line via lineHandlers.
 export function spawnByLine(

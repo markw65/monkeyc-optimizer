@@ -130,7 +130,7 @@ function inlineSizeTests(logger as Logger) as Boolean {
     x = /* @match A.B.j */ A.B.j(1) + 1;
     check(x, 3, logger);
     x = /* @match A.B.j */ A.B.j(x) + 1;
-    check(x, 5, logger);
+    check(x, 6, logger);
     x = /* @match A.B.j */ A.B.j(A.K) + 1;
     check(x, 4, logger);
     x = /* @match A.B.j */ A.B.j(A.B.x) + 1;

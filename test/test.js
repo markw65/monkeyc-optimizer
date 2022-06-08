@@ -114,7 +114,7 @@ async function test() {
   if (!jungles.length) throw new Error("No inputs!");
   if (testBuild) {
     execute = true;
-  } else {
+  } else if (products) {
     products.splice(1);
   }
   if (execute) {
@@ -191,23 +191,40 @@ async function test() {
               }
             )
       )
-      .then(
-        (res) =>
+      .then((res) => {
+        if (
           res &&
           (testBuild ? res.hasTests : execute) &&
           res.program &&
-          res.product &&
-          (console.log(
+          res.product
+        ) {
+          console.log(
             `${testBuild && res.hasTests ? "Running tests" : "Executing"} ${
               res.program
             } on ${res.product}`
-          ),
-          simulateProgram(
-            res.program,
-            res.product,
-            res.hasTests && testBuild
-          ).catch(() => console.error("Simulation failed")))
-      )
+          );
+          let pass = res.hasTests && testBuild ? undefined : true;
+          const handler = (line) => {
+            const match = line.match(
+              /^(PASSED|FAILED)\s*\(passed=\d+,\s+failed=\d+,\s+errors=\d+\)/
+            );
+            if (match) {
+              pass = match[1] === "PASSED";
+            }
+            console.log(line);
+          };
+          return simulateProgram(res.program, res.product, pass === undefined, [
+            handler,
+            handler,
+          ]).then(() => {
+            if (pass === false) {
+              const e = new Error("Tests failed!");
+              e.products = [res.product];
+              throw e;
+            }
+          });
+        }
+      })
       .then(() =>
         console.log(`Done: ${new Date().toLocaleString()} - ${jungleFiles}`)
       )
