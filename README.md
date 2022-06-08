@@ -220,3 +220,18 @@ More fixes found via open source projects.
 - Code cleanup
   - Properly type the results of JSON.parse
   - Switch over to using ParenthesizedExpression for formatAst (depends on @markw65/prettier-plugin-monkeyc@1.0.22)
+
+### 1.0.20
+
+- Bug fixes
+
+  - Fix a bug marking unknown callees
+  - Fix a bug in test.js that didn't notice when tests failed, and fix a failing test
+
+- Optimizer enhancements
+
+  - Re-run the main optimization step, to properly account for functions that are unused after optimization
+  - Call the optimizer on 'unused' nodes before returning them
+
+- Code cleanup
+  - Called function cleanup
