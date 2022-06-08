@@ -72,6 +72,11 @@ function check(x as Number, expected as Number, logger as Logger) as Void {
     }
 }
 
+function nonInlinedWrapper(v as Number) as Number {
+    var ret = /* @match A.B.a */ A.B.f(v);
+    return ret;
+}
+
 (:test)
 function inlineAsExpressionTests(logger as Logger) as Boolean {
     ok = true;
@@ -112,6 +117,8 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     // i can be inlined regardless of arguments
     x = /* @match @^A\.B\.a\(\)$@ */ A.B.i(A.B.a());
     check(x, 6, logger);
+    x = nonInlinedWrapper(1);
+    check(x, 8, logger);
     return ok;
 }
 

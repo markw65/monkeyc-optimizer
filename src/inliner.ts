@@ -19,19 +19,29 @@ function getArgSafety(
   // determine whether decl might be changed by a function call
   // or assignment during the evaluation of FunctionStateNode.
   const getSafety = (decl: StateNodeDecl) => {
-    // enums are constant, they cant change
-    if (decl.type === "EnumStringMember") return true;
-    if (decl.type === "VariableDeclarator") {
-      // constants also can't change
-      if (decl.node.kind === "const") return true;
-      // if decl is a local, it also can't be changed
-      // by a call to another function.
-      for (let i = 0; ; i++) {
-        if (!state.stack[i] || decl.stack[i] !== state.stack[i]) return false;
-        if (state.stack[i].type === "FunctionDeclaration") return true;
+    switch (decl.type) {
+      // enums are constant, they cant change
+      case "EnumStringMember":
+        return true;
+      case "VariableDeclarator": {
+        // constants also can't change
+        if (decl.node.kind === "const") return true;
+        // if decl is a local, it also can't be changed
+        // by a call to another function.
+        for (let i = 0; ; i++) {
+          if (!state.stack[i] || decl.stack[i] !== state.stack[i]) return false;
+          if (state.stack[i].type === "FunctionDeclaration") return true;
+        }
       }
+      case "Identifier":
+      case "BinaryExpression":
+        // This is a parameter of the calling function.
+        // It also can't be changed during the execution
+        // of the inlined function
+        return true;
+      default:
+        return null;
     }
-    return null;
   };
 
   const safeArgs: (boolean | null)[] = [];
