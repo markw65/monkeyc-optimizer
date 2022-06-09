@@ -539,7 +539,13 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     calledFunctions: {},
   } as ProgramStateOptimizer;
 
-  const replace = (node: MCTreeSome, obj: MCTreeSome) => {
+  const replace = (node: mctree.Node | false | null) => {
+    if (node === false || node === null) return node;
+    const rep = state.traverse(node);
+    return rep === false || rep ? rep : node;
+  };
+
+  const inPlaceReplacement = (node: MCTreeSome, obj: MCTreeSome) => {
     for (const k of Object.keys(node)) {
       delete node[k as keyof MCTreeSome];
     }
@@ -564,7 +570,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     if (!obj) {
       return false;
     }
-    replace(node, obj);
+    inPlaceReplacement(node, obj);
     return true;
   };
 
@@ -763,8 +769,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     }
     const opt = optimizeNode(node);
     if (opt) {
-      replace(node, opt);
-      return null;
+      return replace(opt);
     }
     switch (node.type) {
       case "ConditionalExpression":
@@ -775,7 +780,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         ) {
           const rep = node.test.value ? node.consequent : node.alternate;
           if (!rep) return false;
-          replace(node, rep);
+          return replace(rep);
         }
         break;
       case "WhileStatement":
@@ -791,16 +796,12 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
 
       case "ReturnStatement":
         if (node.argument && node.argument.type === "CallExpression") {
-          return optimizeCall(state, node.argument, node);
+          return replace(optimizeCall(state, node.argument, node));
         }
         break;
 
       case "CallExpression": {
-        const ret = optimizeCall(state, node, null);
-        if (ret) {
-          replace(node, ret);
-        }
-        break;
+        return replace(optimizeCall(state, node, null));
       }
 
       case "AssignmentExpression":
@@ -816,7 +817,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
 
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
-          return optimizeCall(state, node.expression, node);
+          return replace(optimizeCall(state, node.expression, node));
         } else if (node.expression.type === "AssignmentExpression") {
           if (node.expression.right.type === "CallExpression") {
             let ok = false;
@@ -830,27 +831,18 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
               ok = result != null;
             }
             if (ok) {
-              const ret = optimizeCall(
-                state,
-                node.expression.right,
-                node.expression
+              return replace(
+                optimizeCall(state, node.expression.right, node.expression)
               );
-              if (ret && ret.type === "BlockStatement") {
-                const r2 = state.traverse(ret);
-                return r2 === false || r2 ? r2 : ret;
-              }
             }
           }
         } else {
           const ret = unused(node.expression, true);
           if (ret) {
             return ret
-              .map((s) => {
-                const r2 = state.traverse(s);
-                return r2 === false || r2 ? r2 : s;
-              })
+              .map(replace)
               .flat(1)
-              .filter((s): s is Exclude<typeof s, false> => s !== false);
+              .filter((s): s is Exclude<typeof s, false | null> => !!s);
           }
         }
         break;
@@ -898,19 +890,24 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       case "EnumDeclaration":
         if (!node.body.members.length) {
           if (!node.id) return false;
-          if (!node.body["enumType"]) {
+          if (!node.body.enumType) {
             throw new Error("Missing enumType on optimized enum");
           }
-          replace(node, {
+          return {
             type: "TypedefDeclaration",
             id: node.id,
             ts: {
               type: "UnaryExpression",
-              argument: { type: "TypeSpecList", ts: [node.body.enumType] },
+              argument: {
+                type: "TypeSpecList",
+                ts: [
+                  node.body.enumType,
+                ] as unknown as mctree.TypeSpecList["ts"],
+              },
               prefix: true,
               operator: " as",
             },
-          });
+          } as const;
         }
         break;
       case "VariableDeclaration": {
