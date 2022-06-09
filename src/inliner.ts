@@ -208,6 +208,7 @@ export function shouldInline(
   call: mctree.CallExpression,
   context: InlineContext | null
 ): boolean {
+  if (state.inlining) return false;
   let autoInline: number | boolean = false;
   let inlineAsExpression = false;
   const args = call.arguments;
@@ -269,6 +270,7 @@ function processInlineBody<T extends InlineBody>(
   let failed: boolean = false;
   const pre = state.pre!;
   const post = state.post!;
+  state.inlining = true;
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
@@ -310,7 +312,7 @@ function processInlineBody<T extends InlineBody>(
       return result;
     };
     state.post = (node: mctree.Node) => {
-      if (failed) return null;
+      if (failed) return post(node, state);
       let replacement = null;
       switch (node.type) {
         case "Identifier": {
@@ -331,12 +333,13 @@ function processInlineBody<T extends InlineBody>(
               call,
               `Failed to resolve '${node.name}'`
             );
-            return null;
+            return post(node, state);
           }
           break;
         }
       }
-      return post(replacement || node, state) || replacement;
+      const ret = post(replacement || node, state);
+      return ret === false || ret ? ret : replacement;
     };
     let ret = state.traverse(root) as InlineBodyReturn<T>;
     if (failed) {
@@ -354,6 +357,7 @@ function processInlineBody<T extends InlineBody>(
   } finally {
     state.pre = pre;
     state.post = post;
+    delete state.inlining;
   }
 }
 

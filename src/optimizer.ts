@@ -209,6 +209,7 @@ declare global {
       node: mctree.Node
     ) => void | null | false | mctree.Node | mctree.Node[];
     inType?: boolean;
+    inlining?: true;
     exposed?: { [key: string]: true };
     calledFunctions?: { [key: string]: mctree.FunctionDeclaration[] };
     localsStack?: {
