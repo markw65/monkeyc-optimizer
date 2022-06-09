@@ -183,23 +183,26 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
       if (
         "attrs" in node &&
         node.attrs &&
-        "attrs" in node.attrs &&
-        node.attrs.attrs &&
+        "attributes" in node.attrs &&
+        node.attrs.attributes &&
         node.loc?.source
       ) {
         const excludeAnnotations = fnMap[node.loc.source].excludeAnnotations;
         if (excludeAnnotations) {
-          return node.attrs.attrs.reduce((drop: boolean, attr) => {
-            if (attr.type != "UnaryExpression") return drop;
-            if (attr.argument.type != "Identifier") return drop;
-            if (hasProperty(excludeAnnotations, attr.argument.name)) {
-              return true;
-            }
-            if (attr.argument.name == "test") {
-              hasTests = true;
-            }
-            return drop;
-          }, false);
+          return node.attrs.attributes.elements.reduce(
+            (drop: boolean, attr) => {
+              if (attr.type != "UnaryExpression") return drop;
+              if (attr.argument.type != "Identifier") return drop;
+              if (hasProperty(excludeAnnotations, attr.argument.name)) {
+                return true;
+              }
+              if (attr.argument.name == "test") {
+                hasTests = true;
+              }
+              return drop;
+            },
+            false
+          );
         }
       }
       return false;
@@ -578,8 +581,8 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     if (hasProperty(state.exposed, func.id.name)) return true;
     if (
       func.attrs &&
-      func.attrs.attrs &&
-      func.attrs.attrs.some((attr) => {
+      func.attrs.attributes &&
+      func.attrs.attributes.elements.some((attr) => {
         if (attr.type != "UnaryExpression") return false;
         if (attr.argument.type != "Identifier") return false;
         return attr.argument.name == "test";

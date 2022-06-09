@@ -552,15 +552,6 @@ export function formatAst(
   node: mctree.Node,
   monkeyCSource: string | null = null
 ) {
-  if ("comments" in node && !monkeyCSource) {
-    // Prettier inserts comments by using the source location to
-    // find the original comment, rather than using the contents
-    // of the comment as reported by the comment nodes themselves.
-    // If all we've got is the ast, rather than the actual
-    // source code, this goes horribly wrong, so just drop all
-    // the comments.
-    delete node.comments;
-  }
   /*
    * The estree printer sometimes looks at the parent node without
    * checking that there *is* a parent node (eg it assumes all

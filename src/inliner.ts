@@ -188,8 +188,8 @@ function inlineRequested(state: ProgramStateAnalysis, func: FunctionStateNode) {
 
   if (
     func.node.attrs &&
-    func.node.attrs.attrs &&
-    func.node.attrs.attrs.some(
+    func.node.attrs.attributes &&
+    func.node.attrs.attributes.elements.some(
       (attr) =>
         attr.type === "UnaryExpression" &&
         (attr.argument.name === "inline" ||

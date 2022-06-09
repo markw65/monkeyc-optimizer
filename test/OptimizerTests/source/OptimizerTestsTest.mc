@@ -246,6 +246,7 @@ function multipleReturnsNoFinalReturn(y as Number) as Number {
     }
 }
 
+// prettier-ignore
 function testMultipleReturns(y as Number) as Number {
     /* @match /^\{.*\}$/ */
     return multipleReturns(y);
@@ -280,7 +281,7 @@ function assignContext(x as Number) as Number {
     return x * z;
 }
 
-(:test)
+(:test) // foo
 function inlineAssignContext(logger as Logger) as Boolean {
     var x;
     ok = true;
