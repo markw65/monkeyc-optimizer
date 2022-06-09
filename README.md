@@ -235,3 +235,12 @@ More fixes found via open source projects.
 
 - Code cleanup
   - Called function cleanup
+
+### 1.0.21
+
+- Bug fixes
+
+  - Parameters from the calling function should be treated just line locals when inlining
+  - Upgrade to @markw65/prettier-plugin-monkeyc@1.0.24
+    - fixes crash with comments following an attribute: `(:foo) /* comment */ function foo() {}`
+  - Fix issues with recursive inlining
