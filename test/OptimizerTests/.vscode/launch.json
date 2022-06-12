@@ -11,6 +11,22 @@
       "stopAtLaunch": false,
       "runTests": true,
       "device": "${command:GetTargetDevice}"
+    },
+    {
+      "type": "monkeyc",
+      "request": "launch",
+      "name": "Run Unoptimized Tests",
+      "stopAtLaunch": false,
+      "runTests": true,
+      "device": "${command:GetTargetDevice}"
+    },
+    {
+      "type": "monkeyc",
+      "request": "launch",
+      "name": "Run Unoptimized",
+      "stopAtLaunch": false,
+      "runTests": false,
+      "device": "${command:GetTargetDevice}"
     }
   ]
 }
