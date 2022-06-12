@@ -2,10 +2,10 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   hasProperty,
   isStateNode,
+  sameLookupResult,
   traverseAst,
   variableDeclarationName,
 } from "./api";
-import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 
 type Expression = mctree.BinaryExpression["left"];
@@ -55,11 +55,15 @@ function getArgSafety(
         case "Identifier":
         case "MemberExpression": {
           const [, results] = state.lookup(arg);
-          if (!results || results.length !== 1) {
+          if (
+            !results ||
+            results.length !== 1 ||
+            results[0].results.length !== 1
+          ) {
             safeArgs.push(null);
             return !requireAll;
           }
-          const safety = getSafety(results[0]);
+          const safety = getSafety(results[0].results[0]);
           safeArgs.push(safety);
           if (!safety) {
             allSafe = false;
@@ -621,11 +625,7 @@ function fixNodeScope(
   // With a bit more work, we could find the guaranteed shortest
   // reference, and then use this to optimize *all* symbols, not
   // just fix inlined ones.
-  if (
-    current &&
-    current.length === original.length &&
-    current.every((item, index) => item == original[index])
-  ) {
+  if (current && sameLookupResult(original, current)) {
     return lookupNode;
   }
   const node =
@@ -633,16 +633,24 @@ function fixNodeScope(
       ? lookupNode
       : (lookupNode.property as mctree.Identifier);
 
-  if (original.length === 1 && original[0].type === "EnumStringMember") {
-    return applyTypeIfNeeded(original[0].init);
+  if (
+    original.length === 1 &&
+    original[0].results.length === 1 &&
+    original[0].results[0].type === "EnumStringMember"
+  ) {
+    return applyTypeIfNeeded(original[0].results[0].init);
   }
 
-  const prefixes = original.map((sn) => {
-    if (isStateNode(sn) && sn.fullName) {
-      return sn.fullName;
-    }
-    return "";
-  });
+  const prefixes = original
+    .map((lookupDef) =>
+      lookupDef.results.map((sn) => {
+        if (isStateNode(sn) && sn.fullName) {
+          return sn.fullName;
+        }
+        return "";
+      })
+    )
+    .flat();
 
   if (
     prefixes.length &&
@@ -655,11 +663,7 @@ function fixNodeScope(
       (current, name) => {
         if (found) return current;
         const [, results] = state.lookup(current);
-        if (
-          results &&
-          results.length === original.length &&
-          results.every((result, i) => result === original[i])
-        ) {
+        if (results && sameLookupResult(original, results)) {
           found = true;
           return current;
         }

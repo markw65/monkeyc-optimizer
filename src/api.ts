@@ -8,7 +8,7 @@ import * as Prettier from "prettier";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";
-import { pushUnique } from "./util";
+import { pushUnique, sameArrays } from "./util";
 
 /*
  * This is an unfortunate hack. I want to be able to extract things
@@ -124,27 +124,67 @@ function checkOne(
   return null;
 }
 
+function sameStateNodeDecl(a: StateNodeDecl | null, b: StateNodeDecl | null) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (!isStateNode(a) || a.type !== b.type) return false;
+  return a.node === b.node;
+}
+
+function sameLookupDefinition(a: LookupDefinition, b: LookupDefinition) {
+  return (
+    sameStateNodeDecl(a.parent, b.parent) &&
+    sameArrays(a.results, b.results, (ar, br) => sameStateNodeDecl(ar, br))
+  );
+}
+
+export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
+  return sameArrays(a, b, sameLookupDefinition);
+}
+
 function lookup(
   state: ProgramStateLive,
   decls: DeclKind,
   node: mctree.Node,
   name?: string | null | undefined,
-  stack?: ProgramStateStack
-): ReturnType<ProgramStateLive["lookup"]> {
+  stack?: ProgramStateStack,
+  nonlocal?: boolean
+): LookupResult {
   stack || (stack = state.stack);
   switch (node.type) {
     case "MemberExpression": {
       if (node.property.type != "Identifier" || node.computed) break;
-      const [, module, where] = lookup(state, decls, node.object, name, stack);
-      if (module && module.length === 1) {
-        const result = checkOne(module[0], decls, node.property.name);
-        if (result) {
-          return [
-            name || node.property.name,
-            result,
-            where.concat(module[0] as StateNode),
-          ];
-        }
+      const propName = node.property.name;
+      let result;
+      if (node.object.type === "ThisExpression") {
+        [, result] = lookup(state, decls, node.property, name, stack, true);
+      } else {
+        const [, results] = lookup(
+          state,
+          decls,
+          node.object,
+          name,
+          stack,
+          nonlocal
+        );
+        if (!results) break;
+
+        result = results.reduce<LookupDefinition[] | null>(
+          (current, lookupDef) => {
+            const items = lookupDef.results
+              .map((module) => {
+                const res = checkOne(module, decls, propName);
+                return res ? { parent: module, results: res } : null;
+              })
+              .filter((r): r is NonNullable<typeof r> => r != null);
+            if (!items.length) return current;
+            return current ? current.concat(items) : items;
+          },
+          null
+        );
+      }
+      if (result) {
+        return [name || propName, result];
       }
       break;
     }
@@ -156,25 +196,36 @@ function lookup(
           si.type == "ClassDeclaration" ||
           !i
         ) {
-          return [name || (si.name as string), [si], stack.slice(0, i)];
+          return [
+            name || (si.name as string),
+            [{ parent: i ? stack[i - 1] : null, results: [si] }],
+          ];
         }
       }
       break;
     }
     case "Identifier": {
       if (node.name == "$") {
-        return [name || node.name, [stack[0]], []];
+        return [name || node.name, [{ parent: null, results: [stack[0]] }]];
       }
       for (let i = stack.length; i--; ) {
-        const result = checkOne(stack[i], decls, node.name);
-        if (result) {
-          return [name || node.name, result, stack.slice(0, i + 1)];
+        const si = stack[i];
+        if (
+          !nonlocal ||
+          si.type == "ModuleDeclaration" ||
+          si.type == "ClassDeclaration" ||
+          si.type == "Program"
+        ) {
+          const results = checkOne(si, decls, node.name);
+          if (results) {
+            return [name || node.name, [{ parent: si, results }]];
+          }
         }
       }
       break;
     }
   }
-  return [null, null, null];
+  return [null, null];
 }
 
 export function collectNamespaces(
@@ -211,6 +262,9 @@ export function collectNamespaces(
 
   state.lookup = (node, name, stack) =>
     lookup(state, state.inType ? "type_decls" : "decls", node, name, stack);
+
+  state.lookupNonlocal = (node, name, stack) =>
+    lookup(state, "decls", node, name, stack, true);
 
   state.lookupValue = (node, name, stack) =>
     lookup(state, "decls", node, name, stack);

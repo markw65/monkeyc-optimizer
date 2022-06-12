@@ -51,6 +51,14 @@ export function pushUnique<T, U extends T>(arr: T[], value: U) {
   arr.push(value);
 }
 
+export function sameArrays<T>(
+  a1: T[],
+  a2: T[],
+  check: (a: T, b: T) => boolean
+) {
+  return a1.length === a2.length && a1.every((e, i) => check(e, a2[i]));
+}
+
 export type LineHandler = (line: string) => void;
 // return a promise that will process the output of command
 // line-by-line via lineHandlers.

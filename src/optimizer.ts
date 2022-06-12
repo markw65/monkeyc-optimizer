@@ -175,6 +175,11 @@ declare global {
     | TypedefStateNode
     | VariableStateNode;
   type ProgramStateStack = StateNode[];
+  type LookupDefinition = {
+    parent: StateNodeDecl | null;
+    results: StateNodeDecl[];
+  };
+  type LookupResult = [string, LookupDefinition[]] | [null, null];
   export type ProgramState = {
     allFunctions?: FunctionStateNode[];
     allClasses?: ClassStateNode[];
@@ -194,17 +199,22 @@ declare global {
       node: mctree.Node,
       name?: string | null,
       stack?: ProgramStateStack
-    ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
+    ) => LookupResult;
     lookupValue?: (
       node: mctree.Node,
       name?: string | null,
       stack?: ProgramStateStack
-    ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
+    ) => LookupResult;
     lookupType?: (
       node: mctree.Node,
       name?: string | null,
       stack?: ProgramStateStack
-    ) => [string, StateNodeDecl[], ProgramStateStack] | [null, null, null];
+    ) => LookupResult;
+    lookupNonlocal?: (
+      node: mctree.Node,
+      name?: string | null,
+      stack?: ProgramStateStack
+    ) => LookupResult;
     traverse?: (
       node: mctree.Node
     ) => void | null | false | mctree.Node | mctree.Node[];
@@ -240,6 +250,7 @@ declare global {
     | "lookup"
     | "lookupValue"
     | "lookupType"
+    | "lookupNonlocal"
     | "traverse"
     | "index"
     | "constants"

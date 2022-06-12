@@ -28,31 +28,33 @@ function processImports(
   lookup: NonNullable<ProgramState["lookup"]>
 ) {
   allImports.forEach(({ node, stack }) => {
-    const [name, module] = lookup(
+    const [name, lookupDefns] = lookup(
       node.id,
       ("as" in node && node.as && node.as.name) || null,
       stack
     );
-    if (name && module) {
+    if (name && lookupDefns) {
       const [parent] = stack.slice(-1);
       if (!parent.decls) parent.decls = {};
       const decls = parent.decls;
       if (!hasProperty(decls, name)) decls[name] = [];
-      module.forEach((m) => {
-        if (isStateNode(m) && m.type == "ModuleDeclaration") {
-          pushUnique(decls[name], m);
-          if (!parent.type_decls) parent.type_decls = {};
-          const tdecls = parent.type_decls;
-          if (!hasProperty(tdecls, name)) tdecls[name] = [];
-          pushUnique(tdecls[name], m);
-          if (node.type == "ImportModule" && m.type_decls) {
-            Object.entries(m.type_decls).forEach(([name, decls]) => {
-              if (!hasProperty(tdecls, name)) tdecls[name] = [];
-              decls.forEach((decl) => pushUnique(tdecls[name], decl));
-            });
+      lookupDefns.forEach((lookupDefn) =>
+        lookupDefn.results.forEach((m) => {
+          if (isStateNode(m) && m.type == "ModuleDeclaration") {
+            pushUnique(decls[name], m);
+            if (!parent.type_decls) parent.type_decls = {};
+            const tdecls = parent.type_decls;
+            if (!hasProperty(tdecls, name)) tdecls[name] = [];
+            pushUnique(tdecls[name], m);
+            if (node.type == "ImportModule" && m.type_decls) {
+              Object.entries(m.type_decls).forEach(([name, decls]) => {
+                if (!hasProperty(tdecls, name)) tdecls[name] = [];
+                decls.forEach((decl) => pushUnique(tdecls[name], decl));
+              });
+            }
           }
-        }
-      });
+        })
+      );
     }
   });
 }
@@ -60,17 +62,20 @@ function processImports(
 function collectClassInfo(state: ProgramStateAnalysis) {
   state.allClasses.forEach((elm) => {
     if (elm.node.superClass) {
-      const [name, classes] = state.lookup(
+      const [name, lookupDefns] = state.lookup(
         elm.node.superClass,
         null,
         elm.stack
       );
       const superClass =
-        classes &&
-        classes.filter(
-          (c): c is ClassStateNode =>
-            isStateNode(c) && c.type === "ClassDeclaration"
-        );
+        lookupDefns &&
+        lookupDefns
+          .map((lookupDefn) => lookupDefn.results)
+          .flat()
+          .filter(
+            (c): c is ClassStateNode =>
+              isStateNode(c) && c.type === "ClassDeclaration"
+          );
       // set it "true" if there is a superClass, but we can't find it.
       elm.superClass = superClass && superClass.length ? superClass : true;
       if (name && elm.superClass !== true) {
@@ -276,28 +281,30 @@ function compareLiteralLike(a: mctree.Node, b: mctree.Node) {
   return a.type === "Literal" && b.type === "Literal" && a.value === b.value;
 }
 
-export function getLiteralFromDecls(decls: StateNodeDecl[]) {
-  if (!decls.length) return null;
+export function getLiteralFromDecls(lookupDefns: LookupDefinition[]) {
+  if (!lookupDefns.length) return null;
   let result: null | mctree.Literal | mctree.AsExpression = null;
   if (
-    decls.every((d) => {
-      if (
-        d.type === "EnumStringMember" ||
-        (d.type === "VariableDeclarator" && d.node.kind === "const")
-      ) {
-        const init = getLiteralNode(
-          d.type === "EnumStringMember" ? d.init : d.node.init
-        );
-        if (!init) return false;
-        if (!result) {
-          result = init;
-          return true;
-        } else {
-          return compareLiteralLike(init, result);
+    lookupDefns.every((lookupDefn) =>
+      lookupDefn.results.every((d) => {
+        if (
+          d.type === "EnumStringMember" ||
+          (d.type === "VariableDeclarator" && d.node.kind === "const")
+        ) {
+          const init = getLiteralNode(
+            d.type === "EnumStringMember" ? d.init : d.node.init
+          );
+          if (!init) return false;
+          if (!result) {
+            result = init;
+            return true;
+          } else {
+            return compareLiteralLike(init, result);
+          }
         }
-      }
-      return false;
-    })
+        return false;
+      })
+    )
   ) {
     return result;
   }
@@ -955,9 +962,10 @@ function optimizeCall(
   const [name, results] = state.lookup(node.callee);
   const callees =
     results &&
-    results.filter(
-      (c): c is FunctionStateNode => c.type === "FunctionDeclaration"
-    );
+    results
+      .map((r) => r.results)
+      .flat()
+      .filter((c): c is FunctionStateNode => c.type === "FunctionDeclaration");
 
   if (!callees || !callees.length) {
     const n =
