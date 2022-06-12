@@ -12,13 +12,7 @@ import {
   traverseAst,
   variableDeclarationName,
 } from "./api";
-import {
-  InlineContext,
-  inlineFunction,
-  InlineStatus,
-  shouldInline,
-  unused,
-} from "./inliner";
+import { InlineContext, inlineFunction, shouldInline, unused } from "./inliner";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 

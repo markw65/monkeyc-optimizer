@@ -178,12 +178,6 @@ function inliningLooksUseful(
   return false;
 }
 
-export enum InlineStatus {
-  Never,
-  AsExpression,
-  AsStatement,
-}
-
 function inlineRequested(state: ProgramStateAnalysis, func: FunctionStateNode) {
   const excludeAnnotations =
     (func.node.loc?.source &&
