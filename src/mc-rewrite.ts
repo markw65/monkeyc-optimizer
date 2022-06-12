@@ -959,7 +959,7 @@ function optimizeCall(
   node: mctree.CallExpression,
   context: InlineContext | null
 ) {
-  const [name, results] = state.lookup(node.callee);
+  const [name, results] = state.lookupNonlocal(node.callee);
   const callees =
     results &&
     results

@@ -77,6 +77,10 @@ function nonInlinedWrapper(v as Number) as Number {
     return ret;
 }
 
+function inlineHiddenByLocal(v as Number) as Number {
+    return v;
+}
+
 (:test)
 function inlineAsExpressionTests(logger as Logger) as Boolean {
     ok = true;
@@ -119,6 +123,10 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     check(x, 6, logger);
     x = nonInlinedWrapper(1);
     check(x, 8, logger);
+
+    /* @match /^var inlineHiddenByLocal = A.B.x;$/ */
+    var inlineHiddenByLocal = inlineHiddenByLocal(A.B.x);
+    check(inlineHiddenByLocal, 7, logger);
     return ok;
 }
 

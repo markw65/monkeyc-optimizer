@@ -142,6 +142,19 @@ export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
   return sameArrays(a, b, sameLookupDefinition);
 }
 
+/**
+ *
+ * @param state    - The ProgramState
+ * @param decls    - The field to use to look things up. either "decls" or "typeDecls"
+ * @param node     - The node to lookup
+ * @param name     - Overrides the name of the node.
+ * @param stack    - if provided, use this stack, rather than the current
+ *                   state.stack for the lookup
+ * @param nonlocal - when true, a plain identifier will be looked up as a
+ *                   non-local. This is needed when looking up a callee.
+ *                   If the callee is a MemberExpression, the flag is ignored.
+ * @returns
+ */
 function lookup(
   state: ProgramStateLive,
   decls: DeclKind,
@@ -165,7 +178,7 @@ function lookup(
           node.object,
           name,
           stack,
-          nonlocal
+          false
         );
         if (!results) break;
 
