@@ -646,6 +646,18 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         }
         return ["init"];
       }
+      case "BinaryExpression":
+        if (node.operator === "has") {
+          if (
+            node.right.type === "UnaryExpression" &&
+            node.right.operator === ":"
+          ) {
+            // Using `expr has :symbol` doesn't "expose"
+            // symbol. So skip the right operand.
+            return ["left"];
+          }
+        }
+        break;
       case "UnaryExpression":
         if (node.operator == ":") {
           // If we produce a Symbol, for a given name,
