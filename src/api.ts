@@ -10,6 +10,8 @@ import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
 
+export { visitReferences } from "./visitor";
+
 /*
  * This is an unfortunate hack. I want to be able to extract things
  * like the types of all of a Class's variables (in particular the type
