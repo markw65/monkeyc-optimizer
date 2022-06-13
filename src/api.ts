@@ -128,12 +128,16 @@ function sameStateNodeDecl(a: StateNodeDecl | null, b: StateNodeDecl | null) {
   if (a === b) return true;
   if (!a || !b) return false;
   if (!isStateNode(a) || a.type !== b.type) return false;
-  return a.node === b.node;
+  return (
+    a.node === b.node ||
+    a.type === "Program" ||
+    (a.type === "ModuleDeclaration" && a.fullName === b.fullName)
+  );
 }
 
 function sameLookupDefinition(a: LookupDefinition, b: LookupDefinition) {
   return (
-    sameStateNodeDecl(a.parent, b.parent) &&
+    // sameStateNodeDecl(a.parent, b.parent) &&
     sameArrays(a.results, b.results, (ar, br) => sameStateNodeDecl(ar, br))
   );
 }
@@ -142,10 +146,33 @@ export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
   return sameArrays(a, b, sameLookupDefinition);
 }
 
+function resolveUsing(
+  using: ImportUsing,
+  state: ProgramStateLive,
+  stack: ProgramStateStack
+) {
+  const { usings, ...base } = stack[0];
+  const [, results] = lookup(
+    state,
+    "decls",
+    using.node.id,
+    null,
+    [base],
+    false
+  );
+  if (
+    results &&
+    results.length == 1 &&
+    results[0].results.length == 1 &&
+    results[0].results[0].type == "ModuleDeclaration"
+  ) {
+    using.module = results[0].results[0];
+  }
+}
 /**
  *
  * @param state    - The ProgramState
- * @param decls    - The field to use to look things up. either "decls" or "typeDecls"
+ * @param decls    - The field to use to look things up. either "decls" or "type_decls"
  * @param node     - The node to lookup
  * @param name     - Overrides the name of the node.
  * @param stack    - if provided, use this stack, rather than the current
@@ -160,10 +187,10 @@ function lookup(
   decls: DeclKind,
   node: mctree.Node,
   name?: string | null | undefined,
-  stack?: ProgramStateStack,
+  maybeStack?: ProgramStateStack,
   nonlocal?: boolean
 ): LookupResult {
-  stack || (stack = state.stack);
+  const stack = maybeStack || state.stack;
   switch (node.type) {
     case "MemberExpression": {
       if (node.property.type != "Identifier" || node.computed) break;
@@ -221,6 +248,7 @@ function lookup(
       if (node.name == "$") {
         return [name || node.name, [{ parent: null, results: [stack[0]] }]];
       }
+      let result: LookupResult | undefined;
       for (let i = stack.length; i--; ) {
         const si = stack[i];
         if (
@@ -229,12 +257,49 @@ function lookup(
           si.type == "ClassDeclaration" ||
           si.type == "Program"
         ) {
-          const results = checkOne(si, decls, node.name);
-          if (results) {
-            return [name || node.name, [{ parent: si, results }]];
+          if (!result) {
+            const results = checkOne(si, decls, node.name);
+            if (results) {
+              result = [name || node.name, [{ parent: si, results }]];
+              if (
+                si.type === "BlockStatement" ||
+                si.type === "FunctionDeclaration"
+              ) {
+                // Locals are always highest priority. If its not a local
+                // we have to keep going to see if something got imported,
+                // in which case *that* will take priority.
+                return result;
+              }
+            }
+          }
+          if (hasProperty(si.usings, node.name)) {
+            const using = si.usings[node.name];
+            if (!using.module) {
+              resolveUsing(using, state, stack);
+            }
+            if (!using.module) break;
+            return [
+              name || node.name,
+              [{ parent: si, results: [using.module] }],
+            ];
+          }
+          if (decls === "type_decls" && si.imports) {
+            for (let i = si.imports.length; i--; ) {
+              const using = si.imports[i];
+              if (!using.module) {
+                resolveUsing(using, state, stack);
+              }
+              if (using.module) {
+                const results = checkOne(using.module, decls, node.name);
+                if (results) {
+                  return [name || node.name, [{ parent: si, results }]];
+                }
+              }
+            }
           }
         }
       }
+      if (result) return result;
       break;
     }
   }
@@ -285,6 +350,8 @@ export function collectNamespaces(
   state.lookupType = (node, name, stack) =>
     lookup(state, "type_decls", node, name, stack);
 
+  state.stackClone = () => state.stack.map((elm) => ({ ...elm }));
+
   state.inType = false;
 
   state.traverse = (root) =>
@@ -301,10 +368,40 @@ export function collectNamespaces(
               if (state.stack.length != 1) {
                 throw new Error("Unexpected stack length for Program node");
               }
+              state.stack[0].node = node;
               break;
             case "TypeSpecList":
               state.inType = true;
               break;
+            case "ImportModule":
+            case "Using": {
+              const [parent] = state.stack.slice(-1);
+              if (!parent.usings) {
+                parent.usings = {};
+              }
+              const name =
+                (node.type === "Using" && node.as && node.as.name) ||
+                (node.id.type === "Identifier"
+                  ? node.id.name
+                  : node.id.property.name);
+              const using = { node };
+              parent.usings[name] = using;
+              if (node.type == "ImportModule") {
+                if (!parent.imports) {
+                  parent.imports = [using];
+                } else {
+                  const index = parent.imports.findIndex(
+                    (using) =>
+                      (using.node.id.type === "Identifier"
+                        ? using.node.id.name
+                        : using.node.id.property.name) === name
+                  );
+                  if (index >= 0) parent.imports.splice(index, 1);
+                  parent.imports.push(using);
+                }
+              }
+              break;
+            }
             case "BlockStatement": {
               const [parent] = state.stack.slice(-1);
               if (
@@ -417,7 +514,7 @@ export function collectNamespaces(
               const [parent] = state.stack.slice(-1);
               if (!parent.decls) parent.decls = {};
               const decls = parent.decls;
-              const stack = state.stack.slice();
+              const stack = state.stackClone();
               node.declarations.forEach((decl) => {
                 const name = variableDeclarationName(decl.id);
                 if (!hasProperty(decls, name)) {
@@ -521,8 +618,13 @@ export function collectNamespaces(
                 state.inType = true;
                 break;
             }
-            if (state.stack.slice(-1).pop()?.node === node) {
-              state.stack.pop();
+            const [parent] = state.stack.slice(-1);
+            if (parent.node === node) {
+              delete parent.usings;
+              delete parent.imports;
+              if (node.type != "Program") {
+                state.stack.pop();
+              }
             }
           }
           if (ret === false) {

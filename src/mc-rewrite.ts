@@ -16,43 +16,6 @@ import { InlineContext, inlineFunction, shouldInline, unused } from "./inliner";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 
-type ImportItem = { node: mctree.ImportStatement; stack: ProgramStateStack };
-function processImports(
-  allImports: ImportItem[],
-  lookup: NonNullable<ProgramState["lookup"]>
-) {
-  allImports.forEach(({ node, stack }) => {
-    const [name, lookupDefns] = lookup(
-      node.id,
-      ("as" in node && node.as && node.as.name) || null,
-      stack
-    );
-    if (name && lookupDefns) {
-      const [parent] = stack.slice(-1);
-      if (!parent.decls) parent.decls = {};
-      const decls = parent.decls;
-      if (!hasProperty(decls, name)) decls[name] = [];
-      lookupDefns.forEach((lookupDefn) =>
-        lookupDefn.results.forEach((m) => {
-          if (isStateNode(m) && m.type == "ModuleDeclaration") {
-            pushUnique(decls[name], m);
-            if (!parent.type_decls) parent.type_decls = {};
-            const tdecls = parent.type_decls;
-            if (!hasProperty(tdecls, name)) tdecls[name] = [];
-            pushUnique(tdecls[name], m);
-            if (node.type == "ImportModule" && m.type_decls) {
-              Object.entries(m.type_decls).forEach(([name, decls]) => {
-                if (!hasProperty(tdecls, name)) tdecls[name] = [];
-                decls.forEach((decl) => pushUnique(tdecls[name], decl));
-              });
-            }
-          }
-        })
-      );
-    }
-  });
-}
-
 function collectClassInfo(state: ProgramStateAnalysis) {
   state.allClasses.forEach((elm) => {
     if (elm.node.superClass) {
@@ -173,7 +136,6 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
 
 export async function analyze(fnMap: FilesToOptimizeMap) {
   let hasTests = false;
-  const allImports: ImportItem[] = [];
   const preState: ProgramState = {
     fnMap,
     allFunctions: [],
@@ -211,8 +173,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
         case "FunctionDeclaration":
         case "ClassDeclaration": {
           const [scope] = state.stack.slice(-1);
-          const stack = state.stack.slice(0, -1);
-          scope.stack = stack;
+          scope.stack = state.stackClone().slice(0, -1);
           if (scope.type == "FunctionDeclaration") {
             state.allFunctions!.push(scope);
           } else {
@@ -220,10 +181,6 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
           }
           return null;
         }
-        case "Using":
-        case "ImportModule":
-          allImports.push({ node, stack: state.stack.slice() });
-          return null;
         default:
           return null;
       }
@@ -262,7 +219,6 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   delete state.shouldExclude;
   delete state.post;
 
-  processImports(allImports, state.lookup);
   collectClassInfo(state);
 
   return state;

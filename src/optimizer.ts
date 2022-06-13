@@ -109,6 +109,10 @@ declare global {
   type StateNodeDecls = {
     [key: string]: StateNodeDecl[];
   };
+  type ImportUsing = {
+    node: mctree.Using | mctree.ImportModule;
+    module?: ModuleStateNode | null | undefined;
+  };
   interface BaseStateNode {
     type: string;
     node: mctree.Node | null | undefined;
@@ -117,10 +121,12 @@ declare global {
     decls?: StateNodeDecls | undefined;
     type_decls?: StateNodeDecls | undefined;
     stack?: ProgramStateStack | undefined;
+    usings?: Record<string, ImportUsing>;
+    imports?: ImportUsing[];
   }
   interface ProgramStateNode extends BaseStateNode {
     type: "Program";
-    node: null | undefined;
+    node: mctree.Program | undefined;
     name: "$";
     fullName: "$";
     stack?: undefined;
@@ -215,6 +221,7 @@ declare global {
       name?: string | null,
       stack?: ProgramStateStack
     ) => LookupResult;
+    stackClone?: () => ProgramStateStack;
     traverse?: (
       node: mctree.Node
     ) => void | null | false | mctree.Node | mctree.Node[];
@@ -251,6 +258,7 @@ declare global {
     | "lookupValue"
     | "lookupType"
     | "lookupNonlocal"
+    | "stackClone"
     | "traverse"
     | "index"
     | "constants"
