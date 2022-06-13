@@ -127,6 +127,14 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     /* @match /^var inlineHiddenByLocal = A.B.x;$/ */
     var inlineHiddenByLocal = inlineHiddenByLocal(A.B.x);
     check(inlineHiddenByLocal, 7, logger);
+
+    /* @match /^x = A\.B\.a\(\);$/ */
+    x = inlineNeedsLocalImport();
+    check(x, 8, logger);
+
+    /* @match /^x = .*\? Toybox.Application.Storage.getValue/ */
+    x = inlineNeedsToyboxImport();
+    check(x == null ? 1 : 0, 1, logger);
     return ok;
 }
 
