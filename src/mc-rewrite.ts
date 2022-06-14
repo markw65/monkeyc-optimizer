@@ -183,6 +183,11 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
           const [scope] = state.stack.slice(-1);
           scope.stack = state.stackClone().slice(0, -1);
           if (scope.type == "FunctionDeclaration") {
+            scope.isStatic =
+              scope.stack.slice(-1)[0].type !== "ClassDeclaration" ||
+              (scope.node.attrs &&
+                scope.node.attrs.access &&
+                scope.node.attrs.access.includes("static"));
             state.allFunctions!.push(scope);
           } else {
             state.allClasses!.push(scope as ClassStateNode);
@@ -516,13 +521,18 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     calledFunctions: {},
   } as ProgramStateOptimizer;
 
-  const replace = (node: mctree.Node | false | null) => {
+  const replace = (
+    node: mctree.Node | false | null,
+    old: mctree.Node
+  ): mctree.Node | mctree.Node[] | false | null => {
     if (node === false || node === null) return node;
     const rep = state.traverse(node);
-    return rep === false || rep ? rep : node;
+    if (rep === false || Array.isArray(rep)) return rep;
+    return { ...(rep || node), loc: old.loc, start: old.start, end: old.end };
   };
 
   const inPlaceReplacement = (node: MCTreeSome, obj: MCTreeSome) => {
+    const { start, end, loc } = node;
     for (const k of Object.keys(node)) {
       delete node[k as keyof MCTreeSome];
     }
@@ -530,13 +540,16 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
       obj = {
         type: "BinaryExpression",
         operator: "as",
-        left: obj,
+        left: { ...obj, start, end, loc },
         right: { type: "TypeSpecList", ts: [obj.enumType] },
       };
     }
     for (const [k, v] of Object.entries(obj)) {
       node[k as keyof MCTreeSome] = v;
     }
+    node.loc = loc;
+    node.start = start;
+    node.end = end;
   };
   const lookupAndReplace = (node: mctree.Node) => {
     const [, objects] = state.lookup(node);
@@ -758,7 +771,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
     }
     const opt = optimizeNode(node);
     if (opt) {
-      return replace(opt);
+      return replace(opt, node);
     }
     switch (node.type) {
       case "ConditionalExpression":
@@ -769,7 +782,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         ) {
           const rep = node.test.value ? node.consequent : node.alternate;
           if (!rep) return false;
-          return replace(rep);
+          return replace(rep, rep);
         }
         break;
       case "WhileStatement":
@@ -785,12 +798,15 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
 
       case "ReturnStatement":
         if (node.argument && node.argument.type === "CallExpression") {
-          return replace(optimizeCall(state, node.argument, node));
+          return replace(
+            optimizeCall(state, node.argument, node),
+            node.argument
+          );
         }
         break;
 
       case "CallExpression": {
-        return replace(optimizeCall(state, node, null));
+        return replace(optimizeCall(state, node, null), node);
       }
 
       case "AssignmentExpression":
@@ -806,7 +822,10 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
 
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
-          return replace(optimizeCall(state, node.expression, node));
+          return replace(
+            optimizeCall(state, node.expression, node),
+            node.expression
+          );
         } else if (node.expression.type === "AssignmentExpression") {
           if (node.expression.right.type === "CallExpression") {
             let ok = false;
@@ -821,7 +840,8 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             }
             if (ok) {
               return replace(
-                optimizeCall(state, node.expression.right, node.expression)
+                optimizeCall(state, node.expression.right, node.expression),
+                node.expression.right
               );
             }
           }
@@ -829,7 +849,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
           const ret = unused(node.expression, true);
           if (ret) {
             return ret
-              .map(replace)
+              .map((r) => replace(r, r))
               .flat(1)
               .filter((s): s is Exclude<typeof s, false | null> => !!s);
           }

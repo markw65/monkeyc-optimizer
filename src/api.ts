@@ -255,7 +255,8 @@ function lookup(
                 (isStateNode(sn) && sn.fullName?.startsWith("$.Rez.")) ||
                 sn.type === "VariableDeclarator" ||
                 sn.type === "Identifier" ||
-                sn.type === "BinaryExpression"
+                sn.type === "BinaryExpression" ||
+                (sn.type === "ClassDeclaration" && propName === "initialize")
             )
           )
         ) {
@@ -263,6 +264,7 @@ function lookup(
           //   compiler which we don't track.
           // - Variables, and formal parameters would require type tracking
           //   which we don't yet do
+          // - Its ok to call an undeclared initialize method.
           // Report them all as "expected failures".
           return [false, false];
         }
@@ -290,58 +292,86 @@ function lookup(
         return [name || node.name, [{ parent: null, results: [stack[0]] }]];
       }
       let result: LookupResult | undefined;
+      let inStatic = false;
+      let inClass = false;
       for (let i = stack.length; i--; ) {
         const si = stack[i];
-        if (
-          !nonlocal ||
-          si.type == "ModuleDeclaration" ||
-          si.type == "ClassDeclaration" ||
-          si.type == "Program"
-        ) {
-          if (!result) {
-            const results = checkOne(si, decls, node.name);
-            if (results) {
-              result = [name || node.name, [{ parent: si, results }]];
-              if (
-                si.type === "BlockStatement" ||
-                si.type === "FunctionDeclaration"
-              ) {
-                // Locals are always highest priority. If its not a local
-                // we have to keep going to see if something got imported,
-                // in which case *that* will take priority.
-                return result;
-              }
+        switch (si.type) {
+          case "ClassDeclaration":
+            inClass = true;
+            break;
+          case "ModuleDeclaration":
+          case "Program":
+            break;
+          case "FunctionDeclaration":
+            inStatic = si.isStatic === true;
+          // fall through
+          default:
+            if (nonlocal) continue;
+            break;
+        }
+
+        if (!result) {
+          const results = checkOne(si, decls, node.name);
+          if (results) {
+            result = [name || node.name, [{ parent: si, results }]];
+            if (
+              si.type === "BlockStatement" ||
+              si.type === "FunctionDeclaration"
+            ) {
+              // Locals are always highest priority. If its not a local
+              // we have to keep going to see if something got imported,
+              // in which case *that* will take priority.
+              return result;
             }
           }
-          if (hasProperty(si.usings, node.name)) {
-            const using = si.usings[node.name];
+        }
+        if (hasProperty(si.usings, node.name)) {
+          const using = si.usings[node.name];
+          if (!using.module) {
+            resolveUsing(using, state, stack);
+          }
+          if (using.module) {
+            return [
+              name || node.name,
+              [{ parent: si, results: [using.module] }],
+            ];
+          }
+        }
+        if (decls === "type_decls" && si.imports) {
+          for (let i = si.imports.length; i--; ) {
+            const using = si.imports[i];
             if (!using.module) {
               resolveUsing(using, state, stack);
             }
             if (using.module) {
-              return [
-                name || node.name,
-                [{ parent: si, results: [using.module] }],
-              ];
-            }
-          }
-          if (decls === "type_decls" && si.imports) {
-            for (let i = si.imports.length; i--; ) {
-              const using = si.imports[i];
-              if (!using.module) {
-                resolveUsing(using, state, stack);
-              }
-              if (using.module) {
-                const results = checkOne(using.module, decls, node.name);
-                if (results) {
-                  return [name || node.name, [{ parent: si, results }]];
-                }
+              const results = checkOne(using.module, decls, node.name);
+              if (results) {
+                return [name || node.name, [{ parent: si, results }]];
               }
             }
           }
         }
       }
       if (result) return result;
+      if (inClass && !inStatic && decls === "decls") {
+        let si,
+          results =
+            checkOne((si = stack[0].decls!["Toybox"][0]), decls, node.name) ||
+            checkOne(
+              (si = (si as ModuleStateNode).decls!["Lang"][0]),
+              decls,
+              node.name
+            ) ||
+            checkOne(
+              (si = (si as ModuleStateNode).decls!["Object"][0]),
+              decls,
+              node.name
+            );
+        if (results) {
+          return [name || node.name, [{ parent: si, results }]];
+        }
+      }
       return [null, null];
     }
   }

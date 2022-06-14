@@ -167,16 +167,23 @@ async function test() {
           ? generateOptimizedProject(options).then(() => null)
           : buildOptimizedProject(products ? products[0] : null, options).then(
               ({ exe, args, program, product, hasTests, diagnostics }) => {
+                let hasErrors = false;
                 Object.keys(diagnostics)
                   .sort()
                   .forEach((file) => {
                     const diags = diagnostics[file];
                     diags.forEach((diag) => {
+                      if (diag.type === "ERROR") {
+                        hasErrors = true;
+                      }
                       console.log(
                         `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
                       );
                     });
                   });
+                if (hasErrors && testBuild) {
+                  throw new Error("'ERROR' level diagnostics were reported");
+                }
                 args.push(...extraMonkeycArgs);
                 console.log(
                   [exe, ...args].map((a) => JSON.stringify(a)).join(" ")

@@ -152,6 +152,7 @@ declare global {
     fullName: string;
     stack?: ProgramStateStack;
     decls?: undefined;
+    isStatic?: boolean;
   }
   interface BlockStateNode extends BaseStateNode {
     type: "BlockStatement";
@@ -912,7 +913,7 @@ async function generateOneConfig(
   await fs.mkdir(output, { recursive: true });
   const diagnostics = await optimizeMonkeyC(fnMap);
   return Promise.all(
-    Object.values(fnMap).map(async (info) => {
+    Object.entries(fnMap).map(async ([inFile, info]) => {
       const name = info.output;
       const dir = path.dirname(name);
       await fs.mkdir(dir, { recursive: true });
@@ -920,7 +921,7 @@ async function generateOneConfig(
       const opt_source = formatAst(info.ast!, info.monkeyCSource);
       await fs.writeFile(name, opt_source);
       if (config.checkBuildPragmas) {
-        pragmaChecker(info.ast!);
+        pragmaChecker(info.ast!, diagnostics?.[inFile]);
       }
       return info.hasTests;
     })
