@@ -5,6 +5,7 @@ import {
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
+import { diagnostic } from "./inliner";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";
@@ -31,12 +32,23 @@ export async function getApiMapping(
 
   const sdk = await getSdkPath();
 
-  const api = (await fs.readFile(`${sdk}bin/api.mir`))
-    .toString()
-    .replace(/\r\n/g, "\n")
-    .replace(/^\s*\[.*?\]\s*$/gm, "")
-    //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
-    .replace(/^(\s*type)\s/gm, "$1def ");
+  const api =
+    (await fs.readFile(`${sdk}bin/api.mir`))
+      .toString()
+      .replace(/\r\n/g, "\n")
+      .replace(/^\s*\[.*?\]\s*$/gm, "")
+      //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
+      .replace(/^(\s*type)\s/gm, "$1def ") +
+    `module Rez { ${[
+      "Drawables",
+      "Fonts",
+      "JsonData",
+      "Layouts",
+      "Menus",
+      "Strings",
+    ]
+      .map((s) => `  module ${s} {}\n`)
+      .join("")}}`;
 
   try {
     const result = collectNamespaces(
@@ -162,14 +174,22 @@ function resolveUsing(
     [base],
     false
   );
-  if (
-    results &&
-    results.length == 1 &&
-    results[0].results.length == 1 &&
-    results[0].results[0].type == "ModuleDeclaration"
-  ) {
-    using.module = results[0].results[0];
+  if (results) {
+    if (
+      results.length == 1 &&
+      results[0].results.length == 1 &&
+      results[0].results[0].type == "ModuleDeclaration"
+    ) {
+      using.module = results[0].results[0];
+      return;
+    }
   }
+  diagnostic(
+    state,
+    using.node.id.loc,
+    `Unable to resolve import of ${formatAst(using.node.id)}`,
+    "WARNING"
+  );
 }
 /**
  *
@@ -183,6 +203,9 @@ function resolveUsing(
  *                   non-local. This is needed when looking up a callee.
  *                   If the callee is a MemberExpression, the flag is ignored.
  * @returns
+ *  - [string, LookupDefinition[]] - if the lookup succeeds
+ *  - [false, false] - if the lookup fails, but its not an error because its not the kind of expression we can lookup
+ *  - [null, null] - if the lookup fails unexpectedly.
  */
 function lookup(
   state: ProgramStateLive,
@@ -209,8 +232,8 @@ function lookup(
           stack,
           false
         );
-        if (!results) break;
-
+        if (results === false) break;
+        if (!results) return [null, null];
         result = results.reduce<LookupDefinition[] | null>(
           (current, lookupDef) => {
             const items = lookupDef.results
@@ -224,14 +247,31 @@ function lookup(
           },
           null
         );
+        if (
+          !result &&
+          results.some((ld) =>
+            ld.results.some(
+              (sn) =>
+                (isStateNode(sn) && sn.fullName?.startsWith("$.Rez.")) ||
+                sn.type === "VariableDeclarator" ||
+                sn.type === "Identifier" ||
+                sn.type === "BinaryExpression"
+            )
+          )
+        ) {
+          // - The Rez module can contain lots of things from the resource
+          //   compiler which we don't track.
+          // - Variables, and formal parameters would require type tracking
+          //   which we don't yet do
+          // Report them all as "expected failures".
+          return [false, false];
+        }
       }
-      if (result) {
-        return [name || propName, result];
-      }
-      break;
+      if (!result) return [null, null];
+      return [name || propName, result];
     }
     case "ThisExpression": {
-      for (let i = stack.length; i--; ) {
+      for (let i = stack.length; ; ) {
         const si = stack[i];
         if (
           si.type == "ModuleDeclaration" ||
@@ -244,7 +284,6 @@ function lookup(
           ];
         }
       }
-      break;
     }
     case "Identifier": {
       if (node.name == "$") {
@@ -279,11 +318,12 @@ function lookup(
             if (!using.module) {
               resolveUsing(using, state, stack);
             }
-            if (!using.module) break;
-            return [
-              name || node.name,
-              [{ parent: si, results: [using.module] }],
-            ];
+            if (using.module) {
+              return [
+                name || node.name,
+                [{ parent: si, results: [using.module] }],
+              ];
+            }
           }
           if (decls === "type_decls" && si.imports) {
             for (let i = si.imports.length; i--; ) {
@@ -302,10 +342,10 @@ function lookup(
         }
       }
       if (result) return result;
-      break;
+      return [null, null];
     }
   }
-  return [null, null];
+  return [false, false];
 }
 
 export function collectNamespaces(

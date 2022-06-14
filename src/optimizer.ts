@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { ScopedName } from "@markw65/prettier-plugin-monkeyc/build/src/estree-types";
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -185,7 +186,10 @@ declare global {
     parent: StateNodeDecl | null;
     results: StateNodeDecl[];
   };
-  type LookupResult = [string, LookupDefinition[]] | [null, null];
+  type LookupResult =
+    | [string, LookupDefinition[]]
+    | [null, null]
+    | [false, false];
   export type ProgramState = {
     allFunctions?: FunctionStateNode[];
     allClasses?: ClassStateNode[];

@@ -409,10 +409,13 @@ export function unused(
       ];
 }
 
-function diagnostic(
-  state: ProgramStateAnalysis,
+export function diagnostic(
+  state: ProgramStateLive,
   loc: mctree.Node["loc"],
-  message: string | null
+  message: string | null,
+  type: NonNullable<
+    ProgramStateAnalysis["diagnostics"]
+  >[string][number]["type"] = "INFO"
 ) {
   if (!loc || !loc.source) return;
   const source = loc.source;
@@ -425,7 +428,7 @@ function diagnostic(
   let index = diags.findIndex((item) => item.loc === loc);
   if (message) {
     if (index < 0) index = diags.length;
-    diags[index] = { type: "INFO", loc, message };
+    diags[index] = { type, loc, message };
   } else if (index >= 0) {
     diags.splice(index, 1);
   }

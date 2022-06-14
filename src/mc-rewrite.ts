@@ -6,15 +6,23 @@ import {
 import * as fs from "fs/promises";
 import {
   collectNamespaces,
+  formatAst,
   getApiMapping,
   hasProperty,
   isStateNode,
   traverseAst,
   variableDeclarationName,
 } from "./api";
-import { InlineContext, inlineFunction, shouldInline, unused } from "./inliner";
+import {
+  diagnostic,
+  InlineContext,
+  inlineFunction,
+  shouldInline,
+  unused,
+} from "./inliner";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
+import { visitReferences } from "./visitor";
 
 function collectClassInfo(state: ProgramStateAnalysis) {
   state.allClasses.forEach((elm) => {
@@ -220,6 +228,18 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
   delete state.post;
 
   collectClassInfo(state);
+
+  Object.entries(fnMap).forEach(([k, v]) => {
+    visitReferences(state, v.ast!, null, false, (node, results, error) => {
+      if (!error) return undefined;
+      const nodeStr = formatAst(node);
+      if (state.inType && nodeStr.match(/^Void|Null$/)) {
+        return undefined;
+      }
+      diagnostic(state, node.loc, `Undefined symbol ${nodeStr}`, "ERROR");
+      return false;
+    });
+  });
 
   return state;
 }
@@ -797,7 +817,7 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
             }
             if (!ok && node.expression.operator == "=") {
               const [, result] = state.lookup(node.expression.left);
-              ok = result != null;
+              ok = !!result;
             }
             if (ok) {
               return replace(
