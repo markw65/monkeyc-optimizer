@@ -1,6 +1,7 @@
 import Toybox.Lang;
 import Toybox.Application;
 import Toybox.Application.Storage;
+import Toybox.WatchUi;
 import A.B;
 
 var gRunFailingTests as Boolean = :lookupTests == null;
@@ -36,7 +37,22 @@ function properties() as Void {
 class Dictionary {
 }
 
-class TestClass {
+module X {
+    const XCONSTANT = 0;
+    module Y {
+        const YCONSTANT = 1;
+        class Base {
+            const BCONSTANT = 0;
+        }
+    }
+    module Z {
+        const ZCONSTANT = 2;
+    }
+}
+class TestClass extends X.Y.Base {
+    function initialize() {
+        Base.initialize();
+    }
     const FOO = ENDIAN_BIG;
     function noSystem() as Void {
         // works!
@@ -48,8 +64,8 @@ class TestClass {
         // works!
         return (
             (x instanceof Number ? ENDIAN_BIG : ENDIAN_LITTLE) +
-            (x instanceof String ? 1 : 0) +
-            (x instanceof Object ? 1 : 0) +
+            (x instanceof String ? YCONSTANT : XCONSTANT) +
+            (x instanceof Object ? Z.ZCONSTANT : 0) +
             (x instanceof Dictionary ? 1 : 0) +
             (x instanceof Array ? 1 : 0)
         );
@@ -57,7 +73,9 @@ class TestClass {
     static function noNumberStatic(x as Number or String) as Boolean {
         // Fails at runtime: "Could not find symbol 'Number'"
         /* @expect "Undefined symbol Number" */
-        return x instanceof Number;
+        var t = x instanceof Number;
+        /* @expect "Undefined symbol XCONSTANT" */
+        return t || XCONSTANT == 0;
     }
     function properties() as Void {
         /* @expect "Undefined symbol Properties.getValue" */

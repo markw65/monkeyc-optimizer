@@ -181,7 +181,10 @@ async function test() {
                       );
                     });
                   });
-                if (hasErrors && testBuild) {
+                if (
+                  hasErrors &&
+                  !extraMonkeycArgs.includes("--Eno-invalid-symbol")
+                ) {
                   throw new Error("'ERROR' level diagnostics were reported");
                 }
                 args.push(...extraMonkeycArgs);

@@ -25,6 +25,9 @@ import { renameVariable } from "./variable-renamer";
 import { visitReferences } from "./visitor";
 
 function collectClassInfo(state: ProgramStateAnalysis) {
+  const toybox = state.stack[0].decls!["Toybox"][0] as ModuleStateNode;
+  const lang = toybox.decls!["Lang"][0] as ModuleStateNode;
+  const object = lang.decls!["Object"] as ClassStateNode[];
   state.allClasses.forEach((elm) => {
     if (elm.node.superClass) {
       const [name, lookupDefns] = state.lookup(
@@ -70,6 +73,8 @@ function collectClassInfo(state: ProgramStateAnalysis) {
         if (!elm.decls) elm.decls = {};
         elm.decls[name] = elm.superClass;
       }
+    } else if (elm !== object[0]) {
+      elm.superClass = object;
     }
   });
 

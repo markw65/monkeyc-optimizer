@@ -117,21 +117,32 @@ export function variableDeclarationName(
 type DeclKind = "decls" | "type_decls";
 
 function checkOne(
+  state: ProgramStateLive,
   ns: StateNodeDecl,
   decls: DeclKind,
-  name: string
+  node: mctree.Identifier,
+  isStatic: boolean
 ): StateNodeDecl[] | null {
   if (isStateNode(ns)) {
-    if (hasProperty(ns[decls], name)) {
-      return ns[decls]![name];
+    if (hasProperty(ns[decls], node.name)) {
+      return ns[decls]![node.name];
     }
     if (
+      !isStatic &&
       ns.type == "ClassDeclaration" &&
       ns.superClass &&
       ns.superClass !== true
     ) {
       const found = ns.superClass
-        .map((cls) => checkOne(cls, decls, name))
+        .map((cls) => {
+          const res1 = checkOne(state, cls, decls, node, isStatic);
+          if (res1) return res1;
+          const [, res2] = lookup(state, decls, node, null, cls.stack);
+          if (res2) {
+            return res2.map((r) => r.results).flat();
+          }
+          return null;
+        })
         .filter((n): n is NonNullable<typeof n> => n != null)
         .flat(1);
       return found.length ? found : null;
@@ -221,7 +232,7 @@ function lookup(
   switch (node.type) {
     case "MemberExpression": {
       if (node.property.type != "Identifier" || node.computed) break;
-      const propName = node.property.name;
+      const property = node.property;
       let result;
       if (node.object.type === "ThisExpression") {
         [, result] = lookup(state, decls, node.property, name, stack, true);
@@ -240,7 +251,7 @@ function lookup(
           (current, lookupDef) => {
             const items = lookupDef.results
               .map((module) => {
-                const res = checkOne(module, decls, propName);
+                const res = checkOne(state, module, decls, property, false);
                 return res ? { parent: module, results: res } : null;
               })
               .filter((r): r is NonNullable<typeof r> => r != null);
@@ -258,7 +269,8 @@ function lookup(
                 sn.type === "VariableDeclarator" ||
                 sn.type === "Identifier" ||
                 sn.type === "BinaryExpression" ||
-                (sn.type === "ClassDeclaration" && propName === "initialize")
+                (sn.type === "ClassDeclaration" &&
+                  property.name === "initialize")
             )
           )
         ) {
@@ -272,7 +284,7 @@ function lookup(
         }
       }
       if (!result) return [null, null];
-      return [name || propName, result];
+      return [name || property.name, result];
     }
     case "ThisExpression": {
       for (let i = stack.length; ; ) {
@@ -295,13 +307,10 @@ function lookup(
       }
       let result: LookupResult | undefined;
       let inStatic = false;
-      let inClass = false;
       for (let i = stack.length; i--; ) {
         const si = stack[i];
         switch (si.type) {
           case "ClassDeclaration":
-            inClass = true;
-            break;
           case "ModuleDeclaration":
           case "Program":
             break;
@@ -314,7 +323,7 @@ function lookup(
         }
 
         if (!result) {
-          const results = checkOne(si, decls, node.name);
+          const results = checkOne(state, si, decls, node, inStatic);
           if (results) {
             result = [name || node.name, [{ parent: si, results }]];
             if (
@@ -347,7 +356,7 @@ function lookup(
               resolveUsing(using, state, stack);
             }
             if (using.module) {
-              const results = checkOne(using.module, decls, node.name);
+              const results = checkOne(state, using.module, decls, node, false);
               if (results) {
                 return [name || node.name, [{ parent: si, results }]];
               }
@@ -356,24 +365,6 @@ function lookup(
         }
       }
       if (result) return result;
-      if (inClass && !inStatic && decls === "decls") {
-        let si,
-          results =
-            checkOne((si = stack[0].decls!["Toybox"][0]), decls, node.name) ||
-            checkOne(
-              (si = (si as ModuleStateNode).decls!["Lang"][0]),
-              decls,
-              node.name
-            ) ||
-            checkOne(
-              (si = (si as ModuleStateNode).decls!["Object"][0]),
-              decls,
-              node.name
-            );
-        if (results) {
-          return [name || node.name, [{ parent: si, results }]];
-        }
-      }
       return [null, null];
     }
   }
