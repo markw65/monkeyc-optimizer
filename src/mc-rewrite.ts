@@ -679,6 +679,25 @@ export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
         }
         return ["init"];
       }
+      case "CatchClause":
+        if (node.param) {
+          state.localsStack.push({ node, map: { ...(topLocals().map || {}) } });
+          const locals = topLocals();
+          const map = locals.map!;
+          const declName = variableDeclarationName(node.param);
+          const name = renameVariable(state, locals, declName);
+          if (name) {
+            if (node.param.type === "Identifier") {
+              node.param.name = name;
+            } else {
+              node.param.left.name = name;
+            }
+          } else {
+            map[declName] = true;
+          }
+          return ["body"];
+        }
+        break;
       case "BinaryExpression":
         if (node.operator === "has") {
           if (

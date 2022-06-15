@@ -108,7 +108,9 @@ export function isStateNode(node: StateNodeDecl): node is StateNode {
   return hasProperty(node, "node");
 }
 
-export function variableDeclarationName(node: mctree.TypedIdentifier) {
+export function variableDeclarationName(
+  node: mctree.TypedIdentifier | mctree.InstanceofIdentifier
+) {
   return ("left" in node ? node.left : node).name;
 }
 
@@ -474,11 +476,29 @@ export function collectNamespaces(
               }
               break;
             }
+            case "CatchClause":
+              if (node.param) {
+                const [parent] = state.stack.slice(-1);
+                if (!parent.decls) parent.decls = {};
+                const id =
+                  node.param.type === "Identifier"
+                    ? node.param
+                    : node.param.left;
+                state.stack.push({
+                  type: "BlockStatement",
+                  fullName: undefined,
+                  name: undefined,
+                  node: node.body,
+                  decls: { [id.name]: [id] },
+                });
+              }
+              break;
             case "BlockStatement": {
               const [parent] = state.stack.slice(-1);
               if (
-                parent.type != "FunctionDeclaration" &&
-                parent.type != "BlockStatement"
+                parent.node === node ||
+                (parent.type != "FunctionDeclaration" &&
+                  parent.type != "BlockStatement")
               ) {
                 break;
               }
@@ -691,7 +711,10 @@ export function collectNamespaces(
                 break;
             }
             const [parent] = state.stack.slice(-1);
-            if (parent.node === node) {
+            if (
+              parent.node === node ||
+              (node.type === "CatchClause" && parent.node === node.body)
+            ) {
               delete parent.usings;
               delete parent.imports;
               if (node.type != "Program") {
