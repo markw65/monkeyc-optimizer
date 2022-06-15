@@ -550,6 +550,9 @@ export function collectNamespaces(
                   node.type == "ModuleDeclaration" ||
                   node.type == "ClassDeclaration"
                 ) {
+                  // Inject the class/module name into itself,
+                  // so you can say Graphics.Graphics.Graphics.COLOR_RED
+                  elm.decls = { [name]: [elm] };
                   if (!parent.type_decls) parent.type_decls = {};
                   if (!hasProperty(parent.type_decls, name)) {
                     parent.type_decls[name] = [];

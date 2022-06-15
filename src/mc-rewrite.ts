@@ -221,7 +221,9 @@ export async function analyze(
       node.node.body = null;
     }
     if (isStateNode(node) && node.decls) {
-      Object.values(node.decls).forEach((v) => v.forEach(markApi));
+      Object.values(node.decls).forEach((v) =>
+        v.forEach((n) => n !== node && markApi(n))
+      );
     }
   };
   markApi(state.stack[0]);
