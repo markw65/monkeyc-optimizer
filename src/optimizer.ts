@@ -911,7 +911,10 @@ async function generateOneConfig(
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
-  const diagnostics = await optimizeMonkeyC(fnMap);
+  const diagnostics = await optimizeMonkeyC(
+    fnMap,
+    Object.keys(buildConfig.barrelMap || {})
+  );
   return Promise.all(
     Object.entries(fnMap).map(async ([inFile, info]) => {
       const name = info.output;

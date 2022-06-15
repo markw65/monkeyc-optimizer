@@ -147,7 +147,10 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
   );
 }
 
-export async function analyze(fnMap: FilesToOptimizeMap) {
+export async function analyze(
+  fnMap: FilesToOptimizeMap,
+  barrelList?: string[]
+) {
   let hasTests = false;
   const preState: ProgramState = {
     fnMap,
@@ -205,7 +208,7 @@ export async function analyze(fnMap: FilesToOptimizeMap) {
     },
   };
 
-  await getApiMapping(preState);
+  await getApiMapping(preState, barrelList);
 
   const state = preState as ProgramStateAnalysis;
 
@@ -518,9 +521,12 @@ function markFunctionCalled(
   }
   pushUnique(state.calledFunctions[func.id.name], func);
 }
-export async function optimizeMonkeyC(fnMap: FilesToOptimizeMap) {
+export async function optimizeMonkeyC(
+  fnMap: FilesToOptimizeMap,
+  barrelList?: string[]
+) {
   const state = {
-    ...(await analyze(fnMap)),
+    ...(await analyze(fnMap, barrelList)),
     localsStack: [{}],
     exposed: {},
     calledFunctions: {},

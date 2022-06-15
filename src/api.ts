@@ -25,12 +25,24 @@ export { visitReferences } from "./visitor";
 
 // Extract all enum values from api.mir
 export async function getApiMapping(
-  state?: ProgramState
+  state?: ProgramState,
+  barrelList?: string[]
 ): Promise<ProgramStateNode | null> {
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
 
   const sdk = await getSdkPath();
+
+  const rezDecl = `module Rez { ${[
+    "Drawables",
+    "Fonts",
+    "JsonData",
+    "Layouts",
+    "Menus",
+    "Strings",
+  ]
+    .map((s) => `  module ${s} {}\n`)
+    .join("")}}`;
 
   const api =
     (await fs.readFile(`${sdk}bin/api.mir`))
@@ -39,16 +51,10 @@ export async function getApiMapping(
       .replace(/^\s*\[.*?\]\s*$/gm, "")
       //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
       .replace(/^(\s*type)\s/gm, "$1def ") +
-    `module Rez { ${[
-      "Drawables",
-      "Fonts",
-      "JsonData",
-      "Layouts",
-      "Menus",
-      "Strings",
-    ]
-      .map((s) => `  module ${s} {}\n`)
-      .join("")}}`;
+    (barrelList || [])
+      .map((name) => `module ${name} { ${rezDecl} }`)
+      .concat(rezDecl)
+      .join("");
 
   try {
     const result = collectNamespaces(
@@ -265,7 +271,7 @@ function lookup(
           results.some((ld) =>
             ld.results.some(
               (sn) =>
-                (isStateNode(sn) && sn.fullName?.startsWith("$.Rez.")) ||
+                (isStateNode(sn) && sn.fullName?.match(/^\$\.(\w+\.)?Rez\./)) ||
                 sn.type === "VariableDeclarator" ||
                 sn.type === "Identifier" ||
                 sn.type === "BinaryExpression" ||
