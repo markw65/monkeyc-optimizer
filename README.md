@@ -244,3 +244,23 @@ More fixes found via open source projects.
   - Upgrade to @markw65/prettier-plugin-monkeyc@1.0.24
     - fixes crash with comments following an attribute: `(:foo) /* comment */ function foo() {}`
   - Fix issues with recursive inlining
+
+### 1.0.22
+
+- Improvements
+
+  - Major rewrite of the symbol lookup mechanism, to match monkeyc as closely as possible
+
+    - Fix callee lookup to skip local variables
+    - Fix class lookup to first check all the super classes, then to check the context of each super class
+    - Fix module lookup to check both the module, and the context of the module
+    - Inject class and module names into themselves. So that Graphics.Graphics.COLOR_RED works.
+
+  - Add live diagnostics for missing symbols
+
+- Bug fixes
+
+  - Recognize the the variable in a catch clause is a declaration
+
+- Breaking change
+  - By popular demand, reversed the sense of inline_foo, so now it inlines when foo is _not_ declared as an excludeAnnotation
