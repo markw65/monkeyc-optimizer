@@ -102,3 +102,66 @@ function lookupTests() as Void {
         x.properties();
     }
 }
+
+/*
+ * Check the superclass search order, which is weird
+ *
+ * The search order from within X should be:
+ *  - Search X itself
+ *  - Search B.Mid (the super class)
+ *  - Search MA.Base (the super class's super class)
+ *  - Search Toybox.Lang.Object (the implied super super super class)
+ *  - Search outwards from X to the global module
+ *  - Search outwards from Mid to the global module
+ *  - Search outwards from Base to the global module
+ *  - Search outwards from Object to the global module
+ */
+module MA {
+    module B {
+        const K1 = 2;
+    }
+    const FOOA = 1;
+    const FOOB = 1;
+    const FOOC = 1;
+    class Base {
+        const SUPERA = 2;
+        const SUPERB = 2;
+        const SUPERC = 2;
+    }
+}
+
+module MB {
+    const FOOB = 3;
+    const FOOC = 3;
+    class Mid extends MA.Base {
+        function initialize() {
+            Base.initialize();
+        }
+        const SUPERB = 4;
+        const SUPERC = 4;
+    }
+}
+
+module MC {
+    const FOOC = 5;
+    class X extends MB.Mid {
+        const SUPERC = 6;
+        function initialize() {
+            Mid.initialize();
+            /* @match "(1)" */
+            System.println(FOOA);
+            /* @match "(3)" */
+            System.println(FOOB);
+            /* @match "(5)" */
+            System.println(FOOC);
+            /* @match "(2)" */
+            System.println(SUPERA);
+            /* @match "(4)" */
+            System.println(SUPERB);
+            /* @match "(6)" */
+            System.println(SUPERC);
+            /* @match "(1)" */
+            System.println(B.K1);
+        }
+    }
+}

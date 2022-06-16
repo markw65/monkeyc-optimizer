@@ -128,30 +128,48 @@ function checkOne(
   decls: DeclKind,
   node: mctree.Identifier,
   isStatic: boolean
-): StateNodeDecl[] | null {
+): StateNodeDecl[] | null | false {
+  // follow the superchain, looking up node in each class
+  const superChain = (cls: ClassStateNode): StateNodeDecl[] | null => {
+    if (!cls.superClass || cls.superClass === true) {
+      return null;
+    }
+    return cls.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
+      const next = hasProperty(sup[decls], node.name)
+        ? sup[decls]![node.name]
+        : superChain(sup);
+      return next ? (result ? result.concat(next) : next) : result;
+    }, null);
+  };
+  // follow the superchain, looking up node in each class's scope
+  const superChainScopes = (cls: ClassStateNode): StateNodeDecl[] | null => {
+    let [, lkup] = lookup(state, decls, node, null, cls.stack);
+    if (lkup) {
+      return lkup.reduce<StateNodeDecl[] | null>(
+        (result, current) =>
+          current.results.length
+            ? result
+              ? result.concat(current.results)
+              : current.results
+            : result,
+        null
+      );
+    }
+    if (!cls.superClass || cls.superClass === true) {
+      return null;
+    }
+    return cls.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
+      const next = superChainScopes(sup);
+      return next ? (result ? result.concat(next) : next) : result;
+    }, null);
+  };
+
   if (isStateNode(ns)) {
     if (hasProperty(ns[decls], node.name)) {
       return ns[decls]![node.name];
     }
-    if (
-      !isStatic &&
-      ns.type == "ClassDeclaration" &&
-      ns.superClass &&
-      ns.superClass !== true
-    ) {
-      const found = ns.superClass
-        .map((cls) => {
-          const res1 = checkOne(state, cls, decls, node, isStatic);
-          if (res1) return res1;
-          const [, res2] = lookup(state, decls, node, null, cls.stack);
-          if (res2) {
-            return res2.map((r) => r.results).flat();
-          }
-          return null;
-        })
-        .filter((n): n is NonNullable<typeof n> => n != null)
-        .flat(1);
-      return found.length ? found : null;
+    if (!isStatic && ns.type == "ClassDeclaration") {
+      return superChain(ns) || superChainScopes(ns) || false;
     }
   }
   return null;
@@ -341,6 +359,8 @@ function lookup(
               // in which case *that* will take priority.
               return result;
             }
+          } else if (results === false) {
+            return [null, null];
           }
         }
         if (hasProperty(si.usings, node.name)) {
@@ -421,7 +441,12 @@ export function collectNamespaces(
   state.lookupType = (node, name, stack) =>
     lookup(state, "type_decls", node, name, stack);
 
-  state.stackClone = () => state.stack.map((elm) => ({ ...elm }));
+  state.stackClone = () =>
+    state.stack.map((elm) =>
+      elm.type === "ModuleDeclaration" || elm.type === "Program"
+        ? { ...elm }
+        : elm
+    );
 
   state.inType = false;
 
@@ -864,7 +889,9 @@ function handleException(
       .join(".");
     const location =
       node.loc && node.loc.source
-        ? `${node.loc.source}:${node.start || 0}:${node.end || 0}`
+        ? `${node.loc.source}:${node.loc.start.line || 0}:${
+            node.loc.end.line || 0
+          }`
         : "<unknown>";
     const message = `Got exception \`${
       exception instanceof Error

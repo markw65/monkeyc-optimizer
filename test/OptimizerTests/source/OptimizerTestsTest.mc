@@ -5,6 +5,7 @@ var z as Number = 0;
 
 module A {
     module B {
+        const K1 = 1;
         var x as Number = 0;
         function a() as Number {
             x++;
