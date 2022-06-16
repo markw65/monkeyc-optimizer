@@ -78,17 +78,17 @@ export async function getApiMapping(
       ) {
         throw `Negative constant ${fixup} did not refer to a constant`;
       }
-      const init = value.init;
+      const init = getLiteralNode(value.init);
       if (!init || init.type !== "Literal") {
         throw `Negative constant ${fixup} was not a Literal`;
       }
       if (typeof init.value !== "number") {
-        console.log(`Negative fixup ${fixup} was already not a number!`);
+        console.log(`Negative fixup ${fixup} was not a number!`);
       } else if (init.value > 0) {
         init.value = -init.value;
         init.raw = "-" + init.raw;
       } else {
-        console.log(`Negative fixup ${fixup} was already negative!`);
+        // console.log(`Negative fixup ${fixup} was already negative!`);
       }
     });
     return result;

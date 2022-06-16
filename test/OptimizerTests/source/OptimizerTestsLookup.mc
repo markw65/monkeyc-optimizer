@@ -59,7 +59,7 @@ class TestClass extends X.Y.Base {
         System.println(Communications.UNKNOWN_ERROR as Number);
     }
     function noNumber(
-        x as Number or String or Dictionary or Lang.Dictionary
+        x as Number or String or Dictionary or Lang.Dictionary or Array
     ) as Number {
         // works!
         return (
