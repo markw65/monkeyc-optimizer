@@ -122,6 +122,18 @@ export function variableDeclarationName(
 
 type DeclKind = "decls" | "type_decls";
 
+function lookupToStateNodeDecls(results: LookupDefinition[]) {
+  return results.reduce<StateNodeDecl[] | null>(
+    (result, current) =>
+      current.results.length
+        ? result
+          ? result.concat(current.results)
+          : current.results
+        : result,
+    null
+  );
+}
+
 function checkOne(
   state: ProgramStateLive,
   ns: StateNodeDecl,
@@ -141,24 +153,18 @@ function checkOne(
       return next ? (result ? result.concat(next) : next) : result;
     }, null);
   };
+  const lookupInContext = (ns: ClassStateNode | ModuleStateNode) => {
+    const [, lkup] = lookup(state, decls, node, null, ns.stack);
+    return lkup && lookupToStateNodeDecls(lkup);
+  };
   // follow the superchain, looking up node in each class's scope
-  const superChainScopes = (cls: ClassStateNode): StateNodeDecl[] | null => {
-    let [, lkup] = lookup(state, decls, node, null, cls.stack);
-    if (lkup) {
-      return lkup.reduce<StateNodeDecl[] | null>(
-        (result, current) =>
-          current.results.length
-            ? result
-              ? result.concat(current.results)
-              : current.results
-            : result,
-        null
-      );
-    }
-    if (!cls.superClass || cls.superClass === true) {
+  const superChainScopes = (ns: ClassStateNode): StateNodeDecl[] | null => {
+    const result = lookupInContext(ns);
+    if (result) return result;
+    if (!ns.superClass || ns.superClass === true) {
       return null;
     }
-    return cls.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
+    return ns.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
       const next = superChainScopes(sup);
       return next ? (result ? result.concat(next) : next) : result;
     }, null);
@@ -168,8 +174,14 @@ function checkOne(
     if (hasProperty(ns[decls], node.name)) {
       return ns[decls]![node.name];
     }
-    if (!isStatic && ns.type == "ClassDeclaration") {
-      return superChain(ns) || superChainScopes(ns) || false;
+    switch (ns.type) {
+      case "ClassDeclaration":
+        if (!isStatic) {
+          return superChain(ns) || superChainScopes(ns) || false;
+        }
+      // fall through
+      case "ModuleDeclaration":
+        return lookupInContext(ns) || false;
     }
   }
   return null;

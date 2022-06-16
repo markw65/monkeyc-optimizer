@@ -158,6 +158,7 @@ export async function analyze(
   config?: BuildConfig
 ) {
   let hasTests = false;
+  let markApi = true;
   const preState: ProgramState = {
     fnMap,
     config,
@@ -191,9 +192,14 @@ export async function analyze(
       }
       return false;
     },
-    post(node, state) {
+    pre(node, state) {
       switch (node.type) {
         case "FunctionDeclaration":
+          if (markApi) {
+            node.body = null;
+            break;
+          }
+        case "ModuleDeclaration":
         case "ClassDeclaration": {
           const [scope] = state.stack.slice(-1);
           scope.stack = state.stackClone().slice(0, -1);
@@ -204,36 +210,20 @@ export async function analyze(
                 scope.node.attrs.access &&
                 scope.node.attrs.access.includes("static"));
             state.allFunctions!.push(scope);
-          } else {
+          } else if (scope.type === "ClassDeclaration") {
             state.allClasses!.push(scope as ClassStateNode);
           }
-          return null;
+          break;
         }
-        default:
-          return null;
       }
+      return null;
     },
   };
 
   await getApiMapping(preState, barrelList);
+  markApi = false;
 
   const state = preState as ProgramStateAnalysis;
-
-  // Mark all functions from api.mir as "special" by
-  // setting their bodies to null. In api.mir, they're
-  // all empty, which makes it look like they're
-  // do-nothing functions.
-  const markApi = (node: StateNodeDecl) => {
-    if (node.type == "FunctionDeclaration") {
-      node.node.body = null;
-    }
-    if (isStateNode(node) && node.decls) {
-      Object.values(node.decls).forEach((v) =>
-        v.forEach((n) => n !== node && markApi(n))
-      );
-    }
-  };
-  markApi(state.stack[0]);
 
   await getFileASTs(fnMap);
   Object.entries(fnMap).forEach(([name, value]) => {
