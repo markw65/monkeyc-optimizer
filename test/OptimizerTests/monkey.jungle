@@ -1,5 +1,5 @@
 project.manifest = manifest.xml
 base.sourcePath = source
 
-base.excludeAnnotations = speed
-fr235.excludeAnnotations = size
+base.excludeAnnotations = size
+fr235.excludeAnnotations = speed

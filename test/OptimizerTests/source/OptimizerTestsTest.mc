@@ -28,7 +28,7 @@ module A {
         function i(x as Number) as Number {
             return x;
         }
-        (:inline_speed)
+        (:inline_size)
         function j(x as Number) as Number {
             return x + a();
         }

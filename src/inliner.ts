@@ -192,7 +192,7 @@ function inlineRequested(state: ProgramStateAnalysis, func: FunctionStateNode) {
         attr.type === "UnaryExpression" &&
         (attr.argument.name === "inline" ||
           (attr.argument.name.startsWith("inline_") &&
-            hasProperty(excludeAnnotations, attr.argument.name.substring(7))))
+            !hasProperty(excludeAnnotations, attr.argument.name.substring(7))))
     )
   ) {
     return true;
