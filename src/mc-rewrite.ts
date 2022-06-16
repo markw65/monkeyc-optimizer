@@ -29,6 +29,11 @@ function collectClassInfo(state: ProgramStateAnalysis) {
   const lang = toybox.decls!["Lang"][0] as ModuleStateNode;
   const object = lang.decls!["Object"] as ClassStateNode[];
   state.allClasses.forEach((elm) => {
+    if (elm.stack![elm.stack!.length - 1].type === "ClassDeclaration") {
+      // nested classes don't get access to their contained
+      // context. Put them in the global scope instead.
+      elm.stack = elm.stack!.slice(0, 1);
+    }
     if (elm.node.superClass) {
       const [name, lookupDefns] = state.lookup(
         elm.node.superClass,

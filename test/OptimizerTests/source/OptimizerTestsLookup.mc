@@ -163,5 +163,19 @@ module MC {
             /* @match "(1)" */
             System.println(B.K1);
         }
+        class Y {
+            function initialize() {
+                /* @expect "Undefined symbol FOOB" */
+                System.println(FOOB);
+                /* @expect "Undefined symbol SUPERB" */
+                System.println(SUPERB);
+                /* @expect "Undefined symbol FOOC" */
+                System.println(FOOC);
+                /* @expect "Undefined symbol SUPERC" */
+                System.println(SUPERC);
+                /* @expect "Undefined symbol Mid" */
+                System.println(Mid.SUPERB);
+            }
+        }
     }
 }
