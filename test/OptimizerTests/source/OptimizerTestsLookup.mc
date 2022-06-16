@@ -123,10 +123,24 @@ module MA {
     const FOOA = 1;
     const FOOB = 1;
     const FOOC = 1;
+    var x as Symbol?;
     class Base {
         const SUPERA = 2;
         const SUPERB = 2;
         const SUPERC = 2;
+        function initialize() {
+            // don't let the compiler remove
+            // checkUsingScope below.
+            x = :checkUsingScope;
+        }
+    }
+    // make sure checkUsingScope wasn't optimized away
+    /* @match "checkUsingScope" */
+    function checkUsingScope() as Number {
+        // should find B via import A.B
+        // not from MA.B above.
+        /* @match "return 1;" */
+        return B.K1;
     }
 }
 

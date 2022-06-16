@@ -120,10 +120,12 @@ export function pragmaChecker(
           );
         }
       }
-      if (!matchers.length) {
-        next();
+      if (matchers.length) {
+        // if we're checking a series of nodes, we need
+        // to skip over this one.
+        return false;
       }
-      return false;
+      next();
     }
     return null;
   });
