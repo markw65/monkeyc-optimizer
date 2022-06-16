@@ -221,12 +221,14 @@ function resolveUsing(
       return;
     }
   }
-  diagnostic(
-    state,
-    using.node.id.loc,
-    `Unable to resolve import of ${formatAst(using.node.id)}`,
-    "WARNING"
-  );
+  if (state.config?.checkInvalidSymbols !== "OFF") {
+    diagnostic(
+      state,
+      using.node.id.loc,
+      `Unable to resolve import of ${formatAst(using.node.id)}`,
+      state.config?.checkInvalidSymbols || "WARNING"
+    );
+  }
 }
 /**
  *

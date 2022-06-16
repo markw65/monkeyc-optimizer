@@ -154,11 +154,13 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
 
 export async function analyze(
   fnMap: FilesToOptimizeMap,
-  barrelList?: string[]
+  barrelList?: string[],
+  config?: BuildConfig
 ) {
   let hasTests = false;
   const preState: ProgramState = {
     fnMap,
+    config,
     allFunctions: [],
     allClasses: [],
     shouldExclude(node: mctree.Node) {
@@ -249,17 +251,35 @@ export async function analyze(
 
   collectClassInfo(state);
 
-  Object.entries(fnMap).forEach(([k, v]) => {
-    visitReferences(state, v.ast!, null, false, (node, results, error) => {
-      if (!error) return undefined;
-      const nodeStr = formatAst(node);
-      if (state.inType && nodeStr.match(/^Void|Null$/)) {
-        return undefined;
-      }
-      diagnostic(state, node.loc, `Undefined symbol ${nodeStr}`, "ERROR");
-      return false;
+  const diagnosticType =
+    config?.checkInvalidSymbols !== "OFF"
+      ? config?.checkInvalidSymbols || "WARNING"
+      : null;
+  if (
+    diagnosticType &&
+    !config?.compilerOptions?.includes("--Eno-invalid-symbol")
+  ) {
+    const checkTypes =
+      config?.typeCheckLevel && config.typeCheckLevel !== "Off";
+    Object.entries(fnMap).forEach(([k, v]) => {
+      visitReferences(state, v.ast!, null, false, (node, results, error) => {
+        if (!error) return undefined;
+        const nodeStr = formatAst(node);
+        if (state.inType) {
+          if (!checkTypes || nodeStr.match(/^Void|Null$/)) {
+            return undefined;
+          }
+        }
+        diagnostic(
+          state,
+          node.loc,
+          `Undefined symbol ${nodeStr}`,
+          diagnosticType
+        );
+        return false;
+      });
     });
-  });
+  }
 
   return state;
 }
@@ -530,10 +550,11 @@ function markFunctionCalled(
 }
 export async function optimizeMonkeyC(
   fnMap: FilesToOptimizeMap,
-  barrelList?: string[]
+  barrelList?: string[],
+  config?: BuildConfig
 ) {
   const state = {
-    ...(await analyze(fnMap, barrelList)),
+    ...(await analyze(fnMap, barrelList, config)),
     localsStack: [{}],
     exposed: {},
     calledFunctions: {},

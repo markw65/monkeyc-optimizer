@@ -71,6 +71,7 @@ export function isErrorWithLocation(e: Error): e is ErrorWithLocation {
 }
 
 declare global {
+  type DiagnosticType = "ERROR" | "WARNING" | "INFO";
   // Configuration options for build
   type BuildConfig = {
     workspace?: string; // The project's workspace directory
@@ -94,6 +95,7 @@ declare global {
     ignoredSourcePaths?: string; // Semicolon separated list of source path regexes
     returnCommand?: boolean; // If true, build_project just returns the command to run the build, rather than building it
     checkBuildPragmas?: boolean; // If true, check any build pragmas in the generated code
+    checkInvalidSymbols?: DiagnosticType | "OFF";
     _cache?: {
       barrels?: Record<string, ResolvedJungle>;
       barrelMap?: Record<string, Record<string, ResolvedJungle>>;
@@ -244,7 +246,7 @@ declare global {
     diagnostics?: Record<
       string,
       {
-        type: "ERROR" | "WARNING" | "INFO";
+        type: DiagnosticType;
         loc: {
           start: mctree.Position;
           end: mctree.Position;
@@ -800,6 +802,7 @@ const configOptionsToCheck = [
   "ignoredExcludeAnnotations",
   "ignoredAnnotations",
   "ignoredSourcePaths",
+  "checkInvalidSymbols",
 ] as const;
 
 /**
@@ -913,7 +916,8 @@ async function generateOneConfig(
   await fs.mkdir(output, { recursive: true });
   const diagnostics = await optimizeMonkeyC(
     fnMap,
-    Object.keys(buildConfig.barrelMap || {})
+    Object.keys(buildConfig.barrelMap || {}),
+    config
   );
   return Promise.all(
     Object.entries(fnMap).map(async ([inFile, info]) => {
@@ -978,7 +982,15 @@ export async function getProjectAnalysis(
     return { fnMap, paths };
   }
 
-  const state = await analyze(fnMap);
+  const barrelObj: Record<string, true> = {};
+  targets.forEach((target) => {
+    if (target.qualifier.barrelMap) {
+      Object.keys(target.qualifier.barrelMap).forEach(
+        (key) => (barrelObj[key] = true)
+      );
+    }
+  });
+  const state = await analyze(fnMap, Object.keys(barrelObj), options);
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state };
 }
