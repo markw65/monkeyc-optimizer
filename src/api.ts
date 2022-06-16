@@ -209,39 +209,6 @@ export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
   return sameArrays(a, b, sameLookupDefinition);
 }
 
-function resolveUsing(
-  using: ImportUsing,
-  state: ProgramStateLive,
-  stack: ProgramStateStack
-) {
-  const { usings, ...base } = stack[0];
-  const [, results] = lookup(
-    state,
-    "decls",
-    using.node.id,
-    null,
-    [base],
-    false
-  );
-  if (results) {
-    if (
-      results.length == 1 &&
-      results[0].results.length == 1 &&
-      results[0].results[0].type == "ModuleDeclaration"
-    ) {
-      using.module = results[0].results[0];
-      return;
-    }
-  }
-  if (state.config?.checkInvalidSymbols !== "OFF") {
-    diagnostic(
-      state,
-      using.node.id.loc,
-      `Unable to resolve import of ${formatAst(using.node.id)}`,
-      state.config?.checkInvalidSymbols || "WARNING"
-    );
-  }
-}
 /**
  *
  * @param state    - The ProgramState
@@ -343,14 +310,27 @@ function lookup(
       if (node.name == "$") {
         return [name || node.name, [{ parent: null, results: [stack[0]] }]];
       }
-      let result: LookupResult | undefined;
       let inStatic = false;
+      let checkedImports = false;
       for (let i = stack.length; i--; ) {
         const si = stack[i];
         switch (si.type) {
           case "ClassDeclaration":
           case "ModuleDeclaration":
           case "Program":
+            if (!checkedImports) {
+              checkedImports = true;
+              const results = findUsingForNode(
+                state,
+                stack,
+                i,
+                node,
+                decls === "type_decls"
+              );
+              if (results) {
+                return [name || node.name, [{ parent: si, results }]];
+              }
+            }
             break;
           case "FunctionDeclaration":
             inStatic = si.isStatic === true;
@@ -360,51 +340,13 @@ function lookup(
             break;
         }
 
-        if (!result) {
-          const results = checkOne(state, si, decls, node, inStatic);
-          if (results) {
-            result = [name || node.name, [{ parent: si, results }]];
-            if (
-              si.type === "BlockStatement" ||
-              si.type === "FunctionDeclaration"
-            ) {
-              // Locals are always highest priority. If its not a local
-              // we have to keep going to see if something got imported,
-              // in which case *that* will take priority.
-              return result;
-            }
-          } else if (results === false) {
-            return [null, null];
-          }
-        }
-        if (hasProperty(si.usings, node.name)) {
-          const using = si.usings[node.name];
-          if (!using.module) {
-            resolveUsing(using, state, stack);
-          }
-          if (using.module) {
-            return [
-              name || node.name,
-              [{ parent: si, results: [using.module] }],
-            ];
-          }
-        }
-        if (decls === "type_decls" && si.imports) {
-          for (let i = si.imports.length; i--; ) {
-            const using = si.imports[i];
-            if (!using.module) {
-              resolveUsing(using, state, stack);
-            }
-            if (using.module) {
-              const results = checkOne(state, using.module, decls, node, false);
-              if (results) {
-                return [name || node.name, [{ parent: si, results }]];
-              }
-            }
-          }
+        const results = checkOne(state, si, decls, node, inStatic);
+        if (results) {
+          return [name || node.name, [{ parent: si, results }]];
+        } else if (results === false) {
+          break;
         }
       }
-      if (result) return result;
       return [null, null];
     }
   }
@@ -920,4 +862,79 @@ function handleException(
   } finally {
     throw exception;
   }
+}
+
+function findUsing(
+  state: ProgramStateLive,
+  stack: ProgramStateStack,
+  using: ImportUsing
+) {
+  if (using.module) return using.module;
+  let module = stack[0];
+  const find = (node: mctree.ScopedName) => {
+    let name;
+    if (node.type == "Identifier") {
+      name = node.name;
+    } else {
+      find(node.object);
+      name = node.property.name;
+    }
+    if (hasProperty(module.decls, name)) {
+      const decls = module.decls[name];
+      if (
+        decls &&
+        decls.length === 1 &&
+        decls[0].type === "ModuleDeclaration"
+      ) {
+        module = decls[0];
+        return true;
+      }
+    }
+    return false;
+  };
+  if (find(using.node.id)) {
+    using.module = module as ModuleStateNode;
+    return using.module;
+  }
+
+  if (state.config?.checkInvalidSymbols !== "OFF") {
+    diagnostic(
+      state,
+      using.node.id.loc,
+      `Unable to resolve import of ${formatAst(using.node.id)}`,
+      state.config?.checkInvalidSymbols || "WARNING"
+    );
+  }
+  return null;
+}
+
+export function findUsingForNode(
+  state: ProgramStateLive,
+  stack: ProgramStateStack,
+  i: number,
+  node: mctree.Identifier,
+  isType: boolean
+) {
+  while (i >= 0) {
+    const si = stack[i--];
+    if (hasProperty(si.usings, node.name)) {
+      const using = si.usings[node.name];
+      const module = findUsing(state, stack, using);
+
+      return module && [module];
+    }
+    if (si.imports && isType) {
+      for (let j = si.imports.length; j--; ) {
+        const using = si.imports[j];
+        const module = findUsing(state, stack, using);
+
+        if (using.module) {
+          if (hasProperty(using.module.type_decls, node.name)) {
+            return using.module.type_decls[node.name];
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
