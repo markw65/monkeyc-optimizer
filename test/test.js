@@ -214,12 +214,32 @@ async function test() {
             } on ${res.product}`
           );
           let pass = res.hasTests && testBuild ? undefined : true;
+          let resultsSeen = false;
+          let expectedErrors = 0;
           const handler = (line) => {
+            if (resultsSeen) {
+              if (line.match(/^(\w|\.)+crash(\w|\.)+\s+ERROR\s*$/)) {
+                expectedErrors++;
+                return;
+              }
+            } else if (line.match(/^RESULTS\s*$/)) {
+              resultsSeen = true;
+              return;
+            }
             const match = line.match(
-              /^(PASSED|FAILED)\s*\(passed=\d+,\s+failed=\d+,\s+errors=\d+\)/
+              /^(PASSED|FAILED)\s*\(passed=\d+,\s+failed=(\d+),\s+errors=(\d+)\)/
             );
             if (match) {
-              pass = match[1] === "PASSED";
+              if (match[1] === "PASSED") {
+                pass = true;
+              } else if (
+                match[2] === "0" &&
+                parseInt(match[3], 10) === expectedErrors
+              ) {
+                pass = true;
+                console.log(line);
+                line = `Overriding Failure to Pass since ${expectedErrors} errors were expected`;
+              }
             }
             console.log(line);
           };
