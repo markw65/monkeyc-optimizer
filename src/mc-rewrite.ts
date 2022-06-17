@@ -919,6 +919,9 @@ export async function optimizeMonkeyC(
 
   const cleanup = (node: mctree.Node) => {
     switch (node.type) {
+      case "ThisExpression":
+        node.text = "self";
+        break;
       case "EnumStringBody":
         if (
           node.members.every((m) => {
