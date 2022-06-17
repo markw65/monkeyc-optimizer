@@ -992,6 +992,18 @@ export async function optimizeMonkeyC(
           return false;
         }
         break;
+      case "ClassDeclaration":
+      case "ModuleDeclaration":
+        // none of the attributes means anything on classes and
+        // modules, and the new compiler complains about some
+        // of them. Just drop them all.
+        if (node.attrs && node.attrs.access) {
+          if (node.attrs.attributes) {
+            delete node.attrs.access;
+          } else {
+            delete node.attrs;
+          }
+        }
     }
     return null;
   };
