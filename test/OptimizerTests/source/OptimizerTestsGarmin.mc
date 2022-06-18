@@ -217,3 +217,35 @@ module nesting {
         return false;
     }
 }
+
+module LocalResolution {
+    module AX {
+        module BX {
+            const K = 1;
+        }
+    }
+    import LocalResolution.AX.BX;
+    module CX {
+        module BX {
+            const K = 1001;
+        }
+        class X {
+            const K = 2001;
+            const Y = 2;
+        }
+        //(:typecheck(false))
+        function foo() as Number {
+            var BX = new X();
+            return BX.K;
+        }
+    }
+    (:test)
+    function testImport(logger as Logger) as Boolean {
+        var k = CX.foo();
+        if (k != 2001) {
+            logger.debug("Oops - found the wrong k: " + k.toString());
+            return false;
+        }
+        return true;
+    }
+}
