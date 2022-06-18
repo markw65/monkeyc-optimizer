@@ -1,3 +1,4 @@
 {
-  "monkeyC.typeCheckLevel": "Strict"
+  "monkeyC.typeCheckLevel": "Strict",
+  "editor.formatOnSave": true
 }

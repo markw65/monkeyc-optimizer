@@ -5,6 +5,7 @@ import {
   launchSimulator,
   simulateProgram,
 } from "../build/optimizer.cjs";
+import { getSdkPath } from "../build/sdk-util.cjs";
 import { globa, spawnByLine } from "../build/util.cjs";
 import { fetchGitProjects, githubProjects } from "./projects.js";
 
@@ -111,6 +112,8 @@ async function test() {
       });
   }
   await promise;
+  const sdk = await getSdkPath();
+  const isBeta = sdk.match(/Compiler2Beta/);
   if (!jungles.length) throw new Error("No inputs!");
   if (testBuild) {
     execute = true;
@@ -216,29 +219,44 @@ async function test() {
           let pass = res.hasTests && testBuild ? undefined : true;
           let resultsSeen = false;
           let expectedErrors = 0;
+          let expectedFailures = 0;
           const handler = (line) => {
             if (resultsSeen) {
-              if (line.match(/^(\w|\.)+crash(\w|\.)+\s+ERROR\s*$/)) {
-                expectedErrors++;
-                return;
+              const match = line.match(/^((\w|\.)+)\s+(PASS|FAIL|ERROR)\s*$/);
+              if (match) {
+                if (match[1].match(/crash/i)) {
+                  if (match[3] === "ERROR") {
+                    line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
+                    expectedErrors++;
+                  } else if (match[3] === "PASS") {
+                    pass = false;
+                  }
+                } else if (isBeta && match[1].match(/FailsBeta/i)) {
+                  if (match[3] === "FAIL") {
+                    line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
+                    expectedFailures++;
+                  } else {
+                    pass = false;
+                  }
+                }
               }
             } else if (line.match(/^RESULTS\s*$/)) {
               resultsSeen = true;
-              return;
             }
             const match = line.match(
-              /^(PASSED|FAILED)\s*\(passed=\d+,\s+failed=(\d+),\s+errors=(\d+)\)/
+              /^(PASSED|FAILED)\s*\(passed=(\d+),\s+failed=(\d+),\s+errors=(\d+)\)/
             );
-            if (match) {
+            if (match && pass !== false) {
               if (match[1] === "PASSED") {
                 pass = true;
               } else if (
-                match[2] === "0" &&
-                parseInt(match[3], 10) === expectedErrors
+                parseInt(match[3], 10) === expectedFailures &&
+                parseInt(match[4], 10) === expectedErrors
               ) {
                 pass = true;
-                console.log(line);
-                line = `Overriding Failure to Pass since ${expectedErrors} errors were expected`;
+                line = `PASSED (passed=${match[2]}, expected failed=${expectedFailures}, expected errors=${expectedErrors})`;
+              } else {
+                pass = false;
               }
             }
             console.log(line);
@@ -247,8 +265,12 @@ async function test() {
             handler,
             handler,
           ]).then(() => {
-            if (pass === false) {
-              const e = new Error("Tests failed!");
+            if (!pass) {
+              const e = new Error(
+                pass === false
+                  ? "Tests failed!"
+                  : "Tests didn't report their status!"
+              );
               e.products = [res.product];
               throw e;
             }

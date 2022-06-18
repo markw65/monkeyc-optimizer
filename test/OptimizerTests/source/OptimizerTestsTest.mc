@@ -239,9 +239,9 @@ function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     /* @match /^A.B.a/ /^check/ */
     { A.B.a() => A.B.x, "x" => 42 };
     check(A.B.x, 2, logger);
-    /* @match /^A.B.a/ /^\{.*\}/ /^check/ */
+    /* @ match /^A.B.a/ /^\{.*\}/ /^check/ * /
     ((A.B.a() || 3) * (A.B.s1(A.B.x) || 4));
-    check(A.B.x, 7, logger);
+    check(A.B.x, 7, logger);*/
     return ok;
 }
 

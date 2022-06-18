@@ -240,12 +240,66 @@ module LocalResolution {
         }
     }
     (:test)
-    function testImport(logger as Logger) as Boolean {
+    function testImportFailsBeta(logger as Logger) as Boolean {
         var k = CX.foo();
         if (k != 2001) {
             logger.debug("Oops - found the wrong k: " + k.toString());
             return false;
         }
         return true;
+    }
+}
+
+module ImportWeirdness {
+    module Strange {
+        import ImportWeirdness.ImportedOutOfScope;
+    }
+    module NotImported {
+        const K = 0;
+    }
+    module ImportedInScope {
+        const K = 1;
+    }
+    module ImportedOutOfScope {
+        const K = 2;
+    }
+    module Nest {
+        import ImportWeirdness.ImportedInScope;
+        module NotImported {
+            const K = 3;
+        }
+        module ImportedInScope {
+            const K = 4;
+        }
+        module ImportedOutOfScope {
+            const K = 5;
+        }
+        (:test)
+        function test(logger as Logger) as Boolean {
+            var ok = true;
+            if (NotImported.K != 3) {
+                logger.debug(
+                    "NotImported.K was " + NotImported.K.toString() + " not 3"
+                );
+                ok = false;
+            }
+            if (ImportedInScope.K != 1) {
+                logger.debug(
+                    "ImportedInScope.K was " +
+                        ImportedInScope.K.toString() +
+                        " not 1"
+                );
+                ok = false;
+            }
+            if (ImportedOutOfScope.K != 5) {
+                logger.debug(
+                    "ImportedOutOfScope.K was " +
+                        ImportedOutOfScope.K.toString() +
+                        " not 5"
+                );
+                ok = false;
+            }
+            return ok;
+        }
     }
 }
