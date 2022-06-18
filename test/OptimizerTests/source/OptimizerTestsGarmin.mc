@@ -240,7 +240,7 @@ module LocalResolution {
         }
     }
     (:test)
-    function testImportFailsBeta(logger as Logger) as Boolean {
+    function testFailsBeta(logger as Logger) as Boolean {
         var k = CX.foo();
         if (k != 2001) {
             logger.debug("Oops - found the wrong k: " + k.toString());
@@ -275,7 +275,7 @@ module ImportWeirdness {
             const K = 5;
         }
         (:test)
-        function test(logger as Logger) as Boolean {
+        function testFailsBeta(logger as Logger) as Boolean {
             var ok = true;
             if (NotImported.K != 3) {
                 logger.debug(

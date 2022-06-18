@@ -26,6 +26,9 @@ async function test() {
   let execute = false;
   let testBuild = false;
 
+  const sdk = await getSdkPath();
+  const isBeta = sdk.match(/Compiler2Beta/);
+
   const prev = process.argv.slice(2).reduce((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
     if (!key) {
@@ -73,6 +76,13 @@ async function test() {
       case "skipOptimization":
         skipOptimization = !value || /^true|1$/i.test(value);
         break;
+      case "garminOptLevel":
+        if (!isBeta) {
+          error("garminOptLevel requires the Compiler2Beta sdk");
+        }
+        if (value == null) return key;
+        extraMonkeycArgs.push(`-O${value}`);
+        break;
       case "ignoreInvalidSymbols":
         if (!value || /^true|1$/i.test(value)) {
           extraMonkeycArgs.push("--Eno-invalid-symbol");
@@ -112,8 +122,6 @@ async function test() {
       });
   }
   await promise;
-  const sdk = await getSdkPath();
-  const isBeta = sdk.match(/Compiler2Beta/);
   if (!jungles.length) throw new Error("No inputs!");
   if (testBuild) {
     execute = true;
@@ -171,19 +179,20 @@ async function test() {
           : buildOptimizedProject(products ? products[0] : null, options).then(
               ({ exe, args, program, product, hasTests, diagnostics }) => {
                 let hasErrors = false;
-                Object.keys(diagnostics)
-                  .sort()
-                  .forEach((file) => {
-                    const diags = diagnostics[file];
-                    diags.forEach((diag) => {
-                      if (diag.type === "ERROR") {
-                        hasErrors = true;
-                      }
-                      console.log(
-                        `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
-                      );
+                diagnostics &&
+                  Object.keys(diagnostics)
+                    .sort()
+                    .forEach((file) => {
+                      const diags = diagnostics[file];
+                      diags.forEach((diag) => {
+                        if (diag.type === "ERROR") {
+                          hasErrors = true;
+                        }
+                        console.log(
+                          `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
+                        );
+                      });
                     });
-                  });
                 if (
                   hasErrors &&
                   !extraMonkeycArgs.includes("--Eno-invalid-symbol")
@@ -235,7 +244,11 @@ async function test() {
                   if (match[3] === "FAIL") {
                     line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
                     expectedFailures++;
-                  } else {
+                  } else if (match[3] === "PASS" && skipOptimization) {
+                    // some tests that would fail on Beta are fixed by
+                    // our optimizer, so only mark them as failures if
+                    // they pass without our optimizer
+                    line = line.replace(/ERROR\s*$/, "UNEXPECTED PASS");
                     pass = false;
                   }
                 }

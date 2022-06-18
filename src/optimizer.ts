@@ -521,7 +521,9 @@ export async function generateOptimizedProject(options: BuildConfig) {
     }
     return {
       jungleFiles: config.jungleFiles,
+      xml,
       program: path.basename(path.dirname(manifest)),
+      hasTests: !!config.testBuild,
     };
   }
   let dropBarrels = false;
