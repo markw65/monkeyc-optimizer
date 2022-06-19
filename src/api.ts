@@ -5,13 +5,14 @@ import {
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
+import { traverseAst } from "./ast";
 import { diagnostic } from "./inliner";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
-
 export { visitReferences } from "./visitor";
+export { traverseAst };
 
 /*
  * This is an unfortunate hack. I want to be able to extract things
@@ -74,8 +75,8 @@ export async function getApiMapping(
       const value = isStateNode(vs) ? vs.node : vs;
       if (
         !value ||
-        value.type !== "EnumStringMember" &&
-        (value.type !== "VariableDeclarator" || value.kind != "const")
+        (value.type !== "EnumStringMember" &&
+          (value.type !== "VariableDeclarator" || value.kind != "const"))
       ) {
         throw `Negative constant ${fixup} did not refer to a constant`;
       }
@@ -148,7 +149,7 @@ function checkOne(
       return null;
     }
     return cls.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
-      const sdecls = sup[decls]
+      const sdecls = sup[decls];
       const next = hasProperty(sdecls, node.name)
         ? sdecls[node.name]
         : superChain(sup);
@@ -173,7 +174,7 @@ function checkOne(
   };
 
   if (isStateNode(ns)) {
-    const ndecls = ns[decls]
+    const ndecls = ns[decls];
     if (hasProperty(ndecls, node.name)) {
       return ndecls[node.name];
     }
@@ -379,7 +380,10 @@ export function collectNamespaces(
           high = mid;
         }
       }
-      while (high < ast.comments.length && (ast.comments[high].end || 0) < node.end) {
+      while (
+        high < ast.comments.length &&
+        (ast.comments[high].end || 0) < node.end
+      ) {
         high++;
       }
       if (high > low) {
@@ -723,77 +727,6 @@ export function collectNamespaces(
     throw new Error("Bottom of stack was not a Program!");
   }
   return state.stack[0];
-}
-
-function isMCTreeNode(node: unknown): node is mctree.Node {
-  return node ? typeof node === "object" && "type" in node : false;
-}
-
-/*
- * Traverse the ast rooted at node, calling pre before
- * visiting each node, and post after.
- *
- *  - if pre returns false, the node is not traversed, and
- *    post is not called;
- *  - if pre returns a list of child nodes, only those will
- *    be traversed
- *  - otherwise all child nodes are traversed
- *
- *  - if post returns false, the node it was called on is
- *    removed.
- */
-export function traverseAst(
-  node: mctree.Node,
-  pre?:
-    | null
-    | ((node: mctree.Node) => void | null | false | (keyof mctree.NodeAll)[]),
-  post?: (
-    node: mctree.Node
-  ) => void | null | false | mctree.Node | mctree.Node[]
-): false | void | null | mctree.Node | mctree.Node[] {
-  const nodes = pre && pre(node);
-  if (nodes === false) return;
-  for (const key of nodes || Object.keys(node)) {
-    const value = (node as mctree.NodeAll)[key as keyof mctree.NodeAll];
-    if (!value) continue;
-    if (Array.isArray(value)) {
-      const values = value as Array<unknown>;
-      const deletions = values.reduce<null | { [key: number]: true }>(
-        (state, obj, i) => {
-          if (isMCTreeNode(obj)) {
-            const repl = traverseAst(obj, pre, post);
-            if (repl === false) {
-              if (!state) state = {};
-              state[i] = true;
-            } else if (repl != null) {
-              if (!state) state = {};
-              values[i] = repl;
-            }
-          }
-          return state;
-        },
-        null
-      );
-      if (deletions) {
-        values.splice(
-          0,
-          values.length,
-          ...values.filter((obj, i) => deletions[i] !== true).flat(1)
-        );
-      }
-    } else if (isMCTreeNode(value)) {
-      const repl = traverseAst(value, pre, post);
-      if (repl === false) {
-        delete node[key as keyof mctree.Node];
-      } else if (repl != null) {
-        if (Array.isArray(repl)) {
-          throw new Error("Array returned by traverseAst in Node context");
-        }
-        (node as unknown as Record<string, unknown>)[key] = repl;
-      }
-    }
-  }
-  return post && post(node);
 }
 
 export function formatAst(

@@ -3,9 +3,9 @@ import {
   hasProperty,
   isStateNode,
   sameLookupResult,
-  traverseAst,
   variableDeclarationName,
 } from "./api";
+import { traverseAst } from "./ast";
 import { renameVariable } from "./variable-renamer";
 
 function getArgSafety(
@@ -86,54 +86,34 @@ function getArgSafety(
       (param, i) => [variableDeclarationName(param), i] as const
     )
   );
-  const getLoc = (node: mctree.Node | mctree.Node[]) =>
-    (Array.isArray(node) ? node[0].start : node.start) || 0;
   // look for uses of "unsafe" args that occur after a call.
   // use post to do the checking, because arguments are evaluated
   // prior to the call, so eg "return f(x.y);" is fine, but
   // "return f()+x.y" is not.
-  //
-  // We also have to use a "pre" to ensure that child nodes are
-  // visited in source order (otherwise we could visit x.y before f()
-  // in the above example)
-  traverseAst(
-    func.node.body!,
-    (node) => {
-      return Object.entries(node)
-        .filter(
-          (kv): kv is [keyof mctree.NodeAll, mctree.Node | mctree.Node[]] =>
-            Array.isArray(kv[1])
-              ? kv[1].length !== 0 && hasProperty(kv[1][0], "type")
-              : hasProperty(kv[1], "type")
-        )
-        .sort(([, a], [, b]) => getLoc(a) - getLoc(b))
-        .map(([key]) => key);
-    },
-    (node) => {
-      switch (node.type) {
-        case "AssignmentExpression":
-        case "UpdateExpression": {
-          const v = node.type == "UpdateExpression" ? node.argument : node.left;
-          if (v.type === "Identifier" && hasProperty(params, v.name)) {
-            safeArgs[params[v.name]] = null;
-          }
+  traverseAst(func.node.body!, null, (node) => {
+    switch (node.type) {
+      case "AssignmentExpression":
+      case "UpdateExpression": {
+        const v = node.type == "UpdateExpression" ? node.argument : node.left;
+        if (v.type === "Identifier" && hasProperty(params, v.name)) {
+          safeArgs[params[v.name]] = null;
         }
-        // fall through
-        case "CallExpression":
-        case "NewExpression":
-          callSeen = true;
-          break;
-        case "Identifier":
-          if (
-            callSeen &&
-            hasProperty(params, node.name) &&
-            !safeArgs[params[node.name]]
-          ) {
-            safeArgs[params[node.name]] = null;
-          }
       }
+      // fall through
+      case "CallExpression":
+      case "NewExpression":
+        callSeen = true;
+        break;
+      case "Identifier":
+        if (
+          callSeen &&
+          hasProperty(params, node.name) &&
+          !safeArgs[params[node.name]]
+        ) {
+          safeArgs[params[node.name]] = null;
+        }
     }
-  );
+  });
   return safeArgs;
 }
 

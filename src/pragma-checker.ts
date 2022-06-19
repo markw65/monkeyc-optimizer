@@ -1,5 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { formatAst, traverseAst } from "./api";
+import { formatAst } from "./api";
+import { traverseAst } from "./ast";
 
 export function pragmaChecker(
   ast: mctree.Program,

@@ -10,9 +10,9 @@ import {
   getApiMapping,
   hasProperty,
   isStateNode,
-  traverseAst,
   variableDeclarationName,
 } from "./api";
+import { traverseAst } from "./ast";
 import {
   diagnostic,
   InlineContext,

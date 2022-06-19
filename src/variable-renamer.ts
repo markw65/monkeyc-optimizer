@@ -1,4 +1,5 @@
-import { hasProperty, traverseAst, variableDeclarationName } from "./api";
+import { hasProperty, variableDeclarationName } from "./api";
+import { traverseAst } from "./ast";
 
 export function renameVariable(
   state: ProgramStateAnalysis,
