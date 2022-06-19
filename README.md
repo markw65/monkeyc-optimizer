@@ -280,3 +280,8 @@ More fixes found via open source projects.
 
 - Bug fix
   - The new ast.ts didn't pick up child elements that could be either a string or a node. This resulted in it missing the name in TypeSpecPart.
+
+### 1.0.25
+
+- Bug fix
+  - estree-types was missing the returnType on FunctionDeclaration. Update to latest prettier-plugin, and fix ast.ts.
