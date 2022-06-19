@@ -263,4 +263,15 @@ More fixes found via open source projects.
   - Recognize the the variable in a catch clause is a declaration
 
 - Breaking change
-  - By popular demand, reversed the sense of inline_foo, so now it inlines when foo is _not_ declared as an excludeAnnotation
+  - By popular demand, reversed the sense of `inline*foo`, so now it inlines when foo is _not_ declared as an excludeAnnotation
+
+### 1.0.23
+
+- Bug Fixes
+
+  - Don't treat parameters to Method types as undeclared variables
+    - eg `var x as (Method(a as Number, b as Number) as Void)` should not report that `a` and `b` are undeclared
+
+- Tests
+  - Various new tests for module/class/local resolution of symbols
+  - Make tests fail by default if the optimizer reports any undefined symbols, and add `@expects` or `checkInvalidSymbols=WARNING` as needed to prevent test failures.
