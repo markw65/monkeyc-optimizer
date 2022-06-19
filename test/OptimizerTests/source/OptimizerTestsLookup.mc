@@ -137,11 +137,18 @@ module MA {
     // make sure checkUsingScope wasn't optimized away
     /* @match "checkUsingScope" */
     function checkUsingScope() as Number {
+        // keep it from being optimized away
+        methodArgsArentInvalidSymbols(null);
         // should find B via import A.B
         // not from MA.B above.
         /* @match "return 1;" */
         return B.K1;
     }
+
+    // Make sure we don't report axxy, bxxy and cxxy as invalid symbols
+    function methodArgsArentInvalidSymbols(
+        m as Null or (Method(axxy as Number, bxxy as Number, cxxy) as Void)
+    ) as Void {}
 }
 
 module MB {

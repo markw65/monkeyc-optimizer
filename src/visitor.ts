@@ -90,6 +90,20 @@ export function visitReferences(
           return ["object"];
         }
         break;
+      case "MethodDefinition": {
+        if (!state.inType) {
+          throw new Error("Method definition outside of type!");
+        }
+        if (node.params) {
+          node.params.forEach((param) => {
+            if (param.type == "BinaryExpression") {
+              state.traverse(param.right);
+              state.inType = true;
+            }
+          });
+        }
+        return ["returnType"];
+      }
     }
     return null;
   };
