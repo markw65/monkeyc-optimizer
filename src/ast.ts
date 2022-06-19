@@ -1,8 +1,17 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 
+type UnionMemberExtends<T, U> = true extends (T extends U ? true : never)
+  ? true
+  : unknown;
+
 type SubNodes<T extends mctree.Node> = {
-  [K in keyof T as NonNullable<T[K]> extends mctree.Node | mctree.Node[]
-    ? K
+  [K in keyof T as UnionMemberExtends<
+    T[K],
+    mctree.Node | mctree.Node[]
+  > extends true
+    ? K extends "enumType"
+      ? never
+      : K
     : never]: true;
 };
 
@@ -86,7 +95,7 @@ const mctreeTypeInfo = {
   TryStatement: ["block", "handler", "finalizer"],
   TypedefDeclaration: ["attrs", "id", "ts"],
   TypeSpecList: ["ts"],
-  TypeSpecPart: ["body", "callspec", "generics"],
+  TypeSpecPart: ["name", "body", "callspec", "generics"],
   UnaryExpression: ["argument"],
   UpdateExpression: ["argument"],
   Using: ["id", "as"],
