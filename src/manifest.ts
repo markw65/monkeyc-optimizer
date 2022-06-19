@@ -51,9 +51,8 @@ export async function writeManifest(
   filename: string,
   xml: ManifestXML
 ): Promise<void> {
-  let builder = new Builder();
-  let text = builder.buildObject(xml);
-  return fs.writeFile(filename, text);
+  const builder = new Builder();
+  return fs.writeFile(filename, builder.buildObject(xml));
 }
 
 export function manifestProducts(manifest: ManifestXML): string[] {

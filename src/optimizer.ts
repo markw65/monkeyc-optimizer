@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { ScopedName } from "@markw65/prettier-plugin-monkeyc/build/src/estree-types";
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -41,7 +40,7 @@ export {
 
 function relative_path_no_dotdot(relative: string) {
   return relative.replace(
-    /^(\.\.[\\\/])+/,
+    /^(\.\.[\\/])+/,
     (str) => `__${"dot".repeat(str.length / 3)}__${str.slice(-1)}`
   );
 }
@@ -302,6 +301,7 @@ declare global {
       hasTests?: boolean;
     };
   };
+  // eslint-disable-next-line no-var
   var lastModifiedSource: number;
 }
 
@@ -445,7 +445,7 @@ async function createLocalBarrels(targets: Target[], options: BuildConfig) {
           .createHash("sha1")
           .update(rawBarrelDir, "binary")
           .digest("base64")
-          .replace(/[\/=+]/g, "");
+          .replace(/[/=+]/g, "");
         const optBarrelDir = path.resolve(barrelDir, `${barrel}-${sha1}`);
         if (!hasProperty(optBarrels, barrel)) {
           optBarrels[barrel] = {
@@ -647,7 +647,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
           "source",
           relative_path_no_dotdot(path.relative(workspace, s))
         )
-        .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
+        .replace(/([\\/]\*\*)[\\/]\*/g, "$1")
     );
     if (group.optimizerConfig.optBarrels) {
       parts.push(
@@ -671,7 +671,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
                 return (resolvedBarrel.qualifier.sourcePath || []).map((s) =>
                   path
                     .join(group.dir!, "barrels", barrel, path.relative(root, s))
-                    .replace(/([\\\/]\*\*)[\\\/]\*/g, "$1")
+                    .replace(/([\\/]\*\*)[\\/]\*/g, "$1")
                 );
               })
               .flat()

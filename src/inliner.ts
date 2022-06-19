@@ -8,8 +8,6 @@ import {
 } from "./api";
 import { renameVariable } from "./variable-renamer";
 
-type Expression = mctree.BinaryExpression["left"];
-
 function getArgSafety(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
@@ -83,7 +81,6 @@ function getArgSafety(
   }
   if (allSafe && requireAll) return true;
   let callSeen = false;
-  let ok = true;
   const params = Object.fromEntries(
     func.node.params.map(
       (param, i) => [variableDeclarationName(param), i] as const
@@ -265,7 +262,7 @@ function processInlineBody<T extends InlineBody>(
   insertedVariableDecls: mctree.VariableDeclaration | boolean,
   params: Record<string, number>
 ): InlineBodyReturn<T> | null {
-  let failed: boolean = false;
+  let failed = false;
   const pre = state.pre!;
   const post = state.post!;
   state.inlining = true;

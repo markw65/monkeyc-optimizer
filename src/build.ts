@@ -21,7 +21,7 @@ export async function build_project(
     returnCommand,
   } = options;
   const sdk = await getSdkPath();
-  let extraArgs = [];
+  const extraArgs = [];
   if (compilerOptions) {
     extraArgs.push(...compilerOptions.split(/\s+/));
   }
@@ -58,11 +58,14 @@ export async function build_project(
   } else if (testBuild) {
     throw new Error("Building for tests requires a device to build for!");
   }
+  if (!program || !jungleFiles || !developerKeyPath || !workspace) {
+    throw new Error("Required arguments were missing!");
+  }
   const exe = path.resolve(sdk, "bin", isWin ? "monkeyc.bat" : "monkeyc");
   const args = [
-    ["-o", program!],
-    ["-f", jungleFiles!],
-    ["-y", developerKeyPath!],
+    ["-o", program],
+    ["-f", jungleFiles],
+    ["-y", developerKeyPath],
     extraArgs,
   ].flat();
 
@@ -75,5 +78,5 @@ export async function build_project(
       cwd: workspace,
     });
   }
-  return { exe, args, program: path.resolve(workspace!, program!), product };
+  return { exe, args, program: path.resolve(workspace, program), product };
 }

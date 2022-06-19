@@ -271,7 +271,7 @@ function resolve_node_by_path(
     }
     if (!s[n] && s["."]) {
       const sdot = s["."];
-      let resolved = resolve_node_list(state, sdot);
+      const resolved = resolve_node_list(state, sdot);
       if (!resolved.length) return undefined;
       const r = (resolved[0] as RawJungle)[n];
       if (!r && (sdot as JNode[]).every((e) => e.type == "Literal")) {
@@ -371,11 +371,11 @@ async function resolve_literals(
             return resolve_file_list(v.values);
           }
           let resolved = resolve_filename(v, default_source);
-          if (/[*?\[\]\{\}]/.test(resolved)) {
+          if (/[*?[\]{}]/.test(resolved)) {
             // Jungle files can contain "./**.mc" which is supposed to match
             // any mc file under "./". The standard way to express that
             // is "./**/*.mc", which is what glob expects, so translate.
-            resolved = resolved.replace(/[\\\/]\*\*([^\\\/])/g, "/**/*$1");
+            resolved = resolved.replace(/[\\/]\*\*([^\\/])/g, "/**/*$1");
             const match = await globa(resolved);
             return match.length ? resolved : null;
           } else {
@@ -768,7 +768,7 @@ function resolve_barrel(
       .createHash("sha1")
       .update(barrel, "binary")
       .digest("base64")
-      .replace(/[\/=+]/g, "");
+      .replace(/[/=+]/g, "");
     const localPath = path.resolve(
       barrelDir,
       `${path.basename(barrel, ".barrel")}-${sha1}`
@@ -967,7 +967,9 @@ async function get_jungle_and_barrels(
         targets.push({ product, qualifier, shape });
         return resolve_barrels(product, qualifier, barrels, products, options);
       })
-      .then(() => {});
+      .then(() => {
+        return;
+      });
   };
   products.forEach((product) => {
     if (hasProperty(state, product)) {

@@ -155,11 +155,13 @@ export async function copyRecursiveAsNeeded(
     const files = await fs.readdir(source);
     return Promise.all(
       files.map((file) => {
-        var src = path.join(source, file);
-        var tgt = path.join(target, file);
+        const src = path.join(source, file);
+        const tgt = path.join(target, file);
         return copyRecursiveAsNeeded(src, tgt, filter);
       })
-    ).then(() => {});
+    ).then(() => {
+      return;
+    });
   } else {
     if (filter && !filter(source, target)) {
       return;

@@ -1,4 +1,3 @@
-import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { hasProperty, traverseAst, variableDeclarationName } from "./api";
 
 export function renameVariable(

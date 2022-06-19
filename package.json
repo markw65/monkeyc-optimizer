@@ -24,7 +24,8 @@
     "test-remote": "node ./test/test.js --product=pick-one --github",
     "test-optimized": "node test/test.js --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle",
     "test-unopt": "node test/test.js --skipOptimization --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle",
-    "test-garmin-opt": "node test/test.js --skipOptimization --garminOptLevel=2 --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle"
+    "test-garmin-opt": "node test/test.js --skipOptimization --garminOptLevel=2 --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle",
+    "eslint": "npx eslint ."
   },
   "files": [
     "build/optimizer.cjs",
@@ -42,6 +43,8 @@
     "@types/glob": "^7.2.0",
     "@types/prettier": "^2.6.1",
     "@types/xml2js": "^0.4.11",
+    "@typescript-eslint/eslint-plugin": "^5.28.0",
+    "@typescript-eslint/parser": "^5.28.0",
     "eslint": "^8.12.0",
     "extract-zip": "^2.0.1",
     "glob": "^7.2.0",

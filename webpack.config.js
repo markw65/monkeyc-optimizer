@@ -202,10 +202,8 @@ export default (env, argv) => {
            */
           const fileToExports = {};
           const recordExport = (request, name) => {
-            request = request
-              .replace(/\.(js|ts)$/, "")
-              .replace(/^\.[\\\/]/, "");
-            if (!fileToExports.hasOwnProperty(request)) {
+            request = request.replace(/\.(js|ts)$/, "").replace(/^\.[\\/]/, "");
+            if (!Object.prototype.hasOwnProperty.call(fileToExports, request)) {
               fileToExports[request] = {};
             }
             fileToExports[request][name] = true;

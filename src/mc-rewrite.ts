@@ -123,7 +123,9 @@ export function getFileSources(fnMap: FilesToOptimizeMap) {
           )
       );
     })
-  ).then(() => {});
+  ).then(() => {
+    return;
+  });
 }
 
 export function getFileASTs(fnMap: FilesToOptimizeMap) {
@@ -199,6 +201,7 @@ export async function analyze(
             node.body = null;
             break;
           }
+        // falls through
         case "ModuleDeclaration":
         case "ClassDeclaration": {
           const [scope] = state.stack.slice(-1);
@@ -251,7 +254,7 @@ export async function analyze(
   ) {
     const checkTypes =
       config?.typeCheckLevel && config.typeCheckLevel !== "Off";
-    Object.entries(fnMap).forEach(([k, v]) => {
+    Object.entries(fnMap).forEach(([, v]) => {
       visitReferences(state, v.ast!, null, false, (node, results, error) => {
         if (!error) return undefined;
         const nodeStr = formatAst(node);
@@ -648,7 +651,7 @@ export async function optimizeMonkeyC(
       case "ConditionalExpression":
       case "IfStatement":
       case "DoWhileStatement":
-      case "WhileStatement":
+      case "WhileStatement": {
         const test = (state.traverse(node.test) ||
           node.test) as typeof node.test;
         const [value, type] = getNodeValue(test);
@@ -680,7 +683,7 @@ export async function optimizeMonkeyC(
           }
         }
         return null;
-
+      }
       case "EnumDeclaration":
         return false;
       case "ForStatement": {

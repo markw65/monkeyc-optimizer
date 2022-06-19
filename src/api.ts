@@ -71,8 +71,9 @@ export async function getApiMapping(
         }
         return decls[0];
       }, result);
-      const value = isStateNode(vs) ? vs.node! : vs;
+      const value = isStateNode(vs) ? vs.node : vs;
       if (
+        !value ||
         value.type !== "EnumStringMember" &&
         (value.type !== "VariableDeclarator" || value.kind != "const")
       ) {
@@ -147,8 +148,9 @@ function checkOne(
       return null;
     }
     return cls.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
-      const next = hasProperty(sup[decls], node.name)
-        ? sup[decls]![node.name]
+      const sdecls = sup[decls]
+      const next = hasProperty(sdecls, node.name)
+        ? sdecls[node.name]
         : superChain(sup);
       return next ? (result ? result.concat(next) : next) : result;
     }, null);
@@ -171,8 +173,9 @@ function checkOne(
   };
 
   if (isStateNode(ns)) {
-    if (hasProperty(ns[decls], node.name)) {
-      return ns[decls]![node.name];
+    const ndecls = ns[decls]
+    if (hasProperty(ndecls, node.name)) {
+      return ndecls[node.name];
     }
     switch (ns.type) {
       case "ClassDeclaration":
@@ -370,13 +373,13 @@ export function collectNamespaces(
         high = ast.comments.length;
       while (high > low) {
         const mid = (low + high) >> 1;
-        if (ast.comments[mid].start! < node.start) {
+        if ((ast.comments[mid].start || 0) < node.start) {
           low = mid + 1;
         } else {
           high = mid;
         }
       }
-      while (high < ast.comments.length && ast.comments[high].end! < node.end) {
+      while (high < ast.comments.length && (ast.comments[high].end || 0) < node.end) {
         high++;
       }
       if (high > low) {
@@ -859,9 +862,10 @@ function handleException(
     } else {
       exception = new Error(message);
     }
-  } finally {
+  } catch (ex) {
     throw exception;
   }
+  throw exception;
 }
 
 function findUsing(
@@ -928,9 +932,9 @@ export function findUsingForNode(
         const using = si.imports[j];
         const module = findUsing(state, stack, using);
 
-        if (using.module) {
-          if (hasProperty(using.module.type_decls, node.name)) {
-            return using.module.type_decls[node.name];
+        if (module) {
+          if (hasProperty(module.type_decls, node.name)) {
+            return module.type_decls[node.name];
           }
         }
       }
