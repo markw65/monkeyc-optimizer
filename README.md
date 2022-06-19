@@ -275,3 +275,8 @@ More fixes found via open source projects.
 - Tests
   - Various new tests for module/class/local resolution of symbols
   - Make tests fail by default if the optimizer reports any undefined symbols, and add `@expects` or `checkInvalidSymbols=WARNING` as needed to prevent test failures.
+
+### 1.0.24
+
+- Bug fix
+  - The new ast.ts didn't pick up child elements that could be either a string or a node. This resulted in it missing the name in TypeSpecPart.
