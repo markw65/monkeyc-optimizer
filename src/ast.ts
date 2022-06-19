@@ -68,7 +68,7 @@ const mctreeTypeInfo = {
   EnumStringMember: ["id", "init"],
   ExpressionStatement: ["expression"],
   ForStatement: ["init", "test", "body", "update"],
-  FunctionDeclaration: ["attrs", "id", "params", "body"],
+  FunctionDeclaration: ["attrs", "id", "params", "returnType", "body"],
   Identifier: [],
   IfStatement: ["test", "consequent", "alternate"],
   ImportModule: ["id"],
