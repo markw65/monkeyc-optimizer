@@ -40,7 +40,10 @@ export const githubProjects = [
   "https://github.com/adamml/tempo-trainer",
   "https://github.com/admsteck/ConnectIQ",
   "https://github.com/alanfischer/hassiq",
-  "https://github.com/alexphredorg/ConnectIqSailingApp",
+  {
+    root: "https://github.com/alexphredorg/ConnectIqSailingApp",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/andriijas/connectiq-apps",
   "https://github.com/antirez/iqmeteo",
   "https://github.com/antonioasaro/GARMIN-AMD_Watchface",
@@ -51,6 +54,7 @@ export const githubProjects = [
   {
     root: "https://github.com/blaskovicz/garmin-nest-camera-control",
     rename: [{ from: "source/Env.mc.sample", to: "source/Env.mc" }],
+    options: { checkInvalidSymbols: "WARNING" },
   },
   {
     root: "https://github.com/breber/helicopter-iq",
@@ -84,7 +88,10 @@ export const githubProjects = [
   "https://github.com/darrencroton/SnapshotWatch",
   "https://github.com/davedoesdemos/ConnectIQ-Watch-IoT",
   "https://github.com/dazey77/Horizontal-speedo-rep",
-  "https://github.com/dbcm/KISSFace",
+  {
+    root: "https://github.com/dbcm/KISSFace",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/desyat/OpenWeatherMapWidget",
   {
     root: "https://github.com/dkappler/kraken",
@@ -95,7 +102,10 @@ export const githubProjects = [
   "https://github.com/douglasr/connectiq-samples",
   "https://github.com/ebolefeysot/CIQ_PcvVo2max",
   "https://github.com/fhdeutschmann/ZuluTime",
-  "https://github.com/fjbenitog/bike-simulator",
+  {
+    root: "https://github.com/fjbenitog/bike-simulator",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/fjbenitog/digital-watch-cas10",
   "https://github.com/fmercado/telemeter",
   {
@@ -104,13 +114,19 @@ export const githubProjects = [
     options: { compilerOptions: "--Eno-invalid-symbol" },
   },
   "https://github.com/gcormier9/GRun",
-  "https://github.com/gimportexportdevs/gimporter",
+  {
+    root: "https://github.com/gimportexportdevs/gimporter",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/grafstrom/ORun",
   {
     root: "https://github.com/hakonrossebo/FootballFixtures",
     options: { compilerOptions: "--Eno-invalid-symbol" },
   },
-  "https://github.com/hansiglaser/ConnectIQ",
+  {
+    root: "https://github.com/hansiglaser/ConnectIQ",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/haraldh/SunCalc",
   {
     root: "https://github.com/imgrant/AuxHR",
@@ -184,7 +200,10 @@ export const githubProjects = [
   "https://github.com/ravenfeld/Connect-IQ-DataField-GPS",
   "https://github.com/ravenfeld/Connect-IQ-DataField-Speed",
   "https://github.com/ravenfeld/Connect-IQ-Widget-Compass",
-  "https://github.com/rexMingla/low-battery-mode",
+  {
+    root: "https://github.com/rexMingla/low-battery-mode",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/rgergely/polesteps",
   "https://github.com/rgrellmann/connectiq-bergsteigen-app",
   "https://github.com/roelofk/HeartRateRunner",
@@ -211,7 +230,10 @@ export const githubProjects = [
     build: false,
     comment: "Manifest needs a launcher icon",
   },
-  "https://github.com/spikyjt/SailingTimer",
+  {
+    root: "https://github.com/spikyjt/SailingTimer",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/srwalter/garmin-tesla",
   "https://github.com/sunpazed/garmin-ciqsummit17",
   "https://github.com/sunpazed/garmin-drawaa",
@@ -266,12 +288,18 @@ export const githubProjects = [
   "https://github.com/werkkrew/ciq-orange-theory",
   "https://github.com/zbraniecki/ultitimer",
   "https://gitlab.com/HankG/GarminConnectIQ",
-  "https://gitlab.com/harryonline/emergencyinfo",
+  {
+    root: "https://gitlab.com/harryonline/emergencyinfo",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://gitlab.com/harryonline/fortune-quote",
   "https://gitlab.com/harryonline/timerwidget",
   "https://gitlab.com/nz_brian/HiVisRunField",
   "https://gitlab.com/nz_brian/garmin.watch.analogplus",
-  "https://gitlab.com/ravenfeld/Connect-IQ-App-Timer",
+  {
+    root: "https://gitlab.com/ravenfeld/Connect-IQ-App-Timer",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
 ];
 
 export async function fetchGitProjects(projects) {

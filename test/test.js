@@ -25,6 +25,7 @@ async function test() {
   let extraMonkeycArgs = [];
   let execute = false;
   let testBuild = false;
+  let checkInvalidSymbols = "ERROR";
 
   const sdk = await getSdkPath();
   const isBeta = sdk.match(/Compiler2Beta/);
@@ -82,6 +83,10 @@ async function test() {
         }
         if (value == null) return key;
         extraMonkeycArgs.push(`-O${value}`);
+        break;
+      case "checkInvalidSymbols":
+        if (value == null) return key;
+        checkInvalidSymbols = value;
         break;
       case "ignoreInvalidSymbols":
         if (!value || /^true|1$/i.test(value)) {
@@ -164,6 +169,7 @@ async function test() {
       compilerWarnings,
       typeCheckLevel,
       skipOptimization,
+      checkInvalidSymbols,
       ...jungleOptions,
       returnCommand: true,
       checkManifest: true,

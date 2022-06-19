@@ -76,15 +76,19 @@ module nesting {
 
             class Y {
                 function getNESTINGA1() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGA1;
                 }
                 function getNESTINGA2() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGA2;
                 }
                 function getNESTINGA3() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGA3;
                 }
                 function getNESTINGA4() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGA4;
                 }
 
@@ -102,15 +106,19 @@ module nesting {
                 }
 
                 function getNESTINGC1() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGC1;
                 }
                 function getNESTINGC2() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGC2;
                 }
                 function getNESTINGC3() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGC3;
                 }
                 function getNESTINGC4() as Number {
+                    // @expect "Undefined symbol"
                     return NESTINGC4;
                 }
             }
