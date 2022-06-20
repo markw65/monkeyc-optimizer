@@ -430,6 +430,7 @@ export function collectNamespaces(
               state.stack[0].node = node;
               break;
             case "TypeSpecList":
+            case "TypeSpecPart":
               state.inType = true;
               break;
             case "ImportModule":
@@ -689,6 +690,11 @@ export function collectNamespaces(
             const type = node.type;
             if (state.post) ret = state.post(node, state);
             switch (type) {
+              // Don't clear inType for TypeSpecPart, since they
+              // generally occur in TypeSpecLists. But do clear it for
+              // SizedArrayExpression, since thats the only place they
+              // happen on their own.
+              case "SizedArrayExpression":
               case "TypeSpecList":
               case "TypedefDeclaration":
               case "EnumDeclaration":
