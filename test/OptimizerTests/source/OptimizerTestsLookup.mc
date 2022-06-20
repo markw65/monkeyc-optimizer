@@ -206,6 +206,17 @@ module Inheritance {
     class Base {
         hidden var h as Number = 1;
         private var p as Number = 1;
+        (:inline)
+        function badQualifier() {
+            var x = p;
+            return x;
+        }
+        function foo() {
+            var p;
+            /* @match /var x = self.p;/ /return p \+ 24;/ */
+            p = badQualifier();
+            return p + 24;
+        }
     }
     class Child extends Base {
         (:inline)
@@ -218,22 +229,22 @@ module Inheritance {
         }
         function bar() as Number {
             var h = 42;
-            /* @match "Base.h + h" */
+            /* @match "self.h + h" */
             return localConflict() + h;
         }
         function baz() as Number {
             var p = 42;
-            /* @match "Base.p + p" */
+            /* @match "self.p + p" */
             return localPrivate() + p;
         }
     }
     (:test)
     function inherit(logger as Logger) as Boolean {
         var x = new Child();
-        return x.bar() == 43;
+        return x.bar() == 43 && x.foo() == 25;
     }
     (:test)
-    function crash(logger as Logger) as Boolean {
+    function crashOne(logger as Logger) as Boolean {
         var x = new Child();
         return x.baz() == 43;
     }

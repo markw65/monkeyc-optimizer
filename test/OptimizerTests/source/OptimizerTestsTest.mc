@@ -209,13 +209,13 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
     check(z, 5, logger);
     {
         var z = 2;
-        /* @match /^\{\s*\$.z\s*\+=\s*3;\s*\}$/ */
+        /* @match /^\{\s*self.z\s*\+=\s*3;\s*\}$/ */
         A.B.s2(3);
         check($.z, 8, logger);
-        /* @match /^\{\s*\$.z\s*\+=\s*A\.B\.x;\s*\}$/ */
+        /* @match /^\{\s*self.z\s*\+=\s*A\.B\.x;\s*\}$/ */
         A.B.s3(A.B.x);
         check($.z, 21, logger);
-        /* @match /^\{\s*\$.z\s*\+=\s*z;\s*A.B.a\(\);\s*\}$/ */
+        /* @match /^\{\s*self.z\s*\+=\s*z;\s*A.B.a\(\);\s*\}$/ */
         A.B.s4(z);
         check($.z, 23, logger);
     }
@@ -274,21 +274,31 @@ function testMultipleReturnsNoFinalReturn(y as Number) as Number {
     return multipleReturnsNoFinalReturn(y);
 }
 
-(:test)
-function inlineReturnContext(logger as Logger) as Boolean {
-    var x;
-    ok = true;
-    A.B.x = 0;
-    A.B.a();
-    x = testMultipleReturns(A.B.x);
-    check(x, 9, logger);
-    x = testMultipleReturns(9);
-    check(x, 42, logger);
-    x = testMultipleReturnsNoFinalReturn(A.B.x);
-    check(x, 9, logger);
-    x = testMultipleReturnsNoFinalReturn(9);
-    check(x, 42, logger);
-    return ok;
+module Wrapper {
+    var z = 5000;
+    (:test)
+    function inlineReturnContext(logger as Logger) as Boolean {
+        var x;
+        ok = true;
+        A.B.x = 0;
+        z = 0;
+        A.B.a();
+        x = testMultipleReturns(A.B.x);
+        check(x, 9, logger);
+        x = testMultipleReturns(9);
+        check(x, 42, logger);
+        x = testMultipleReturnsNoFinalReturn(A.B.x);
+        check(x, 9, logger);
+        x = testMultipleReturnsNoFinalReturn(9);
+        check(x, 42, logger);
+        {
+            var z = 2;
+            /* @match /^\{\s*\$.z\s*\+=\s*3;\s*\}$/ */
+            A.B.s2(3);
+            check($.z, 3, logger);
+        }
+        return ok;
+    }
 }
 
 (:inline)
@@ -314,7 +324,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     check(x, 12, logger);
     {
         var z = 15;
-        /* @match /\* \$\.z;\s*\}/ */
+        /* @match /\* self\.z;\s*\}/ */
         x = assignContext(A.B.x);
         check(x, 15, logger);
     }

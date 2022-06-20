@@ -364,6 +364,8 @@ export function unused(
       return [];
     case "Identifier":
       return [];
+    case "ThisExpression":
+      return [];
     case "BinaryExpression":
       if (expression.operator === "as") {
         return unused(expression.left);
@@ -581,6 +583,11 @@ export function applyTypeIfNeeded(node: mctree.Node) {
   return node;
 }
 
+type ScopedEntity =
+  | mctree.Identifier
+  | mctree.MemberExpression
+  | mctree.ThisExpression;
+
 function fixNodeScope(
   state: ProgramStateAnalysis,
   lookupNode: mctree.Identifier | mctree.MemberExpression,
@@ -632,6 +639,18 @@ function fixNodeScope(
     )
     .flat();
 
+  const member = (
+    object: ScopedEntity,
+    property: mctree.Identifier
+  ): mctree.MemberExpression => ({
+    type: "MemberExpression",
+    object,
+    property,
+    computed: false,
+    start: node.start,
+    end: node.end,
+    loc: node.loc,
+  });
   if (
     prefixes.length &&
     prefixes[0].startsWith("$.") &&
@@ -639,7 +658,7 @@ function fixNodeScope(
   ) {
     const prefix = prefixes[0].split(".").slice(0, -1).reverse();
     let found = false;
-    return prefix.reduce<mctree.MemberExpression | mctree.Identifier>(
+    return prefix.reduce<mctree.MemberExpression>(
       (current, name) => {
         if (found) return current;
         const [, results] = state.lookup(current);
@@ -647,39 +666,37 @@ function fixNodeScope(
           found = true;
           return current;
         }
-        const object: mctree.Identifier =
-          typeof name === "string"
-            ? {
-                type: "Identifier",
-                name,
-                start: node.start,
-                end: node.end,
-                loc: node.loc,
-              }
-            : name;
-        let root = null;
-        let property = current;
-        while (property.type !== "Identifier") {
-          root = property;
-          property = property.object as typeof current;
-        }
-        const mb: mctree.MemberExpression = {
-          type: "MemberExpression",
-          object,
-          property,
-          computed: false,
+        const object: mctree.Identifier = {
+          type: "Identifier",
+          name,
           start: node.start,
           end: node.end,
           loc: node.loc,
         };
-        if (root) {
-          root.object = mb;
-        } else {
-          current = mb;
+        let root = null;
+        let property: ScopedEntity = current;
+        do {
+          root = property;
+          property = property.object as ScopedEntity;
+        } while (property.type === "MemberExpression");
+
+        if (property.type === "ThisExpression") {
+          root.object = object;
+          return root;
         }
+        root.object = member(object, property);
         return current;
       },
-      node
+      member(
+        {
+          type: "ThisExpression",
+          text: "self",
+          start: node.start,
+          end: node.end,
+          loc: node.loc,
+        },
+        node
+      )
     );
   }
   return null;
