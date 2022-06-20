@@ -225,6 +225,21 @@ export function shouldInline(
   return false;
 }
 
+// We still need to keep track of every local name that was
+// already in use before we started inlining, but we don't want to
+// use any of its renames. We also want to know whether a local is
+// from the function being inlined, or the calling function, so
+// set every element to false.
+function fixupLocalsMap(state: ProgramStateAnalysis) {
+  if (!state.localsStack) throw new Error("No local variable map!");
+  const locals = state.localsStack[state.localsStack!.length - 1];
+  const { map } = locals;
+  if (!map) throw new Error("No local variable map!");
+  const original = { ...map };
+  Object.keys(map).forEach((key) => (map[key] = false));
+  return original;
+}
+
 type InlineBody =
   | mctree.BlockStatement
   | mctree.ExpressionStatement["expression"];
@@ -239,13 +254,14 @@ function processInlineBody<T extends InlineBody>(
   func: FunctionStateNode,
   call: mctree.CallExpression,
   root: T,
-  insertedVariableDecls: mctree.VariableDeclaration | boolean,
   params: Record<string, number>
 ): InlineBodyReturn<T> | null {
   let failed = false;
   const pre = state.pre!;
   const post = state.post!;
   state.inlining = true;
+  let insertedVariableDecls: mctree.VariableDeclaration | null = null;
+
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
@@ -255,14 +271,10 @@ function processInlineBody<T extends InlineBody>(
       if (node === insertedVariableDecls) return false;
       const result = pre(node, state);
       if (!insertedVariableDecls && node.type === "BlockStatement") {
+        // the block just created a new locals map, so we don't
+        // need to restore it at the end.
+        fixupLocalsMap(state);
         const locals = state.localsStack![state.localsStack!.length - 1];
-        const { map } = locals;
-        if (!map) throw new Error("No local variable map!");
-        // We still need to keep track of every local name that was
-        // already in use, but we don't want to use any of its renames.
-        // We also want to know whether a local is from the function being
-        // inlined, or the calling function, so set every element to false.
-        Object.keys(map).forEach((key) => (map[key] = false));
         const declarations: mctree.VariableDeclarator[] = func.node.params
           .map((param, i): mctree.VariableDeclarator | null => {
             const paramName = variableDeclarationName(param);
@@ -507,16 +519,7 @@ function inlineWithArgs(
     })
   );
 
-  if (
-    !processInlineBody(
-      state,
-      func,
-      call,
-      body,
-      func.node.params.length ? false : true,
-      params
-    )
-  ) {
+  if (!processInlineBody(state, func, call, body, params)) {
     return null;
   }
   diagnostic(state, call.loc, null);
@@ -560,7 +563,10 @@ export function inlineFunction(
       (param, i) => [variableDeclarationName(param), i] as const
     )
   );
-  return processInlineBody(state, func, call, retArg, true, params);
+  const map = fixupLocalsMap(state);
+  const ret = processInlineBody(state, func, call, retArg, params);
+  state.localsStack![state.localsStack!.length - 1].map = map;
+  return ret;
 }
 
 export function applyTypeIfNeeded(node: mctree.Node) {

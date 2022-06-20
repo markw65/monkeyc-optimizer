@@ -1,4 +1,5 @@
 import Toybox.Lang;
+import Toybox.Test;
 import Toybox.Application;
 import Toybox.Application.Storage;
 import Toybox.WatchUi;
@@ -198,5 +199,42 @@ module MC {
                 System.println(Mid.SUPERB);
             }
         }
+    }
+}
+
+module Inheritance {
+    class Base {
+        hidden var h as Number = 1;
+        private var p as Number = 1;
+    }
+    class Child extends Base {
+        (:inline)
+        function localConflict() as Number {
+            return h;
+        }
+        (:inline,:typecheck(false))
+        function localPrivate() as Number {
+            return p;
+        }
+        function bar() as Number {
+            var h = 42;
+            /* @match "Base.h + h" */
+            return localConflict() + h;
+        }
+        function baz() as Number {
+            var p = 42;
+            /* @match "Base.p + p" */
+            return localPrivate() + p;
+        }
+    }
+    (:test)
+    function inherit(logger as Logger) as Boolean {
+        var x = new Child();
+        return x.bar() == 43;
+    }
+    (:test)
+    function crash(logger as Logger) as Boolean {
+        var x = new Child();
+        return x.baz() == 43;
     }
 }
