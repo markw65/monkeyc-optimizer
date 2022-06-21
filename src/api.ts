@@ -716,7 +716,7 @@ export function collectNamespaces(
               }
             }
           }
-          if (ret === false) {
+          if (ret != null) {
             state.removeNodeComments(node, ast);
           }
           return ret;
