@@ -1,7 +1,7 @@
 {
   "name": "@markw65/monkeyc-optimizer",
   "type": "module",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Source to source optimizer for Garmin Monkey C code",
   "main": "build/optimizer.cjs",
   "types": "build/src/optimizer.d.ts",

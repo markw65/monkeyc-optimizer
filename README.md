@@ -292,3 +292,9 @@ More fixes found via open source projects.
   - Use `self.` rather than `ClassName.` to qualify names that would otherwise collide with locals, since that works with both public and private variables
   - Fix a bug that caused the inliner to fail to qualify certain names, even if there was a collision with an existing local variables
   - Fix some name lookup issues relating to whether the lookup is done as a type or a value.
+
+### 1.0.27
+
+- Bug fixes
+  - Update to `@markw65/prettier-plugin-monkeyc@1.0.29` to fix certain obscure comment related bugs
+  - When replacing a node (espcially when inlining), delete any comments contained in the old node.
