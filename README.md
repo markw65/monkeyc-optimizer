@@ -285,3 +285,10 @@ More fixes found via open source projects.
 
 - Bug fix
   - estree-types was missing the returnType on FunctionDeclaration. Update to latest prettier-plugin, and fix ast.ts.
+
+### 1.0.26
+
+- Bug fixes
+  - Use `self.` rather than `ClassName.` to qualify names that would otherwise collide with locals, since that works with both public and private variables
+  - Fix a bug that caused the inliner to fail to qualify certain names, even if there was a collision with an existing local variables
+  - Fix some name lookup issues relating to whether the lookup is done as a type or a value.
