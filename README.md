@@ -298,3 +298,8 @@ More fixes found via open source projects.
 - Bug fixes
   - Update to `@markw65/prettier-plugin-monkeyc@1.0.29` to fix certain obscure comment related bugs
   - When replacing a node (espcially when inlining), delete any comments contained in the old node.
+
+### 1.0.28
+
+- Bug fixes
+  - In some circumstances, while inlining, a parameter could be substituted, and then reprocessed. During reprocessing, it would attempt to lookup the replacement symbol, and if that was a local from the calling function it would fail (since an inline function never has access to the caller's locals). Prevent the reprocessing step from happening.
