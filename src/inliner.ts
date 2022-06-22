@@ -261,14 +261,14 @@ function processInlineBody<T extends InlineBody>(
   const post = state.post!;
   state.inlining = true;
   let insertedVariableDecls: mctree.VariableDeclaration | null = null;
-
+  const replacements = new Set<mctree.Node>();
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
       node.start = call.start;
       node.end = call.end;
       node.loc = call.loc;
-      if (node === insertedVariableDecls) return false;
+      if (replacements.has(node)) return false;
       const result = pre(node, state);
       if (!insertedVariableDecls && node.type === "BlockStatement") {
         // the block just created a new locals map, so we don't
@@ -295,6 +295,7 @@ function processInlineBody<T extends InlineBody>(
           kind: "var",
         };
         node.body.unshift(insertedVariableDecls);
+        replacements.add(insertedVariableDecls);
       }
       return result;
     };
@@ -308,6 +309,8 @@ function processInlineBody<T extends InlineBody>(
             const ix = params[node.name];
             if (ix >= 0) {
               replacement = call.arguments[ix];
+              replacements.add(replacement);
+              return replacement;
             }
             break;
           }

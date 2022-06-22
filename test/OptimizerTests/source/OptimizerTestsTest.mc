@@ -82,6 +82,11 @@ function inlineHiddenByLocal(v as Number) as Number {
     return v;
 }
 
+(:inline)
+function doubleSubstitution(v as Logger?) as Logger or Boolean {
+    return v != null ? v : false;
+}
+
 (:test)
 function inlineAsExpressionTests(logger as Logger) as Boolean {
     ok = true;
@@ -136,6 +141,10 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     /* @match /^x = .*\? Toybox.Application.Storage.getValue/ */
     x = inlineNeedsToyboxImport();
     check(x == null ? 1 : 0, 1, logger);
+
+    /* @match /^var lg = logger \!= null \?/ */
+    var lg = doubleSubstitution(logger);
+    check(lg == logger ? 1 : 0, 1, logger);
     return ok;
 }
 
