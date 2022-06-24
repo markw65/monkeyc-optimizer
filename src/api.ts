@@ -5,14 +5,14 @@ import {
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
-import { traverseAst } from "./ast";
+import { traverseAst, hasProperty } from "./ast";
 import { diagnostic } from "./inliner";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
 export { visitReferences } from "./visitor";
-export { traverseAst };
+export { traverseAst, hasProperty };
 
 /*
  * This is an unfortunate hack. I want to be able to extract things
@@ -98,18 +98,6 @@ export async function getApiMapping(
     console.error(`${e}`);
     return null;
   }
-}
-
-// We can use hasProperty to remove undefined/null (as a side effect),
-// but we shouldn't apply it to things the compiler already knows are
-// non null because them the compiler will incorrectly infer never in the
-// false case.
-export function hasProperty<
-  T extends null extends T ? unknown : undefined extends T ? unknown : never
->(obj: T, prop: string): obj is NonNullable<T>;
-export function hasProperty<T>(obj: T, prop: string): boolean;
-export function hasProperty(obj: unknown, prop: string): boolean {
-  return obj ? Object.prototype.hasOwnProperty.call(obj, prop) : false;
 }
 
 export function isStateNode(node: StateNodeDecl): node is StateNode {
