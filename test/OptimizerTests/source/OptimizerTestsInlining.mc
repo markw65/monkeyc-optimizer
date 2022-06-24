@@ -284,7 +284,7 @@ function testMultipleReturnsNoFinalReturn(y as Number) as Number {
 }
 
 module Wrapper {
-    var z = 5000;
+    var z as Number = 5000;
     (:test)
     function inlineReturnContext(logger as Logger) as Boolean {
         var x;

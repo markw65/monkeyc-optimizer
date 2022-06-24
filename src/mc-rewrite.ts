@@ -377,7 +377,57 @@ function getNodeValue(
   return [node, type];
 }
 
-function optimizeNode(node: mctree.Node) {
+function fullTypeName(state: ProgramStateAnalysis, tsp: mctree.TypeSpecPart) {
+  if (typeof tsp.name === "string") {
+    return tsp.name;
+  }
+  const [, results] = state.lookupType(tsp.name);
+  if (results && results.length === 1 && results[0].results.length === 1) {
+    const result = results[0].results[0];
+    if (isStateNode(result)) {
+      return result.fullName;
+    }
+  }
+  return null;
+}
+
+function isBooleanExpression(
+  state: ProgramStateAnalysis,
+  node: mctree.Node
+): boolean {
+  switch (node.type) {
+    case "Literal":
+      return typeof node.value === "boolean";
+    case "BinaryExpression":
+      switch (node.operator) {
+        case "==":
+        case "!=":
+        case "<=":
+        case ">=":
+        case "<":
+        case ">":
+          return true;
+        case "as":
+          return node.right.ts.length === 1 &&
+            node.right.ts[0].type === "TypeSpecPart" &&
+            node.right.ts[0].name &&
+            fullTypeName(state, node.right.ts[0]) === "$.Toybox.Lang.Boolean"
+            ? true
+            : false;
+      }
+      return false;
+    case "LogicalExpression":
+      return (
+        isBooleanExpression(state, node.left) &&
+        isBooleanExpression(state, node.right)
+      );
+    case "UnaryExpression":
+      return node.operator === "!" && isBooleanExpression(state, node.argument);
+  }
+  return false;
+}
+
+function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
   switch (node.type) {
     case "UnaryExpression": {
       const [arg, type] = getNodeValue(node.argument);
@@ -429,27 +479,41 @@ function optimizeNode(node: mctree.Node) {
           type === "Number" ? left & right : null,
         "|": (left: number, right: number, type: string) =>
           type === "Number" ? left | right : null,
+        "^": (left: number, right: number, type: string) =>
+          type === "Number" ? left ^ right : null,
         "<<": (left: number, right: number, type: string) =>
           type === "Number" ? left << right : null,
         ">>": (left: number, right: number, type: string) =>
           type === "Number" ? left >> right : null,
-      };
-      const op = operators[node.operator as keyof typeof operators];
+        "==": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
+          left == right,
+        "!=": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
+          left != right,
+        "<=": (left: number, right: number) => left <= right,
+        ">=": (left: number, right: number) => left >= right,
+        "<": (left: number, right: number) => left < right,
+        ">": (left: number, right: number) => left > right,
+        as: null,
+        instanceof: null,
+        has: null,
+      } as const;
+      const op = operators[node.operator];
       if (op) {
         const [left, left_type] = getNodeValue(node.left);
         const [right, right_type] = getNodeValue(node.right);
         if (!left || !right) break;
+        let value = null;
         if (
           left_type != right_type ||
           (left_type != "Number" && left_type != "Long")
         ) {
-          break;
+          if (node.operator !== "==" && node.operator !== "!=") {
+            break;
+          }
+          value = operators[node.operator](left.value, right.value);
+        } else {
+          value = op(left.value as number, right.value as number, left_type);
         }
-        const value = op(
-          left.value as number,
-          right.value as number,
-          left_type
-        );
         if (value === null) break;
         return {
           ...left,
@@ -459,8 +523,42 @@ function optimizeNode(node: mctree.Node) {
       }
       break;
     }
+    case "LogicalExpression": {
+      const [left, left_type] = getNodeValue(node.left);
+      if (!left) break;
+      const falsy =
+        left.value === false ||
+        left.value === null ||
+        (left.value === 0 && (left_type === "Number" || left_type === "Long"));
+      if (falsy === (node.operator === "&&")) {
+        return left;
+      }
+      if (
+        left_type !== "Boolean" &&
+        left_type !== "Number" &&
+        left_type !== "Long"
+      ) {
+        break;
+      }
+      const [right, right_type] = getNodeValue(node.right);
+      if (right && right_type === left_type) {
+        if (left_type === "Boolean" || node.operator === "||") {
+          return right;
+        }
+        if (node.operator !== "&&") {
+          throw new Error(`Unexpected operator "${node.operator}"`);
+        }
+        return { ...node, type: "BinaryExpression", operator: "&" } as const;
+      }
+      if (left_type === "Boolean") {
+        if (isBooleanExpression(state, node.right)) {
+          return node.right;
+        }
+      }
+      break;
+    }
     case "FunctionDeclaration":
-      if (node.body && evaluateFunction(node, null) !== false) {
+      if (node.body && evaluateFunction(state, node, null) !== false) {
         node.optimizable = true;
       }
       break;
@@ -469,6 +567,7 @@ function optimizeNode(node: mctree.Node) {
 }
 
 function evaluateFunction(
+  state: ProgramStateAnalysis,
   func: mctree.FunctionDeclaration,
   args: mctree.Node[] | null
 ) {
@@ -516,7 +615,7 @@ function evaluateFunction(
                 }
               // fall through;
               default: {
-                const repl = optimizeNode(node);
+                const repl = optimizeNode(state, node);
                 if (repl && repl.type === "Literal") return repl;
                 throw new Error("Didn't optimize");
               }
@@ -828,7 +927,7 @@ export async function optimizeMonkeyC(
     if (topLocals().node === node) {
       state.localsStack.pop();
     }
-    const opt = optimizeNode(node);
+    const opt = optimizeNode(state, node);
     if (opt) {
       return replace(opt, node);
     }
@@ -1067,7 +1166,7 @@ function optimizeCall(
       !callee.hasOverride &&
       node.arguments.every((n) => getNodeValue(n)[0] !== null)
     ) {
-      const ret = evaluateFunction(callee, node.arguments);
+      const ret = evaluateFunction(state, callee, node.arguments);
       if (ret) {
         return ret;
       }

@@ -207,11 +207,11 @@ module Inheritance {
         hidden var h as Number = 1;
         private var p as Number = 1;
         (:inline)
-        function badQualifier() {
+        function badQualifier() as Number {
             var x = p;
             return x;
         }
-        function foo() {
+        function foo() as Number {
             var p;
             /* @match /var x = self.p;/ /return p \+ 24;/ */
             p = badQualifier();
@@ -232,6 +232,7 @@ module Inheritance {
             /* @match "self.h + h" */
             return localConflict() + h;
         }
+        (:typecheck(false))
         function baz() as Number {
             var p = 42;
             /* @match "self.p + p" */
