@@ -144,7 +144,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
 
     /* @match /^var lg = logger \!= null \?/ */
     var lg = doubleSubstitution(logger);
-    check(lg == logger ? 1 : 0, 1, logger);
+    check((lg as Logger) == logger ? 1 : 0, 1, logger);
     return ok;
 }
 

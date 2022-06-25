@@ -5,8 +5,6 @@ import Toybox.Application.Storage;
 import Toybox.WatchUi;
 import A.B;
 
-var gRunFailingTests as Boolean = :lookupTests == null;
-
 (:inline)
 function inlineNeedsLocalImport() as Number {
     return B.a();
@@ -54,7 +52,7 @@ class TestClass extends X.Y.Base {
     function initialize() {
         Base.initialize();
     }
-    const FOO = ENDIAN_BIG;
+    const FOO as Number = ENDIAN_BIG as Number;
     function noSystem() as Void {
         // works!
         System.println(Communications.UNKNOWN_ERROR as Number);
@@ -84,24 +82,43 @@ class TestClass extends X.Y.Base {
     }
 }
 
-function lookupTests() as Void {
-    // all work
-    $.Toybox.System.println(TestClass.FOO as Number);
+(:test)
+function lookupTestsWorking(logger as Logger) as Boolean {
+    logger.debug(TestClass.FOO == null ? "Null" : "ERROR");
     var x = new TestClass();
-    $.Toybox.System.println(TestClass.FOO as Number);
+    logger.debug(x.FOO.toString());
     x.noSystem();
-    $.Toybox.System.println(x.noNumber(1));
-    $.Toybox.System.println(x.noNumber(new $.Dictionary()));
-    $.Toybox.System.println(x.noNumber({ "a" => "b" }));
+    logger.debug(x.noNumber(1).toString());
+    logger.debug(x.noNumber(new $.Dictionary()).toString());
+    logger.debug(x.noNumber({ "a" => "b" }).toString());
+    return true;
+}
 
-    if (gRunFailingTests) {
-        // all fail
-        noSystem();
-        $.Toybox.System.println(noNumber(1));
-        $.Toybox.System.println(TestClass.noNumberStatic(1));
-        $.properties();
-        x.properties();
-    }
+(:test)
+function lookupTestCrash1(logger as Logger) as Boolean {
+    noSystem();
+    return false;
+}
+(:test)
+function lookupTestCrash2(logger as Logger) as Boolean {
+    $.Toybox.System.println(noNumber(1));
+    return false;
+}
+(:test)
+function lookupTestCrash3(logger as Logger) as Boolean {
+    $.Toybox.System.println(TestClass.noNumberStatic(1));
+    return false;
+}
+(:test)
+function lookupTestCrash4(logger as Logger) as Boolean {
+    $.properties();
+    return false;
+}
+(:test)
+function lookupTestCrash5(logger as Logger) as Boolean {
+    var x = new TestClass();
+    x.properties();
+    return false;
 }
 
 /*
