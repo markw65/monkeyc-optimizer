@@ -193,11 +193,21 @@ export function traverseAst(
         );
       }
     } else if (isMCTreeNode(value)) {
-      const repl = traverseAst(value, pre, post);
+      let repl = traverseAst(value, pre, post);
       if (repl === false) {
         delete node[key as keyof mctree.Node];
       } else if (repl != null) {
         if (Array.isArray(repl)) {
+          if (isStatement(value) && repl.every((s) => isStatement(s))) {
+            repl = withLoc(
+              {
+                type: "BlockStatement",
+                body: repl as mctree.Statement[],
+              },
+              repl[0],
+              repl[repl.length - 1]
+            );
+          }
           throw new Error("Array returned by traverseAst in Node context");
         }
         (node as unknown as Record<string, unknown>)[key] = repl;
@@ -225,4 +235,20 @@ export function hasProperty<
 export function hasProperty<T>(obj: T, prop: string): boolean;
 export function hasProperty(obj: unknown, prop: string): boolean {
   return obj ? Object.prototype.hasOwnProperty.call(obj, prop) : false;
+}
+
+export function withLoc<T extends mctree.Node>(
+  node: T,
+  start: mctree.Node | null,
+  end: mctree.Node | null
+): T {
+  if (start && start.loc) {
+    node.start = start.start;
+    node.loc = { ...(node.loc || start.loc), start: start.loc.start };
+  }
+  if (end && end.loc) {
+    node.end = end.end;
+    node.loc = { ...(node.loc || end.loc), end: end.loc.end };
+  }
+  return node;
 }

@@ -446,7 +446,8 @@ function inlineDiagnostic(
 export type InlineContext =
   | mctree.ReturnStatement
   | mctree.AssignmentExpression
-  | mctree.ExpressionStatement;
+  | mctree.ExpressionStatement
+  | mctree.VariableDeclarator;
 
 function inlineWithArgs(
   state: ProgramStateAnalysis,
@@ -481,7 +482,11 @@ function inlineWithArgs(
         call,
         "Function had more than one return statement"
       );
-    } else if (context.type === "AssignmentExpression" && retStmtCount !== 1) {
+    } else if (
+      (context.type === "AssignmentExpression" ||
+        context.type === "VariableDeclarator") &&
+      retStmtCount !== 1
+    ) {
       inlineDiagnostic(
         state,
         func,
@@ -495,7 +500,9 @@ function inlineWithArgs(
       if (
         !last ||
         last.type !== "ReturnStatement" ||
-        (context.type === "AssignmentExpression" && !last.argument)
+        ((context.type === "AssignmentExpression" ||
+          context.type === "VariableDeclarator") &&
+          !last.argument)
       ) {
         inlineDiagnostic(
           state,
@@ -533,15 +540,30 @@ function inlineWithArgs(
     if (last.type != "ReturnStatement") {
       throw new Error("ReturnStatement got lost!");
     }
-    if (context.type === "AssignmentExpression") {
-      context.right = last.argument!;
-      body.body[body.body.length - 1] = {
-        type: "ExpressionStatement",
-        expression: context,
-      };
-    } else if (last.argument) {
-      const side_exprs = unused(last.argument);
-      body.body.splice(body.body.length - 1, 1, ...side_exprs);
+    if (last.argument) {
+      if (context.type === "AssignmentExpression") {
+        context.right = last.argument;
+        body.body[body.body.length - 1] = {
+          type: "ExpressionStatement",
+          expression: context,
+        };
+      } else if (context.type === "VariableDeclarator") {
+        const { id, init: _init, kind: _kind, ...rest } = context;
+        body.body[body.body.length - 1] = {
+          ...rest,
+          type: "ExpressionStatement",
+          expression: {
+            ...rest,
+            type: "AssignmentExpression",
+            operator: "=",
+            left: id.type === "Identifier" ? id : id.left,
+            right: last.argument,
+          },
+        };
+      } else {
+        const side_exprs = unused(last.argument);
+        body.body.splice(body.body.length - 1, 1, ...side_exprs);
+      }
     } else {
       --body.body.length;
     }

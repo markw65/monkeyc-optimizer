@@ -344,6 +344,27 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = A.B.s3(2);
     check(z, 10, logger);
 
+    /* @match "var a;" "z += 2; a = z;" */
+    var a = A.B.s3(2);
+    check(a, 12, logger);
+
+    /* @match "var b = 42, c;" "z += 3" "var d;" "z += 4" "var e = 42;" */
+    var b = 42,
+        c = A.B.s3(3),
+        d = A.B.s3(4),
+        e = 42;
+    check(c, 15, logger);
+    check(d, 19, logger);
+
+    // inlining here would require a lot of gymnastics. Don't allow it
+    // for now.
+    /* @match /^for / */
+    for (
+        var f = 42, g = A.B.s3(3), h = A.B.s3(4), i = 42;
+        f < 42;
+        f++, g = A.B.s3(3)
+    ) {}
+
     z = 0;
     /* @match /A.B.s3/ */
     arr[z] = A.B.s3(1);

@@ -12,7 +12,7 @@ import {
   isStateNode,
   variableDeclarationName,
 } from "./api";
-import { traverseAst } from "./ast";
+import { traverseAst, withLoc } from "./ast";
 import {
   diagnostic,
   InlineContext,
@@ -924,7 +924,8 @@ export async function optimizeMonkeyC(
     return null;
   };
   state.post = (node) => {
-    if (topLocals().node === node) {
+    const locals = topLocals();
+    if (locals.node === node) {
       state.localsStack.pop();
     }
     const opt = optimizeNode(state, node);
@@ -977,6 +978,56 @@ export async function optimizeMonkeyC(
           return { type: "Literal", value: null, raw: "null" };
         }
         break;
+
+      case "VariableDeclaration": {
+        const locals = topLocals();
+        if (
+          locals.map &&
+          locals.node &&
+          locals.node.type === "BlockStatement"
+        ) {
+          let results: mctree.Statement[] | undefined;
+          const declarations = node.declarations;
+          let i = 0;
+          let j = 0;
+          while (i < node.declarations.length) {
+            const decl = declarations[i++];
+            if (decl.init && decl.init.type === "CallExpression") {
+              const inlined = optimizeCall(state, decl.init, decl);
+              if (!inlined) continue;
+              if (inlined.type != "BlockStatement") {
+                throw new Error("Unexpected inlined result");
+              }
+              if (!results) {
+                results = [];
+              }
+              delete decl.init;
+              results.push(
+                withLoc(
+                  {
+                    ...node,
+                    declarations: declarations.slice(j, i),
+                  },
+                  j ? declarations[j] : null,
+                  decl.id
+                )
+              );
+              results.push(inlined);
+              j = i;
+            }
+          }
+          if (results) {
+            if (j < i) {
+              results.push({
+                ...node,
+                declarations: declarations.slice(j, i),
+              });
+            }
+            return results;
+          }
+        }
+        break;
+      }
 
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
