@@ -64,13 +64,12 @@ export function pragmaChecker(
     if (node.start && node.start >= (comment.end || Infinity)) {
       const { kind, quote, needle } = matchers.shift()!;
       if (kind === "match") {
-        if (
-          !matcher(quote, needle, formatAst(node).replace(/([\r\n]|\s)+/g, " "))
-        ) {
+        const haystack = formatAst(node).replace(/([\r\n]|\s)+/g, " ");
+        if (!matcher(quote, needle, haystack)) {
           throw new Error(
-            `Didn't find '${needle}' at ${comment.loc!.source}:${
-              comment.loc!.start.line
-            }`
+            `Didn't find '${needle}' in '${haystack}' at ${
+              comment.loc!.source
+            }:${comment.loc!.start.line}`
           );
         }
       } else if (kind === "expect") {
