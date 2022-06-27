@@ -36,17 +36,17 @@ export async function build_project(
   if (!product) {
     extraArgs.push("-e");
   }
-  switch (typeCheckLevel) {
-    case "Off":
+  switch (typeCheckLevel?.toLowerCase()) {
+    case "off":
       extraArgs.push("-l", "0");
       break;
-    case "Gradual":
+    case "gradual":
       extraArgs.push("-l", "1");
       break;
-    case "Informative":
+    case "informative":
       extraArgs.push("-l", "2");
       break;
-    case "Strict":
+    case "strict":
       extraArgs.push("-l", "3");
       break;
   }
