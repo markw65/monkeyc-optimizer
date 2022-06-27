@@ -5,7 +5,7 @@ import {
   sameLookupResult,
   variableDeclarationName,
 } from "./api";
-import { traverseAst } from "./ast";
+import { traverseAst, withLoc } from "./ast";
 import { renameVariable } from "./variable-renamer";
 
 function getArgSafety(
@@ -353,15 +353,24 @@ function processInlineBody<T extends InlineBody>(
 
 export function unused(
   expression: mctree.ExpressionStatement["expression"]
-): mctree.ExpressionStatement[];
+): mctree.Statement[];
 export function unused(
   expression: mctree.ExpressionStatement["expression"],
   top: true
-): mctree.ExpressionStatement[] | null;
+): mctree.Statement[] | null;
 export function unused(
   expression: mctree.ExpressionStatement["expression"],
   top?: boolean
-): mctree.ExpressionStatement[] | null {
+): mctree.Statement[] | null {
+  const estmt = (expression: mctree.Expression) =>
+    withLoc(
+      {
+        type: "ExpressionStatement",
+        expression,
+      },
+      expression,
+      null
+    );
   switch (expression.type) {
     case "Literal":
       return [];
@@ -373,9 +382,69 @@ export function unused(
       if (expression.operator === "as") {
         return unused(expression.left);
       }
-    // fall through
-    case "LogicalExpression":
       return unused(expression.left).concat(unused(expression.right));
+    case "LogicalExpression": {
+      const right = unused(expression.right);
+      if (!right.length) return unused(expression.left);
+      const consequent = withLoc(
+        {
+          type: "BlockStatement",
+          body: [estmt(expression.right)],
+        },
+        expression.right,
+        null
+      );
+      let alternate;
+      if (expression.operator == "||") {
+        alternate = { ...consequent };
+        consequent.body = [];
+      }
+      return [
+        withLoc(
+          {
+            type: "IfStatement",
+            test: expression.left,
+            consequent,
+            alternate,
+          },
+          expression,
+          null
+        ),
+      ];
+    }
+    case "ConditionalExpression": {
+      const consequentExprs = unused(expression.consequent);
+      const alternateExprs = unused(expression.alternate);
+      if (!consequentExprs.length && !alternateExprs.length) {
+        return unused(expression.test);
+      }
+      return [
+        withLoc(
+          {
+            type: "IfStatement",
+            test: expression.test,
+            consequent: withLoc(
+              {
+                type: "BlockStatement",
+                body: consequentExprs,
+              },
+              expression.consequent,
+              null
+            ),
+            alternate: withLoc(
+              {
+                type: "BlockStatement",
+                body: alternateExprs,
+              },
+              expression.alternate,
+              null
+            ),
+          },
+          expression,
+          null
+        ),
+      ];
+    }
     case "UnaryExpression":
       return unused(expression.argument);
     case "MemberExpression":
@@ -390,17 +459,7 @@ export function unused(
         .map((p) => unused(p.key).concat(unused(p.value)))
         .flat(1);
   }
-  return top
-    ? null
-    : [
-        {
-          type: "ExpressionStatement",
-          expression,
-          start: expression.start,
-          end: expression.end,
-          loc: expression.loc,
-        },
-      ];
+  return top ? null : [estmt(expression)];
 }
 
 export function diagnostic(

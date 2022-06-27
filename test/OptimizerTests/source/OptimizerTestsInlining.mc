@@ -234,23 +234,48 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
     return ok;
 }
 
+(:inline)
+function unusedArray1() as Array {
+    return [1, 2, 3];
+}
+
+(:inline)
+function unusedArray2() as Array {
+    return [1, A.B.a(), 3];
+}
+
+(:inline)
+function unusedObject() as Dictionary {
+    return { A.B.a() => A.B.x, "x" => 42 };
+}
+
+(:inline)
+function unusedLogicals() as Number {
+    return (
+        (A.B.a() || 3) * (A.B.s1(A.B.x) || 4) +
+        (A.B.x != 0 ? A.B.s1(1) : A.B.x) +
+        (A.B.x != 0 && A.B.s1(1)) +
+        (A.B.x == 0 || A.B.s1(1))
+    );
+}
+
 (:test)
 function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 0;
 
     /* @match /^check/ */
-    [1, 2, 3];
+    unusedArray1();
     check(A.B.x, 0, logger);
-    /* @ match /^A.B.a/ /^check/ */
-    //[1, A.B.a(), 3];
-    //check(A.B.x, 1, logger);
-    /* @ match /^A.B.a/ /^check/ */
-    //{ A.B.a() => A.B.x, "x" => 42 };
-    //check(A.B.x, 2, logger);
-    /* @ match /^A.B.a/ /^\{.*\}/ /^check/ * /
-    ((A.B.a() || 3) * (A.B.s1(A.B.x) || 4));
-    check(A.B.x, 7, logger);*/
+    /* @match /^A.B.a/ /^check/ */
+    unusedArray2();
+    check(A.B.x, 1, logger);
+    /* @match /^A.B.a/ /^check/ */
+    unusedObject();
+    check(A.B.x, 2, logger);
+    /* @match /^A.B.a\(\);/ /\{.*?\}/ /if \(A.B.x != 0\) \{.*?\}/ /if \(A.B.x != 0\) \{.*\}/ /if \(A.B.x == 0\) \{ \} else \{/ /^check/ */
+    unusedLogicals();
+    check(A.B.x, 13, logger);
     return ok;
 }
 
@@ -274,7 +299,7 @@ function multipleReturnsNoFinalReturn(y as Number) as Number {
 
 // prettier-ignore
 function testMultipleReturns(y as Number) as Number {
-    /* @match /^\{.*\}$/ */
+    /* @match /^if \(y > 3\)/ */
     return multipleReturns(y);
 }
 

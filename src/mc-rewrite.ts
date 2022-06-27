@@ -933,6 +933,11 @@ export async function optimizeMonkeyC(
       return replace(opt, node);
     }
     switch (node.type) {
+      case "BlockStatement":
+        if (node.body.length === 1 && node.body[0].type === "BlockStatement") {
+          node.body.splice(0, 1, ...node.body[0].body);
+        }
+        break;
       case "ConditionalExpression":
       case "IfStatement":
         if (
@@ -942,6 +947,13 @@ export async function optimizeMonkeyC(
           const rep = node.test.value ? node.consequent : node.alternate;
           if (!rep) return false;
           return replace(rep, rep);
+        } else if (
+          node.type === "IfStatement" &&
+          node.alternate &&
+          node.alternate.type === "BlockStatement" &&
+          !node.alternate.body.length
+        ) {
+          delete node.alternate;
         }
         break;
       case "WhileStatement":
