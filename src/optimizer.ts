@@ -95,6 +95,7 @@ declare global {
     returnCommand?: boolean; // If true, build_project just returns the command to run the build, rather than building it
     checkBuildPragmas?: boolean; // If true, check any build pragmas in the generated code
     checkInvalidSymbols?: DiagnosticType | "OFF";
+    sizeBasedPRE?: boolean | string;
     _cache?: {
       barrels?: Record<string, ResolvedJungle>;
       barrelMap?: Record<string, Record<string, ResolvedJungle>>;
@@ -806,6 +807,7 @@ const configOptionsToCheck = [
   "ignoredAnnotations",
   "ignoredSourcePaths",
   "checkInvalidSymbols",
+  "sizeBasedPRE",
 ] as const;
 
 /**

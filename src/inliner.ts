@@ -308,7 +308,7 @@ function processInlineBody<T extends InlineBody>(
           if (hasProperty(params, node.name)) {
             const ix = params[node.name];
             if (ix >= 0) {
-              replacement = call.arguments[ix];
+              replacement = { ...call.arguments[ix] };
               replacements.add(replacement);
               return replacement;
             }
@@ -368,8 +368,7 @@ export function unused(
         type: "ExpressionStatement",
         expression,
       },
-      expression,
-      null
+      expression
     );
   switch (expression.type) {
     case "Literal":
@@ -391,8 +390,7 @@ export function unused(
           type: "BlockStatement",
           body: [estmt(expression.right)],
         },
-        expression.right,
-        null
+        expression.right
       );
       let alternate;
       if (expression.operator == "||") {
@@ -407,8 +405,7 @@ export function unused(
             consequent,
             alternate,
           },
-          expression,
-          null
+          expression
         ),
       ];
     }
@@ -428,20 +425,17 @@ export function unused(
                 type: "BlockStatement",
                 body: consequentExprs,
               },
-              expression.consequent,
-              null
+              expression.consequent
             ),
             alternate: withLoc(
               {
                 type: "BlockStatement",
                 body: alternateExprs,
               },
-              expression.alternate,
-              null
+              expression.alternate
             ),
           },
-          expression,
-          null
+          expression
         ),
       ];
     }

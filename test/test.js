@@ -26,6 +26,8 @@ async function test() {
   let execute = false;
   let testBuild = false;
   let checkInvalidSymbols = "ERROR";
+  let sizeBasedPRE = true;
+  let checkBuildPragmas;
 
   const sdk = await getSdkPath();
   const isBeta = sdk.match(/Compiler2Beta/);
@@ -88,10 +90,21 @@ async function test() {
         if (value == null) return key;
         checkInvalidSymbols = value;
         break;
+      case "sizeBasedPRE":
+        if (value == null) return key;
+        sizeBasedPRE = /^true|1$/i.test(value)
+          ? true
+          : /^false|0$/i.test(value)
+          ? false
+          : value;
+        break;
       case "ignoreInvalidSymbols":
         if (!value || /^true|1$/i.test(value)) {
           extraMonkeycArgs.push("--Eno-invalid-symbol");
         }
+        break;
+      case "checkBuildPragmas":
+        checkBuildPragmas = !value || /^true|1$/i.test(value);
         break;
       case "product":
         if (value == null) return key;
@@ -146,6 +159,9 @@ async function test() {
     }
     await launchSimulator();
   }
+  if (checkBuildPragmas === undefined && testBuild === true) {
+    checkBuildPragmas = true;
+  }
   if (jungleOnly) {
     products = [];
     generateOnly = true;
@@ -170,10 +186,11 @@ async function test() {
       typeCheckLevel,
       skipOptimization,
       checkInvalidSymbols,
+      sizeBasedPRE,
       ...jungleOptions,
       returnCommand: true,
       checkManifest: true,
-      checkBuildPragmas: testBuild == true,
+      checkBuildPragmas,
     };
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k]

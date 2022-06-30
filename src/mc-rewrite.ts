@@ -20,6 +20,7 @@ import {
   shouldInline,
   unused,
 } from "./inliner";
+import { sizeBasedPRE } from "./pre";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 import { visitReferences } from "./visitor";
@@ -1089,6 +1090,7 @@ export async function optimizeMonkeyC(
   });
   delete state.pre;
   delete state.post;
+  state.allFunctions.forEach((fn) => sizeBasedPRE(state, fn));
 
   const cleanup = (node: mctree.Node) => {
     switch (node.type) {

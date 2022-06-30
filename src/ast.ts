@@ -207,8 +207,9 @@ export function traverseAst(
               repl[0],
               repl[repl.length - 1]
             );
+          } else {
+            throw new Error("Array returned by traverseAst in Node context");
           }
-          throw new Error("Array returned by traverseAst in Node context");
         }
         (node as unknown as Record<string, unknown>)[key] = repl;
       }
@@ -223,6 +224,22 @@ export function isStatement(node: mctree.Node): node is mctree.Statement {
 
 export function isExpression(node: mctree.Node): node is mctree.Expression {
   return hasProperty(mctreeTypeInfo[node.type], "expr");
+}
+
+export function mayThrow(node: mctree.Node) {
+  switch (node.type) {
+    case "BinaryExpression":
+    case "CallExpression":
+    case "ConditionalExpression":
+    case "LogicalExpression":
+    case "NewExpression":
+    case "ThrowStatement":
+    case "UnaryExpression":
+    case "UpdateExpression":
+      return true;
+    default:
+      return false;
+  }
 }
 
 // We can use hasProperty to remove undefined/null (as a side effect),
@@ -240,7 +257,7 @@ export function hasProperty(obj: unknown, prop: string): boolean {
 export function withLoc<T extends mctree.Node>(
   node: T,
   start: mctree.Node | null,
-  end: mctree.Node | null
+  end?: mctree.Node | undefined
 ): T {
   if (start && start.loc) {
     node.start = start.start;
@@ -250,6 +267,23 @@ export function withLoc<T extends mctree.Node>(
   if (end && end.loc) {
     node.end = end.end;
     node.loc = { ...(node.loc || end.loc), end: end.loc.end };
+  }
+  return node;
+}
+
+export function withLocDeep<T extends mctree.Node>(
+  node: T,
+  start: mctree.Node | null,
+  end?: mctree.Node | undefined
+): T {
+  node = withLoc({ ...node }, start, end);
+  for (const key of mctreeTypeInfo[node.type].keys) {
+    const value = (node as mctree.NodeAll)[key as keyof mctree.NodeAll];
+    if (!value) continue;
+    const fix = (v: unknown) =>
+      isMCTreeNode(v) ? withLocDeep(v, start, end) : v;
+    const repl = Array.isArray(value) ? value.map(fix) : fix(value);
+    (node as unknown as Record<string, unknown>)[key] = repl;
   }
   return node;
 }

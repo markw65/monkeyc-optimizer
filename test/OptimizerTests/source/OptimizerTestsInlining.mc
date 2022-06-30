@@ -119,7 +119,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     // h can be inlined unless its argument has side effects.
     x = /* @match 2 */ A.B.h(1);
     check(x, 2, logger);
-    x = /* @match "A.B.x + A.B.x" */ A.B.h(A.B.x);
+    x = /* @match /^([\w.]+x) \+ \1/ */ A.B.h(A.B.x);
     check(x, 8, logger);
     x = /* @match A.B.h */ A.B.h(A.B.a()) + 1;
     check(x, 11, logger);
