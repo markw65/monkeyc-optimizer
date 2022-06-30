@@ -100,7 +100,7 @@ async function test() {
         break;
       case "github":
         if (value) {
-          const re = new RegExp(value, "i");
+          const re = new RegExp(value.replace(/-/g, "."), "i");
           remoteProjects = githubProjects.filter((project) =>
             re.test(typeof project === "string" ? project : project.root)
           );
