@@ -383,6 +383,7 @@ type AnticipatedState = {
   node: RefNodes;
   members: Map<PREBlock, boolean>;
   head?: PREBlock;
+  isIsolated?: true;
 };
 /**
  * AnticipatedDecls is a map from EventDecl to the
@@ -433,21 +434,28 @@ function cloneAnticipatedState(as: AnticipatedState): AnticipatedState {
   };
 }
 
+function mergeAnticipatedState(ae: AnticipatedState, be: AnticipatedState) {
+  mergeSet(ae.ant, be.ant);
+  be.members.forEach((live, block) => ae.members.set(block, live));
+  if (be.live) ae.live = true;
+}
+
 function cloneAnticipatedDecls(ad: AnticipatedDecls) {
   const copy = anticipatedDecls();
   for (const [k, v] of ad) {
-    copy.set(k, cloneAnticipatedState(v));
+    if (!v.isIsolated) {
+      copy.set(k, cloneAnticipatedState(v));
+    }
   }
   return copy;
 }
 
 function mergeAnticipatedDecls(a: AnticipatedDecls, b: AnticipatedDecls) {
   for (const [k, v] of b) {
+    if (v.isIsolated) continue;
     const ae = a.get(k);
     if (ae) {
-      mergeSet(ae.ant, v.ant);
-      v.members.forEach((live, block) => ae.members.set(block, live));
-      if (v.live) ae.live = true;
+      mergeAnticipatedState(ae, v);
     } else {
       a.set(k, cloneAnticipatedState(v));
     }
@@ -461,6 +469,7 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
     if (
       !be ||
       be.live != ae.live ||
+      be.isIsolated != ae.isIsolated ||
       !equalSet(ae.ant, be.ant) ||
       !equalMap(ae.members, be.members)
     ) {
@@ -537,7 +546,8 @@ function candidateCost(candState: AnticipatedState) {
       cost += defCost(candState.node);
     }
   });
-  cost += defCost(candState.node) * candidateBoundary(candState).size;
+  const boundarySize = candidateBoundary(candState).size;
+  cost += defCost(candState.node) * boundarySize;
   return cost;
 }
 
@@ -715,6 +725,13 @@ function computeAttributes(head: PREBlock) {
     curState.forEach((antState) => {
       antState.head = top;
       antState.members.set(top, antState.live);
+      if (!antState.live && candidateBoundary(antState).size === 0) {
+        // we found a group that's isolated from the rest
+        // of the function. Don't merge it with earlier
+        // refs and defs, because we can take it or leave
+        // it based on its own cost.
+        antState.isIsolated = true;
+      }
     });
 
     const oldState = blockStates[top.order!];
@@ -734,7 +751,11 @@ function computeAttributes(head: PREBlock) {
         const cost = candidateCost(events);
         if (cost >= 0) return;
         const existing = candidateDecls.get(decl);
-        if (!existing || candidateCost(existing) > cost) {
+        if (
+          !existing ||
+          existing.isIsolated ||
+          candidateCost(existing) > cost
+        ) {
           const boundary = candidateBoundary(events);
           if (
             !Array.from(boundary).every((block) => {
@@ -775,7 +796,10 @@ function computeAttributes(head: PREBlock) {
             return;
           }
           events.live = false;
-          if (candidateCost(events) != cost) {
+          if (existing && existing.isIsolated) {
+            delete existing.isIsolated;
+            mergeAnticipatedState(events, existing);
+          } else if (candidateCost(events) != cost) {
             throw new Error(`cost of block ${i} changed`);
           }
           candidateDecls.set(decl, events);

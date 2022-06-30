@@ -500,6 +500,7 @@ function cleanCfg<T extends EventConstraint<T>>(head: Block<T>) {
             })
           );
         }
+        if (!cur.node) cur.node = succ.node;
       }
     }
   });
