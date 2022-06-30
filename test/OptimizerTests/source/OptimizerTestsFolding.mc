@@ -7,54 +7,54 @@ const ZERO_CONST = 0;
 function testRelationalFolding(logger as Logger) as Boolean {
     ok = true;
     var x = logger != null;
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(NON_ZERO_CONST == ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(ZERO_CONST == ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(ZERO_CONST == NON_ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(false == NON_ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(null == NON_ZERO_CONST ? 42 : 24, 24, logger);
 
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST != ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(ZERO_CONST != ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(ZERO_CONST != NON_ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(false != NON_ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(null != NON_ZERO_CONST ? 42 : 24, 42, logger);
 
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(NON_ZERO_CONST <= ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST <= NON_ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(ZERO_CONST <= NON_ZERO_CONST ? 42 : 24, 42, logger);
 
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(NON_ZERO_CONST < ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(NON_ZERO_CONST < NON_ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(ZERO_CONST < NON_ZERO_CONST ? 42 : 24, 42, logger);
 
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST >= ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST >= NON_ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(ZERO_CONST >= NON_ZERO_CONST ? 42 : 24, 24, logger);
 
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST > ZERO_CONST ? 42 : 24, 42, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(NON_ZERO_CONST > NON_ZERO_CONST ? 42 : 24, 24, logger);
-    /* @match "check(24, 24, logger);" */
+    /* @match /check\(@24, @24, logger\);/ */
     check(ZERO_CONST > NON_ZERO_CONST ? 42 : 24, 24, logger);
     return ok;
 }
@@ -63,28 +63,28 @@ function testRelationalFolding(logger as Logger) as Boolean {
 function testLogicalFolding(logger as Logger) as Boolean {
     ok = true;
     var x = logger != null;
-    /* @match "check(0, 0, logger);" */
+    /* @match /check\(@0, @0, logger\);/ */
     check(NON_ZERO_CONST == 0 && ZERO_CONST == 0 ? 42 : 0, 0, logger);
-    /* @match "check(0, 0, logger);" */
+    /* @match /check\(@0, @0, logger\);/ */
     check(NON_ZERO_CONST == 0 && logger != null ? 42 : 0, 0, logger);
-    /* @match "check(logger != null ? 42 : 0, 42, logger);" */
+    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
     check(NON_ZERO_CONST != 0 && logger != null ? 42 : 0, 42, logger);
     /* @match "check(true && x" */
     check(NON_ZERO_CONST != 0 && x ? 42 : 0, 42, logger);
     // prettier-ignore
-    /* @match "check((x as Boolean) ? 42 : 0" */
+    /* @match /check\(\(x as Boolean\) \? @42 : @0/ */
     check(NON_ZERO_CONST != 0 && (x as Boolean) ? 42 : 0, 42, logger);
 
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST != 0 || ZERO_CONST == 0 ? 42 : 0, 42, logger);
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST != 0 || logger != null ? 42 : 0, 42, logger);
-    /* @match "check(logger != null ? 42 : 0, 42, logger);" */
+    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
     check(NON_ZERO_CONST == 0 || logger != null ? 42 : 0, 42, logger);
     /* @match "check(false || x" */
     check(NON_ZERO_CONST == 0 || x ? 42 : 0, 42, logger);
     // prettier-ignore
-    /* @match "check((x as Boolean) ? 42 : 0" */
+    /* @match /check\(\(x as Boolean\) \? @42 : @0/ */
     check(NON_ZERO_CONST == 0 || (x as Boolean) ? 42 : 0, 42, logger);
     return ok;
 }
@@ -93,9 +93,9 @@ function testLogicalFolding(logger as Logger) as Boolean {
 function testLogicalFoldingNonTypeSafe(logger as Logger) as Boolean {
     ok = true;
     var x = logger != null;
-    /* @match "check(42, 42, logger);" */
+    /* @match /check\(42, 42, logger\);/ */
     check((ZERO_CONST && x) == 0 ? 42 : 0, 42, logger);
-    /* @match "check(0, 0, logger);" */
+    /* @match /check\(0, 0, logger\);/ */
     check((NON_ZERO_CONST || x) == 42 ? 0 : 42, 0, logger);
     return ok;
 }

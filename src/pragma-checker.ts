@@ -55,7 +55,7 @@ export function pragmaChecker(
     if (quote == '"') {
       return haystack.includes(needle);
     }
-    const re = new RegExp(needle);
+    const re = new RegExp(needle.replace(/@(\d+)/g, "(pre_)?$1(_\\d+)?"));
     return re.test(haystack);
   };
   next();
@@ -66,6 +66,7 @@ export function pragmaChecker(
       if (kind === "match") {
         const haystack = formatAst(node).replace(/([\r\n]|\s)+/g, " ");
         if (!matcher(quote, needle, haystack)) {
+          matcher(quote, needle, haystack);
           throw new Error(
             `Didn't find '${needle}' in '${haystack}' at ${
               comment.loc!.source

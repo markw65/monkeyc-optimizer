@@ -213,22 +213,22 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
         A.B.s1(A.B.a());
         check(A.B.x, 13, logger);
     }
-    /* @match /^\{\s*z\s*\+=\s*5;\s*\}$/ */
+    /* @match /^\{ z \+= @5; \}$/ */
     A.B.s2(5);
     check(z, 5, logger);
     {
         var z = 2;
-        /* @match /^\{\s*self.z\s*\+=\s*3;\s*\}$/ */
+        /* @match /^\{ self.z \+= @3; \}$/ */
         A.B.s2(3);
         check($.z, 8, logger);
-        /* @match /^\{\s*self.z\s*\+=\s*A\.B\.x;\s*\}$/ */
+        /* @match /^\{ self.z \+= A\.B\.x; \}$/ */
         A.B.s3(A.B.x);
         check($.z, 21, logger);
-        /* @match /^\{\s*self.z\s*\+=\s*z;\s*A.B.a\(\);\s*\}$/ */
+        /* @match /^\{ self.z \+= z; A.B.a\(\); \}$/ */
         A.B.s4(z);
         check($.z, 23, logger);
     }
-    /* @match "var y = 3;" */
+    /* @match /var y = @3;/ */
     A.B.s5(3);
     check(z, 29, logger);
     return ok;
@@ -273,7 +273,7 @@ function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     /* @match /^A.B.a/ /^check/ */
     unusedObject();
     check(A.B.x, 2, logger);
-    /* @match /^A.B.a\(\);/ /\{.*?\}/ /if \(A.B.x != 0\) \{.*?\}/ /if \(A.B.x != 0\) \{.*\}/ /if \(A.B.x == 0\) \{ \} else \{/ /^check/ */
+    /* @match /^A.B.a\(\);/ /\{.*?\}/ /if \(A.B.x != @0\) \{.*?\}/ /if \(A.B.x != @0\) \{.*\}/ /if \(A.B.x == @0\) \{ \} else \{/ /^check/ */
     unusedLogicals();
     check(A.B.x, 13, logger);
     return ok;
@@ -327,7 +327,7 @@ module Wrapper {
         check(x, 42, logger);
         {
             var z = 2;
-            /* @match /^\{\s*\$.z\s*\+=\s*3;\s*\}$/ */
+            /* @match /^\{ \$.z \+= 3; \}$/ */
             A.B.s2(3);
             check($.z, 3, logger);
         }
@@ -358,22 +358,22 @@ function inlineAssignContext(logger as Logger) as Boolean {
     check(x, 12, logger);
     {
         var z = 15;
-        /* @match /\* self\.z;\s*\}/ */
+        /* @match /\* self\.z; \}/ */
         x = assignContext(A.B.x);
         check(x, 15, logger);
     }
     /* @match /^z \+= A.B.s3/ */
     z += A.B.s3(2);
     check(z, 8, logger);
-    /* @match /z \+= 2/ */
+    /* @match /z \+= @2/ */
     z = A.B.s3(2);
     check(z, 10, logger);
 
-    /* @match "var a;" "z += 2; a = z;" */
+    /* @match "var a;" /z \+= @2; a = z;/ */
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match "var b = 42, c;" "z += 3" "var d;" "z += 4" "var e = 42;" */
+    /* @match "var b = 42, c;" /z \+= @3/ "var d;" /z \+= @4/ /var e = @42;/ */
     var b = 42,
         c = A.B.s3(3),
         d = A.B.s3(4),

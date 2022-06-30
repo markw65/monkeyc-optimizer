@@ -42,11 +42,12 @@ import { formatAst } from "./api";
 
 const logging = false;
 
-type EventDecl = VariableStateNode;
+type EventDecl = VariableStateNode | mctree.Literal;
 
+type RefNodes = mctree.Identifier | mctree.MemberExpression | mctree.Literal;
 interface RefEvent extends BaseEvent {
   type: "ref";
-  node: mctree.Identifier | mctree.MemberExpression;
+  node: RefNodes;
   decl: EventDecl;
 }
 
@@ -64,7 +65,7 @@ interface ModEvent extends BaseEvent {
   node: mctree.Node;
   decl?: EventDecl | undefined | null;
   before?: boolean;
-  id?: mctree.Identifier | mctree.MemberExpression;
+  id?: mctree.Identifier | mctree.MemberExpression | mctree.Literal;
 }
 
 interface ExnEvent extends BaseEvent {
@@ -76,6 +77,31 @@ type Event = RefEvent | DefEvent | ModEvent | ExnEvent;
 
 interface PREBlock extends Block<Event> {
   order?: number;
+}
+
+function declFullName(decl: EventDecl) {
+  switch (decl.type) {
+    case "Literal":
+      return decl.raw || decl.value?.toString() || "null";
+    case "VariableDeclarator":
+      return decl.fullName;
+    default:
+      throw new Error(`Unexpected EventDecl type: ${(decl as EventDecl).type}`);
+  }
+}
+
+function declName(decl: EventDecl) {
+  switch (decl.type) {
+    case "Literal":
+      return (decl.raw || decl.value?.toString() || "null").replace(
+        /[^\w]/g,
+        "_"
+      );
+    case "VariableDeclarator":
+      return decl.name;
+    default:
+      throw new Error(`Unexpected EventDecl type: ${(decl as EventDecl).type}`);
+  }
 }
 
 export function sizeBasedPRE(
@@ -102,7 +128,7 @@ export function sizeBasedPRE(
           return defs;
         }, 0);
         console.log(
-          `  - ${decl.fullName}: ${candidateCost(s)} bytes, ${
+          `  - ${declFullName(decl)}: ${candidateCost(s)} bytes, ${
             s.ant.size - defs
           } refs, ${defs} defs, ${s.live ? "" : "!"}live`
         );
@@ -124,7 +150,7 @@ export function sizeBasedPRE(
       let name;
       let i = 0;
       do {
-        name = `pre_${decl.name}${i ? "_" + i : ""}`;
+        name = `pre_${declName(decl)}${i ? "_" + i : ""}`;
         if (!identifiers.has(name)) break;
         i++;
       } while (true);
@@ -176,6 +202,7 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
     }
     return null;
   };
+  const literals = new Map<mctree.Literal["value"], mctree.Literal>();
   const identifiers = new Set<string>();
   const liveDefs = new Map<EventDecl | null, Set<mctree.Node>>();
   const liveStmts = new Map<mctree.Node, Map<EventDecl | null, number>>();
@@ -208,7 +235,7 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
             const v = liveDefs.get(def);
             if (!v || !v.has(node)) {
               throw new Error(
-                `No stmt in liveDef for ${def ? def.fullName : "null"}`
+                `No stmt in liveDef for ${def ? declFullName(def) : "null"}`
               );
             }
             v.delete(node);
@@ -224,11 +251,25 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
           case "ArrayExpression":
           case "ObjectExpression":
           case "ThisExpression":
-          case "Literal":
           case "LogicalExpression":
           case "ConditionalExpression":
           case "SequenceExpression":
           case "ParenthesizedExpression":
+            break;
+          case "Literal":
+            if (refCost(node) > LocalRefCost) {
+              let decl = literals.get(node.value);
+              if (!decl) {
+                decl = node;
+                literals.set(node.value, decl);
+              }
+              return {
+                type: "ref",
+                node,
+                decl: decl,
+                mayThrow,
+              } as RefEvent;
+            }
             break;
           case "Identifier":
             identifiers.add(node.name);
@@ -236,7 +277,7 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
           case "MemberExpression":
             {
               const decl = findDecl(node);
-              if (decl) {
+              if (decl && decl.type === "VariableDeclarator") {
                 const defStmts =
                   (decl.node.kind === "var" && liveDefs.get(null)) ||
                   liveDefs.get(decl);
@@ -339,7 +380,7 @@ type AnticipatedEvents = Set<Event>;
 type AnticipatedState = {
   ant: AnticipatedEvents;
   live: boolean;
-  node: mctree.Identifier | mctree.MemberExpression;
+  node: RefNodes;
   members: Map<PREBlock, boolean>;
   head?: PREBlock;
 };
@@ -370,7 +411,7 @@ function equalSet<T>(a: Set<T>, b: Set<T>) {
 }
 
 function anticipatedState(
-  node: mctree.Identifier | mctree.MemberExpression,
+  node: RefNodes,
   events?: AnticipatedEvents
 ): AnticipatedState {
   return { ant: events || new Set(), live: true, node, members: new Map() };
@@ -415,7 +456,24 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
   return true;
 }
 
-function refCost(node: mctree.Identifier | mctree.MemberExpression) {
+const LocalRefCost = 2;
+
+function refCost(node: RefNodes) {
+  if (node.type === "Literal") {
+    switch (typeof node.value) {
+      case "string":
+        return 5;
+      case "number":
+        return 5;
+      case "boolean":
+        return 2;
+      default:
+        if (node.value === null) {
+          return 2;
+        }
+        return 0;
+    }
+  }
   // A read from a non-local identifier takes 8 bytes
   let cost = 8;
   if (node.type === "Identifier") return cost;
@@ -432,7 +490,7 @@ function refCost(node: mctree.Identifier | mctree.MemberExpression) {
   }
 }
 
-function defCost(node: mctree.Identifier | mctree.MemberExpression) {
+function defCost(node: RefNodes) {
   return refCost(node) + 2;
 }
 
@@ -460,7 +518,7 @@ function candidateCost(candState: AnticipatedState) {
   let cost = 0;
   candState.ant.forEach((event: Event) => {
     if (event.type === "ref") {
-      cost -= refCost(candState.node) - 2;
+      cost -= refCost(candState.node) - LocalRefCost;
     } else {
       cost += defCost(candState.node);
     }
@@ -487,7 +545,11 @@ function computeAttributes(head: PREBlock) {
         block.events.forEach(
           (event) =>
             event.type !== "exn" &&
-            console.log(`    ${event.type}: ${event.decl?.fullName || "??"}`)
+            console.log(
+              `    ${event.type}: ${
+                event.decl ? declFullName(event.decl) : "??"
+              }`
+            )
         );
       }
       console.log(
@@ -529,11 +591,10 @@ function computeAttributes(head: PREBlock) {
   */
 
   const modMap = new Map<Event, Map<EventDecl, Event>>();
-  const getMod = (
-    event: Event,
-    decl: EventDecl,
-    id: mctree.Identifier | mctree.MemberExpression
-  ) => {
+  const getMod = (event: Event, decl: EventDecl, id: RefNodes) => {
+    if (id.type !== "Identifier" && id.type !== "MemberExpression") {
+      throw new Error("Trying to modify a non-variable");
+    }
     let eventMap = modMap.get(event);
     if (!eventMap) {
       modMap.set(event, (eventMap = new Map<EventDecl, Event>()));
@@ -663,6 +724,10 @@ function computeAttributes(head: PREBlock) {
           if (
             !Array.from(boundary).every((block) => {
               if (block !== events.head && block.events) {
+                if (events.node.type === "Literal") {
+                  return false;
+                  throw new Error(`Inserting a literal in multiple blocks!`);
+                }
                 let i = block.events.length;
                 while (i--) {
                   const event = block.events[i];
@@ -787,7 +852,8 @@ function applyReplacements(
           if (events[0].type === "ref") {
             if (
               node.type !== "Identifier" &&
-              node.type !== "MemberExpression"
+              node.type !== "MemberExpression" &&
+              node.type !== "Literal"
             ) {
               throw new Error(
                 `Ref found, but wrong type of node: ${node.type}`
@@ -876,10 +942,12 @@ function applyReplacements(
           const decl = event.decl!;
           const name = declMap.get(decl);
           if (!name) {
-            throw new Error(`No replacement found for "${decl.fullName}"`);
+            throw new Error(`No replacement found for "${declFullName(decl)}"`);
           }
           if (!event.id) {
-            throw new Error(`Missing id for mod event for "${decl.fullName}"`);
+            throw new Error(
+              `Missing id for mod event for "${declFullName(decl)}"`
+            );
           }
           const rhs = withLocDeep(event.id, locNode, locNode);
           rhs.end = rhs.start;
