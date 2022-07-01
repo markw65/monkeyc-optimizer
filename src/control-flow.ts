@@ -195,6 +195,11 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "TryStatement": {
           const top = localState.push(node);
           const catches = (top.throw = {});
+          // This edge shouldn't exist, but we can trigger
+          // (incorrect) "variable may not be initialized" errors
+          // in the monkey c compiler without it.
+          // https://forums.garmin.com/developer/connect-iq/i/bug-reports/incorrect-maybe-uninitialized-error
+          localState.addEdge(localState.curBlock, top.throw);
           localState.newBlock();
           tryActive++;
           state.traverse(node.block);
