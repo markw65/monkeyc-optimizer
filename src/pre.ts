@@ -257,7 +257,7 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
           case "ParenthesizedExpression":
             break;
           case "Literal":
-            if (refCost(node) > LocalRefCost) {
+            if (!node.value && refCost(node) > LocalRefCost) {
               let decl = literals.get(node.value);
               if (!decl) {
                 decl = node;
@@ -409,6 +409,13 @@ function equalSet<T>(a: Set<T>, b: Set<T>) {
   }
   return true;
 }
+function equalMap<T, U>(a: Map<T, U>, b: Map<T, U>) {
+  if (a.size != b.size) return false;
+  for (const [item, value] of a) {
+    if (b.get(item) !== value) return false;
+  }
+  return true;
+}
 
 function anticipatedState(
   node: RefNodes,
@@ -451,7 +458,14 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
   if (a.size !== b.size) return false;
   for (const [k, ae] of a) {
     const be = b.get(k);
-    if (!be || be.live != ae.live || !equalSet(ae.ant, be.ant)) return false;
+    if (
+      !be ||
+      be.live != ae.live ||
+      !equalSet(ae.ant, be.ant) ||
+      !equalMap(ae.members, be.members)
+    ) {
+      return false;
+    }
   }
   return true;
 }
@@ -537,6 +551,7 @@ function computeAttributes(head: PREBlock) {
     order.forEach((block) => {
       console.log(
         block.order,
+        `(${block.node ? block.node.loc?.start.line : "??"})`,
         `Preds: ${(block.preds || [])
           .map((block) => (block as PREBlock).order)
           .join(", ")}`
@@ -713,7 +728,7 @@ function computeAttributes(head: PREBlock) {
   }
 
   const candidateDecls = anticipatedDecls();
-  blockStates.forEach((blockState) => {
+  blockStates.forEach((blockState, i) => {
     blockState &&
       blockState.forEach((events, decl) => {
         const cost = candidateCost(events);
@@ -726,7 +741,6 @@ function computeAttributes(head: PREBlock) {
               if (block !== events.head && block.events) {
                 if (events.node.type === "Literal") {
                   return false;
-                  throw new Error(`Inserting a literal in multiple blocks!`);
                 }
                 let i = block.events.length;
                 while (i--) {
@@ -739,6 +753,7 @@ function computeAttributes(head: PREBlock) {
                       id: events.node,
                       mayThrow: false,
                     });
+                    events.members.set(block, false);
                     return true;
                   }
                 }
@@ -753,12 +768,16 @@ function computeAttributes(head: PREBlock) {
                 id: events.node,
                 mayThrow: false,
               });
+              events.members.set(block, false);
               return true;
             })
           ) {
             return;
           }
           events.live = false;
+          if (candidateCost(events) != cost) {
+            throw new Error(`cost of block ${i} changed`);
+          }
           candidateDecls.set(decl, events);
         }
       });
