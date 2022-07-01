@@ -309,7 +309,7 @@ export function getLiteralFromDecls(lookupDefns: LookupDefinition[]) {
       })
     )
   ) {
-    return result;
+    return result as null | mctree.Literal | mctree.AsExpression;
   }
   return null;
 }
@@ -588,9 +588,17 @@ export async function optimizeMonkeyC(
     if (!objects) {
       return false;
     }
-    const obj = getLiteralFromDecls(objects);
+    let obj = getLiteralFromDecls(objects);
     if (!obj) {
       return false;
+    }
+    while (obj.type === "BinaryExpression") {
+      if (obj.left.type === "BinaryExpression" && obj.left.operator === "as") {
+        obj = { ...obj, left: obj.left.left };
+      } else {
+        obj = { ...obj, left: { ...obj.left } };
+        break;
+      }
     }
     inPlaceReplacement(node, obj);
     return true;
