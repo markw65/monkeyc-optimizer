@@ -303,3 +303,30 @@ More fixes found via open source projects.
 
 - Bug fixes
   - In some circumstances, while inlining, a parameter could be substituted, and then reprocessed. During reprocessing, it would attempt to lookup the replacement symbol, and if that was a local from the calling function it would fail (since an inline function never has access to the caller's locals). Prevent the reprocessing step from happening.
+
+### 1.0.29
+
+- Update to @markw65/prettier-plugin-monkeyc@1.0.32
+
+  - Fixes a parser issue where `x as Type ? a : b` would be parsed as `(x as Type?) a : b` which would then be reported as a syntax error.
+
+- Bug fixes
+
+  - Fix a bug causing literal nodes to be shared. This was harmless prior to the implementation of the PRE pass
+
+- Code cleanup
+
+  - Add `isStatement` and `isExpression` helpers
+
+- New features
+
+  - Add constant folding for relational and logical operators
+  - Allow assignment-scope inlining in variable initializers
+  - Better cleanup of unused expressions
+  - Add a size based PRE pass. Currently limited to non-local variables, and literals
+
+- Testing
+  - Ignore case of typeCheckLevel option
+  - Actually run the rest of the expected-to-crash tests
+  - Better error messages from pragma checker
+  - Better regex for filtering projects
