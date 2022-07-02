@@ -726,9 +726,7 @@ function computeAttributes(head: PREBlock) {
             if (isUpdate || candidates.live) {
               candidates.ant.add(event);
             }
-            if (!isUpdate) {
-              candidates.live = false;
-            }
+            candidates.live = isUpdate;
             break;
           }
         }
