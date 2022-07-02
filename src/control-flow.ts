@@ -178,7 +178,8 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           if (node.type === "WhileStatement") {
             head = localState.newBlock(top.continue);
             state.traverse(node.test);
-            localState.addEdge(localState.newBlock(), top.break);
+            localState.addEdge(localState.curBlock, top.break);
+            localState.newBlock();
           } else {
             head = localState.newBlock();
           }
