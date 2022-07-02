@@ -512,6 +512,12 @@ function inlineWithArgs(
     return null;
   }
 
+  const lastStmt = (
+    block: mctree.BlockStatement
+  ): [mctree.Statement, mctree.BlockStatement] => {
+    const last = block.body.slice(-1)[0];
+    return last.type === "BlockStatement" ? lastStmt(last) : [last, block];
+  };
   let retStmtCount = 0;
   if (context.type === "ReturnStatement") {
     const last = func.node.body.body.slice(-1)[0];
@@ -549,7 +555,7 @@ function inlineWithArgs(
       return null;
     }
     if (retStmtCount === 1) {
-      const last = func.node.body.body.slice(-1)[0];
+      const [last] = lastStmt(func.node.body);
       if (
         !last ||
         last.type !== "ReturnStatement" ||
@@ -589,20 +595,20 @@ function inlineWithArgs(
   }
   diagnostic(state, call.loc, null);
   if (context.type !== "ReturnStatement" && retStmtCount) {
-    const last = body.body[body.body.length - 1];
+    const [last, block] = lastStmt(body);
     if (last.type != "ReturnStatement") {
       throw new Error("ReturnStatement got lost!");
     }
     if (last.argument) {
       if (context.type === "AssignmentExpression") {
         context.right = last.argument;
-        body.body[body.body.length - 1] = {
+        block.body[block.body.length - 1] = {
           type: "ExpressionStatement",
           expression: context,
         };
       } else if (context.type === "VariableDeclarator") {
         const { id, init: _init, kind: _kind, ...rest } = context;
-        body.body[body.body.length - 1] = {
+        block.body[block.body.length - 1] = {
           ...rest,
           type: "ExpressionStatement",
           expression: {
@@ -615,10 +621,10 @@ function inlineWithArgs(
         };
       } else {
         const side_exprs = unused(last.argument);
-        body.body.splice(body.body.length - 1, 1, ...side_exprs);
+        block.body.splice(block.body.length - 1, 1, ...side_exprs);
       }
     } else {
-      --body.body.length;
+      --block.body.length;
     }
   }
   return body;

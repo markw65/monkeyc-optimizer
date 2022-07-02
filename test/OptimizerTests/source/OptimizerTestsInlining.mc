@@ -339,7 +339,14 @@ module Wrapper {
 function assignContext(x as Number) as Number {
     /* @match This should have been removed */
     x++;
-    return x * z;
+    return assignContext2(x);
+}
+
+(:inline)
+function assignContext2(x as Number) as Number {
+    /* @match This should have been removed */
+    var tmp = x * z;
+    return tmp;
 }
 
 (:test) // foo
@@ -358,7 +365,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     check(x, 12, logger);
     {
         var z = 15;
-        /* @match /\* self\.z; \}/ */
+        /* @match /\* self\.z;/ */
         x = assignContext(A.B.x);
         check(x, 15, logger);
     }
@@ -373,13 +380,13 @@ function inlineAssignContext(logger as Logger) as Boolean {
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match "var b = 42, c;" /z \+= @3/ "var d;" /z \+= @4/ /var e = @42;/ */
+    /* @match "var b = 42, c;" /z \+= @3/ "var d;" /\w+x\w+ \* z;/ /var e = @42;/ */
     var b = 42,
         c = A.B.s3(3),
-        d = A.B.s3(4),
+        d = assignContext(1),
         e = 42;
     check(c, 15, logger);
-    check(d, 19, logger);
+    check(d, 30, logger);
 
     // inlining here would require a lot of gymnastics. Don't allow it
     // for now.
