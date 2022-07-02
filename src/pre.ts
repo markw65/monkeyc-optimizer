@@ -104,6 +104,29 @@ function declName(decl: EventDecl) {
   }
 }
 
+function logAntState(s: AnticipatedState, decl: EventDecl) {
+  const defs = Array.from(s.ant).reduce<number>((defs, event) => {
+    if (event.type === "def" || event.type === "mod") defs++;
+    return defs;
+  }, 0);
+  console.log(
+    `  - ${declFullName(decl)}: ${candidateCost(s)} bytes, ${
+      s.ant.size - defs
+    } refs, ${defs} defs, ${s.live ? "" : "!"}live, ${
+      s.isIsolated ? "" : "!"
+    }isolated`
+  );
+  console.log(
+    `    - members: ${Array.from(s.members)
+      .map(([block, live]) => block.order! + (live ? "t" : "f"))
+      .join(", ")}`
+  );
+}
+
+function logAntDecls(antDecls: AnticipatedDecls) {
+  antDecls.forEach(logAntState);
+}
+
 export function sizeBasedPRE(
   state: ProgramStateAnalysis,
   func: FunctionStateNode
@@ -122,17 +145,7 @@ export function sizeBasedPRE(
   if (candidates) {
     if (logging) {
       console.log(`Found ${candidates.size} candidates in ${func.fullName}`);
-      candidates.forEach((s, decl) => {
-        const defs = Array.from(s.ant).reduce<number>((defs, event) => {
-          if (event.type === "def") defs++;
-          return defs;
-        }, 0);
-        console.log(
-          `  - ${declFullName(decl)}: ${candidateCost(s)} bytes, ${
-            s.ant.size - defs
-          } refs, ${defs} defs, ${s.live ? "" : "!"}live`
-        );
-      });
+      logAntDecls(candidates);
     }
     const nodeMap = new Map<mctree.Node, Event[]>();
     const declMap = new Map<EventDecl, string>();
@@ -739,6 +752,10 @@ function computeAttributes(head: PREBlock) {
       continue;
     }
     blockStates[top.order!] = curState;
+    if (logging) {
+      console.log(`Updated block ${top.order!}`);
+      logAntDecls(curState);
+    }
     if (top.preds) {
       top.preds.forEach((pred) => enqueue(pred));
     }
