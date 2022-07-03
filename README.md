@@ -330,3 +330,16 @@ More fixes found via open source projects.
   - Actually run the rest of the expected-to-crash tests
   - Better error messages from pragma checker
   - Better regex for filtering projects
+
+### 1.0.30
+
+- Less greedy approach to finding candidate sets
+  - slightly better size reduction when globals maybe modified
+- Fix the control flow after the test of a while loop
+  - one of the edges was in the wrong place, leading to suboptimal solutions in some cases
+
+Bug Fixes
+
+- Fix a bug that could lead to the optimizer never completing
+- Fix a bug that prevented inlining functions that ended in a BlockStatement
+- Fix a bug that could cause nested inlined functions inlined in declarations to not be removed
