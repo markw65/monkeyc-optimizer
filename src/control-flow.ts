@@ -1,5 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { isExpression, isStatement, mayThrow } from "./ast";
+import { ProgramStateAnalysis, FunctionStateNode } from "./optimizer-types";
 import { pushUnique } from "./util";
 
 const Terminals = {

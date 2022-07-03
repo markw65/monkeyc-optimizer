@@ -6,6 +6,13 @@ import {
   variableDeclarationName,
 } from "./api";
 import { traverseAst, withLoc, withLocDeep } from "./ast";
+import {
+  FunctionStateNode,
+  ProgramStateAnalysis,
+  ProgramStateLive,
+  ProgramStateStack,
+  StateNodeDecl,
+} from "./optimizer-types";
 import { renameVariable } from "./variable-renamer";
 
 function getArgSafety(

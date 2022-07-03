@@ -1,5 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { collectNamespaces, sameLookupResult } from "./api";
+import { LookupDefinition, ProgramStateAnalysis } from "./optimizer-types";
 
 export function visitReferences(
   state: ProgramStateAnalysis,

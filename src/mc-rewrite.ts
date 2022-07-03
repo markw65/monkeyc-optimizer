@@ -20,6 +20,17 @@ import {
   shouldInline,
   unused,
 } from "./inliner";
+import {
+  ProgramStateAnalysis,
+  ModuleStateNode,
+  ClassStateNode,
+  FilesToOptimizeMap,
+  BuildConfig,
+  ProgramState,
+  LookupDefinition,
+  ProgramStateOptimizer,
+  FunctionStateNode,
+} from "./optimizer-types";
 import { sizeBasedPRE } from "./pre";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";

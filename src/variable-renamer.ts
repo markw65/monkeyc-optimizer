@@ -1,5 +1,6 @@
 import { hasProperty, variableDeclarationName } from "./api";
 import { traverseAst } from "./ast";
+import { ProgramStateAnalysis } from "./optimizer-types";
 
 export function renameVariable(
   state: ProgramStateAnalysis,

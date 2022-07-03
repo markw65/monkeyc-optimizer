@@ -14,6 +14,11 @@ import {
   withLocDeep,
 } from "./ast";
 import { formatAst } from "./api";
+import {
+  VariableStateNode,
+  ProgramStateAnalysis,
+  FunctionStateNode,
+} from "./optimizer-types";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination

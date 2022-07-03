@@ -1,6 +1,7 @@
 import * as path from "path";
 import { getSdkPath, isWin } from "./sdk-util";
 import { spawnByLine } from "./util";
+import { BuildConfig } from "./optimizer-types";
 
 export async function build_project(
   product: string | null,

@@ -10,9 +10,10 @@ import {
   manifestBarrelName,
   manifestBarrels,
   manifestProducts,
-  readManifest,
   ManifestXML,
+  readManifest,
 } from "./manifest";
+import { BuildConfig } from "./optimizer-types.js";
 import { DeviceInfo, getDeviceInfo, getLanguages } from "./sdk-util";
 import { globa } from "./util";
 

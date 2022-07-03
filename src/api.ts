@@ -5,12 +5,27 @@ import {
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
-import { traverseAst, hasProperty } from "./ast";
+import { hasProperty, traverseAst } from "./ast";
 import { diagnostic } from "./inliner";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
+import {
+  LookupDefinition,
+  ProgramState,
+  ProgramStateLive,
+  ProgramStateNode,
+  StateNode,
+  StateNodeDecl,
+  ClassStateNode,
+  ModuleStateNode,
+  ProgramStateStack,
+  LookupResult,
+  StateNodeDecls,
+  ImportUsing,
+} from "./optimizer-types";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
+
 export { visitReferences } from "./visitor";
 export { traverseAst, hasProperty };
 

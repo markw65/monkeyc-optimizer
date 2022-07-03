@@ -218,7 +218,7 @@ export default (env, argv) => {
               parser.hooks.exportImportSpecifier.tap(
                 pluginName,
                 (statement, source, id, name) =>
-                  recordExport(parser.state.module.rawRequest, name)
+                  name && recordExport(parser.state.module.rawRequest, name)
               );
             };
             ["javascript/esm", "javascript/auto"].forEach((target) =>
