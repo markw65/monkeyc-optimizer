@@ -274,16 +274,17 @@ export function withLoc<T extends mctree.Node>(
 export function withLocDeep<T extends mctree.Node>(
   node: T,
   start: mctree.Node | null,
-  end?: mctree.Node | undefined
+  end?: mctree.Node | undefined,
+  inplace?: boolean
 ): T {
-  node = withLoc({ ...node }, start, end);
+  node = withLoc(inplace ? node : { ...node }, start, end);
   for (const key of mctreeTypeInfo[node.type].keys) {
     const value = (node as mctree.NodeAll)[key as keyof mctree.NodeAll];
     if (!value) continue;
     const fix = (v: unknown) =>
-      isMCTreeNode(v) ? withLocDeep(v, start, end) : v;
+      isMCTreeNode(v) ? withLocDeep(v, start, end, inplace) : v;
     const repl = Array.isArray(value) ? value.map(fix) : fix(value);
-    (node as unknown as Record<string, unknown>)[key] = repl;
+    inplace || ((node as unknown as Record<string, unknown>)[key] = repl);
   }
   return node;
 }

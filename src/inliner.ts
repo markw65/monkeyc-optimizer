@@ -5,7 +5,7 @@ import {
   sameLookupResult,
   variableDeclarationName,
 } from "./api";
-import { traverseAst, withLoc } from "./ast";
+import { traverseAst, withLoc, withLocDeep } from "./ast";
 import { renameVariable } from "./variable-renamer";
 
 function getArgSafety(
@@ -265,9 +265,6 @@ function processInlineBody<T extends InlineBody>(
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
-      node.start = call.start;
-      node.end = call.end;
-      node.loc = call.loc;
       if (replacements.has(node)) return false;
       const result = pre(node, state);
       if (!insertedVariableDecls && node.type === "BlockStatement") {
@@ -627,6 +624,7 @@ function inlineWithArgs(
       --block.body.length;
     }
   }
+  withLocDeep(body, context, context, true);
   return body;
 }
 
@@ -652,7 +650,7 @@ export function inlineFunction(
   const map = fixupLocalsMap(state);
   const ret = processInlineBody(state, func, call, retArg, params);
   state.localsStack![state.localsStack!.length - 1].map = map;
-  return ret;
+  return ret && withLocDeep(ret, call, call, true);
 }
 
 export function applyTypeIfNeeded(node: mctree.Node) {

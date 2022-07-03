@@ -335,20 +335,6 @@ module Wrapper {
     }
 }
 
-(:inline)
-function assignContext(x as Number) as Number {
-    /* @match This should have been removed */
-    x++;
-    return assignContext2(x);
-}
-
-(:inline)
-function assignContext2(x as Number) as Number {
-    /* @match This should have been removed */
-    var tmp = x * z;
-    return tmp;
-}
-
 (:test) // foo
 function inlineAssignContext(logger as Logger) as Boolean {
     var x;
@@ -437,4 +423,18 @@ class Foo {
         }
         return result;
     }
+}
+
+(:inline)
+function assignContext(x as Number) as Number {
+    /* @match This should have been removed */
+    x++;
+    return assignContext2(x);
+}
+
+(:inline)
+function assignContext2(x as Number) as Number {
+    /* @match This should have been removed */
+    var tmp = x * z;
+    return tmp;
 }
