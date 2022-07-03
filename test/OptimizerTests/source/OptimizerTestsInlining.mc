@@ -404,3 +404,37 @@ function inlineAssignContext(logger as Logger) as Boolean {
 
     return ok;
 }
+
+import Toybox.Activity;
+import Toybox.Lang;
+
+class Foo {
+    var mHR as Number = 123;
+    var mB as Number = 0;
+
+    function initialize() {
+        compute();
+    }
+
+    public function compute() as Void {
+        var extHr = foofoo();
+    }
+
+    (:inline)
+    hidden function barbar(heartRate as Number) as Void {
+        /* @match This should be removed */
+        mB = 1;
+    }
+
+    (:inline)
+    hidden function foofoo() as String or Number {
+        /* @match This should be removed */
+        var result = "?";
+        var heartRate = mHR;
+        var isValidHR = true;
+        if (isValidHR) {
+            barbar(heartRate);
+        }
+        return result;
+    }
+}

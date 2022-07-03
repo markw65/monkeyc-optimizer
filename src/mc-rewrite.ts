@@ -1006,9 +1006,12 @@ export async function optimizeMonkeyC(
           while (i < node.declarations.length) {
             const decl = declarations[i++];
             if (decl.init && decl.init.type === "CallExpression") {
-              const inlined = optimizeCall(state, decl.init, decl);
+              const inlined = replace(
+                optimizeCall(state, decl.init, decl),
+                decl.init
+              );
               if (!inlined) continue;
-              if (inlined.type != "BlockStatement") {
+              if (Array.isArray(inlined) || inlined.type != "BlockStatement") {
                 throw new Error("Unexpected inlined result");
               }
               if (!results) {
