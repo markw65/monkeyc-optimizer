@@ -23,6 +23,8 @@ import {
   LookupResult,
   StateNodeDecls,
   ImportUsing,
+  FunctionInfo,
+  FunctionStateNode,
 } from "./optimizer-types";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
@@ -912,4 +914,44 @@ export function findUsingForNode(
     }
   }
   return null;
+}
+
+const invokeInfo: FunctionInfo | Record<string, never> = {};
+const toyboxFnInfo: FunctionInfo | Record<string, never> = {};
+
+export function getApiFunctionInfo(func: FunctionStateNode): FunctionInfo {
+  if (
+    func.fullName === "$.Toybox.Lang.Method.invoke" ||
+    (func.node.params &&
+      func.node.params.some(
+        (param) =>
+          param.type === "BinaryExpression" &&
+          param.right.ts.some(
+            (tsp) => tsp.type === "TypeSpecPart" && tsp.callspec
+          )
+      ))
+  ) {
+    if (!invokeInfo.calledFuncs) {
+      invokeInfo.modifiedDecls = new Set();
+      invokeInfo.calledFuncs = new Set();
+      invokeInfo.callsExposed = true;
+    }
+    if (func.name === "initialize") {
+      const top = func.stack![func.stack!.length - 1];
+      if (top.type === "ClassDeclaration") {
+        top.hasInvoke = true;
+      }
+    }
+    return invokeInfo as FunctionInfo;
+  }
+  if (!toyboxFnInfo.calledFuncs) {
+    toyboxFnInfo.modifiedDecls = new Set();
+    toyboxFnInfo.calledFuncs = new Set();
+    toyboxFnInfo.resolvedDecls = new Set();
+  }
+  return toyboxFnInfo as FunctionInfo;
+}
+
+export function markInvokeClassMethod(func: FunctionStateNode) {
+  func.info = invokeInfo as FunctionInfo;
 }

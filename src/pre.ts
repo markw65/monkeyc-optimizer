@@ -19,6 +19,13 @@ import {
   ProgramStateAnalysis,
   FunctionStateNode,
 } from "./optimizer-types";
+import {
+  cloneSet,
+  findCallees,
+  findCalleesForNew,
+  functionMayModify,
+  mergeSet,
+} from "./function-info";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination
@@ -71,6 +78,7 @@ interface ModEvent extends BaseEvent {
   decl?: EventDecl | undefined | null;
   before?: boolean;
   id?: mctree.Identifier | mctree.MemberExpression | mctree.Literal;
+  callees?: FunctionStateNode[] | null;
 }
 
 interface ExnEvent extends BaseEvent {
@@ -146,7 +154,7 @@ export function sizeBasedPRE(
     return;
   }
   const { graph: head, identifiers } = buildPREGraph(state, func);
-  const candidates = computeAttributes(head);
+  const candidates = computeAttributes(state, head);
   if (candidates) {
     if (logging) {
       console.log(`Found ${candidates.size} candidates in ${func.fullName}`);
@@ -362,10 +370,18 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
             }
             break;
           }
-          case "NewExpression":
-          case "CallExpression":
+          case "NewExpression": {
+            const [, results] = state.lookup(node.callee);
+            const callees = results ? findCalleesForNew(results) : null;
             liveDef(null, stmt);
-            return { type: "mod", node, mayThrow };
+            return { type: "mod", node, mayThrow, callees };
+          }
+          case "CallExpression": {
+            liveDef(null, stmt);
+            const [, results] = state.lookup(node.callee);
+            const callees = results ? findCallees(results) : null;
+            return { type: "mod", node, mayThrow, callees };
+          }
           default:
             if (!isExpression(node)) break;
             unhandledExpression(node);
@@ -412,13 +428,6 @@ type AnticipatedDecls = Map<EventDecl, AnticipatedState>;
 
 function anticipatedDecls() {
   return new Map<EventDecl, AnticipatedState>();
-}
-function cloneSet<T>(ae: Set<T>) {
-  return new Set<T>(ae);
-}
-
-function mergeSet<T>(a: Set<T>, b: Set<T>) {
-  b.forEach((event) => a.add(event));
 }
 
 function equalSet<T>(a: Set<T>, b: Set<T>) {
@@ -570,7 +579,7 @@ function candidateCost(candState: AnticipatedState) {
   return cost;
 }
 
-function computeAttributes(head: PREBlock) {
+function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
   const order = getPostOrder(head) as PREBlock[];
   order.forEach((block, i) => {
     block.order = i;
@@ -703,7 +712,11 @@ function computeAttributes(head: PREBlock) {
               if (
                 decl.type === "VariableDeclarator" &&
                 decl.node.kind === "var" &&
-                candidates.live
+                candidates.live &&
+                (!event.callees ||
+                  event.callees.some((callee) =>
+                    functionMayModify(state, callee, decl)
+                  ))
               ) {
                 candidates.ant.add(getMod(event, decl, candidates.node));
                 candidates.live = false;

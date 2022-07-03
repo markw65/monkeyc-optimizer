@@ -77,7 +77,18 @@ export interface ClassStateNode extends BaseStateNode {
   name: string;
   fullName: string;
   superClass?: ClassStateNode[] | true;
+  hasInvoke?: boolean;
 }
+
+export type FunctionInfo = {
+  modifiedDecls: Set<VariableStateNode>;
+  calledFuncs: Set<FunctionStateNode>;
+  resolvedDecls?: Set<VariableStateNode>;
+  callsExposed?: boolean;
+  modifiedUnknown?: boolean;
+  modifiedNames?: Set<string>;
+};
+
 export interface FunctionStateNode extends BaseStateNode {
   type: "FunctionDeclaration";
   node: mctree.FunctionDeclaration;
@@ -86,6 +97,8 @@ export interface FunctionStateNode extends BaseStateNode {
   stack?: ProgramStateStack;
   decls?: undefined;
   isStatic?: boolean;
+  info?: FunctionInfo;
+  next_info?: FunctionInfo;
 }
 export interface BlockStateNode extends BaseStateNode {
   type: "BlockStatement";
@@ -125,10 +138,11 @@ export type LookupResult =
   | [null, null]
   | [false, false];
 export type ProgramState = {
-  allFunctions?: FunctionStateNode[];
+  allFunctions?: Record<string, FunctionStateNode[]>;
   allClasses?: ClassStateNode[];
   fnMap?: FilesToOptimizeMap;
   stack?: ProgramStateStack;
+  currentFunction?: FunctionStateNode;
   removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;
   shouldExclude?: (node: mctree.Node) => boolean;
   pre?: (

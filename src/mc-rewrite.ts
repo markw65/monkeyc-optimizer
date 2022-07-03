@@ -7,13 +7,23 @@ import * as fs from "fs/promises";
 import {
   collectNamespaces,
   formatAst,
+  getApiFunctionInfo,
   getApiMapping,
   hasProperty,
   isLookupCandidate,
   isStateNode,
+  markInvokeClassMethod,
   variableDeclarationName,
 } from "./api";
 import { cloneDeep, traverseAst, withLoc } from "./ast";
+import {
+  findCallees,
+  findCalleesForNew,
+  recordCalledFuncs,
+  recordModifiedDecls,
+  recordModifiedName,
+  recordModifiedUnknown,
+} from "./function-info";
 import {
   diagnostic,
   InlineContext,
@@ -106,7 +116,6 @@ function collectClassInfo(state: ProgramStateAnalysis) {
         Object.values(c.decls).forEach((funcs) => {
           funcs.forEach((f) => {
             if (
-              isStateNode(f) &&
               f.type === "FunctionDeclaration" &&
               hasProperty(cls.decls, f.name)
             ) {
@@ -120,6 +129,15 @@ function collectClassInfo(state: ProgramStateAnalysis) {
 
   state.allClasses.forEach((elm) => {
     if (elm.superClass) markOverrides(elm, elm.superClass);
+    if (elm.hasInvoke && elm.decls) {
+      Object.values(elm.decls).forEach((funcs) => {
+        funcs.forEach((f) => {
+          if (f.type === "FunctionDeclaration" && !f.isStatic) {
+            markInvokeClassMethod(f);
+          }
+        });
+      });
+    }
   });
 }
 
@@ -177,7 +195,7 @@ export async function analyze(
   const preState: ProgramState = {
     fnMap,
     config,
-    allFunctions: [],
+    allFunctions: {},
     allClasses: [],
     shouldExclude(node: mctree.Node) {
       if (
@@ -210,11 +228,6 @@ export async function analyze(
     pre(node, state) {
       switch (node.type) {
         case "FunctionDeclaration":
-          if (markApi) {
-            node.body = null;
-            break;
-          }
-        // falls through
         case "ModuleDeclaration":
         case "ClassDeclaration": {
           const [scope] = state.stack.slice(-1);
@@ -225,7 +238,17 @@ export async function analyze(
               (scope.node.attrs &&
                 scope.node.attrs.access &&
                 scope.node.attrs.access.includes("static"));
-            state.allFunctions!.push(scope);
+            if (markApi) {
+              node.body = null;
+              scope.info = getApiFunctionInfo(scope);
+              delete scope.stack;
+            }
+            const allFuncs = state.allFunctions!;
+            if (!hasProperty(allFuncs, scope.name)) {
+              allFuncs[scope.name] = [scope];
+            } else {
+              allFuncs[scope.name].push(scope);
+            }
           } else if (scope.type === "ClassDeclaration") {
             state.allClasses!.push(scope as ClassStateNode);
           }
@@ -689,12 +712,14 @@ export async function optimizeMonkeyC(
   barrelList?: string[],
   config?: BuildConfig
 ) {
-  const state = {
-    ...(await analyze(fnMap, barrelList, config)),
-    localsStack: [{}],
-    calledFunctions: {},
-    usedByName: {},
-  } as ProgramStateOptimizer;
+  const state = (await analyze(
+    fnMap,
+    barrelList,
+    config
+  )) as ProgramStateOptimizer;
+  state.localsStack = [{}];
+  state.calledFunctions = {};
+  state.usedByName = {};
 
   const replace = (
     node: mctree.Node | false | null,
@@ -974,7 +999,13 @@ export async function optimizeMonkeyC(
         node.params &&
           node.params.forEach((p) => (map[variableDeclarationName(p)] = true));
         state.localsStack.push({ node, map });
-        const [parent] = state.stack.slice(-2);
+        const [parent, self] = state.stack.slice(-2);
+        if (state.currentFunction) {
+          throw new Error(
+            `Nested functions: ${self.fullName} was activated during processing of ${state.currentFunction.fullName}`
+          );
+        }
+        state.currentFunction = self as FunctionStateNode;
         if (parent.type == "ClassDeclaration" && !maybeCalled(node)) {
           let used = false;
           if (node.id.name == "initialize") {
@@ -1000,6 +1031,18 @@ export async function optimizeMonkeyC(
       return replace(opt, node);
     }
     switch (node.type) {
+      case "FunctionDeclaration":
+        if (!state.currentFunction) {
+          throw new Error(
+            `Finished function ${
+              state.stack.slice(-1)[0].fullName
+            }, but it was not marked current`
+          );
+        }
+        state.currentFunction.info = state.currentFunction.next_info;
+        delete state.currentFunction.next_info;
+        delete state.currentFunction;
+        break;
       case "BlockStatement":
         if (node.body.length === 1 && node.body[0].type === "BlockStatement") {
           node.body.splice(0, 1, ...node.body[0].body);
@@ -1043,20 +1086,23 @@ export async function optimizeMonkeyC(
         }
         break;
 
+      case "NewExpression":
+        if (state.currentFunction) {
+          const [, results] = state.lookup(node.callee);
+          if (results) {
+            recordCalledFuncs(
+              state.currentFunction,
+              findCalleesForNew(results)
+            );
+          } else {
+            recordModifiedUnknown(state.currentFunction);
+          }
+        }
+        break;
+
       case "CallExpression": {
         return replace(optimizeCall(state, node, null), node);
       }
-
-      case "AssignmentExpression":
-        if (
-          node.operator === "=" &&
-          node.left.type === "Identifier" &&
-          node.right.type === "Identifier" &&
-          node.left.name === node.right.name
-        ) {
-          return { type: "Literal", value: null, raw: "null" };
-        }
-        break;
 
       case "VariableDeclaration": {
         const locals = topLocals();
@@ -1146,6 +1192,33 @@ export async function optimizeMonkeyC(
           }
         }
         break;
+      case "AssignmentExpression":
+        if (
+          node.operator === "=" &&
+          node.left.type === "Identifier" &&
+          node.right.type === "Identifier" &&
+          node.left.name === node.right.name
+        ) {
+          return { type: "Literal", value: null, raw: "null" };
+        }
+      // fall through;
+      case "UpdateExpression":
+        if (state.currentFunction) {
+          const lhs =
+            node.type === "AssignmentExpression" ? node.left : node.argument;
+          const [, results] = state.lookup(lhs);
+          if (results) {
+            recordModifiedDecls(state.currentFunction, results);
+          } else {
+            const id = lhs.type === "Identifier" ? lhs : isLookupCandidate(lhs);
+            if (id) {
+              recordModifiedName(state.currentFunction, id.name);
+            } else {
+              recordModifiedUnknown(state.currentFunction);
+            }
+          }
+        }
+        break;
     }
     return null;
   };
@@ -1162,7 +1235,9 @@ export async function optimizeMonkeyC(
   state.nextExposed = {};
   delete state.pre;
   delete state.post;
-  state.allFunctions.forEach((fn) => sizeBasedPRE(state, fn));
+  Object.values(state.allFunctions).forEach((fns) =>
+    fns.forEach((fn) => sizeBasedPRE(state, fn))
+  );
 
   const cleanup = (node: mctree.Node) => {
     switch (node.type) {
@@ -1275,13 +1350,7 @@ function optimizeCall(
   context: InlineContext | null
 ) {
   const [name, results] = state.lookupNonlocal(node.callee);
-  const callees =
-    results &&
-    results
-      .map((r) => r.results)
-      .flat()
-      .filter((c): c is FunctionStateNode => c.type === "FunctionDeclaration");
-
+  const callees = results ? findCallees(results) : null;
   if (!callees || !callees.length) {
     const n =
       name ||
@@ -1291,14 +1360,24 @@ function optimizeCall(
         "name" in node.callee.property &&
         node.callee.property.name);
     if (n) {
-      state.allFunctions.forEach(
-        (fn) => fn.name === n && markFunctionCalled(state, fn.node)
-      );
-    } else {
-      // There are unnamed CallExpressions, such as new [size]
-      // So there's nothing to do here.
+      if (hasProperty(state.allFunctions, n)) {
+        if (state.currentFunction) {
+          recordCalledFuncs(state.currentFunction!, state.allFunctions[n]);
+        }
+        state.allFunctions[n].forEach((fn) =>
+          markFunctionCalled(state, fn.node)
+        );
+      }
+    } else if (state.currentFunction) {
+      // I don't think this can happen: foo[x](args)
+      // doesn't parse, so you can't even do things like
+      // $.Toybox.Lang[:format]("fmt", [])
+      recordModifiedUnknown(state.currentFunction);
     }
     return null;
+  }
+  if (state.currentFunction) {
+    recordCalledFuncs(state.currentFunction, callees);
   }
   if (callees.length == 1 && callees[0].type === "FunctionDeclaration") {
     const callee = callees[0].node;
