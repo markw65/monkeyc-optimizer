@@ -216,6 +216,14 @@ export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
   return sameArrays(a, b, sameLookupDefinition);
 }
 
+export function isLookupCandidate(node: mctree.MemberExpression) {
+  return node.computed
+    ? node.property.type === "UnaryExpression" &&
+        node.property.operator === ":" &&
+        node.property.argument
+    : node.property.type === "Identifier" && node.property;
+}
+
 /**
  *
  * @param state    - The ProgramState
@@ -243,8 +251,8 @@ function lookup(
   const stack = maybeStack || state.stack;
   switch (node.type) {
     case "MemberExpression": {
-      if (node.property.type != "Identifier" || node.computed) break;
-      const property = node.property;
+      const property = isLookupCandidate(node);
+      if (!property) break;
       let result;
       if (node.object.type === "ThisExpression") {
         [, result] = lookup(state, decls, node.property, name, stack, true);

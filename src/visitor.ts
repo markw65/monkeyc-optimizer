@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { collectNamespaces, sameLookupResult } from "./api";
+import { collectNamespaces, isLookupCandidate, sameLookupResult } from "./api";
 import { LookupDefinition, ProgramStateAnalysis } from "./optimizer-types";
 
 export function visitReferences(
@@ -83,14 +83,16 @@ export function visitReferences(
         }
         break;
 
-      case "MemberExpression":
-        if (!node.computed && node.property.type === "Identifier") {
-          if (!name || node.property.name === name) {
+      case "MemberExpression": {
+        const property = isLookupCandidate(node);
+        if (property) {
+          if (!name || property.name === name) {
             return checkResults(state.lookup(node), node) || ["object"];
           }
           return ["object"];
         }
         break;
+      }
       case "MethodDefinition": {
         if (!state.inType) {
           throw new Error("Method definition outside of type!");
