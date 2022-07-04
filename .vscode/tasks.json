@@ -8,6 +8,19 @@
       "problemMatcher": [],
       "label": "npm: build-debug",
       "detail": "webpack --mode development"
+    },
+    {
+      "type": "npm",
+      "script": "watch",
+      "label": "Auto watch",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
     }
   ]
 }
