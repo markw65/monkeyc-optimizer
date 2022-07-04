@@ -252,7 +252,7 @@ export async function analyze(
   });
 
   delete state.shouldExclude;
-  delete state.post;
+  delete state.pre;
 
   collectClassInfo(state);
 
