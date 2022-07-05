@@ -388,6 +388,21 @@ function inlineAssignContext(logger as Logger) as Boolean {
     arr[z] = A.B.s3(1);
     check(arr[0] as Number, 1, logger);
 
+    /* @match /^\{ var z = \$\.z; self.z\+\+;/ /check/ */
+    x = argInterference1(A.B.x, A.x, $.z);
+    check(x, A.B.x + A.x + $.z - 1, logger);
+
+    /* @match /^\{ var y = A\.x; A.x\+\+;/ /check/ */
+    x = argInterference2($.z, A.x, A.B.x);
+    check(x, A.B.x + A.x + $.z - 1, logger);
+
+    /* @match /^\{ var z = A\.B\.x; A.B.a\(\);/ /check/ */
+    x = argInterference3($.z, A.x, A.B.x);
+    check(x, A.B.x + A.x + $.z - 1, logger);
+
+    /* @match /z = A\.B\.x; var method/ /check/ */
+    x = argInterference4($.z, A.x, A.B.x);
+    check(x, A.B.x + A.x + $.z - 1, logger);
     return ok;
 }
 
@@ -437,4 +452,28 @@ function assignContext2(x as Number) as Number {
     /* @match This should have been removed */
     var tmp = x * z;
     return tmp;
+}
+
+(:inline)
+function argInterference1(x as Number, y as Number, z as Number) {
+    self.z++;
+    return x + y + z;
+}
+(:inline)
+function argInterference2(x as Number, y as Number, z as Number) {
+    A.x++;
+    return x + y + z;
+}
+
+(:inline)
+function argInterference3(x as Number, y as Number, z as Number) {
+    A.B.a();
+    return x + y + z;
+}
+
+(:inline)
+function argInterference4(x as Number, y as Number, z as Number) {
+    var method = new Lang.Method(A.B, :a) as (Method() as Void);
+    method.invoke();
+    return x + y + z;
 }

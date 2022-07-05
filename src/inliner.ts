@@ -1,17 +1,24 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   hasProperty,
+  isLookupCandidate,
   isStateNode,
   sameLookupResult,
   variableDeclarationName,
 } from "./api";
 import { cloneDeep, traverseAst, withLoc, withLocDeep } from "./ast";
 import {
+  findCallees,
+  findCalleesForNew,
+  functionMayModify,
+} from "./function-info";
+import {
   FunctionStateNode,
   ProgramStateAnalysis,
   ProgramStateLive,
   ProgramStateStack,
   StateNodeDecl,
+  VariableStateNode,
 } from "./optimizer-types";
 import { renameVariable } from "./variable-renamer";
 
@@ -50,9 +57,10 @@ function getArgSafety(
   };
 
   const safeArgs: (boolean | null)[] = [];
+  const argDecls: VariableStateNode[] = [];
   let allSafe = true;
   if (
-    !args.every((arg) => {
+    !args.every((arg, i) => {
       switch (arg.type) {
         case "Literal":
           safeArgs.push(true);
@@ -68,12 +76,15 @@ function getArgSafety(
             safeArgs.push(null);
             return !requireAll;
           }
-          const safety = getSafety(results[0].results[0]);
+          const decl = results[0].results[0];
+          const safety = getSafety(decl);
           safeArgs.push(safety);
           if (!safety) {
             allSafe = false;
             if (safety === null) {
               return !requireAll;
+            } else if (decl.type === "VariableDeclarator") {
+              argDecls[i] = decl;
             }
           }
           return true;
@@ -87,7 +98,9 @@ function getArgSafety(
     return false;
   }
   if (allSafe && requireAll) return true;
-  let callSeen = false;
+  const callsSeen = new Set<FunctionStateNode>();
+  const modifiedDecls = new Set<VariableStateNode>();
+  let modifiedUnknown = false;
   const params = Object.fromEntries(
     func.node.params.map(
       (param, i) => [variableDeclarationName(param), i] as const
@@ -97,30 +110,93 @@ function getArgSafety(
   // use post to do the checking, because arguments are evaluated
   // prior to the call, so eg "return f(x.y);" is fine, but
   // "return f()+x.y" is not.
-  traverseAst(func.node.body!, null, (node) => {
-    switch (node.type) {
-      case "AssignmentExpression":
-      case "UpdateExpression": {
-        const v = node.type == "UpdateExpression" ? node.argument : node.left;
-        if (v.type === "Identifier" && hasProperty(params, v.name)) {
-          safeArgs[params[v.name]] = null;
+  const { pre, post, stack } = state;
+  try {
+    delete state.pre;
+    state.post = (node) => {
+      switch (node.type) {
+        case "AssignmentExpression":
+        case "UpdateExpression": {
+          const v = node.type == "UpdateExpression" ? node.argument : node.left;
+          if (v.type === "Identifier" && hasProperty(params, v.name)) {
+            // If a parameter is modified, we can't just substitute the
+            // argument wherever the parameter is used.
+            safeArgs[params[v.name]] = null;
+            break;
+          }
+          if (modifiedUnknown) break;
+          const [, results] = state.lookup(v);
+          if (results) {
+            results.forEach((r) =>
+              r.results.forEach(
+                (decl) =>
+                  decl.type === "VariableDeclarator" && modifiedDecls.add(decl)
+              )
+            );
+          } else {
+            modifiedUnknown = true;
+          }
+          break;
         }
+        case "CallExpression":
+        case "NewExpression":
+          if (!modifiedUnknown) {
+            const [, results] = state.lookup(
+              node.callee,
+              null,
+              // calls are looked up as non-locals, but new is not
+              node.type === "CallExpression" ? func.stack : state.stack
+            );
+            if (!results) {
+              const callee_name =
+                node.callee.type === "Identifier"
+                  ? node.callee
+                  : node.callee.type === "MemberExpression"
+                  ? isLookupCandidate(node.callee)
+                  : null;
+              if (callee_name) {
+                const callees = state.allFunctions[callee_name.name];
+                if (callees) {
+                  callees.forEach((callee) => callsSeen.add(callee));
+                }
+              } else {
+                modifiedUnknown = true;
+              }
+            } else {
+              const callees =
+                node.type === "CallExpression"
+                  ? findCallees(results)
+                  : findCalleesForNew(results);
+              if (callees) {
+                callees.forEach((callee) => callsSeen.add(callee));
+              }
+            }
+          }
+          break;
+
+        case "Identifier":
+          if (
+            hasProperty(params, node.name) &&
+            !safeArgs[params[node.name]] &&
+            (modifiedUnknown ||
+              !argDecls[params[node.name]] ||
+              modifiedDecls.has(argDecls[params[node.name]]) ||
+              Array.from(callsSeen).some((callee) =>
+                functionMayModify(state, callee, argDecls[params[node.name]])
+              ))
+          ) {
+            safeArgs[params[node.name]] = null;
+          }
       }
-      // fall through
-      case "CallExpression":
-      case "NewExpression":
-        callSeen = true;
-        break;
-      case "Identifier":
-        if (
-          callSeen &&
-          hasProperty(params, node.name) &&
-          !safeArgs[params[node.name]]
-        ) {
-          safeArgs[params[node.name]] = null;
-        }
-    }
-  });
+      return null;
+    };
+    state.stack = func.stack!;
+    state.traverse(func.node.body!);
+  } finally {
+    state.pre = pre;
+    state.post = post;
+    state.stack = stack;
+  }
   return safeArgs;
 }
 
