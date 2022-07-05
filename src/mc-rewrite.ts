@@ -9,6 +9,7 @@ import {
   formatAst,
   getApiMapping,
   hasProperty,
+  isLookupCandidate,
   isStateNode,
   variableDeclarationName,
 } from "./api";
@@ -891,19 +892,44 @@ export async function optimizeMonkeyC(
         }
         return [];
       }
-      case "MemberExpression":
-        if (node.property.type === "Identifier" && !node.computed) {
-          if (hasProperty(state.index, node.property.name)) {
+      case "MemberExpression": {
+        const property = isLookupCandidate(node);
+        if (property) {
+          if (hasProperty(state.index, property.name)) {
             if (lookupAndReplace(node)) {
               return false;
             } else {
-              state.exposed[node.property.name] = true;
+              state.exposed[property.name] = true;
             }
           }
           // Don't optimize the property.
           return ["object"];
         }
         break;
+      }
+      case "AssignmentExpression":
+      case "UpdateExpression": {
+        const lhs =
+          node.type === "AssignmentExpression" ? node.left : node.argument;
+        if (lhs.type === "Identifier") {
+          const map = topLocals().map;
+          if (map) {
+            if (hasProperty(map, lhs.name)) {
+              const name = map[lhs.name];
+              if (typeof name === "string") {
+                lhs.name = name;
+              }
+            }
+          }
+        }
+        if (lhs.type === "MemberExpression") {
+          state.traverse(lhs.object);
+          if (lhs.computed) {
+            state.traverse(lhs.property);
+          }
+        }
+        return node.type === "AssignmentExpression" ? ["right"] : [];
+      }
       case "BlockStatement": {
         const map = topLocals().map;
         if (map) {

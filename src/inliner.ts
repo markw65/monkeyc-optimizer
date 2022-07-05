@@ -303,34 +303,49 @@ function processInlineBody<T extends InlineBody>(
       }
       return result;
     };
+    const fixId = (node: mctree.Identifier) => {
+      if (state.inType) return null;
+      if (hasProperty(params, node.name)) {
+        const ix = params[node.name];
+        if (ix >= 0) {
+          const replacement = { ...call.arguments[ix] };
+          replacements.add(replacement);
+          return replacement;
+        }
+        return null;
+      }
+      const replacement = fixNodeScope(state, node, func.stack!);
+      if (!replacement) {
+        failed = true;
+        inlineDiagnostic(state, func, call, `Failed to resolve '${node.name}'`);
+      }
+      return replacement;
+    };
     state.post = (node: mctree.Node) => {
       if (failed) return post(node, state);
       let replacement = null;
       switch (node.type) {
-        case "Identifier": {
-          if (state.inType) break;
-          if (hasProperty(params, node.name)) {
-            const ix = params[node.name];
-            if (ix >= 0) {
-              replacement = { ...call.arguments[ix] };
-              replacements.add(replacement);
-              return replacement;
+        case "AssignmentExpression":
+          if (node.left.type === "Identifier") {
+            const rep = fixId(node.left);
+            if (rep) {
+              node.left = rep as mctree.Identifier | mctree.MemberExpression;
             }
-            break;
-          }
-          replacement = fixNodeScope(state, node, func.stack!);
-          if (!replacement) {
-            failed = true;
-            inlineDiagnostic(
-              state,
-              func,
-              call,
-              `Failed to resolve '${node.name}'`
-            );
-            return post(node, state);
           }
           break;
-        }
+        case "UpdateExpression":
+          if (node.argument.type === "Identifier") {
+            const rep = fixId(node.argument);
+            if (rep) {
+              node.argument = rep as
+                | mctree.Identifier
+                | mctree.MemberExpression;
+            }
+          }
+          break;
+        case "Identifier":
+          replacement = fixId(node);
+          break;
       }
       const ret = post(replacement || node, state);
       return ret === false || ret ? ret : replacement;
