@@ -5,7 +5,7 @@ import {
   sameLookupResult,
   variableDeclarationName,
 } from "./api";
-import { traverseAst, withLoc, withLocDeep } from "./ast";
+import { cloneDeep, traverseAst, withLoc, withLocDeep } from "./ast";
 import {
   FunctionStateNode,
   ProgramStateAnalysis,
@@ -593,9 +593,7 @@ function inlineWithArgs(
     }
   }
 
-  const body = JSON.parse(
-    JSON.stringify(func.node!.body)
-  ) as mctree.BlockStatement;
+  const body = cloneDeep(func.node!.body);
 
   const safeArgs = getArgSafety(state, func, call.arguments, false);
   const params = Object.fromEntries(
@@ -659,11 +657,9 @@ export function inlineFunction(
   if (context) {
     return inlineWithArgs(state, func, call, context);
   }
-  const retArg = JSON.parse(
-    JSON.stringify(
-      (func.node!.body!.body[0] as mctree.ReturnStatement).argument!
-    )
-  ) as NonNullable<mctree.ReturnStatement["argument"]>;
+  const retArg = cloneDeep(
+    (func.node!.body!.body[0] as mctree.ReturnStatement).argument!
+  );
   const params = Object.fromEntries(
     func.node.params.map(
       (param, i) => [variableDeclarationName(param), i] as const

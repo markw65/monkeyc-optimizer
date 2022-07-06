@@ -2,6 +2,7 @@ import {
   default as MonkeyC,
   LiteralIntegerRe,
   mctree,
+  serializeMonkeyC,
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
@@ -653,10 +654,14 @@ export function collectNamespaces(
               state.inType--;
               const [parent] = state.stack.slice(-1);
               const values = parent.decls || (parent.decls = {});
-              let prev = -1;
+              let prev: number | bigint = -1;
               node.members.forEach((m, i) => {
                 if (m.type == "Identifier") {
-                  prev += 1;
+                  if (typeof prev === "bigint") {
+                    prev += 1n;
+                  } else {
+                    prev += 1;
+                  }
                   m = node.members[i] = {
                     type: "EnumStringMember",
                     loc: m.loc,
@@ -666,7 +671,8 @@ export function collectNamespaces(
                     init: {
                       type: "Literal",
                       value: prev,
-                      raw: prev.toString(),
+                      raw:
+                        prev.toString() + (typeof prev === "bigint" ? "l" : ""),
                       enumType: m.enumType,
                       loc: m.loc,
                       start: m.start,
@@ -687,7 +693,7 @@ export function collectNamespaces(
                   init.raw &&
                   LiteralIntegerRe.test(init.raw)
                 ) {
-                  prev = init.value as number;
+                  prev = init.value as number | bigint;
                 }
                 if (!hasProperty(values, name)) {
                   values[name] = [];
@@ -790,7 +796,7 @@ export function formatAst(
   // json. The parser knows to just treat the last line of the input
   // as the ast itself, and the printers will find what they're
   // looking for in the source.
-  const source = (monkeyCSource || "") + "\n" + JSON.stringify(node);
+  const source = (monkeyCSource || "") + "\n" + serializeMonkeyC(node);
   return Prettier.format(source, {
     parser: "monkeyc-json",
     plugins: [MonkeyC],

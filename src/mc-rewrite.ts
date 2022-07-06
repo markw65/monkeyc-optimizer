@@ -13,7 +13,7 @@ import {
   isStateNode,
   variableDeclarationName,
 } from "./api";
-import { traverseAst, withLoc } from "./ast";
+import { cloneDeep, traverseAst, withLoc } from "./ast";
 import {
   diagnostic,
   InlineContext,
@@ -22,15 +22,15 @@ import {
   unused,
 } from "./inliner";
 import {
-  ProgramStateAnalysis,
-  ModuleStateNode,
+  BuildConfig,
   ClassStateNode,
   FilesToOptimizeMap,
-  BuildConfig,
-  ProgramState,
-  LookupDefinition,
-  ProgramStateOptimizer,
   FunctionStateNode,
+  LookupDefinition,
+  ModuleStateNode,
+  ProgramState,
+  ProgramStateAnalysis,
+  ProgramStateOptimizer,
 } from "./optimizer-types";
 import { sizeBasedPRE } from "./pre";
 import { pushUnique } from "./util";
@@ -340,23 +340,42 @@ export function getLiteralNode(
   if (node.type == "UnaryExpression") {
     if (node.argument.type != "Literal") return null;
     switch (node.operator) {
-      case "-":
-        if (typeof node.argument.value == "number") {
-          return {
-            ...node.argument,
-            value: -node.argument.value,
-            raw: "-" + node.argument.value,
-            enumType: node.enumType,
-          };
+      case "-": {
+        const [arg, type] = getNodeValue(node.argument);
+        if (type === "Number" || type === "Long") {
+          return replacementLiteral(arg, -arg.value, type);
         }
+      }
     }
   }
   return null;
 }
 
+interface NumberLiteral extends mctree.Literal {
+  value: number;
+}
+interface LongLiteral extends mctree.Literal {
+  value: number | bigint;
+}
+interface StringLiteral extends mctree.Literal {
+  value: string;
+}
+interface BooleanLiteral extends mctree.Literal {
+  value: boolean;
+}
+interface NullLiteral extends mctree.Literal {
+  value: null;
+}
+
 function getNodeValue(
   node: mctree.Node
-): [mctree.Literal | null, string | null] {
+):
+  | [NumberLiteral, "Number" | "Float" | "Double"]
+  | [LongLiteral, "Long"]
+  | [StringLiteral, "String"]
+  | [BooleanLiteral, "Boolean"]
+  | [NullLiteral, "Null"]
+  | [null, null] {
   if (
     node.type == "BinaryExpression" &&
     node.operator == "as" &&
@@ -372,24 +391,29 @@ function getNodeValue(
   if (node.type != "Literal") {
     return [null, null];
   }
-  let type = node.value === null ? "Null" : typeof node.value;
-  if (type === "number") {
-    const match = node.raw && LiteralIntegerRe.exec(node.raw);
-    if (match) {
-      type = match[2] == "l" ? "Long" : "Number";
-    } else if (node.raw && node.raw.endsWith("d")) {
-      type = "Double";
-    } else {
-      type = "Float";
-    }
-  } else if (type === "string") {
-    type = "String";
-  } else if (type === "boolean") {
-    type = "Boolean";
-  } else {
-    type = "Unknown";
+  if (node.value === null) {
+    return [node as NullLiteral, "Null"];
   }
-  return [node, type];
+  const type = typeof node.value;
+  if (type === "number") {
+    const match = LiteralIntegerRe.exec(node.raw);
+    if (match) {
+      return match[2] === "l" || match[2] === "L"
+        ? [node as LongLiteral, "Long"]
+        : [node as NumberLiteral, "Number"];
+    }
+    return [node as NumberLiteral, node.raw.endsWith("d") ? "Double" : "Float"];
+  }
+  if (type === "bigint") {
+    return [node as LongLiteral, "Long"];
+  }
+  if (type === "string") {
+    return [node as StringLiteral, "String"];
+  }
+  if (type === "boolean") {
+    return [node as BooleanLiteral, "Boolean"];
+  }
+  throw new Error(`Literal has unknown type '${type}'`);
 }
 
 function fullTypeName(state: ProgramStateAnalysis, tsp: mctree.TypeSpecPart) {
@@ -442,6 +466,51 @@ function isBooleanExpression(
   return false;
 }
 
+function replacementLiteral(
+  arg: mctree.Literal,
+  value: bigint | number | boolean,
+  type: "Number" | "Long" | "Boolean"
+) {
+  if (typeof value === "boolean") {
+    type = "Boolean";
+  } else if (type === "Number") {
+    value = Number(BigInt.asIntN(32, BigInt(value)));
+  } else if (type === "Long") {
+    value = BigInt.asIntN(64, BigInt(value));
+  }
+  return {
+    ...arg,
+    value,
+    raw: value.toString() + (type === "Long" ? "l" : ""),
+  };
+}
+
+const operators = {
+  "+": (left: bigint, right: bigint) => left + right,
+  "-": (left: bigint, right: bigint) => left - right,
+  "*": (left: bigint, right: bigint) => left * right,
+  "/": (left: bigint, right: bigint) => left / right,
+  "%": (left: bigint, right: bigint) => left % right,
+  "&": (left: bigint, right: bigint) => left & right,
+  "|": (left: bigint, right: bigint) => left | right,
+  "^": (left: bigint, right: bigint) => left ^ right,
+  "<<": (left: bigint, right: bigint) => left << (right & 127n),
+  ">>": (left: bigint, right: bigint) => left >> (right & 127n),
+  "==": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
+    // two string literals will compare unequal, becuase string
+    // equality is object equality.
+    typeof left === "string" ? false : left === right,
+  "!=": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
+    typeof left === "string" ? true : left !== right,
+  "<=": (left: bigint, right: bigint) => left <= right,
+  ">=": (left: bigint, right: bigint) => left >= right,
+  "<": (left: bigint, right: bigint) => left < right,
+  ">": (left: bigint, right: bigint) => left > right,
+  as: null,
+  instanceof: null,
+  has: null,
+} as const;
+
 function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
   switch (node.type) {
     case "UnaryExpression": {
@@ -455,28 +524,18 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
           break;
         case "-":
           if (type === "Number" || type === "Long") {
-            return {
-              ...arg,
-              value: -arg.value!,
-              raw: (-arg.value!).toString() + (type === "Long" ? "l" : ""),
-            };
+            return replacementLiteral(arg, -arg.value, type);
           }
           break;
         case "!":
         case "~":
           {
-            let value;
             if (type === "Number" || type === "Long") {
-              value = -arg.value! - 1;
-            } else if (type === "Boolean" && node.operator == "!") {
-              value = !arg.value;
+              return replacementLiteral(arg, ~BigInt(arg.value), type);
             }
-            if (value !== undefined) {
-              return {
-                ...arg,
-                value,
-                raw: value.toString() + (type === "Long" ? "l" : ""),
-              };
+
+            if (type === "Boolean" && node.operator == "!") {
+              return replacementLiteral(arg, !arg.value, type);
             }
           }
           break;
@@ -484,57 +543,28 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
       break;
     }
     case "BinaryExpression": {
-      const operators = {
-        "+": (left: number, right: number) => left + right,
-        "-": (left: number, right: number) => left - right,
-        "*": (left: number, right: number) => left * right,
-        "/": (left: number, right: number) => Math.trunc(left / right),
-        "%": (left: number, right: number) => left % right,
-        "&": (left: number, right: number, type: string) =>
-          type === "Number" ? left & right : null,
-        "|": (left: number, right: number, type: string) =>
-          type === "Number" ? left | right : null,
-        "^": (left: number, right: number, type: string) =>
-          type === "Number" ? left ^ right : null,
-        "<<": (left: number, right: number, type: string) =>
-          type === "Number" ? left << right : null,
-        ">>": (left: number, right: number, type: string) =>
-          type === "Number" ? left >> right : null,
-        "==": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
-          left == right,
-        "!=": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
-          left != right,
-        "<=": (left: number, right: number) => left <= right,
-        ">=": (left: number, right: number) => left >= right,
-        "<": (left: number, right: number) => left < right,
-        ">": (left: number, right: number) => left > right,
-        as: null,
-        instanceof: null,
-        has: null,
-      } as const;
       const op = operators[node.operator];
       if (op) {
         const [left, left_type] = getNodeValue(node.left);
         const [right, right_type] = getNodeValue(node.right);
         if (!left || !right) break;
         let value = null;
+        let type: "Boolean" | "Number" | "Long";
         if (
-          left_type != right_type ||
-          (left_type != "Number" && left_type != "Long")
+          (left_type != "Number" && left_type != "Long") ||
+          left_type != right_type
         ) {
           if (node.operator !== "==" && node.operator !== "!=") {
             break;
           }
           value = operators[node.operator](left.value, right.value);
+          type = "Boolean" as const;
         } else {
-          value = op(left.value as number, right.value as number, left_type);
+          type = left_type;
+          value = op(BigInt(left.value), BigInt(right.value));
         }
         if (value === null) break;
-        return {
-          ...left,
-          value,
-          raw: value.toString() + (left_type === "Long" ? "l" : ""),
-        };
+        return replacementLiteral(left, value, type);
       }
       break;
     }
@@ -544,7 +574,8 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
       const falsy =
         left.value === false ||
         left.value === null ||
-        (left.value === 0 && (left_type === "Number" || left_type === "Long"));
+        ((left_type === "Number" || left_type === "Long") &&
+          (left.value === 0 || left.value === 0n));
       if (falsy === (node.operator === "&&")) {
         return left;
       }
@@ -595,9 +626,7 @@ function evaluateFunction(
       func.params.map((p, i) => [variableDeclarationName(p), args[i]])
     );
   let ret: mctree.Node | null = null;
-  const body = args
-    ? (JSON.parse(JSON.stringify(func.body)) as typeof func.body)
-    : func.body;
+  const body = args ? cloneDeep(func.body) : func.body;
   try {
     traverseAst(
       body,
@@ -789,7 +818,11 @@ export async function optimizeMonkeyC(
             result = !!value.value;
           }
           if (result !== null) {
-            node.test = { type: "Literal", value: result };
+            node.test = {
+              type: "Literal",
+              value: result,
+              raw: result.toString(),
+            };
             if (
               node.type === "IfStatement" ||
               node.type === "ConditionalExpression"
@@ -1258,8 +1291,8 @@ function optimizeCall(
         "name" in node.callee.property &&
         node.callee.property.name);
     if (n) {
-      state.allFunctions.forEach((fn) =>
-        fn.name === n && markFunctionCalled(state, fn.node)
+      state.allFunctions.forEach(
+        (fn) => fn.name === n && markFunctionCalled(state, fn.node)
       );
     } else {
       // There are unnamed CallExpressions, such as new [size]

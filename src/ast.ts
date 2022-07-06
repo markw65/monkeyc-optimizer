@@ -288,3 +288,7 @@ export function withLocDeep<T extends mctree.Node>(
   }
   return node;
 }
+
+export function cloneDeep<T extends mctree.Node>(node: T): T {
+  return withLocDeep(node, null);
+}

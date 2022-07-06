@@ -504,6 +504,7 @@ function refCost(node: RefNodes) {
     switch (typeof node.value) {
       case "string":
         return 5;
+      case "bigint":
       case "number":
         return 5;
       case "boolean":
