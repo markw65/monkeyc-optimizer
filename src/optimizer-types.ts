@@ -166,7 +166,9 @@ export type ProgramState = {
   inType?: number;
   inlining?: true;
   config?: BuildConfig;
-  exposed?: { [key: string]: true };
+  nextExposed?: Record<string, true>;
+  exposed?: Record<string, true>;
+  usedByName?: Record<string, true>;
   calledFunctions?: { [key: string]: mctree.FunctionDeclaration[] };
   localsStack?: {
     node?: mctree.Node;
@@ -203,6 +205,7 @@ export type ProgramStateLive = Finalized<
   | "constants"
   | "removeNodeComments"
   | "inType"
+  | "nextExposed"
 >;
 export type ProgramStateAnalysis = Finalized<
   ProgramStateLive,
@@ -210,7 +213,7 @@ export type ProgramStateAnalysis = Finalized<
 >;
 export type ProgramStateOptimizer = Finalized<
   ProgramStateAnalysis,
-  "localsStack" | "exposed" | "calledFunctions"
+  "localsStack" | "exposed" | "calledFunctions" | "usedByName"
 >;
 export type ExcludeAnnotationsMap = { [key: string]: boolean };
 export type FilesToOptimizeMap = {

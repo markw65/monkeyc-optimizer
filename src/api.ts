@@ -373,6 +373,7 @@ export function collectNamespaces(
   stateIn?: ProgramState
 ): ProgramStateNode {
   const state = (stateIn || {}) as ProgramStateLive;
+  if (!state.nextExposed) state.nextExposed = {};
   if (!state.index) state.index = {};
   if (!state.stack) {
     state.stack = [
@@ -434,6 +435,13 @@ export function collectNamespaces(
             return [];
           }
           switch (node.type) {
+            case "UnaryExpression":
+              if (node.operator === ":" && !state.inType) {
+                state.nextExposed[node.argument.name] = true;
+              }
+              break;
+            case "AttributeList":
+              return [];
             case "Program":
               if (state.stack.length != 1) {
                 throw new Error("Unexpected stack length for Program node");

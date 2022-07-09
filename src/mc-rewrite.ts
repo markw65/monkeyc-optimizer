@@ -287,6 +287,8 @@ export async function analyze(
     });
   }
 
+  state.exposed = state.nextExposed;
+  state.nextExposed = {};
   return state;
 }
 
@@ -661,8 +663,8 @@ export async function optimizeMonkeyC(
   const state = {
     ...(await analyze(fnMap, barrelList, config)),
     localsStack: [{}],
-    exposed: {},
     calledFunctions: {},
+    usedByName: {},
   } as ProgramStateOptimizer;
 
   const replace = (
@@ -864,14 +866,8 @@ export async function optimizeMonkeyC(
         break;
       case "UnaryExpression":
         if (node.operator == ":") {
-          // If we produce a Symbol, for a given name,
-          // its possible that someone uses that symbol
-          // indirectly, so we can't remove any enums or
-          // constants with that name (we can still replace
-          // uses of those constants though).
-          state.exposed[node.argument.name] = true;
-          // In any case, we can't replace *this* use of the
-          // symbol with its value...
+          // node.argument is not a normal identifier.
+          // don't visit it.
           return [];
         }
         break;
@@ -887,7 +883,7 @@ export async function optimizeMonkeyC(
         }
         if (hasProperty(state.index, node.name)) {
           if (!lookupAndReplace(node)) {
-            state.exposed[node.name] = true;
+            state.usedByName[node.name] = true;
           }
         }
         return [];
@@ -899,7 +895,7 @@ export async function optimizeMonkeyC(
             if (lookupAndReplace(node)) {
               return false;
             } else {
-              state.exposed[property.name] = true;
+              state.usedByName[property.name] = true;
             }
           }
           // Don't optimize the property.
@@ -1124,10 +1120,13 @@ export async function optimizeMonkeyC(
     collectNamespaces(f.ast!, state);
   });
   state.calledFunctions = {};
-  state.exposed = {};
+  state.exposed = state.nextExposed;
+  state.nextExposed = {};
   Object.values(fnMap).forEach((f) => {
     collectNamespaces(f.ast!, state);
   });
+  state.exposed = state.nextExposed;
+  state.nextExposed = {};
   delete state.pre;
   delete state.post;
   state.allFunctions.forEach((fn) => sizeBasedPRE(state, fn));
@@ -1143,7 +1142,8 @@ export async function optimizeMonkeyC(
             const name = "name" in m ? m.name : m.id.name;
             return (
               hasProperty(state.index, name) &&
-              !hasProperty(state.exposed, name)
+              !hasProperty(state.exposed, name) &&
+              !hasProperty(state.usedByName, name)
             );
           })
         ) {
@@ -1189,7 +1189,9 @@ export async function optimizeMonkeyC(
         node.declarations = node.declarations.filter((d) => {
           const name = variableDeclarationName(d.id);
           return (
-            !hasProperty(state.index, name) || hasProperty(state.exposed, name)
+            !hasProperty(state.index, name) ||
+            hasProperty(state.exposed, name) ||
+            hasProperty(state.usedByName, name)
           );
         });
         if (!node.declarations.length) {
@@ -1256,7 +1258,9 @@ function optimizeCall(
         "name" in node.callee.property &&
         node.callee.property.name);
     if (n) {
-      state.exposed[n] = true;
+      state.allFunctions.forEach((fn) =>
+        fn.name === n && markFunctionCalled(state, fn.node)
+      );
     } else {
       // There are unnamed CallExpressions, such as new [size]
       // So there's nothing to do here.
