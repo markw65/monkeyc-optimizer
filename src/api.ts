@@ -414,7 +414,7 @@ export function collectNamespaces(
         : elm
     );
 
-  state.inType = false;
+  state.inType = 0;
 
   state.traverse = (root) =>
     traverseAst(
@@ -434,7 +434,7 @@ export function collectNamespaces(
               break;
             case "TypeSpecList":
             case "TypeSpecPart":
-              state.inType = true;
+              state.inType++;
               break;
             case "ImportModule":
             case "Using": {
@@ -557,7 +557,10 @@ export function collectNamespaces(
             // an EnumDeclaration doesn't create a scope, but
             // it does create a type (if it has a name)
             case "EnumDeclaration": {
-              if (!node.id) break;
+              if (!node.id) {
+                state.inType++;
+                break;
+              }
               const [parent] = state.stack.slice(-1);
               const name = (parent.fullName + "." + node.id.name).replace(
                 /^\$\./,
@@ -569,7 +572,7 @@ export function collectNamespaces(
             }
             // fall through
             case "TypedefDeclaration": {
-              state.inType = true;
+              state.inType++;
               const name = node.id!.name;
               const [parent] = state.stack.slice(-1);
               if (!parent.type_decls) parent.type_decls = {};
@@ -626,7 +629,12 @@ export function collectNamespaces(
               break;
             }
             case "EnumStringBody": {
-              state.inType = false;
+              if (state.inType !== 1) {
+                throw new Error(
+                  `Expected inType to be 1 at EnumStringBody. Got ${state.inType}.`
+                );
+              }
+              state.inType--;
               const [parent] = state.stack.slice(-1);
               const values = parent.decls || (parent.decls = {});
               let prev = -1;
@@ -693,18 +701,14 @@ export function collectNamespaces(
             const type = node.type;
             if (state.post) ret = state.post(node, state);
             switch (type) {
-              // Don't clear inType for TypeSpecPart, since they
-              // generally occur in TypeSpecLists. But do clear it for
-              // SizedArrayExpression, since thats the only place they
-              // happen on their own.
-              case "SizedArrayExpression":
+              case "TypeSpecPart":
               case "TypeSpecList":
               case "TypedefDeclaration":
               case "EnumDeclaration":
-                state.inType = false;
+                state.inType--;
                 break;
               case "EnumStringBody":
-                state.inType = true;
+                state.inType++;
                 break;
             }
             const [parent] = state.stack.slice(-1);
@@ -729,6 +733,9 @@ export function collectNamespaces(
       }
     );
   state.traverse(ast);
+  if (state.inType) {
+    throw new Error(`inType was non-zero on exit: ${state.inType}`);
+  }
   if (state.stack.length != 1) {
     throw new Error("Invalid AST!");
   }

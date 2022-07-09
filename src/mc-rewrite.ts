@@ -804,7 +804,7 @@ export async function optimizeMonkeyC(
         return null;
       }
       case "EnumDeclaration":
-        return false;
+        return [];
       case "ForStatement": {
         const map = topLocals().map;
         if (map) {

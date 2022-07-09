@@ -163,7 +163,7 @@ export type ProgramState = {
   traverse?: (
     node: mctree.Node
   ) => void | null | false | mctree.Node | mctree.Node[];
-  inType?: boolean;
+  inType?: number;
   inlining?: true;
   config?: BuildConfig;
   exposed?: { [key: string]: true };
