@@ -12,7 +12,7 @@
       "type": "node"
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Optimize and build HRMultifield Debug",
       "skipFiles": ["<node_internals>/**"],
@@ -20,10 +20,11 @@
       "args": [
         "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
         "--product=fenix5xplus"
-      ]
+      ],
+      "sourceMaps": true
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Optimize and build HRMultifield Release",
       "skipFiles": ["<node_internals>/**"],
@@ -35,7 +36,7 @@
       ]
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Optimize and export HRMultifield",
       "skipFiles": ["<node_internals>/**"],
@@ -46,7 +47,7 @@
       ]
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Optimize and build Picker",
       "skipFiles": ["<node_internals>/**"],
@@ -58,7 +59,7 @@
       ]
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Optimize Remote projects",
       "skipFiles": ["<node_internals>/**"],
@@ -66,7 +67,7 @@
       "args": ["--output-path=bin/optimized", "--github", "--generate-only"]
     },
     {
-      "type": "pwa-node",
+      "type": "node",
       "request": "launch",
       "name": "Optimize and export garmin-samples",
       "skipFiles": ["<node_internals>/**"],
