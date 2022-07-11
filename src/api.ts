@@ -501,6 +501,16 @@ export function collectNamespaces(
                 });
               }
               break;
+            case "ForStatement":
+              if (node.init && node.init.type === "VariableDeclaration") {
+                state.stack.push({
+                  type: "BlockStatement",
+                  fullName: undefined,
+                  name: undefined,
+                  node: node,
+                });
+              }
+              break;
             case "BlockStatement": {
               const [parent] = state.stack.slice(-1);
               if (
@@ -738,6 +748,10 @@ export function collectNamespaces(
             const [parent] = state.stack.slice(-1);
             if (
               parent.node === node ||
+              // The pre function might cause node.body to be skipped,
+              // so we need to check here, just in case.
+              // (this actually happens with prettier-extenison-monkeyc's
+              // findItemsByRange)
               (node.type === "CatchClause" && parent.node === node.body)
             ) {
               delete parent.usings;

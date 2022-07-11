@@ -104,7 +104,7 @@ export interface BlockStateNode extends BaseStateNode {
   type: "BlockStatement";
   name: undefined;
   fullName: undefined;
-  node: mctree.BlockStatement;
+  node: mctree.BlockStatement | mctree.ForStatement;
   stack?: undefined;
 }
 export interface TypedefStateNode extends BaseStateNode {
