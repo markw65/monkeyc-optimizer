@@ -822,6 +822,69 @@ export async function optimizeMonkeyC(
           (sc.superClass && checkInherited(sc, name))
       ));
 
+  const renamer = (
+    idnode: mctree.TypedIdentifier | mctree.InstanceofIdentifier
+  ) => {
+    const ident = idnode.type === "Identifier" ? idnode : idnode.left;
+    const locals = topLocals();
+    const { map } = locals;
+    if (map) {
+      const declName = ident.name;
+      const name = renameVariable(state, locals, declName);
+      if (name) {
+        const [, results] = state.lookupValue(ident);
+        if (!results) {
+          throw new Error(
+            `Didn't find local ${declName} which needed renaming`
+          );
+        }
+        if (results.length !== 1) {
+          throw new Error(
+            `Lookup of local ${declName} found more than one result`
+          );
+        }
+        const parent = results[0].parent;
+        if (!parent || !isStateNode(parent)) {
+          throw new Error(`No parent in lookup of local ${declName}`);
+        }
+        const decls = parent.decls;
+        if (!decls || !hasProperty(decls, declName)) {
+          throw new Error(`Missing decls in lookup of local ${declName}`);
+        }
+        if (hasProperty(decls, name)) {
+          throw new Error(
+            `While renaming ${declName} to ${name}, there was already a variable ${name}`
+          );
+        }
+        if (decls[declName].length === 1) {
+          decls[name] = decls[declName];
+          delete decls[declName];
+        } else {
+          let i = decls[declName].length;
+          while (i--) {
+            const decl = decls[declName][i];
+            if (
+              decl === idnode ||
+              (decl.type === "VariableDeclarator" && decl.node.id === idnode)
+            ) {
+              decls[declName].splice(i, 1);
+              decls[name] = [decl];
+              break;
+            }
+          }
+          if (i < 0) {
+            throw new Error(
+              `While renaming ${declName} to ${name}: Didn't find original declaration`
+            );
+          }
+        }
+        ident.name = name;
+      } else {
+        map[declName] = true;
+      }
+    }
+  };
+
   state.pre = (node) => {
     switch (node.type) {
       case "ConditionalExpression":
@@ -874,39 +937,13 @@ export async function optimizeMonkeyC(
         break;
       }
       case "VariableDeclarator": {
-        const locals = topLocals();
-        const { map } = locals;
-        if (map) {
-          const declName = variableDeclarationName(node.id);
-          const name = renameVariable(state, locals, declName);
-          if (name) {
-            if (node.id.type === "Identifier") {
-              node.id.name = name;
-            } else {
-              node.id.left.name = name;
-            }
-          } else {
-            map[declName] = true;
-          }
-        }
+        renamer(node.id);
         return ["init"];
       }
       case "CatchClause":
         if (node.param) {
           state.localsStack.push({ node, map: { ...(topLocals().map || {}) } });
-          const locals = topLocals();
-          const map = locals.map!;
-          const declName = variableDeclarationName(node.param);
-          const name = renameVariable(state, locals, declName);
-          if (name) {
-            if (node.param.type === "Identifier") {
-              node.param.name = name;
-            } else {
-              node.param.left.name = name;
-            }
-          } else {
-            map[declName] = true;
-          }
+          renamer(node.param);
           return ["body"];
         }
         break;
