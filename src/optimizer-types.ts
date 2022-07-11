@@ -130,7 +130,7 @@ export type StateNode =
   | VariableStateNode;
 export type ProgramStateStack = StateNode[];
 export type LookupDefinition = {
-  parent: StateNodeDecl | null;
+  parent: StateNode | null;
   results: StateNodeDecl[];
 };
 export type LookupResult =

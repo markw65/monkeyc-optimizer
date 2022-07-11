@@ -144,7 +144,7 @@ function lookupToStateNodeDecls(results: LookupDefinition[]) {
 
 function checkOne(
   state: ProgramStateLive,
-  ns: StateNodeDecl,
+  ns: StateNode,
   decls: DeclKind,
   node: mctree.Identifier,
   isStatic: boolean
@@ -179,20 +179,18 @@ function checkOne(
     }, null);
   };
 
-  if (isStateNode(ns)) {
-    const ndecls = ns[decls];
-    if (hasProperty(ndecls, node.name)) {
-      return ndecls[node.name];
-    }
-    switch (ns.type) {
-      case "ClassDeclaration":
-        if (!isStatic) {
-          return superChain(ns) || superChainScopes(ns) || false;
-        }
-      // fall through
-      case "ModuleDeclaration":
-        return lookupInContext(ns) || false;
-    }
+  const ndecls = ns[decls];
+  if (hasProperty(ndecls, node.name)) {
+    return ndecls[node.name];
+  }
+  switch (ns.type) {
+    case "ClassDeclaration":
+      if (!isStatic) {
+        return superChain(ns) || superChainScopes(ns) || false;
+      }
+    // fall through
+    case "ModuleDeclaration":
+      return lookupInContext(ns) || false;
   }
   return null;
 }
@@ -274,6 +272,9 @@ function lookup(
           (current, lookupDef) => {
             const items = lookupDef.results
               .map((module) => {
+                if (!isStateNode(module)) {
+                  return null;
+                }
                 const res = checkOne(state, module, decls, property, false);
                 return res ? { parent: module, results: res } : null;
               })
