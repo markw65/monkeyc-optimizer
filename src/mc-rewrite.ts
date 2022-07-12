@@ -44,6 +44,7 @@ import {
 } from "./optimizer-types";
 import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
+import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
 import { visitReferences } from "./visitor";
@@ -845,7 +846,7 @@ export async function optimizeMonkeyC(
           );
         }
         const parent = results[0].parent;
-        if (!parent || !isStateNode(parent)) {
+        if (!parent) {
           throw new Error(`No parent in lookup of local ${declName}`);
         }
         const decls = parent.decls;
@@ -975,6 +976,32 @@ export async function optimizeMonkeyC(
             if (typeof name === "string") {
               node.name = name;
             }
+            const [, results] = state.lookupValue(node);
+            if (results) {
+              if (results.length !== 1 || results[0].results.length !== 1) {
+                throw new Error(
+                  `Local ${node.name} had multiple lookup results`
+                );
+              }
+              const parent = results[0].parent;
+              if (!parent) {
+                throw new Error(`Local ${node.name} had no parent`);
+              }
+              const decl = results[0].results[0];
+              if (
+                parent.type === "FunctionDeclaration" ||
+                decl.type !== "VariableDeclarator"
+              ) {
+                // we can't optimize away function or catch parameters
+                return [];
+              }
+              if (parent.type !== "BlockStatement") {
+                throw new Error(
+                  `Local ${node.name} was not declared at block scope(??)`
+                );
+              }
+              decl.used = true;
+            }
           }
         }
         if (hasProperty(state.index, node.name)) {
@@ -1013,8 +1040,7 @@ export async function optimizeMonkeyC(
               }
             }
           }
-        }
-        if (lhs.type === "MemberExpression") {
+        } else if (lhs.type === "MemberExpression") {
           state.traverse(lhs.object);
           if (lhs.computed) {
             state.traverse(lhs.property);
@@ -1085,7 +1111,13 @@ export async function optimizeMonkeyC(
         if (node.body.length === 1 && node.body[0].type === "BlockStatement") {
           node.body.splice(0, 1, ...node.body[0].body);
         }
+      // fall through
+      case "ForStatement":
+        if (locals.map) {
+          cleanupUnusedVars(state, node);
+        }
         break;
+
       case "ConditionalExpression":
       case "IfStatement":
         if (

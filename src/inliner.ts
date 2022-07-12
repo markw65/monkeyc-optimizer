@@ -360,7 +360,7 @@ function processInlineBody<T extends InlineBody>(
             const paramName = variableDeclarationName(param);
             if (params[paramName] >= 0) return null;
             const name = renameVariable(state, locals, paramName) || paramName;
-
+            locals.map![name] = true;
             return {
               type: "VariableDeclarator",
               id: { type: "Identifier", name },

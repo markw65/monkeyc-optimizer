@@ -373,6 +373,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
         e = 42;
     check(c, 15, logger);
     check(d, 30, logger);
+    check(b - e, 0, logger);
 
     // inlining here would require a lot of gymnastics. Don't allow it
     // for now.
