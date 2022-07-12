@@ -177,7 +177,10 @@ export function sizeBasedPRE(
       let i = 0;
       do {
         name = `pre_${declName(decl)}${i ? "_" + i : ""}`;
-        if (!identifiers.has(name)) break;
+        if (!identifiers.has(name)) {
+          identifiers.add(name);
+          break;
+        }
         i++;
       } while (true);
       declMap.set(decl, name);
@@ -925,8 +928,13 @@ function applyReplacements(
       if (stmt === node) stmtStack.pop();
       const events = nodeMap.get(node);
       if (events) {
-        if (events.length === 1) {
-          if (events[0].type === "ref") {
+        const ret = events.reduce<mctree.Node | null>((ret, event) => {
+          if (event.type === "ref") {
+            if (ret) {
+              throw new Error(
+                `ref found when there was already a replacement for this node`
+              );
+            }
             if (
               node.type !== "Identifier" &&
               node.type !== "MemberExpression" &&
@@ -936,12 +944,18 @@ function applyReplacements(
                 `Ref found, but wrong type of node: ${node.type}`
               );
             }
-            const name = declMap.get(events[0].decl);
+            const name = declMap.get(event.decl);
             if (!name) {
               throw new Error(`No replacement found for "${formatAst(node)}"`);
             }
             return ident(name, node);
-          } else if (events[0].type === "def") {
+          }
+          if (event.type === "def") {
+            if (ret) {
+              throw new Error(
+                `def found when there was already a replacement for this node`
+              );
+            }
             if (
               node.type !== "AssignmentExpression" &&
               node.type !== "UpdateExpression"
@@ -954,7 +968,7 @@ function applyReplacements(
               node.type === "AssignmentExpression"
                 ? node.left
                 : (node.argument as mctree.AssignmentExpression["left"]);
-            const name = declMap.get(events[0].decl);
+            const name = declMap.get(event.decl);
             if (!name) {
               throw new Error(
                 `No replacement found for "${formatAst(target)}"`
@@ -980,22 +994,23 @@ function applyReplacements(
               node
             );
           }
+          if (event.type === "mod") {
+            if (!event.decl) {
+              throw new Error(`Unexpected null decl on mod event`);
+            }
+            let pending = pendingMap.get(stmt);
+            if (!pending) {
+              pendingMap.set(stmt, (pending = new Set()));
+            }
+            pending.add(event);
+          } else {
+            throw new Error(`Unexpected ${event.type} found`);
+          }
+          return ret;
+        }, null);
+        if (ret) {
+          return ret;
         }
-        events.forEach((event) => {
-          if (event.type !== "mod") {
-            throw new Error(
-              `Unexpected ${event.type} found amongst multiple events`
-            );
-          }
-          if (!event.decl) {
-            throw new Error(`Unexpected null decl on mod event`);
-          }
-          let pending = pendingMap.get(stmt);
-          if (!pending) {
-            pendingMap.set(stmt, (pending = new Set()));
-          }
-          pending.add(event);
-        });
       }
       const pending = pendingMap.get(node);
       if (node.type === "SequenceExpression") {
