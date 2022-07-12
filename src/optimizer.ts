@@ -19,7 +19,6 @@ import {
   writeManifest,
 } from "./manifest";
 import { analyze, getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
-import { pragmaChecker } from "./pragma-checker";
 import { appSupport } from "./sdk-util";
 import {
   copyRecursiveAsNeeded,
@@ -702,16 +701,13 @@ async function generateOneConfig(
     config
   );
   return Promise.all(
-    Object.entries(fnMap).map(async ([inFile, info]) => {
+    Object.values(fnMap).map(async (info) => {
       const name = info.output;
       const dir = path.dirname(name);
       await fs.mkdir(dir, { recursive: true });
 
       const opt_source = formatAst(info.ast!, info.monkeyCSource);
       await fs.writeFile(name, opt_source);
-      if (config.checkBuildPragmas) {
-        pragmaChecker(info.ast!, diagnostics?.[inFile]);
-      }
       return info.hasTests;
     })
   ).then((results) => {

@@ -42,6 +42,7 @@ import {
   ProgramStateAnalysis,
   ProgramStateOptimizer,
 } from "./optimizer-types";
+import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
@@ -1369,7 +1370,7 @@ export async function optimizeMonkeyC(
     }
     return null;
   };
-  Object.values(fnMap).forEach((f) => {
+  Object.entries(fnMap).forEach(([name, f]) => {
     traverseAst(f.ast!, undefined, (node) => {
       const ret = cleanup(node);
       if (ret === false) {
@@ -1377,6 +1378,9 @@ export async function optimizeMonkeyC(
       }
       return ret;
     });
+    if (state.config && state.config.checkBuildPragmas) {
+      pragmaChecker(state, f.ast!, state.diagnostics?.[name]);
+    }
   });
   return state.diagnostics;
 }

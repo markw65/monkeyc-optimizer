@@ -1,9 +1,11 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { formatAst } from "./api";
 import { traverseAst } from "./ast";
-import { ProgramState } from "./optimizer-types";
+import { diagnostic } from "./inliner";
+import { ProgramState, ProgramStateOptimizer } from "./optimizer-types";
 
 export function pragmaChecker(
+  state: ProgramStateOptimizer,
   ast: mctree.Program,
   diagnostics:
     | NonNullable<ProgramState["diagnostics"]>[string]
@@ -45,10 +47,11 @@ export function pragmaChecker(
         }
       }
 
-      throw new Error(
-        `Build pragma '${comment.value}' is invalid. In ${
-          comment.loc!.source
-        }:${comment.loc!.start.line}`
+      diagnostic(
+        state,
+        comment.loc,
+        `Build pragma '${comment.value}' is invalid`,
+        "ERROR"
       );
     }
   };
@@ -68,10 +71,11 @@ export function pragmaChecker(
         const haystack = formatAst(node).replace(/([\r\n]|\s)+/g, " ");
         if (!matcher(quote, needle, haystack)) {
           matcher(quote, needle, haystack);
-          throw new Error(
-            `Didn't find '${needle}' in '${haystack}' at ${
-              comment.loc!.source
-            }:${comment.loc!.start.line}`
+          diagnostic(
+            state,
+            comment.loc,
+            `Didn't find '${needle}' in '${haystack}'`,
+            "ERROR"
           );
         }
       } else if (kind === "expect") {
@@ -115,10 +119,11 @@ export function pragmaChecker(
           }
         }
         if (!found) {
-          throw new Error(
-            `Missing error message '${needle} at ${comment.loc!.source}:${
-              comment.loc!.start.line
-            }`
+          diagnostic(
+            state,
+            comment.loc,
+            `Missing error message '${needle}`,
+            "ERROR"
           );
         }
       }
