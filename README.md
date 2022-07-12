@@ -343,3 +343,38 @@ Bug Fixes
 - Fix a bug that could lead to the optimizer never completing
 - Fix a bug that prevented inlining functions that ended in a BlockStatement
 - Fix a bug that could cause nested inlined functions inlined in declarations to not be removed
+
+### 1.0.31
+
+- Bug fixes
+
+  - Use withLocDeep on inline results
+  - Better tracking of state.inType
+  - Fix typo setting up the ProgramState
+  - Fix a glitch with the scope of for-statement variable declarations
+  - Fix some edge cases with pre
+  - Remove a check that crippled pre for literals
+    - I had forgotten to remove some code that I added to debug a problem
+
+- Code cleanup
+
+  - Move all the global types to optimizer-types.ts, and explicitly import them
+  - Be more consistent about when assignment/update lhs is traversed
+  - Rework exposed flag
+    - Now it only holds the names of symbols (ie `:name`)
+    - There's a separate list of variables that shouldn't be removed
+    - There's a separate list of functions that shouldn't be removed
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.33](https://github.com/markw65/prettier-plugin-monkeyc#1033)
+  - Update for BigInt literals, and cleanup folding code
+
+- New features
+
+  - Support `obj[:key]` as alternate for obj.key in lookup
+    - `Find References`, and `Rename` will recognize these references now.
+  - Add an unused variable cleanup pass
+    - This will delete variables that are completely unreferenced.
+
+- Analysis/Optimization
+  - Collect info about what each function may modify and call
+  - Better analysis of inline function bodies
+  - Update the StateNodeDecls when renaming locals
