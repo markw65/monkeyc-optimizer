@@ -343,7 +343,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = 3;
     var arr = [1, 2, 3];
 
-    /* @match /var \w+x\w+ = 1;/ */
+    /* @match /var \w+x\w+ = @1;/ */
     x = assignContext(1);
     check(x, 6, logger);
     /* @match /var \w+x\w+ = z;/ */
@@ -366,7 +366,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match "var b = 42, c;" /z \+= @3/ "var d;" /\w+x\w+ \* z;/ /var e = @42;/ */
+    /* @match /var b = @42, c;/ /z \+= @3/ "var d;" /\w+x\w+ \* z;/ /var e = @42;/ */
     var b = 42,
         c = A.B.s3(3),
         d = assignContext(1),

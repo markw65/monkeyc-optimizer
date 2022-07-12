@@ -286,7 +286,7 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
           case "ParenthesizedExpression":
             break;
           case "Literal":
-            if (!node.value && refCost(node) > LocalRefCost) {
+            if (refCost(node) > LocalRefCost) {
               let decl = literals.get(node.value);
               if (!decl) {
                 decl = node;
