@@ -1,7 +1,9 @@
 import Toybox.Test;
 import Toybox.Lang;
+import Toybox.Graphics;
 
-const FONT = Toybox.Graphics.FONT_XTINY;
+const FONT = Graphics.FONT_XTINY;
+
 (:test)
 function testSubstitution(logger as Logger) as Boolean {
     /* @match /var x = pre_/ */

@@ -245,17 +245,23 @@ function unusedArray2() as Array {
 }
 
 (:inline)
-function unusedObject() as Dictionary {
+function unusedObject() as Lang.Dictionary {
     return { A.B.a() => A.B.x, "x" => 42 };
 }
 
-(:inline)
+function nonInline(x as Number) as Number {
+    A.B.x++;
+    x++;
+    return x;
+}
+
+(:inline,:typecheck(false))
 function unusedLogicals() as Number {
     return (
-        (A.B.a() || 3) * (A.B.s1(A.B.x) || 4) +
-        (A.B.x != 0 ? A.B.s1(1) : A.B.x) +
-        (A.B.x != 0 && A.B.s1(1)) +
-        (A.B.x == 0 || A.B.s1(1))
+        (A.B.a() || 3) * (nonInline(A.B.x) || 4) +
+        (A.B.x != 0 ? nonInline(1) : A.B.x) +
+        (A.B.x != 0 && nonInline(1) != 0 ? 1 : 0) +
+        (A.B.x == 0 || nonInline(1) != 0 ? 1 : 0)
     );
 }
 
@@ -273,9 +279,9 @@ function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     /* @match /^A.B.a/ /^check/ */
     unusedObject();
     check(A.B.x, 2, logger);
-    /* @match /^A.B.a\(\);/ /\{.*?\}/ /if \(A.B.x != @0\) \{.*?\}/ /if \(A.B.x != @0\) \{.*\}/ /if \(A.B.x == @0\) \{ \} else \{/ /^check/ */
+    /* @match /^A.B.a\(\);/ /^nonInline/ /if \(A.B.x != @0\) \{.*?\}/ /if \(A.B.x != @0\) \{.*\}/ /if \(A.B.x == @0\) \{ \} else \{/ /^check/ */
     unusedLogicals();
-    check(A.B.x, 13, logger);
+    check(A.B.x, 7, logger);
     return ok;
 }
 
@@ -456,24 +462,24 @@ function assignContext2(x as Number) as Number {
 }
 
 (:inline)
-function argInterference1(x as Number, y as Number, z as Number) {
+function argInterference1(x as Number, y as Number, z as Number) as Number {
     self.z++;
     return x + y + z;
 }
 (:inline)
-function argInterference2(x as Number, y as Number, z as Number) {
+function argInterference2(x as Number, y as Number, z as Number) as Number {
     A.x++;
     return x + y + z;
 }
 
 (:inline)
-function argInterference3(x as Number, y as Number, z as Number) {
+function argInterference3(x as Number, y as Number, z as Number) as Number {
     A.B.a();
     return x + y + z;
 }
 
 (:inline)
-function argInterference4(x as Number, y as Number, z as Number) {
+function argInterference4(x as Number, y as Number, z as Number) as Number {
     var method = new Lang.Method(A.B, :a) as (Method() as Void);
     method.invoke();
     return x + y + z;
