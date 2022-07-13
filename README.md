@@ -378,3 +378,9 @@ Bug Fixes
   - Collect info about what each function may modify and call
   - Better analysis of inline function bodies
   - Update the StateNodeDecls when renaming locals
+
+### 1.0.32
+
+- Bug fixes
+  - Fixup the tests to run unoptimized again, and add running unoptimized to the standard test run
+  - Fix PRE to not merge Numbers and Floats (ie 1 is not the same thing as 1.0), and add a test
