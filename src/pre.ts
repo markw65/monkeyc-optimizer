@@ -1,4 +1,4 @@
-import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   Block,
   buildReducedGraph,
@@ -287,10 +287,13 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
             break;
           case "Literal":
             if (refCost(node) > LocalRefCost) {
-              let decl = literals.get(node.value);
+              const key = LiteralIntegerRe.test(node.raw)
+                ? BigInt(node.value as bigint | number)
+                : node.value;
+              let decl = literals.get(key);
               if (!decl) {
                 decl = node;
-                literals.set(node.value, decl);
+                literals.set(key, decl);
               }
               return {
                 type: "ref",
