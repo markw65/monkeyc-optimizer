@@ -1,4 +1,4 @@
-import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
+import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   Block,
   buildReducedGraph,
@@ -7,6 +7,7 @@ import {
 } from "./control-flow";
 import * as PriorityQueue from "priorityqueuejs";
 import {
+  getNodeValue,
   isExpression,
   isStatement,
   traverseAst,
@@ -287,9 +288,12 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
             break;
           case "Literal":
             if (refCost(node) > LocalRefCost) {
-              const key = LiteralIntegerRe.test(node.raw)
-                ? BigInt(node.value as bigint | number)
-                : node.value;
+              const result = getNodeValue(node);
+              const key =
+                result[1] +
+                (result[0].value === null
+                  ? ""
+                  : "-" + result[0].value.toString());
               let decl = literals.get(key);
               if (!decl) {
                 decl = node;

@@ -1,8 +1,4 @@
-import {
-  default as MonkeyC,
-  LiteralIntegerRe,
-  mctree,
-} from "@markw65/prettier-plugin-monkeyc";
+import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
   collectNamespaces,
@@ -15,7 +11,7 @@ import {
   markInvokeClassMethod,
   variableDeclarationName,
 } from "./api";
-import { cloneDeep, traverseAst, withLoc } from "./ast";
+import { cloneDeep, getNodeValue, traverseAst, withLoc } from "./ast";
 import {
   findCallees,
   findCalleesForNew,
@@ -374,71 +370,6 @@ export function getLiteralNode(
     }
   }
   return null;
-}
-
-interface NumberLiteral extends mctree.Literal {
-  value: number;
-}
-interface LongLiteral extends mctree.Literal {
-  value: number | bigint;
-}
-interface StringLiteral extends mctree.Literal {
-  value: string;
-}
-interface BooleanLiteral extends mctree.Literal {
-  value: boolean;
-}
-interface NullLiteral extends mctree.Literal {
-  value: null;
-}
-
-function getNodeValue(
-  node: mctree.Node
-):
-  | [NumberLiteral, "Number" | "Float" | "Double"]
-  | [LongLiteral, "Long"]
-  | [StringLiteral, "String"]
-  | [BooleanLiteral, "Boolean"]
-  | [NullLiteral, "Null"]
-  | [null, null] {
-  if (
-    node.type == "BinaryExpression" &&
-    node.operator == "as" &&
-    node.right.type == "TypeSpecList" &&
-    node.right.ts.length == 1 &&
-    typeof node.right.ts[0] == "string"
-  ) {
-    // this is a cast we inserted to retain the type of an enum
-    // any arithmetic on it will revert to "Number", or "Long",
-    // so just ignore it.
-    return getNodeValue(node.left);
-  }
-  if (node.type != "Literal") {
-    return [null, null];
-  }
-  if (node.value === null) {
-    return [node as NullLiteral, "Null"];
-  }
-  const type = typeof node.value;
-  if (type === "number") {
-    const match = LiteralIntegerRe.exec(node.raw);
-    if (match) {
-      return match[2] === "l" || match[2] === "L"
-        ? [node as LongLiteral, "Long"]
-        : [node as NumberLiteral, "Number"];
-    }
-    return [node as NumberLiteral, node.raw.endsWith("d") ? "Double" : "Float"];
-  }
-  if (type === "bigint") {
-    return [node as LongLiteral, "Long"];
-  }
-  if (type === "string") {
-    return [node as StringLiteral, "String"];
-  }
-  if (type === "boolean") {
-    return [node as BooleanLiteral, "Boolean"];
-  }
-  throw new Error(`Literal has unknown type '${type}'`);
 }
 
 function fullTypeName(state: ProgramStateAnalysis, tsp: mctree.TypeSpecPart) {

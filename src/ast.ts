@@ -1,4 +1,4 @@
-import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
 
 type UnionMemberExtends<T, U> = true extends (T extends U ? true : never)
   ? true
@@ -291,4 +291,69 @@ export function withLocDeep<T extends mctree.Node>(
 
 export function cloneDeep<T extends mctree.Node>(node: T): T {
   return withLocDeep(node, null);
+}
+
+interface NumberLiteral extends mctree.Literal {
+  value: number;
+}
+interface LongLiteral extends mctree.Literal {
+  value: number | bigint;
+}
+interface StringLiteral extends mctree.Literal {
+  value: string;
+}
+interface BooleanLiteral extends mctree.Literal {
+  value: boolean;
+}
+interface NullLiteral extends mctree.Literal {
+  value: null;
+}
+type LiteralValues =
+  | [NumberLiteral, "Number" | "Float" | "Double"]
+  | [LongLiteral, "Long"]
+  | [StringLiteral, "String"]
+  | [BooleanLiteral, "Boolean"]
+  | [NullLiteral, "Null"];
+
+export function getNodeValue(node: mctree.Literal): LiteralValues;
+export function getNodeValue(node: mctree.Node): LiteralValues | [null, null];
+export function getNodeValue(node: mctree.Node): LiteralValues | [null, null] {
+  if (
+    node.type == "BinaryExpression" &&
+    node.operator == "as" &&
+    node.right.type == "TypeSpecList" &&
+    node.right.ts.length == 1 &&
+    typeof node.right.ts[0] == "string"
+  ) {
+    // this is a cast we inserted to retain the type of an enum
+    // any arithmetic on it will revert to "Number", or "Long",
+    // so just ignore it.
+    return getNodeValue(node.left);
+  }
+  if (node.type != "Literal") {
+    return [null, null];
+  }
+  if (node.value === null) {
+    return [node as NullLiteral, "Null"];
+  }
+  const type = typeof node.value;
+  if (type === "number") {
+    const match = LiteralIntegerRe.exec(node.raw);
+    if (match) {
+      return match[2] === "l" || match[2] === "L"
+        ? [node as LongLiteral, "Long"]
+        : [node as NumberLiteral, "Number"];
+    }
+    return [node as NumberLiteral, node.raw.endsWith("d") ? "Double" : "Float"];
+  }
+  if (type === "bigint") {
+    return [node as LongLiteral, "Long"];
+  }
+  if (type === "string") {
+    return [node as StringLiteral, "String"];
+  }
+  if (type === "boolean") {
+    return [node as BooleanLiteral, "Boolean"];
+  }
+  throw new Error(`Literal has unknown type '${type}'`);
 }

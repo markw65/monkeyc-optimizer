@@ -13,20 +13,52 @@ function testSubstitution(logger as Logger) as Boolean {
     return x == y && y == z;
 }
 
-function checksArgs(n as Number, f as Float) as Boolean {
-    return n instanceof Lang.Number && f instanceof Lang.Float && n == f;
+function checksArgs(
+    n as Number,
+    f as Float,
+    l as Long,
+    d as Double
+) as Boolean {
+    return (
+        n instanceof Lang.Number &&
+        f instanceof Lang.Float &&
+        l instanceof Lang.Long &&
+        d instanceof Lang.Double &&
+        n == f &&
+        l == d &&
+        f == l
+    );
 }
 
 (:test)
 function testFloatVsNumber(logger as Logger) as Boolean {
-    /* @match /var x = pre_/ */
-    var x = 1;
-    var y = 1;
-    var z = 1;
-    var u = 1.0,
-        v = 1.0,
-        w = 1.0;
-    return x == y && y == z && u == v && v == w && checksArgs(x, u);
+    /* @match /var n1 = pre_/ */
+    var n1 = 1,
+        n2 = 1,
+        n3 = 1;
+    /* @match /var f1 = pre_/ */
+    var f1 = 1.0f,
+        f2 = 1.0f,
+        f3 = 1.0;
+    /* @match /var l1 = pre_/ */
+    var l1 = 1l,
+        l2 = 1l,
+        l3 = 1l;
+    /* @match /var d1 = pre_/ */
+    var d1 = 1.0d,
+        d2 = 1.0d,
+        d3 = 1.0d;
+    return (
+        n1 == n2 &&
+        n2 == n3 &&
+        f1 == f2 &&
+        f2 == f3 &&
+        l1 == l2 &&
+        l2 == l3 &&
+        d1 == d2 &&
+        d2 == d3 &&
+        checksArgs(n1, f1, l1, d1)
+    );
 }
 
 var gMaybeModified as Number = 0;
