@@ -384,3 +384,12 @@ Bug Fixes
 - Bug fixes
   - Fixup the tests to run unoptimized again, and add running unoptimized to the standard test run
   - Fix PRE to not merge Numbers and Floats (ie 1 is not the same thing as 1.0), and add a test
+
+### 1.0.33
+
+- New features
+
+  - Tagging a function with (:keep) will prevent the optimizer from removing it, even if it appears to be unused.
+
+- Bug fixes
+  - Fix PRE to not merge values with different types. ie Number, Long, Float and Double literals should all be treated separately, even when the compare the same.
