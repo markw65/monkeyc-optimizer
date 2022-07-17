@@ -1315,6 +1315,17 @@ export async function optimizeMonkeyC(
         break;
       case "FunctionDeclaration":
         if (!maybeCalled(node)) {
+          if (
+            node.attrs &&
+            node.attrs.attributes &&
+            node.attrs.attributes.elements.some(
+              (attr) =>
+                attr.type === "UnaryExpression" && attr.argument.name === "keep"
+            )
+          ) {
+            break;
+          }
+
           return false;
         }
         break;
