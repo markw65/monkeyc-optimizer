@@ -414,7 +414,6 @@ function inlineAssignContext(logger as Logger) as Boolean {
 }
 
 import Toybox.Activity;
-import Toybox.Lang;
 
 class Foo {
     var mHR as Number = 123;

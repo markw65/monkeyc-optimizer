@@ -166,6 +166,11 @@ async function test() {
     products = [];
     generateOnly = true;
   }
+  const compiler2 = (() => {
+    if (!isBeta) return false;
+    const opt = extraMonkeycArgs.reverse().find((arg) => arg.startsWith("-O"));
+    return !opt || opt != "-O0";
+  })();
   const failures = [];
   const runOne = (promise, products, jungleFiles) => {
     const genOnly = jungleFiles.build === false || generateOnly;
@@ -263,7 +268,7 @@ async function test() {
                   } else if (match[3] === "PASS") {
                     pass = false;
                   }
-                } else if (isBeta && match[1].match(/FailsBeta/i)) {
+                } else if (compiler2 && match[1].match(/FailsBeta/i)) {
                   if (match[3] === "FAIL") {
                     line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
                     expectedFailures++;
