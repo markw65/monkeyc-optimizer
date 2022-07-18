@@ -1,0 +1,31 @@
+From 960c0729a1d1ba64ebc67065ceeccece4c076b3d Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 17 Jul 2022 19:05:59 -0700
+Subject: [PATCH] me -> self
+
+---
+ source/BatteryUi.mc | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/source/BatteryUi.mc b/source/BatteryUi.mc
+index ba0a28e..906862d 100644
+--- a/source/BatteryUi.mc
++++ b/source/BatteryUi.mc
+@@ -9,10 +9,10 @@ class BatteryUi {
+ 	private var height;
+ 
+ 	function initialize(x_, y_, width_, height_){
+-		me.x = x_;
+-		me.y = y_;
+-		me.width = width_;
+-		me.height = height_;
++		self.x = x_;
++		self.y = y_;
++		self.width = width_;
++		self.height = height_;
+ 	}
+ 
+     function draw(dc){
+-- 
+2.34.1
+
