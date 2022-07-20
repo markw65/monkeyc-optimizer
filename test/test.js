@@ -5,7 +5,7 @@ import {
   launchSimulator,
   simulateProgram,
 } from "../build/optimizer.cjs";
-import { getSdkPath } from "../build/sdk-util.cjs";
+import { getSdkPath, readPrg, SectionKinds } from "../build/sdk-util.cjs";
 import { globa, spawnByLine } from "../build/util.cjs";
 import { fetchGitProjects, githubProjects } from "./projects.js";
 
@@ -28,6 +28,7 @@ async function test() {
   let checkInvalidSymbols = "ERROR";
   let sizeBasedPRE = true;
   let checkBuildPragmas;
+  let showInfo = false;
 
   const sdk = await getSdkPath();
   const isBeta = sdk.match(/Compiler2Beta/);
@@ -127,6 +128,10 @@ async function test() {
       case "run-tests":
         testBuild = !value || /^true|1$/i.test(value);
         break;
+      case "showInfo":
+        showInfo = !value || /^true|1$/i.test(value);
+        break;
+
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -241,6 +246,19 @@ async function test() {
               }
             )
       )
+      .then((res) => {
+        if (showInfo && res && res.program) {
+          return readPrg(res.program).then((info) => {
+            console.log(
+              `${path.basename(res.program)} sizes: text: ${
+                info[SectionKinds.TEXT]
+              } data: ${info[SectionKinds.DATA]}`
+            );
+            return res;
+          });
+        }
+        return res;
+      })
       .then((res) => {
         if (
           res &&

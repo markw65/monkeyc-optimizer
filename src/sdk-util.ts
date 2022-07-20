@@ -2,6 +2,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { parseStringPromise } from "xml2js";
 import { globa } from "./util";
+export { readPrg, SectionKinds } from "./readprg";
 
 export const isWin = process.platform == "win32";
 
