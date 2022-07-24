@@ -27,6 +27,7 @@ export type BuildConfig = {
   checkBuildPragmas?: boolean; // If true, check any build pragmas in the generated code
   checkInvalidSymbols?: DiagnosticType | "OFF";
   sizeBasedPRE?: boolean | string;
+  prettier?: Record<string, unknown>;
   _cache?: {
     barrels?: Record<string, ResolvedJungle>;
     barrelMap?: Record<string, Record<string, ResolvedJungle>>;

@@ -786,7 +786,8 @@ export function collectNamespaces(
 
 export function formatAst(
   node: mctree.Node,
-  monkeyCSource: string | null = null
+  monkeyCSource: string | null = null,
+  options: Record<string, unknown> | null = null
 ) {
   /*
    * The estree printer sometimes looks at the parent node without
@@ -815,6 +816,7 @@ export function formatAst(
   // looking for in the source.
   const source = (monkeyCSource || "") + "\n" + serializeMonkeyC(node);
   return Prettier.format(source, {
+    ...(options || {}),
     parser: "monkeyc-json",
     plugins: [MonkeyC],
     endOfLine: "lf",

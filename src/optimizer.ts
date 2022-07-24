@@ -2,6 +2,7 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as Prettier from "prettier";
 import { formatAst, getApiMapping, hasProperty, isStateNode } from "./api";
 import { build_project } from "./build";
 import {
@@ -700,30 +701,37 @@ async function generateOneConfig(
     Object.keys(buildConfig.barrelMap || {}),
     config
   );
-  return Promise.all(
-    Object.values(fnMap).map(async (info) => {
-      const name = info.output;
-      const dir = path.dirname(name);
-      await fs.mkdir(dir, { recursive: true });
+  return Prettier.resolveConfig(config.workspace!, {
+    useCache: false,
+    editorconfig: true,
+  }).then((prettierConfig) => {
+    const options = { ...prettierConfig, ...(config.prettier || {}) };
+    return Promise.all(
+      Object.values(fnMap).map(async (info) => {
+        const name = info.output;
+        const dir = path.dirname(name);
+        await fs.mkdir(dir, { recursive: true });
 
-      const opt_source = formatAst(info.ast!, info.monkeyCSource);
-      await fs.writeFile(name, opt_source);
-      return info.hasTests;
-    })
-  ).then((results) => {
-    const hasTests = results.some((v) => v);
-    return fs
-      .writeFile(
-        path.join(output, "build-info.json"),
-        JSON.stringify({
-          hasTests,
-          diagnostics,
-          ...Object.fromEntries(
-            configOptionsToCheck.map((option) => [option, config[option]])
-          ),
-        })
-      )
-      .then(() => ({ hasTests, diagnostics }));
+        options.filepath = name;
+        const opt_source = formatAst(info.ast!, info.monkeyCSource, options);
+        await fs.writeFile(name, opt_source);
+        return info.hasTests;
+      })
+    ).then((results) => {
+      const hasTests = results.some((v) => v);
+      return fs
+        .writeFile(
+          path.join(output, "build-info.json"),
+          JSON.stringify({
+            hasTests,
+            diagnostics,
+            ...Object.fromEntries(
+              configOptionsToCheck.map((option) => [option, config[option]])
+            ),
+          })
+        )
+        .then(() => ({ hasTests, diagnostics }));
+    });
   });
 }
 
