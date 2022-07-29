@@ -1,11 +1,25 @@
 import * as fs from "fs/promises";
-import path from "path";
+import * as path from "path";
 import { fileURLToPath } from "url";
-import { globa, promiseAll, spawnByLine } from "../build/util.cjs";
-
+import { globa, promiseAll, spawnByLine } from "./util";
+import { BuildConfig } from "./optimizer-types";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const githubProjects = [
+export type RemoteProject =
+  | string
+  | {
+      root: string;
+      options?: BuildConfig;
+      rename?: { from: string; to: string }[];
+      build?: boolean;
+      comment?: string;
+      exclude?: string;
+      include?: string;
+      sourcePath?: string;
+      jungleContent?: string[];
+    };
+
+export const githubProjects: RemoteProject[] = [
   "https://bitbucket.org/mike_polatoglou/moonphase",
   "https://bitbucket.org/obagot/connectiq-hict",
   "https://bitbucket.org/villagehymn/marklaying",
@@ -68,7 +82,7 @@ export const githubProjects = [
   "https://github.com/chris220688/garmin-myBus-app",
   {
     root: "https://github.com/clementbarthes/GarminCogDisplay",
-    exclude: ["temp.monkey\\.jungle"],
+    exclude: "temp.monkey\\.jungle",
   },
   "https://github.com/creacominc/connectiq-PowerField",
   {
@@ -302,11 +316,11 @@ export const githubProjects = [
   },
 ];
 
-export async function fetchGitProjects(projects) {
+export async function fetchGitProjects(projects: RemoteProject[]) {
   const dir = path.join(__dirname, "..", "build", "test", "projects");
   await fs.mkdir(dir, { recursive: true });
-  const failures = [];
-  const result = await promiseAll((i) => {
+  const failures: string[] = [];
+  const result = await promiseAll((i: number) => {
     if (i >= projects.length) return null;
     const p = projects[i];
     const {
@@ -318,7 +332,7 @@ export async function fetchGitProjects(projects) {
       sourcePath = null,
       jungleContent = null,
       rename = null,
-    } = p.root ? p : { root: p };
+    } = typeof p === "string" ? { root: p } : p;
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
     return fetchAndClean(projDir, root)
@@ -362,10 +376,9 @@ export async function fetchGitProjects(projects) {
           const re = new RegExp(exclude);
           jungles = jungles.filter((j) => !re.test(j.replace(/\\/g, "/")));
         }
-        if (options || build === false) {
-          jungles = jungles.map((jungle) => ({ jungle, build, options }));
-        }
-        return jungles;
+        return options || build === false
+          ? jungles.map((jungle) => ({ jungle, build, options }))
+          : jungles;
       })
       .catch((e) => {
         failures.push(`${root}: ${e.toString()}`);
@@ -376,10 +389,10 @@ export async function fetchGitProjects(projects) {
   return result.flat();
 }
 
-function fetchAndClean(projDir, root) {
+function fetchAndClean(projDir: string, root: string) {
   const gitDir = path.resolve(projDir, ".git");
   const output = [`Updating project ${root}`];
-  const logger = (line) => output.push(` - ${line}`);
+  const logger = (line: string) => output.push(` - ${line}`);
   const loggers = [logger, logger];
   return fs
     .stat(gitDir)
@@ -415,6 +428,8 @@ function fetchAndClean(projDir, root) {
       globa(
         path.join(
           __dirname,
+          "..",
+          "test",
           "projects",
           "patches",
           path.basename(projDir),
@@ -422,12 +437,12 @@ function fetchAndClean(projDir, root) {
         )
       )
     )
-    .then(
-      (patches) =>
-        patches.length &&
-        spawnByLine("git", ["am", ...patches], loggers, {
-          cwd: projDir,
-        })
+    .then((patches) =>
+      patches.length
+        ? spawnByLine("git", ["am", ...patches], loggers, {
+            cwd: projDir,
+          })
+        : undefined
     )
     .then(() => output.join("\n"))
     .catch(() => {

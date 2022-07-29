@@ -10,26 +10,26 @@ export default (env, argv) => {
     const config = {
       mode: argv.mode || "development",
       performance: {
-        hints: false,
+        hints: false
       },
       output: {
         filename: "[name].cjs",
         path: path.resolve(__dirname, "build"),
         libraryTarget: "commonjs",
-        devtoolModuleFilenameTemplate: "webpack://[resource-path]",
+        devtoolModuleFilenameTemplate: "webpack://[resource-path]"
       },
       devtool: argv.mode != "production" ? "source-map" : false,
       resolve: {
         enforceExtension: false,
-        extensions: [".ts", ".js"],
-      },
+        extensions: [".ts", ".js"]
+      }
     };
     return { ...config, ...extra };
   }
   const jungle = getConfig({
     name: "jungle",
     entry: {
-      jungle: "./src/jungle.peggy",
+      jungle: "./src/jungle.peggy"
     },
     module: {
       rules: [
@@ -40,10 +40,10 @@ export default (env, argv) => {
           use: [{ loader: path.resolve(__dirname, "src/peggy-loader.cjs") }],
           generator: {
             // name the raw .js file
-            filename: "[name].js",
-          },
-        },
-      ],
+            filename: "[name].js"
+          }
+        }
+      ]
     },
     plugins: [
       {
@@ -81,7 +81,7 @@ export default (env, argv) => {
                 name: pluginName,
                 stage:
                   compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_PRE_PROCESS,
-                additionalAssets: false,
+                additionalAssets: false
               },
               function (assets) {
                 Object.keys(assets).forEach((file) => {
@@ -92,11 +92,11 @@ export default (env, argv) => {
               }
             );
           });
-        },
-      },
+        }
+      }
     ],
 
-    devtool: false,
+    devtool: false
   });
 
   const optimizer = getConfig({
@@ -106,6 +106,7 @@ export default (env, argv) => {
       util: "./src/util.ts",
       "sdk-util": "./src/sdk-util.ts",
       api: "./src/api.ts",
+      driver: "./src/driver.ts"
     },
     optimization: { minimize: false },
     dependencies: ["jungle"],
@@ -118,10 +119,10 @@ export default (env, argv) => {
           options: {
             // set to true for faster builds, or to transpile even
             // when there are errors.
-            transpileOnly: false,
-          },
-        },
-      ],
+            transpileOnly: false
+          }
+        }
+      ]
     },
     externals({ request }, callback) {
       const obj = {
@@ -142,12 +143,14 @@ export default (env, argv) => {
         url: "url",
         zlib: "zlib",
         buffer: "buffer",
-        crypto: "crypto",
+        crypto: "crypto"
       };
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);
       }
-      const match = request.match(/^(\.|src)\/(util|api|sdk-util)(\.js)?$/);
+      const match = request.match(
+        /^(\.|src)\/(util|api|sdk-util|optimizer)(\.js)?$/
+      );
       if (match) {
         return callback(null, `./${match[2]}.cjs`);
       }
@@ -158,9 +161,9 @@ export default (env, argv) => {
         "global.lastModifiedSource": webpack.DefinePlugin.runtimeValue(
           Date.now,
           {
-            contextDependencies: [path.resolve(__dirname, "src")],
+            contextDependencies: [path.resolve(__dirname, "src")]
           }
-        ),
+        )
       }),
       {
         apply(compiler) {
@@ -237,7 +240,7 @@ export default (env, argv) => {
                 name: pluginName,
                 stage:
                   compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_DEV_TOOLING,
-                additionalAssets: false,
+                additionalAssets: false
               },
               function (assets) {
                 Object.entries(assets).forEach(([file, asset]) => {
@@ -264,9 +267,9 @@ export default (env, argv) => {
               }
             );
           });
-        },
-      },
-    ],
+        }
+      }
+    ]
   });
 
   return [jungle, optimizer];

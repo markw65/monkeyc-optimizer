@@ -109,7 +109,7 @@ export function readByLine(file: string, lineHandler: LineHandler) {
 }
 
 export async function promiseAll<T>(
-  promiseFn: (i: number) => Promise<T>,
+  promiseFn: (i: number) => Promise<T> | null,
   parallelism: number
 ) {
   parallelism = parallelism || 4;

@@ -1,7 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { ResolvedJungle } from "./jungles";
 
-type DiagnosticType = "ERROR" | "WARNING" | "INFO";
+export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
 // Configuration options for build
 export type BuildConfig = {
   workspace?: string; // The project's workspace directory
