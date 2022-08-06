@@ -402,4 +402,5 @@ Bug Fixes
   - Fix optimizer to respect prettier options when formatting the optimized code
 
 - Testing
-  - rewrite in typescript
+  - rewrite test harness in typescript
+  - fix up tests to work with compiler2 again, and also with compiler2 at -O0
