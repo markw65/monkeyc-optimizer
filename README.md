@@ -393,3 +393,13 @@ Bug Fixes
 
 - Bug fixes
   - Fix PRE to not merge values with different types. ie Number, Long, Float and Double literals should all be treated separately, even when the compare the same.
+
+### 1.0.34
+
+- Bug fixes
+
+  - Fix parser to allow white space to separate attributes, in addition to comma
+  - Fix optimizer to respect prettier options when formatting the optimized code
+
+- Testing
+  - rewrite in typescript
