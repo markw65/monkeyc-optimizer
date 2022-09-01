@@ -60,6 +60,7 @@ export const githubProjects: RemoteProject[] = [
   },
   "https://github.com/andriijas/connectiq-apps",
   "https://github.com/antirez/iqmeteo",
+  "https://github.com/Antvirf/spectrefenix",
   "https://github.com/antonioasaro/GARMIN-AMD_Watchface",
   "https://github.com/antonioasaro/Garmin-Antonio_SMS",
   "https://github.com/aronsommer/WebRequestGlance-Widget",
