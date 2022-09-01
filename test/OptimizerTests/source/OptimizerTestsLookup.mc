@@ -102,12 +102,16 @@ function lookupTestCrash1(logger as Logger) as Boolean {
 (:test)
 function lookupTestCrash2(logger as Logger) as Boolean {
     $.Toybox.System.println(noNumber(1));
-    return false;
+    // prior to compiler 2, noNumber crashes
+    // afterwards, its fine
+    return true;
 }
 (:test)
 function lookupTestCrash3(logger as Logger) as Boolean {
     $.Toybox.System.println(TestClass.noNumberStatic(1));
-    return false;
+    // prior to compiler 2, noNumberStatic crashes
+    // afterwards, its fine
+    return true;
 }
 (:test)
 function lookupTestCrash4(logger as Logger) as Boolean {
@@ -203,6 +207,7 @@ module MC {
             System.println(B.K1);
         }
         class Y {
+            (:typecheck(false))
             function initialize() {
                 /* @expect "Undefined symbol FOOB" */
                 System.println(FOOB);

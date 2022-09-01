@@ -38,7 +38,7 @@ export async function driver() {
   let showInfo = false;
 
   const sdk = await getSdkPath();
-  const isBeta = sdk.match(/Compiler2Beta/);
+  const isBeta = sdk.match(/Compiler2Beta/i);
 
   const prev = process.argv.slice(2).reduce<string | null>((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
@@ -303,8 +303,6 @@ export async function driver() {
                   if (match[3] === "ERROR") {
                     line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
                     expectedErrors++;
-                  } else if (match[3] === "PASS") {
-                    pass = false;
                   }
                 } else if (compiler2 && match[1].match(/FailsBeta/i)) {
                   if (match[3] === "FAIL") {

@@ -75,18 +75,22 @@ module nesting {
             }
 
             class Y {
+                (:typecheck(false))
                 function getNESTINGA1() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGA1;
                 }
+                (:typecheck(false))
                 function getNESTINGA2() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGA2;
                 }
+                (:typecheck(false))
                 function getNESTINGA3() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGA3;
                 }
+                (:typecheck(false))
                 function getNESTINGA4() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGA4;
@@ -105,18 +109,22 @@ module nesting {
                     return NESTINGB4;
                 }
 
+                (:typecheck(false))
                 function getNESTINGC1() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGC1;
                 }
+                (:typecheck(false))
                 function getNESTINGC2() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGC2;
                 }
+                (:typecheck(false))
                 function getNESTINGC3() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGC3;
                 }
+                (:typecheck(false))
                 function getNESTINGC4() as Number {
                     // @expect "Undefined symbol"
                     return NESTINGC4;
@@ -170,7 +178,13 @@ module nesting {
 
         check("NestedNESTINGB1", x.getNESTINGB1(), 1001, logger);
         check("NestedNESTINGB2", x.getNESTINGB2(), 1002, logger);
-        check("NestedNESTINGB3", x.getNESTINGB3(), 1003, logger);
+        /*
+         * Hack. "4.1.4 Compiler2Beta 2" includes outer modules
+         * when doing lookups in nested classes. For now, accept
+         * both values.
+         */
+        var v = x.getNESTINGB3();
+        check("NestedNESTINGB3", v == 3 ? 1003 : v, 1003, logger);
         check("NestedNESTINGB4", x.getNESTINGB4(), 1004, logger);
         return ok;
     }
@@ -192,7 +206,9 @@ module nesting {
     function crashNestedLookupNESTINGA3(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGA3());
-        return false;
+        // In compiler2Beta 2, outer modules, and the global scope
+        // are searched.
+        return true;
     }
     (:test)
     function crashNestedLookupNESTINGA4(logger as Logger) as Boolean {
@@ -204,25 +220,33 @@ module nesting {
     function crashNestedLookupNESTINGC1(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC1());
-        return false;
+        // In compiler2Beta 2, outer modules, and the global scope
+        // are searched.
+        return true;
     }
     (:test)
     function crashNestedLookupNESTINGC2(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC2());
-        return false;
+        // In compiler2Beta 2, outer modules, and the global scope
+        // are searched.
+        return true;
     }
     (:test)
     function crashNestedLookupNESTINGC3(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC3());
-        return false;
+        // In compiler2Beta 2, outer modules, and the global scope
+        // are searched.
+        return true;
     }
     (:test)
     function crashNestedLookupNESTINGC4(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC4());
-        return false;
+        // In compiler2Beta 2, outer modules, and the global scope
+        // are searched.
+        return true;
     }
 }
 
@@ -248,7 +272,7 @@ module LocalResolution {
         }
     }
     (:test)
-    function testFailsBeta(logger as Logger) as Boolean {
+    function test(logger as Logger) as Boolean {
         var k = CX.foo();
         if (k != 2001) {
             logger.debug("Oops - found the wrong k: " + k.toString());
@@ -283,7 +307,7 @@ module ImportWeirdness {
             const K = 5;
         }
         (:test)
-        function testFailsBeta(logger as Logger) as Boolean {
+        function test(logger as Logger) as Boolean {
             var ok = true;
             if (NotImported.K != 3) {
                 logger.debug(
