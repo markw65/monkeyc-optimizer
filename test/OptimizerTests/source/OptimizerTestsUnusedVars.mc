@@ -21,3 +21,19 @@ function testUnusedVars(logger as Logger) as Boolean {
     }
     return v && ok;
 }
+
+(:test)
+function testUnusedCaseVars(logger as Logger) as Boolean {
+
+    switch (A.B.a()) {
+        case 0:
+            /* @match "A.B.a();" */
+            var x = A.B.a();
+            break;
+        case 1:
+            /* @match "A.B.a();" */
+            var u = 0, v = 1, y = A.B.a(), w = 2;
+            break;
+    }
+    return true;
+}

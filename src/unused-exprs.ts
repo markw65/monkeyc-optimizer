@@ -30,74 +30,102 @@ export function cleanupUnusedVars(
       }
     });
     if (toRemove) {
-      const varDeclarations = new Map<mctree.VariableDeclaration, number[]>();
-      traverseAst(node, null, (node) => {
-        switch (node.type) {
-          case "VariableDeclaration": {
-            node.declarations.forEach((decl, i) => {
-              const name = variableDeclarationName(decl.id);
-              if (hasProperty(toRemove, name)) {
-                const indices = varDeclarations.get(node);
-                if (indices) {
-                  indices.push(i);
-                } else {
-                  varDeclarations.set(node, [i]);
-                }
-              }
-            });
-            break;
+      const varDeclarations = new Map<
+        mctree.VariableDeclaration,
+        { parent: mctree.Statement[]; indices: number[] }
+      >();
+      const stack: mctree.Statement[][] = [];
+      traverseAst(
+        node,
+        (node) => {
+          switch (node.type) {
+            case "SwitchCase":
+              stack.push(node.consequent);
+              break;
+            case "BlockStatement":
+              stack.push(node.body);
+              break;
           }
-          case "ExpressionStatement":
-            if (node.expression.type === "AssignmentExpression") {
-              if (
-                node.expression.left.type === "Identifier" &&
-                hasProperty(toRemove, node.expression.left.name)
-              ) {
-                return unused(node.expression.right);
-              }
-            } else if (
-              node.expression.type === "UpdateExpression" &&
-              node.expression.argument.type === "Identifier" &&
-              hasProperty(toRemove, node.expression.argument.name)
-            ) {
-              return false;
-            }
-            break;
-          case "SequenceExpression": {
-            for (let i = node.expressions.length; i--; ) {
-              const expr = node.expressions[i];
-              if (expr.type === "AssignmentExpression") {
-                if (
-                  expr.left.type === "Identifier" &&
-                  hasProperty(toRemove, expr.left.name)
-                ) {
-                  const rep = unused(expr.right);
-                  if (!rep.length) {
-                    node.expressions.splice(i, 1);
+        },
+        (node) => {
+          switch (node.type) {
+            case "SwitchCase":
+            case "BlockStatement":
+              stack.pop();
+              break;
+            case "VariableDeclaration": {
+              node.declarations.forEach((decl, i) => {
+                const name = variableDeclarationName(decl.id);
+                if (hasProperty(toRemove, name)) {
+                  const info = varDeclarations.get(node);
+                  if (info) {
+                    info.indices.push(i);
                   } else {
-                    // Sequence expressions can only be assignments
-                    // or update expressions. Even calls aren't allowed
-                    toRemove[expr.left.name] = null;
-                    expr.operator = "=";
+                    varDeclarations.set(node, {
+                      parent: stack[stack.length - 1],
+                      indices: [i],
+                    });
                   }
                 }
-              } else if (
-                expr.type === "UpdateExpression" &&
-                expr.argument.type === "Identifier" &&
-                hasProperty(toRemove, expr.argument.name)
-              ) {
-                node.expressions.splice(i, 1);
-              }
+              });
+              break;
             }
-            break;
+            case "ExpressionStatement":
+              if (node.expression.type === "AssignmentExpression") {
+                if (
+                  node.expression.left.type === "Identifier" &&
+                  hasProperty(toRemove, node.expression.left.name)
+                ) {
+                  return unused(node.expression.right);
+                }
+              } else if (
+                node.expression.type === "UpdateExpression" &&
+                node.expression.argument.type === "Identifier" &&
+                hasProperty(toRemove, node.expression.argument.name)
+              ) {
+                return false;
+              }
+              break;
+            case "SequenceExpression": {
+              for (let i = node.expressions.length; i--; ) {
+                const expr = node.expressions[i];
+                if (expr.type === "AssignmentExpression") {
+                  if (
+                    expr.left.type === "Identifier" &&
+                    hasProperty(toRemove, expr.left.name)
+                  ) {
+                    const rep = unused(expr.right);
+                    if (!rep.length) {
+                      node.expressions.splice(i, 1);
+                    } else {
+                      // Sequence expressions can only be assignments
+                      // or update expressions. Even calls aren't allowed
+                      toRemove[expr.left.name] = null;
+                      expr.operator = "=";
+                    }
+                  }
+                } else if (
+                  expr.type === "UpdateExpression" &&
+                  expr.argument.type === "Identifier" &&
+                  hasProperty(toRemove, expr.argument.name)
+                ) {
+                  node.expressions.splice(i, 1);
+                }
+              }
+              break;
+            }
           }
+          return null;
         }
-        return null;
-      });
-      varDeclarations.forEach((indices, decl) => {
+      );
+      varDeclarations.forEach((info, decl) => {
         let index = -1;
-        for (let ii = indices.length, j = decl.declarations.length; ii--; ) {
-          const i = indices[ii];
+        for (
+          let ii = info.indices.length, j = decl.declarations.length;
+          ii--;
+
+        ) {
+          const i = info.indices[ii];
           const vdecl = decl.declarations[i];
           const name = variableDeclarationName(vdecl.id);
           if (hasProperty(toRemove, name)) {
@@ -109,7 +137,7 @@ export function cleanupUnusedVars(
                 continue;
               }
               if (index < 0) {
-                index = parent.node.body.findIndex((s) => s === decl);
+                index = info.parent.findIndex((s) => s === decl);
                 if (index < 0) {
                   throw new Error(
                     `Failed to find variable declaration for ${variableDeclarationName(
@@ -134,7 +162,7 @@ export function cleanupUnusedVars(
                 decl.end = vdecl.start;
               }
               decl.declarations.splice(i);
-              parent.node.body.splice(index + 1, 0, ...rep);
+              info.parent.splice(index + 1, 0, ...rep);
               j = i;
               continue;
             }
