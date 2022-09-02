@@ -404,3 +404,13 @@ Bug Fixes
 - Testing
   - rewrite test harness in typescript
   - fix up tests to work with compiler2 again, and also with compiler2 at -O0
+
+### 1.0.35
+
+- Testing
+
+  - Add a new open source project
+  - Fixup tests to work with compiler2beta2
+
+- Bug fixes
+  - Fixed a bug that caused the optimizer to fail if a top level variable declared in a case statement had an initializer with side effects. This didn't produce incorrect results, the optimizer simply bailed out with an obscure error, and refused to optimize the project.
