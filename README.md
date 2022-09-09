@@ -414,3 +414,9 @@ Bug Fixes
 
 - Bug fixes
   - Fixed a bug that caused the optimizer to fail if a top level variable declared in a case statement had an initializer with side effects. This didn't produce incorrect results, the optimizer simply bailed out with an obscure error, and refused to optimize the project.
+
+### 1.0.36
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.34](https://github.com/markw65/prettier-plugin-monkeyc#1034).
+  - Fixes [prettier-plugin-monkeyc#1](https://github.com/markw65/prettier-plugin-monkeyc/issues/1)
+  - Fixes [monkeyc-optimizer#1](https://github.com/markw65/monkeyc-optimizer/issues/1)
