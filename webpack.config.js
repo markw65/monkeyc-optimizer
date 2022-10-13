@@ -132,6 +132,7 @@ export default (env, argv) => {
           "commonjs @markw65/prettier-plugin-monkeyc",
         "fs/promises": "fs/promises",
         fs: "fs",
+        net: "net",
         path: "path",
         child_process: "child_process",
         readline: "readline",
