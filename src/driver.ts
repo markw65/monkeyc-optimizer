@@ -180,7 +180,6 @@ export async function driver() {
     if (!products) {
       error("--execute requires a product to execute on");
     }
-    await launchSimulator();
   }
   if (checkBuildPragmas === undefined && testBuild !== false) {
     checkBuildPragmas = true;
@@ -338,22 +337,26 @@ export async function driver() {
             }
             console.log(line);
           };
-          return simulateProgram(res.program, res.product, pass === undefined, [
-            handler,
-            handler,
-          ]).then(() => {
-            if (!pass) {
-              const e: Error & { products?: string[] } = new Error(
-                pass === false
-                  ? "Tests failed!"
-                  : "Tests didn't report their status!"
-              );
-              if (res.product) {
-                e.products = [res.product];
-              }
-              throw e;
-            }
-          });
+          return launchSimulator().then(() =>
+            simulateProgram(res.program, res.product!, pass === undefined, [
+              handler,
+              handler,
+            ])
+              .catch(() => null)
+              .then(() => {
+                if (!pass) {
+                  const e: Error & { products?: string[] } = new Error(
+                    pass === false
+                      ? "Tests failed!"
+                      : "Tests didn't report their status!"
+                  );
+                  if (res.product) {
+                    e.products = [res.product];
+                  }
+                  throw e;
+                }
+              })
+          );
         }
         return null;
       })
