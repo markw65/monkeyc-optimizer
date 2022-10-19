@@ -38,7 +38,13 @@ export async function driver() {
   let showInfo = false;
 
   const sdk = await getSdkPath();
-  const isBeta = sdk.match(/Compiler2Beta/i);
+  const supportsCompiler2 =
+    /* sdk 5 or later, or */
+    sdk.match(/-(\d\d+|[5-9])\.\d+\.\d+/) ||
+    /* sdk 4.2.x or later, or */
+    sdk.match(/-4\.([2-9]|\d\d+)\.\d+/) ||
+    /* one of the 4.1.x compiler2-beta releases */
+    sdk.match(/Compiler2Beta/i);
 
   const prev = process.argv.slice(2).reduce<string | null>((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
@@ -88,8 +94,8 @@ export async function driver() {
         skipOptimization = !value || /^true|1$/i.test(value);
         break;
       case "garminOptLevel":
-        if (!isBeta) {
-          error("garminOptLevel requires the Compiler2Beta sdk");
+        if (!supportsCompiler2) {
+          error("garminOptLevel requires a more recent sdk");
         }
         if (value == null) return key;
         extraMonkeycArgs.push(`-O${value}`);
@@ -188,8 +194,8 @@ export async function driver() {
     products = [];
     generateOnly = true;
   }
-  const compiler2 = (() => {
-    if (!isBeta) return false;
+  const usesCompiler2 = (() => {
+    if (!supportsCompiler2) return false;
     const opt = extraMonkeycArgs.reverse().find((arg) => arg.startsWith("-O"));
     return !opt || opt != "-O0";
   })();
@@ -303,7 +309,7 @@ export async function driver() {
                     line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
                     expectedErrors++;
                   }
-                } else if (compiler2 && match[1].match(/FailsBeta/i)) {
+                } else if (usesCompiler2 && match[1].match(/FailsBeta/i)) {
                   if (match[3] === "FAIL") {
                     line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
                     expectedFailures++;
