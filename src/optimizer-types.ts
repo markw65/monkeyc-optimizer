@@ -28,6 +28,7 @@ export type BuildConfig = {
   checkInvalidSymbols?: DiagnosticType | "OFF";
   sizeBasedPRE?: boolean | string;
   prettier?: Record<string, unknown>;
+  extensionVersion?: string;
   _cache?: {
     barrels?: Record<string, ResolvedJungle>;
     barrelMap?: Record<string, Record<string, ResolvedJungle>>;

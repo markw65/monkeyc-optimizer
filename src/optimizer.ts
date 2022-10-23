@@ -36,6 +36,8 @@ import {
   StateNode,
 } from "./optimizer-types";
 
+declare const MONKEYC_OPTIMIZER_VERSION: string;
+
 export * from "./optimizer-types";
 export {
   copyRecursiveAsNeeded,
@@ -585,6 +587,7 @@ const configOptionsToCheck = [
   "ignoredSourcePaths",
   "checkInvalidSymbols",
   "sizeBasedPRE",
+  "extensionVersion",
 ] as const;
 
 /**
@@ -725,6 +728,7 @@ async function generateOneConfig(
           JSON.stringify({
             hasTests,
             diagnostics,
+            optimizerVersion: MONKEYC_OPTIMIZER_VERSION,
             ...Object.fromEntries(
               configOptionsToCheck.map((option) => [option, config[option]])
             ),

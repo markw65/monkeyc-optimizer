@@ -1,11 +1,13 @@
 /* eslint-env node */
+import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import webpack from "webpack";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default (env, argv) => {
+export default async (env, argv) => {
+  const MONKEYC_OPTIMIZER = JSON.parse(await readFile("./package.json"));
   function getConfig(extra) {
     const config = {
       mode: argv.mode || "development",
@@ -165,6 +167,7 @@ export default (env, argv) => {
             contextDependencies: [path.resolve(__dirname, "src")],
           }
         ),
+        MONKEYC_OPTIMIZER_VERSION: JSON.stringify(MONKEYC_OPTIMIZER.version),
       }),
       {
         apply(compiler) {
