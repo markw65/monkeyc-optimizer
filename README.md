@@ -420,3 +420,9 @@ Bug Fixes
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.35](https://github.com/markw65/prettier-plugin-monkeyc#1035).
   - Fixes [prettier-plugin-monkeyc#1](https://github.com/markw65/prettier-plugin-monkeyc/issues/1)
   - Fixes [monkeyc-optimizer#1](https://github.com/markw65/monkeyc-optimizer/issues/1)
+
+### 1.0.37
+
+- Update the testing framework to launch the simulator before each test run, rather than start it once at the beginning. This is because the latest beta crashes after successfully completing.
+- Update launchSimulator to check if the simulator is already running. This avoids lots of screen switching when the simulator is running on a separate desktop.
+- Add optimizerVersion and extensionVersion to build-info.json.
