@@ -130,7 +130,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     x = nonInlinedWrapper(1);
     check(x, 8, logger);
 
-    /* @match /^var inlineHiddenByLocal = A.B.x;$/ */
+    /* @match /^var inlineHiddenByLocal = (A.B.x|pre_x\w*);$/ */
     var inlineHiddenByLocal = inlineHiddenByLocal(A.B.x);
     check(inlineHiddenByLocal, 7, logger);
 
@@ -347,14 +347,17 @@ function inlineAssignContext(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 4;
     z = 3;
-    var arr = [1, 2, 3];
+    var arr = [1, 2, 3] as Array<Number>;
 
     /* @match /var \w+x\w+ = @1;/ */
     x = assignContext(1);
     check(x, 6, logger);
-    /* @match /var \w+x\w+ = z;/ */
-    x = assignContext(z);
-    check(x, 12, logger);
+    /* @match /var \w+x\w+ = @z;/ */
+    x = -((assignContext(z) + 1) == 13 ? 42 : 0);
+    check(x, -42, logger);
+    /* @match /\b(\w+x\w+) = \1\.slice/ */
+    x = assignContext3(arr)[2] + 1;
+    check(x, 4, logger);
     {
         var z = 15;
         /* @match /\* self\.z;/ */
@@ -375,10 +378,10 @@ function inlineAssignContext(logger as Logger) as Boolean {
     /* @match /var b = @42, c;/ /z \+= @3/ "var d;" /\w+x\w+ \* z;/ /var e = @42;/ */
     var b = 42,
         c = A.B.s3(3),
-        d = assignContext(1),
+        d = -assignContext(1) + 1,
         e = 42;
     check(c, 15, logger);
-    check(d, 30, logger);
+    check(d, -29, logger);
     check(b - e, 0, logger);
 
     // inlining here would require a lot of gymnastics. Don't allow it
@@ -419,13 +422,17 @@ function ifContext1(x as Number) as Boolean {
     return x == 2;
 }
 
+(:inline)
+function ifContext2(x as Number) as Number {
+    x++;
+    return x;
+}
+
 (:test)
 function inlineIfContext(logger as Logger) as Boolean {
     var x;
     ok = true;
     A.B.x = 4;
-    z = 3;
-    var arr = [1, 2, 3];
 
     /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @1;/ */
     if (ifContext1(1)) {
@@ -443,6 +450,20 @@ function inlineIfContext(logger as Logger) as Boolean {
         ok = false;
     } else {
         z++;
+    }
+
+    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @1;/ */
+    if (ifContext2(1) == 2) {
+    } else {
+        logger.debug("Failed: ifContext2(1) should return 2");
+        ok = false;
+    }
+
+    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @2;/ */
+    if (ifContext1(2) == true ? false : true) {
+    } else {
+        logger.debug("Failed: ifContext1(2) should return false");
+        ok = false;
     }
     return ok;
 }
@@ -492,6 +513,14 @@ function assignContext2(x as Number) as Number {
     /* @match This should have been removed */
     var tmp = x * z;
     return tmp;
+}
+
+(:inline)
+function assignContext3(x as Array<Number>) as Array<Number> {
+    /* @match This should have been removed */
+    x = x.slice(null, null);
+    x[1]++;
+    return x;
 }
 
 (:inline)

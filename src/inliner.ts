@@ -22,6 +22,65 @@ import {
 } from "./optimizer-types";
 import { renameVariable } from "./variable-renamer";
 
+// Note: Keep in sync with replaceInlinedSubExpression below
+export function inlinableSubExpression(expr: mctree.Expression) {
+  while (true) {
+    if (expr.type === "BinaryExpression" || expr.type === "LogicalExpression") {
+      expr = expr.left;
+    } else if (expr.type === "UnaryExpression") {
+      expr = expr.argument;
+    } else if (expr.type === "ConditionalExpression") {
+      expr = expr.test;
+    } else if (expr.type === "MemberExpression") {
+      expr = expr.object;
+    } else if (expr.type === "CallExpression") {
+      return expr;
+    } else {
+      return null;
+    }
+  }
+}
+
+// Note: Keep in sync with inlinableSubExpression above
+function replaceInlinedSubExpression(
+  top: mctree.Expression,
+  call: mctree.CallExpression,
+  repl: mctree.Expression
+) {
+  if (top === call) return repl;
+  let expr = top;
+  while (true) {
+    if (expr.type === "LogicalExpression" || expr.type === "BinaryExpression") {
+      if (expr.left === call) {
+        expr.left = repl;
+        break;
+      }
+      expr = expr.left;
+    } else if (expr.type === "UnaryExpression") {
+      if (expr.argument === call) {
+        expr.argument = repl;
+        break;
+      }
+      expr = expr.argument;
+    } else if (expr.type === "ConditionalExpression") {
+      if (expr.test === call) {
+        expr.test = repl;
+        break;
+      }
+      expr = expr.test;
+    } else if (expr.type === "MemberExpression") {
+      if (expr.object === call) {
+        expr.object = repl;
+        break;
+      }
+      expr = expr.object;
+    } else {
+      throw new Error("Internal error: Didn't find CallExpression");
+    }
+  }
+  return top;
+}
+
 function getArgSafety(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
@@ -697,13 +756,19 @@ function inlineWithArgs(
     }
     if (last.argument) {
       if (context.type === "AssignmentExpression") {
-        context.right = last.argument;
+        context.right = replaceInlinedSubExpression(
+          context.right,
+          call,
+          last.argument
+        );
+
         block.body[block.body.length - 1] = {
           type: "ExpressionStatement",
           expression: context,
         };
       } else if (context.type === "VariableDeclarator") {
-        const { id, init: _init, kind: _kind, ...rest } = context;
+        const { id, init, kind: _kind, ...rest } = context;
+        const right = replaceInlinedSubExpression(init!, call, last.argument);
         block.body[block.body.length - 1] = {
           ...rest,
           type: "ExpressionStatement",
@@ -712,7 +777,7 @@ function inlineWithArgs(
             type: "AssignmentExpression",
             operator: "=",
             left: id.type === "Identifier" ? id : id.left,
-            right: last.argument,
+            right,
           },
         };
       } else if (context.type === "IfStatement") {
@@ -732,14 +797,17 @@ function inlineWithArgs(
             right: last.argument,
           },
         };
-        // Replace the IfStatement's test with a test of pmcr_tmp
-        context.test = { type: "Identifier", name };
+        // The IfStatement either has the call as its test, or as
+        // the leftmost argument to a series of Binary/Logical expressions
+        // Either way, replace the call with pmcr_tmp
+        const repl = { type: "Identifier", name } as const;
+        context.test = replaceInlinedSubExpression(context.test, call, repl);
 
         // Wrap the inlined body so it looks like
         // {
         //   var pmcr_tmp;
         //   { /* inlined body, with assignment to pmcr_tmp */ }
-        //   if (pmcr_tmp) {} // original if statement
+        //   if (context) {} // original if statement
         // }
         body.body = [
           {

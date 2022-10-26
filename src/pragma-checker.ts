@@ -59,7 +59,7 @@ export function pragmaChecker(
     if (quote == '"') {
       return haystack.includes(needle);
     }
-    const re = new RegExp(needle.replace(/@(\d+)/g, "(pre_)?$1(_\\d+)?"));
+    const re = new RegExp(needle.replace(/@([\d\w]+)/g, "(pre_)?$1(_\\d+)?"));
     return re.test(haystack);
   };
   next();

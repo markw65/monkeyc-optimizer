@@ -22,6 +22,7 @@ import {
 } from "./function-info";
 import {
   diagnostic,
+  inlinableSubExpression,
   InlineContext,
   inlineFunction,
   shouldInline,
@@ -1066,8 +1067,9 @@ export async function optimizeMonkeyC(
           ) {
             delete node.alternate;
           } else {
-            if (node.test.type === "CallExpression") {
-              return replace(optimizeCall(state, node.test, node), node.test);
+            const call = inlinableSubExpression(node.test);
+            if (call) {
+              return replace(optimizeCall(state, call, node), node.test);
             }
           }
         }
@@ -1123,9 +1125,11 @@ export async function optimizeMonkeyC(
           let j = 0;
           while (i < node.declarations.length) {
             const decl = declarations[i++];
-            if (decl.init && decl.init.type === "CallExpression") {
+            if (!decl.init) continue;
+            const call = inlinableSubExpression(decl.init);
+            if (call) {
               const inlined = replace(
-                optimizeCall(state, decl.init, decl),
+                optimizeCall(state, call, decl),
                 decl.init
               );
               if (!inlined) continue;
@@ -1170,7 +1174,8 @@ export async function optimizeMonkeyC(
             node.expression
           );
         } else if (node.expression.type === "AssignmentExpression") {
-          if (node.expression.right.type === "CallExpression") {
+          const call = inlinableSubExpression(node.expression.right);
+          if (call) {
             let ok = false;
             if (node.expression.left.type === "Identifier") {
               if (hasProperty(topLocals().map, node.expression.left.type)) {
@@ -1183,7 +1188,7 @@ export async function optimizeMonkeyC(
             }
             if (ok) {
               return replace(
-                optimizeCall(state, node.expression.right, node.expression),
+                optimizeCall(state, call, node.expression),
                 node.expression.right
               );
             }
