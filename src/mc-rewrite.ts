@@ -1058,13 +1058,18 @@ export async function optimizeMonkeyC(
           const rep = node.test.value ? node.consequent : node.alternate;
           if (!rep) return false;
           return replace(rep, rep);
-        } else if (
-          node.type === "IfStatement" &&
-          node.alternate &&
-          node.alternate.type === "BlockStatement" &&
-          !node.alternate.body.length
-        ) {
-          delete node.alternate;
+        } else if (node.type === "IfStatement") {
+          if (
+            node.alternate &&
+            node.alternate.type === "BlockStatement" &&
+            !node.alternate.body.length
+          ) {
+            delete node.alternate;
+          } else {
+            if (node.test.type === "CallExpression") {
+              return replace(optimizeCall(state, node.test, node), node.test);
+            }
+          }
         }
         break;
       case "WhileStatement":

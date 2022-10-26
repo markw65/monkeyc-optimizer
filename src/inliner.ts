@@ -300,7 +300,7 @@ export function shouldInline(
         state,
         func,
         call,
-        "This function can only be inlined in statement, assignment, or return contexts"
+        "This function can only be inlined in statement, assignment, if or return contexts"
       );
     }
     return context != null;
@@ -593,6 +593,7 @@ function inlineDiagnostic(
 
 export type InlineContext =
   | mctree.ReturnStatement
+  | mctree.IfStatement
   | mctree.AssignmentExpression
   | mctree.ExpressionStatement
   | mctree.VariableDeclarator;
@@ -638,7 +639,8 @@ function inlineWithArgs(
       );
     } else if (
       (context.type === "AssignmentExpression" ||
-        context.type === "VariableDeclarator") &&
+        context.type === "VariableDeclarator" ||
+        context.type === "IfStatement") &&
       retStmtCount !== 1
     ) {
       inlineDiagnostic(
@@ -655,7 +657,8 @@ function inlineWithArgs(
         !last ||
         last.type !== "ReturnStatement" ||
         ((context.type === "AssignmentExpression" ||
-          context.type === "VariableDeclarator") &&
+          context.type === "VariableDeclarator" ||
+          context.type === "IfStatement") &&
           !last.argument)
       ) {
         inlineDiagnostic(
@@ -712,6 +715,47 @@ function inlineWithArgs(
             right: last.argument,
           },
         };
+      } else if (context.type === "IfStatement") {
+        // Generate a pmcr_tmp name that doesn't conflict with anything
+        const locals = state.localsStack![state.localsStack!.length - 1];
+        const name = renameVariable(state, locals, null)!;
+        locals.map![name] = true;
+
+        // Replace the inlined function's return statement
+        // with an assignment to pmcr_tmp
+        block.body[block.body.length - 1] = {
+          type: "ExpressionStatement",
+          expression: {
+            type: "AssignmentExpression",
+            operator: "=",
+            left: { type: "Identifier", name },
+            right: last.argument,
+          },
+        };
+        // Replace the IfStatement's test with a test of pmcr_tmp
+        context.test = { type: "Identifier", name };
+
+        // Wrap the inlined body so it looks like
+        // {
+        //   var pmcr_tmp;
+        //   { /* inlined body, with assignment to pmcr_tmp */ }
+        //   if (pmcr_tmp) {} // original if statement
+        // }
+        body.body = [
+          {
+            type: "VariableDeclaration",
+            kind: "var",
+            declarations: [
+              {
+                type: "VariableDeclarator",
+                kind: "var",
+                id: { type: "Identifier", name },
+              },
+            ],
+          },
+          { type: "BlockStatement", body: body.body },
+          context,
+        ];
       } else {
         const side_exprs = unused(last.argument);
         block.body.splice(block.body.length - 1, 1, ...side_exprs);

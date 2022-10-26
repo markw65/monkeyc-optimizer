@@ -5,10 +5,14 @@ import { ProgramStateAnalysis } from "./optimizer-types";
 export function renameVariable(
   state: ProgramStateAnalysis,
   locals: NonNullable<ProgramStateAnalysis["localsStack"]>[number],
-  declName: string
+  declName: string | null
 ) {
   const map = locals.map!;
-  if (!hasProperty(map, declName)) return null;
+  if (declName) {
+    if (!hasProperty(map, declName)) return null;
+  } else {
+    declName = "tmp";
+  }
   let suffix = 0;
   let node_name = declName;
   const match = node_name.match(/^pmcr_(.*)_(\d+)$/);

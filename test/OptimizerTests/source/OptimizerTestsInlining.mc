@@ -413,6 +413,40 @@ function inlineAssignContext(logger as Logger) as Boolean {
     return ok;
 }
 
+(:inline)
+function ifContext1(x as Number) as Boolean {
+    x++;
+    return x == 2;
+}
+
+(:test)
+function inlineIfContext(logger as Logger) as Boolean {
+    var x;
+    ok = true;
+    A.B.x = 4;
+    z = 3;
+    var arr = [1, 2, 3];
+
+    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @1;/ */
+    if (ifContext1(1)) {
+    } else {
+        logger.debug("Failed: ifContext1(1) should return true");
+        ok = false;
+    }
+    if (A.B.x != 4) {
+        logger.debug("Failed: A.B.x should be 4");
+        ok = false;
+    } /* @match /^\{ var pmcr_tmp.* if.* else .*\} \}/ */ else if (
+        ifContext1(2)
+    ) {
+        logger.debug("Failed: ifContext1(2) should return false");
+        ok = false;
+    } else {
+        z++;
+    }
+    return ok;
+}
+
 import Toybox.Activity;
 
 class Foo {
