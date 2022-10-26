@@ -426,3 +426,9 @@ Bug Fixes
 - Update the testing framework to launch the simulator before each test run, rather than start it once at the beginning. This is because the latest beta crashes after successfully completing.
 - Update launchSimulator to check if the simulator is already running. This avoids lots of screen switching when the simulator is running on a separate desktop.
 - Add optimizerVersion and extensionVersion to build-info.json.
+
+### 1.0.38
+
+- Allow inlining the argument to an if-statement, with the same constraints as inlining in assignment context
+- Expand `assignment`, `declaration` and `if` contexts to include (recursively) the left operand of any binary operator, the operand of any unary operator, the `test` operand of any conditional operator or the `object` of a member-expression. So now it will inline `inlinableFunction` in:
+  - `var x = !((inlinableFunction() + 4) == 42 ? foo() : bar());`
