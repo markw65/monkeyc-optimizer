@@ -61,6 +61,7 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/andriijas/connectiq-apps",
   "https://github.com/antirez/iqmeteo",
   "https://github.com/Antvirf/spectrefenix",
+  "https://github.com/Antvirf/garmin-watch-face-guide",
   "https://github.com/antonioasaro/GARMIN-AMD_Watchface",
   "https://github.com/antonioasaro/Garmin-Antonio_SMS",
   "https://github.com/aronsommer/WebRequestGlance-Widget",
@@ -71,6 +72,7 @@ export const githubProjects: RemoteProject[] = [
     rename: [{ from: "source/Env.mc.sample", to: "source/Env.mc" }],
     options: { checkInvalidSymbols: "WARNING" },
   },
+  "https://github.com/bombsimon/garmin-seaside",
   {
     root: "https://github.com/breber/helicopter-iq",
     build: false,
