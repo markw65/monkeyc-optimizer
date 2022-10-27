@@ -625,7 +625,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       annotations,
     };
 
-    const toSortedEntries = <T>(value: T) =>
+    const toSortedEntries = <T>(value: Record<string, T>) =>
       Object.entries(value)
         .filter(([, v]) => v != null)
         .sort((a, b) => (a[0] < b[0] ? -1 : a[0] === b[0] ? 0 : 1));
@@ -636,7 +636,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       }
       if (key === "" && barrelMap) {
         const bm = toSortedEntries(barrelMap).map(([k, v]) => {
-          const { jungles, qualifier } = v as ResolvedBarrel;
+          const { jungles, qualifier } = v;
           return [k, [jungles, qualifier]];
         });
         value = { ...value, barrelMap: bm };
