@@ -28,10 +28,11 @@ export default async (env, argv) => {
     };
     return { ...config, ...extra };
   }
-  const jungle = getConfig({
-    name: "jungle",
+  const peggy = getConfig({
+    name: "peggy",
     entry: {
       jungle: "./src/jungle.peggy",
+      xml: "./src/xml.peggy",
     },
     module: {
       rules: [
@@ -111,7 +112,7 @@ export default async (env, argv) => {
       driver: "./src/driver.ts",
     },
     optimization: { minimize: false },
-    dependencies: ["jungle"],
+    dependencies: ["peggy"],
     module: {
       rules: [
         {
@@ -276,5 +277,5 @@ export default async (env, argv) => {
     ],
   });
 
-  return [jungle, optimizer];
+  return [peggy, optimizer];
 };
