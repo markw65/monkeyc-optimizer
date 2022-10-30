@@ -75,7 +75,7 @@ NameChar
   / CombiningChar
   / Extender
 
-Name = $((Letter / "_" / ":") NameChar*)
+Name "name" = $((Letter / "_" / ":") NameChar*)
 
 Names = head:Name tail:(" " @Name)* { return [head, ...tail]; }
 
@@ -93,9 +93,13 @@ EntityValue
       return clumpStrings(vals);
     }
 
+// Relax the legal chars a little. These should be
+// [^<&"] and [^<&'], but allowing < doesn't cause a
+// parsing issue, so allow it. This way we can fix
+// up the attribute, and write out a valid xml file.
 AttValue
-  = "\"" @$([^<&"] / Reference)* "\""
-  / "'" @$([^<&'] / Reference)* "'"
+  = "\"" @$([^&"] / Reference)* "\""
+  / "'" @$([^&'] / Reference)* "'"
 
 SystemLiteral
   = ("\"" @$[^"]* "\"")
@@ -131,14 +135,18 @@ Comment
 
 // Processing Instructions
 
-PI = "<?" PITarget (S (!"?>" Char)*)? "?>"
+PI
+  = "<?" name:PITarget S? value:((!"?>" Char)*)? "?>" {
+      wrap({ type: "pi", name, value: value && value.join("") });
+    }
 
 // TODO: xmlFoo is ok?
 PITarget = !"xml"i Name
 
 // CDATA Sections
 
-CDSect = CDStart CData CDEnd
+CDSect
+  = CDStart cdata:$CData CDEnd { return wrap({ type: "cdata", value: cdata }); }
 
 CDStart = "<![CDATA["
 
@@ -149,12 +157,12 @@ CDEnd = "]]>"
 // Prolog
 
 prolog
-  = xmldecl:XMLDecl? Misc* doctypedecl:(@doctypedecl Misc*)? {
+  = xmldecl:XMLDecl? misc1:Misc* doctypedecl:doctypedecl? misc2:Misc* {
       return add(
         {
           type: "prolog",
         },
-        { xmldecl, doctypedecl }
+        { xmldecl, misc1, doctypedecl, misc2 }
       );
     }
 
@@ -183,7 +191,7 @@ VersionNum = "1.0"
 Misc
   = Comment
   / PI
-  / value:S {
+  / value:$S {
       return wrap({
         type: "chardata",
         value,
@@ -216,16 +224,14 @@ DeclSep
 intSubset = sub:(markupdecl / DeclSep)* { return sub.filter((x) => x); }
 
 markupdecl
-  = elementdecl
-  / AttlistDecl
-  / EntityDecl
+  = EntityDecl
   / NotationDecl
   / PI
   / Comment
 
 extSubset = TextDecl? extSubsetDecl
 
-extSubsetDecl = (markupdecl / conditionalSect / DeclSep)*
+extSubsetDecl = (markupdecl / DeclSep)*
 
 // Standalone Document Declaration
 
@@ -252,12 +258,11 @@ STag
 
 Attribute
   = name:Name Eq value:AttValue {
-      return {
+      return wrap({
         type: "attribute",
         name,
         value,
-        loc: location(),
-      };
+      });
     }
 
 ETag = "</" popName S? ">"
@@ -306,136 +311,6 @@ EmptyElemTag
         attr: convertAttr(attr),
       });
     }
-
-// Elements in the DTD
-
-elementdecl
-  = "<!ELEMENT" S name:Name S content:contentspec S? ">" {
-      return wrap({
-        type: "elementdecl",
-        name,
-        content,
-      });
-    }
-
-contentspec
-  = "EMPTY" { return wrap({ type: "empty" }); }
-  / "ANY" { return wrap({ type: "any" }); }
-  / Mixed
-  / children
-
-children
-  = c:(choice / seq) count:("?" / "*" / "+")? {
-      if (count) {
-        return [c, count];
-      }
-      return c;
-    }
-
-cp
-  = c:(Name / choice / seq) count:("?" / "*" / "+")? {
-      if (count) {
-        return [c, count];
-      }
-      return c;
-    }
-
-choice
-  = "(" S? head:cp tail:(S? "|" S? @cp)+ S? ")" {
-      return wrap({
-        type: "choice",
-        choices: [head, ...tail],
-      });
-    }
-
-seq
-  = "(" S? head:cp tail:(S? "," S? @cp)* S? ")" {
-      return tail.length ? [head, ...tail] : head;
-    }
-
-Mixed
-  = "(" S? "#PCDATA" names:(S? "|" S? @Name)* S? ")*" {
-      return wrap({
-        type: "mixed",
-        names,
-      });
-    }
-  / "(" S? "#PCDATA" S? ")" { return { type: "pcdata" }; }
-
-// Attributes in the DTD
-
-AttlistDecl
-  = "<!ATTLIST" S Name attr:AttDef* S? ">" {
-      return wrap({
-        type: "attlistdecl",
-        attr,
-      });
-    }
-
-AttDef
-  = S name:Name S type:AttType S def:DefaultDecl {
-      return wrap({
-        type: "attdef",
-        name,
-        type,
-        default: def,
-      });
-    }
-
-AttType
-  = StringType
-  / TokenizedType
-  / EnumeratedType
-
-StringType = "CDATA"
-
-TokenizedType
-  = "ID"
-  / "IDREF"
-  / "IDREFS"
-  / "ENTITY"
-  / "ENTITIES"
-  / "NMTOKEN"
-  / "NMTOKENS"
-
-EnumeratedType
-  = NotationType
-  / Enumeration
-
-NotationType
-  = "NOTATION" S "(" S? head:Name tail:(S? "|" S? @Name)* S? ")" {
-      return wrap({
-        type: "notation",
-        names: [head, ...tail],
-      });
-    }
-
-Enumeration
-  = "(" S? head:Nmtoken tail:(S? "|" S? @Nmtoken)* S? ")" {
-      return [head, ...tail];
-    }
-
-DefaultDecl
-  = "#REQUIRED"
-  / "#IMPLIED"
-  / fixed:(@"#FIXED" S)? value:AttValue {
-      return fixed ? [fixed, value] : value;
-    }
-
-// Conditional Section
-
-conditionalSect
-  = includeSect
-  / ignoreSect
-
-includeSect = "<![" S? "INCLUDE" S? "[" extSubsetDecl CDEnd
-
-ignoreSect
-  = "<![" S? "IGNORE" S? "[" ignoreSectContents? CDEnd // ? should be *
-
-ignoreSectContents = Ignore ("<![" ignoreSectContents CDEnd Ignore)*
-
-Ignore = (!"<![" !CDEnd Char)*
 
 // Character and Entity References
 
@@ -487,6 +362,7 @@ GEDecl
         type: "entitydecl",
         name,
         def,
+        kind: "&",
       });
     }
 
@@ -496,16 +372,19 @@ PEDecl
         type: "entitydecl",
         name,
         def,
+        kind: "%",
       });
     }
 
 EntityDef
-  = EntityValue
-  / (ExternalID NDataDecl?)
+  = value:EntityValue { return wrap({ type: "entityvalue", value }); }
+  / extid:ExternalID ndecl:NDataDecl? {
+      return add({ type: "entityvalue", extid }, { ndecl });
+    }
 
 PEDef
-  = EntityValue
-  / ExternalID
+  = EntityValue { return wrap({ type: "entityvalue", value }); }
+  / ExternalID { return wrap({ type: "entityvalue", extid }); }
 
 ExternalID
   = "SYSTEM" S value:SystemLiteral {
