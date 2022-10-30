@@ -2,7 +2,6 @@ import * as crypto from "crypto";
 import * as extract from "extract-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { parseStringPromise } from "xml2js";
 import * as jungle from "../build/jungle.js";
 import { hasProperty } from "./api";
 import {
@@ -14,7 +13,7 @@ import {
   readManifest,
 } from "./manifest";
 import { BuildConfig } from "./optimizer-types.js";
-import { DeviceInfo, getDeviceInfo, getLanguages } from "./sdk-util";
+import { DeviceInfo, getDeviceInfo, getLanguages, xmlUtil } from "./sdk-util";
 import { globa } from "./util";
 
 type JNode = Literal | QName | SubList;
@@ -444,24 +443,32 @@ async function resolve_literals(
 
 async function find_build_instructions_in_resource(file: string) {
   const data = await fs.readFile(file);
-  const rez = await parseStringPromise(data).catch(() => ({}));
-  if (!rez.build || !rez.build.exclude) return null;
+  let rez;
+  try {
+    rez = xmlUtil.parseXml(data.toString(), file);
+  } catch {
+    return null;
+  }
+  const build = rez.body.skip("resources").filter("build");
+  if (!build.length()) return null;
+  const excludes = build.children("exclude").attrs();
+  if (!excludes.length) return null;
   const dir = path.dirname(file);
-  const sourceExcludes = rez.build.exclude
-    .map((e: { $: { file?: string } }) => e.$.file)
+  const sourceExcludes = excludes
+    .map((e) => e.file)
     .filter((f: string | null) => f != null)
     .map((f: string) => path.resolve(dir, f).replace(/\\/g, "/"));
 
-  const filePatterns: string[] = rez.build.exclude
-    .map((e: { $: { dir?: string } }) => e.$.dir)
+  const filePatterns: string[] = excludes
+    .map((e) => e.dir)
     .filter((f: string | null) => f != null)
     .map((f: string) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
   if (filePatterns.length) {
     const files = (await Promise.all(filePatterns.map((p) => globa(p)))).flat();
     sourceExcludes.push(...files);
   }
-  const excludeAnnotations = rez.build.exclude
-    .map((e: { $: { annotation?: string } }) => e.$.annotation)
+  const excludeAnnotations = excludes
+    .map((e) => e.annotation)
     .filter((f: string | null) => f != null);
   return { sourceExcludes, excludeAnnotations };
 }
@@ -503,7 +510,15 @@ async function find_build_instructions(targets: Target[]) {
         );
         buildInstructions
           .filter((i): i is NonNullable<typeof i> => i != null)
-          .map((i) => {
+          // Each element of the array is the set of build instructions
+          // from a particular resource file. The order is the order of the
+          // resource paths in the .jungle file. The docs say we should
+          // only take the "most specific" build instructions, without
+          // making it clear what that means if you've added your own
+          // resource paths, but I'm going with "the last one" (which will
+          // work for all the default paths), so split that off.
+          .slice(-1)
+          .forEach((i) => {
             if (i.sourceExcludes) sourceExcludes.push(...i.sourceExcludes);
             if (i.excludeAnnotations)
               excludeAnnotations.push(...i.excludeAnnotations);
@@ -728,7 +743,7 @@ export type JungleQualifier = {
 type JungleInfoBase = {
   jungles: string[]; // Paths to the project's jungle files
   manifest: string; // Path to the project's manifest file
-  xml: ManifestXML; // The xml content of the manifest, as returned by xml2js
+  xml: ManifestXML; // The xml content of the manifest
   annotations?: string[]; // Array of annotations supported by this barrel
 };
 
@@ -954,7 +969,7 @@ async function get_jungle_and_barrels(
   if (products.length === 0) {
     if (defaultProducts) {
       products.push(...defaultProducts);
-    } else if (xml["iq:manifest"]["iq:barrel"]) {
+    } else if (xml.body.children("iq:barrel").length()) {
       products.push(...Object.keys(devices).sort());
     }
   }

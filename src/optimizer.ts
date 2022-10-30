@@ -293,9 +293,9 @@ export async function generateOptimizedProject(options: BuildConfig) {
     config.jungleFiles!,
     config
   );
-  if (!xml["iq:manifest"]["iq:application"]) {
+  if (!xml.body.children("iq:application").length()) {
     const error = new Error(
-      xml["iq:manifest"]["iq:barrel"]
+      xml.body.children("iq:barrel").length()
         ? "Optimize the project that uses this barrel, not the barrel itself"
         : "Manifest is missing an `iq:application` tag"
     );

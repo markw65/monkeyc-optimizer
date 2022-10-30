@@ -272,17 +272,7 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/tobiaslj/TrendPace",
   "https://github.com/toomasr/8-min-abs",
   "https://github.com/toskaw/ImageNotify",
-  {
-    root: "https://github.com/travisvitek/connectiq_laps_datafield",
-    jungleContent: [
-      "rectangle-200x265.excludeAnnotations=high_memory_device;rectangle_205x148;rectangle_240x400;round_218x218;round_240x240;semiround_215x180",
-      "rectangle-205x148.excludeAnnotations=high_memory_device;rectangle_200x265;rectangle_240x400;round_218x218;round_240x240;semiround_215x180",
-      "rectangle-240x400.excludeAnnotations=high_memory_device;rectangle_200x265;rectangle_205x148;round_218x218;round_240x240;semiround_215x180",
-      "round-218x218.excludeAnnotations=high_memory_device;rectangle_200x265;rectangle_205x148;rectangle_240x400;round_240x240;semiround_215x180",
-      "round-240x240.excludeAnnotations=high_memory_device;rectangle_200x265;rectangle_205x148;rectangle_240x400;round_218x218;semiround_215x180",
-      "semiround-215x180.excludeAnnotations=low_memory_device;rectangle_200x265;rectangle_205x148;rectangle_240x400;round_218x218;round_240x240",
-    ],
-  },
+  "https://github.com/travisvitek/connectiq_laps_datafield",
   "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
   "https://github.com/victornottat/garmin-trimp-perhour",
   "https://github.com/victornottat/garmin-trimp",

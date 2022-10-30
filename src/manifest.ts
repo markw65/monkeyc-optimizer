@@ -1,9 +1,16 @@
-import { parseStringPromise, Builder } from "xml2js";
 import * as fs from "fs/promises";
-import { getDeviceInfo } from "./sdk-util";
+import { getDeviceInfo, xmlUtil } from "./sdk-util";
 
-type iqApplication = {
-  $: {
+/*
+interface iqApplication
+  extends Element<
+    "iq:application",
+    | Element<"iq:products", iqProduct>
+    | Element<"iq:barrels", iqDepends>
+    | Element<"iq:permissions", iqPermission>
+    | Element<"iq:languages", iqLanguage>
+  > {
+  attrs: {
     id: string;
     entry: string;
     launcherIcon: string;
@@ -12,99 +19,101 @@ type iqApplication = {
     type: string;
     version: string;
   };
-  "iq:products"?: Array<{
-    "iq:product"?: Array<{ $: { id: string } }>;
-  }>;
-  "iq:barrels"?: Array<{
-    "iq:depends"?: Array<{ $: { name: string; version: string } }>;
-  }>;
-  "iq:permissions"?: Array<{
-    "iq:uses-permission"?: Array<{ $: { id: string } }>;
-  }>;
-  "iq:languages"?: Array<{
-    "iq:language"?: Array<string>;
-  }>;
-};
-type iqBarrel = {
-  $: { id: string; module: string; version: string };
-  "iq:products"?: Array<{
-    "iq:product"?: Array<{ $: { id: string } }>;
-  }>;
-  "iq:annotations"?: Array<{
-    "iq:annotation"?: Array<string>;
-  }>;
-};
-export type ManifestXML = {
-  "iq:manifest": {
-    $: { "xmlns:iq": string };
-    "iq:application"?: Array<iqApplication>;
-    "iq:barrel"?: Array<iqBarrel>;
-  };
-};
+}
+
+interface iqProduct extends LeafElement<"iq:product"> {
+  attrs: { id: string };
+}
+
+interface iqDepends extends LeafElement<"iq:depends"> {
+  attrs: { name: string; version: string };
+}
+
+interface iqPermission extends LeafElement<"iq:uses-permission"> {
+  attrs: { id: string };
+}
+
+type iqLanguage = Element<"iq:language", never>;
+
+type iqAnnotation = Element<"iq:annotation", never>;
+
+interface iqBarrel
+  extends Element<
+    "iq:barrel",
+    Element<"iq:products", iqProduct> | Element<"iq:annotations", iqAnnotation>
+  > {
+  attrs: { id: string; module: string; version: string };
+}
+*/
+export type ManifestXML = xmlUtil.Document;
 
 export async function readManifest(manifest: string): Promise<ManifestXML> {
   const data = await fs.readFile(manifest);
-  return parseStringPromise(data.toString(), { trim: true });
+  return xmlUtil.parseXml(data.toString(), manifest);
 }
 
 export async function writeManifest(
   filename: string,
   xml: ManifestXML
 ): Promise<void> {
-  const builder = new Builder();
-  return fs.writeFile(filename, builder.buildObject(xml));
+  return fs.writeFile(filename, xmlUtil.writeXml(xml));
 }
 
 export function manifestProducts(manifest: ManifestXML): string[] {
-  const app =
-    manifest["iq:manifest"]["iq:application"] ||
-    manifest["iq:manifest"]["iq:barrel"];
-  return (app?.[0]["iq:products"]?.[0]["iq:product"] || [])
-    .map((p) => p.$.id)
+  return manifest.body
+    .children()
+    .filter((c) => c.name === "iq:application" || c.name === "iq:barrel")
+    .children("iq:products")
+    .children("iq:product")
+    .attrs()
+    .map((p) => p.id)
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);
 }
 
 export function manifestBarrels(manifest: ManifestXML): string[] {
-  const app = manifest["iq:manifest"]["iq:application"];
-  if (
-    Array.isArray(app) &&
-    app.length &&
-    app[0] &&
-    Array.isArray(app[0]["iq:barrels"]) &&
-    app[0]["iq:barrels"].length &&
-    Array.isArray(app[0]["iq:barrels"][0]["iq:depends"])
-  ) {
-    return app[0]["iq:barrels"][0]["iq:depends"]
-      .map((p) => p.$.name)
-      .sort()
-      .filter((p, i, a) => !i || p !== a[i - 1]);
-  }
-  return [];
+  return manifest.body
+    .children("iq:application")
+    .children("iq:barrels")
+    .children("iq:depends")
+    .attrs()
+    .map((p) => p.name)
+    .sort()
+    .filter((p, i, a) => !i || p !== a[i - 1]);
 }
 
 export function manifestDropBarrels(manifest: ManifestXML): void {
-  const app = manifest["iq:manifest"]["iq:application"];
-  if (!app) return;
-  delete app[0]["iq:barrels"];
+  manifest.body.children("iq:application").deleteChildren("iq:barrels");
 }
 
 export function manifestBarrelName(
   manifestName: string,
   manifest: ManifestXML
 ): string {
-  const barrel = manifest["iq:manifest"]["iq:barrel"];
-  if (!barrel) throw new Error(`Not a barrel manifest: ${manifestName}`);
-  return barrel[0].$.module;
+  const modules = manifest.body
+    .children("iq:barrel")
+    .attrs()
+    .map((a) => a.module);
+  if (!modules.length) {
+    throw new Error(`Not a barrel manifest: ${manifestName}`);
+  }
+  if (modules.length !== 1) {
+    throw new Error(`Manifest defines multiple modules`);
+  }
+  if (typeof modules[0] !== "string") {
+    throw new Error("Missing barrel name in manifest");
+  }
+  return modules[0];
 }
 
 export function manifestAnnotations(
   manifest: ManifestXML
 ): string[] | undefined {
-  const barrel = manifest["iq:manifest"]["iq:barrel"];
-  if (!barrel) return undefined;
-  const annotations = barrel[0]["iq:annotations"];
-  return annotations && annotations[0]["iq:annotation"];
+  return manifest.body
+    .children("iq:barrel")
+    .children("iq:annotations")
+    .children("iq:annotation")
+    .text();
 }
 
 export async function checkManifest(
@@ -112,21 +121,24 @@ export async function checkManifest(
   products: string[]
 ): Promise<boolean> {
   let ok = true;
-  if (!manifest["iq:manifest"]["$"]["xmlns:iq"]) {
-    manifest["iq:manifest"]["$"]["xmlns:iq"] =
-      "http://www.garmin.com/xml/connectiq";
+  const mattrs = manifest.body.attrs();
+  if (
+    mattrs.length !== 1 ||
+    mattrs[0]["xmlns:iq"] !== "http://www.garmin.com/xml/connectiq"
+  ) {
     ok = false;
   }
-  const app = manifest["iq:manifest"]["iq:application"];
-  if (!app) return ok;
+  const app = manifest.body.children("iq:application");
+  if (!app.length()) return ok;
+  if (app.length() !== 1) return false;
 
-  const elm = app[0];
-  const id = elm.$.id;
-  if (id.length < 32 || !/^[-_0-9a-f.]+$/.test(id)) {
+  const attrs = app.attrs()[0];
+  const id = attrs.id;
+  if (typeof id !== "string" || id.length < 32 || !/^[-_0-9a-f.]+$/.test(id)) {
     ok = false;
-    elm.$.id = "08070f9d-8b4e-40a4-9c49-fe67a2a55dec";
+    attrs.id = "08070f9d-8b4e-40a4-9c49-fe67a2a55dec";
   }
-  const type = elm.$.type.replace(/-/g, "").toLowerCase();
+  const type = attrs.type.replace(/-/g, "").toLowerCase();
   const deviceInfo = await getDeviceInfo();
   const allowedProducts = products.sort().filter(
     (p) =>
@@ -145,28 +157,29 @@ export async function checkManifest(
     JSON.stringify(manifestProducts(manifest))
   ) {
     ok = false;
-    elm["iq:products"] = [
-      {
-        "iq:product": allowedProducts.map((id) => {
-          return { $: { id } };
-        }),
-      },
-    ];
+    const products = app.children("iq:products");
+    products.deleteChildren("iq:product");
+    products.addChildren(
+      allowedProducts.map((id) => {
+        return { type: "element", name: "iq:product", attr: { id } };
+      })
+    );
   }
-  Object.keys(elm).forEach((key) => {
+
+  app.deleteChildren((c) => {
     if (
-      ![
-        "$",
+      [
         "iq:permissions",
         "iq:languages",
         "iq:products",
         "iq:barrels",
         "iq:trialMode",
-      ].includes(key)
+      ].includes(c.name)
     ) {
-      ok = false;
-      delete elm[key as keyof iqApplication];
+      return false;
     }
+    ok = false;
+    return true;
   });
 
   return ok;

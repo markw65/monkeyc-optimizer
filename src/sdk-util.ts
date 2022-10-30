@@ -1,8 +1,10 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { parseStringPromise } from "xml2js";
 import { globa } from "./util";
+import { parseXml } from "./xml-util";
+
 export { readPrg, SectionKinds } from "./readprg";
+export * as xmlUtil from "./xml-util";
 
 export const isWin = process.platform == "win32";
 
@@ -78,17 +80,19 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
 }
 
 async function getProjectInfo() {
-  const sdk = await getSdkPath();
-  const data = await fs.readFile(path.join(sdk, "bin", "projectInfo.xml"));
-  return parseStringPromise(data.toString(), { trim: true });
+  const file = path.join(await getSdkPath(), "bin", "projectInfo.xml");
+  const data = await fs.readFile(file);
+  return parseXml(data.toString(), file);
 }
 
 export async function getLanguages() {
   const projectInfo = await getProjectInfo();
-  return projectInfo["monkeybrains"]["languages"][0]["language"].map(
-    (p: { $: { id: string; name: string } }) => ({
-      id: p.$.id,
-      name: p.$.name,
-    })
-  );
+  return projectInfo.body
+    .children("languages")
+    .children("language")
+    .attrs()
+    .map(({ id, name }) => ({
+      id,
+      name,
+    }));
 }
