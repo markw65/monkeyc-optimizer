@@ -343,7 +343,7 @@ export async function driver() {
             }
             console.log(line);
           };
-          return launchSimulator().then(() =>
+          return launchSimulator(pass !== undefined).then(() =>
             simulateProgram(res.program, res.product!, pass === undefined, [
               handler,
               handler,

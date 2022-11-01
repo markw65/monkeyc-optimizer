@@ -5,17 +5,18 @@ import { execFile } from "child_process";
 import { getSdkPath, isWin } from "./sdk-util";
 import { spawnByLine, LineHandler } from "./util";
 
-export function launchSimulator(): Promise<void> {
-  return checkIfSimulatorRunning().then((running) =>
-    running
-      ? Promise.resolve()
-      : getSdkPath().then((sdk) => {
-          const child = execFile(
-            path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq")
-          );
-          child.unref();
-        })
+export async function launchSimulator(force = true): Promise<void> {
+  if (!force && (await checkIfSimulatorRunning())) return;
+  const sdk = await getSdkPath();
+  const child = execFile(
+    path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq")
   );
+  child.unref();
+  for (let i = 0; ; i++) {
+    if (await checkIfSimulatorRunning()) return;
+    if (i === 5) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
 }
 
 export function checkIfSimulatorRunning(): Promise<boolean> {
@@ -46,10 +47,10 @@ export function simulateProgram(
   logger?: LineHandler | LineHandler[]
 ): Promise<void> {
   const args = [prg, device];
-  if (test) args.push("-t");
+  if (test) args.push(isWin ? "/t" : "-t");
   return getSdkPath().then((sdk) =>
     spawnByLine(
-      path.resolve(sdk, "bin", "monkeydo"),
+      path.resolve(sdk, "bin", isWin ? "monkeydo.bat" : "monkeydo"),
       args,
       logger || ((line: string) => console.log(line))
     ).then(() => {
