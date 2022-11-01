@@ -16,6 +16,14 @@ type JungleInfo = {
   build: boolean | null;
   options: BuildConfig | null;
 };
+
+function cleanPath(workspace: string | null | undefined, file: string) {
+  if (!workspace) return file;
+  const rel = path.relative(workspace, file);
+  if (rel.startsWith("..")) return file;
+  return rel;
+}
+
 export async function driver() {
   const jungles: (string | JungleInfo)[] = [];
   let products: string[] | undefined;
@@ -384,15 +392,13 @@ export async function driver() {
           );
           if (e.name && e.message && e.location) {
             const source = e.location.source
-              ? options.workspace
-                ? path.relative(options.workspace, e.location.source)
-                : e.location.source
+              ? cleanPath(options.workspace, e.location.source)
               : "<unknown>";
-            console.error(
-              `ERROR: ${e.name}: ${source}:${e.location.start.line},${e.location.start.column}: ${e.message}`
-            );
+            ex = `${e.name}: ${source}:${e.location.start.line},${e.location.start.column}: ${e.message}`;
+            console.error(`ERROR: ${ex}`);
           } else {
-            console.error("Error: ", e);
+            ex = e.toString();
+            console.error(e);
           }
         }
         failures.push([jungleFiles, ex]);
