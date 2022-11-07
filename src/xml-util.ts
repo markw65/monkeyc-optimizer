@@ -156,7 +156,7 @@ export class Document {
   ) {}
 }
 
-function elementKids(e: Element) {
+export function elementKids(e: Element) {
   return e.children
     ? e.children.filter((c): c is Element => c.type === "element")
     : [];

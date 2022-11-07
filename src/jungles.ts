@@ -441,14 +441,95 @@ async function resolve_literals(
   return qualifier as JungleQualifier;
 }
 
-async function find_build_instructions_in_resource(file: string) {
-  const data = await fs.readFile(file);
-  let rez;
-  try {
-    rez = xmlUtil.parseXml(data.toString(), file);
-  } catch {
-    return null;
+type ResourceGroups = Record<
+  string,
+  {
+    resourcePath: string[];
+    resourceFiles: { path: string; resources: xmlUtil.Document | Error }[];
+    resourceMap: JungleResourceMap;
+    products: string[];
+    buildInstructions?: {
+      sourceExcludes: string[];
+      excludeAnnotations: string[];
+    };
   }
+>;
+
+async function read_resource_files(targets: Target[]) {
+  const resourceGroups: ResourceGroups = {};
+  const resources: JungleResourceMap = {};
+  await Promise.all(
+    targets.map(async (p) => {
+      if (!p.qualifier.resourcePath) return;
+      const key = p.qualifier.resourcePath.join(";");
+      if (!hasProperty(resourceGroups, key)) {
+        const resourceFiles = await Promise.all(
+          p.qualifier.resourcePath.map((pattern) =>
+            globa(pattern, { mark: true })
+          )
+        ).then((patterns) =>
+          Promise.all(
+            patterns
+              .flat()
+              .map((path) =>
+                path.endsWith("/")
+                  ? globa(`${path}**/*.xml`, { mark: true })
+                  : path
+              )
+          ).then((paths) =>
+            Promise.all(
+              paths
+                .flat()
+                .filter((file) => file.endsWith(".xml"))
+                .map((file) => {
+                  if (hasProperty(resources, file)) {
+                    return { path: file, resources: resources[file] };
+                  }
+                  return fs
+                    .readFile(file)
+                    .then((data) => xmlUtil.parseXml(data.toString(), file))
+                    .catch((e) =>
+                      e instanceof Error
+                        ? e
+                        : new Error("An unknown error occurred")
+                    )
+                    .then((rez) => {
+                      resources[file] = rez;
+                      return {
+                        path: file,
+                        resources: rez,
+                      };
+                    });
+                })
+            )
+          )
+        );
+        resourceGroups[key] = {
+          resourcePath: p.qualifier.resourcePath,
+          resourceFiles,
+          resourceMap: Object.fromEntries(
+            resourceFiles.map((e) => [e.path, e.resources])
+          ),
+          products: [],
+        };
+      }
+      if (p.qualifier.barrelMap) {
+        Object.values(p.qualifier.barrelMap).forEach((e) =>
+          Object.assign(resources, e.resources)
+        );
+      }
+      p.qualifier.resourceMap = resourceGroups[key].resourceMap;
+      resourceGroups[key].products.push(p.product);
+    })
+  );
+  return { resources, resourceGroups };
+}
+
+async function find_build_instructions_in_resource(
+  file: string,
+  rez: xmlUtil.Document | Error
+) {
+  if (rez instanceof Error) return null;
   const build = rez.body.skip("resources").filter("build");
   if (!build.length()) return null;
   const excludes = build.children("exclude").attrs();
@@ -473,42 +554,23 @@ async function find_build_instructions_in_resource(file: string) {
   return { sourceExcludes, excludeAnnotations };
 }
 
-async function find_build_instructions(targets: Target[]) {
-  const resourceGroups: Record<
-    string,
-    { resourcePath: string[]; products: string[] }
-  > = {};
+async function find_build_instructions(
+  targets: Target[],
+  resourceGroups: ResourceGroups
+) {
   await Promise.all(
     targets.map(async (p) => {
       if (!p.qualifier.resourcePath) return;
       const key = p.qualifier.resourcePath.join(";");
-      if (!hasProperty(resourceGroups, key)) {
-        resourceGroups[key] = {
-          resourcePath: p.qualifier.resourcePath,
-          products: [],
-        };
-        const paths = (
+      if (!hasProperty(resourceGroups, key)) return;
+      if (!hasProperty(resourceGroups[key], "buildInstructions")) {
+        resourceGroups[key].buildInstructions = (
           await Promise.all(
-            p.qualifier.resourcePath.map((pattern) =>
-              globa(pattern, { mark: true })
+            resourceGroups[key].resourceFiles.map(({ path, resources }) =>
+              find_build_instructions_in_resource(path, resources)
             )
           )
-        ).flat();
-
-        const sourceExcludes: string[] = [];
-        const excludeAnnotations: string[] = [];
-        const resourceFiles = await Promise.all(
-          paths.map((path) =>
-            path.endsWith("/") ? globa(`${path}**/*.xml`, { mark: true }) : path
-          )
-        );
-        const buildInstructions = await Promise.all(
-          resourceFiles
-            .flat()
-            .filter((file) => !file.endsWith("/"))
-            .map((file) => find_build_instructions_in_resource(file))
-        );
-        buildInstructions
+        )
           .filter((i): i is NonNullable<typeof i> => i != null)
           // Each element of the array is the set of build instructions
           // from a particular resource file. The order is the order of the
@@ -517,24 +579,31 @@ async function find_build_instructions(targets: Target[]) {
           // making it clear what that means if you've added your own
           // resource paths, but I'm going with "the last one" (which will
           // work for all the default paths), so split that off.
-          .slice(-1)
-          .forEach((i) => {
-            if (i.sourceExcludes) sourceExcludes.push(...i.sourceExcludes);
-            if (i.excludeAnnotations)
-              excludeAnnotations.push(...i.excludeAnnotations);
-          });
-        if (sourceExcludes.length) {
-          p.qualifier.sourceExcludes = sourceExcludes;
+          .pop();
+      }
+      const buildInstructions = resourceGroups[key].buildInstructions;
+
+      if (buildInstructions) {
+        if (
+          buildInstructions.sourceExcludes &&
+          buildInstructions.sourceExcludes.length
+        ) {
+          p.qualifier.sourceExcludes = buildInstructions.sourceExcludes;
         }
-        if (excludeAnnotations.length) {
+        if (
+          buildInstructions.excludeAnnotations &&
+          buildInstructions.excludeAnnotations.length
+        ) {
           if (p.qualifier.excludeAnnotations) {
-            p.qualifier.excludeAnnotations.push(...excludeAnnotations);
+            p.qualifier.excludeAnnotations.push(
+              ...buildInstructions.excludeAnnotations
+            );
           } else {
-            p.qualifier.excludeAnnotations = excludeAnnotations;
+            p.qualifier.excludeAnnotations =
+              buildInstructions.excludeAnnotations;
           }
         }
       }
-      resourceGroups[key].products.push(p.product);
     })
   );
 }
@@ -745,6 +814,7 @@ export type JungleQualifier = {
   annotations?: BarrelAnnotations; // map from barrel names to arrays of annotations
   barrelMap?: BarrelMap;
   optBarrels?: OptBarrelMap;
+  resourceMap?: JungleResourceMap;
 };
 
 // The result of parsing a jungle file, without resolving any products
@@ -753,10 +823,15 @@ type JungleInfoBase = {
   manifest: string; // Path to the project's manifest file
   xml: ManifestXML; // The xml content of the manifest
   annotations?: string[]; // Array of annotations supported by this barrel
+  resources: JungleResourceMap;
 };
 
+export type JungleResourceMap = Record<string, xmlUtil.Document | Error>;
+
 // The result of parsing an application's jungle file
-export type ResolvedJungle = JungleInfoBase & { targets: Target[] };
+export type ResolvedJungle = JungleInfoBase & {
+  targets: Target[];
+};
 
 // The result of parsing a barrel's jungle file for a particular product
 export type ResolvedBarrel = JungleInfoBase & {
@@ -1008,8 +1083,9 @@ async function get_jungle_and_barrels(
     }
   });
   await promise;
-  await find_build_instructions(targets);
-  return { manifest, targets, xml, annotations, jungles };
+  const { resourceGroups, resources } = await read_resource_files(targets);
+  await find_build_instructions(targets, resourceGroups);
+  return { manifest, targets, xml, annotations, jungles, resources };
 }
 
 export async function get_jungle(

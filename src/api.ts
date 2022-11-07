@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 import * as Prettier from "prettier";
 import { hasProperty, traverseAst } from "./ast";
 import { diagnostic } from "./inliner";
+import { JungleResourceMap } from "./jungles";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import {
@@ -26,6 +27,7 @@ import {
   StateNodeDecl,
   StateNodeDecls,
 } from "./optimizer-types";
+import { add_resources_to_ast } from "./resources";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
 
@@ -45,43 +47,28 @@ export { traverseAst, hasProperty };
 // Extract all enum values from api.mir
 export async function getApiMapping(
   state?: ProgramState,
-  barrelList?: string[]
+  resourcesMap?: Record<string, JungleResourceMap>
 ): Promise<ProgramStateNode | null> {
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
 
   const sdk = await getSdkPath();
 
-  const rezDecl = `module Rez { ${[
-    "Drawables",
-    "Fonts",
-    "JsonData",
-    "Layouts",
-    "Menus",
-    "Strings",
-  ]
-    .map((s) => `  module ${s} {}\n`)
-    .join("")}}`;
-
-  const api =
-    (await fs.readFile(`${sdk}bin/api.mir`))
-      .toString()
-      .replace(/\r\n/g, "\n")
-      .replace(/^\s*\[.*?\]\s*$/gm, "")
-      //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
-      .replace(/^(\s*type)\s/gm, "$1def ") +
-    (barrelList || [])
-      .map((name) => `module ${name} { ${rezDecl} }`)
-      .concat(rezDecl)
-      .join("");
+  const api = (await fs.readFile(`${sdk}bin/api.mir`))
+    .toString()
+    .replace(/\r\n/g, "\n")
+    .replace(/^\s*\[.*?\]\s*$/gm, "")
+    //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
+    .replace(/^(\s*type)\s/gm, "$1def ");
 
   try {
-    const result = collectNamespaces(
-      parser.parse(api, null, {
-        filepath: "api.mir",
-      }) as mctree.Program,
-      state
-    );
+    const ast = parser.parse(api, null, {
+      filepath: "api.mir",
+    }) as mctree.Program;
+    if (resourcesMap) {
+      add_resources_to_ast(ast, resourcesMap);
+    }
+    const result = collectNamespaces(ast, state);
     negativeFixups.forEach((fixup) => {
       const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
         const decls = isStateNode(state) && state.decls?.[part];

@@ -29,6 +29,7 @@ import {
   shouldInline,
   unused,
 } from "./inliner";
+import { JungleResourceMap } from "./jungles";
 import {
   BuildConfig,
   ClassStateNode,
@@ -186,7 +187,7 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
 
 export async function analyze(
   fnMap: FilesToOptimizeMap,
-  barrelList?: string[],
+  resourcesMap?: Record<string, JungleResourceMap>,
   config?: BuildConfig
 ) {
   let hasTests = false;
@@ -258,7 +259,7 @@ export async function analyze(
     },
   };
 
-  await getApiMapping(preState, barrelList);
+  await getApiMapping(preState, resourcesMap);
   markApi = false;
 
   const state = preState as ProgramStateAnalysis;
@@ -652,12 +653,12 @@ function markFunctionCalled(
 }
 export async function optimizeMonkeyC(
   fnMap: FilesToOptimizeMap,
-  barrelList?: string[],
+  resourcesMap?: Record<string, JungleResourceMap>,
   config?: BuildConfig
 ) {
   const state = (await analyze(
     fnMap,
-    barrelList,
+    resourcesMap,
     config
   )) as ProgramStateOptimizer;
   state.localsStack = [{}];

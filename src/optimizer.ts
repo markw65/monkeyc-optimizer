@@ -8,6 +8,7 @@ import { build_project } from "./build";
 import {
   get_jungle,
   JungleQualifier,
+  JungleResourceMap,
   ResolvedBarrel,
   ResolvedJungle,
   Target,
@@ -633,6 +634,10 @@ async function generateOneConfig(
     buildModeExcludes.test = true;
   }
 
+  const resourcesMap: Record<string, JungleResourceMap> = {};
+  if (buildConfig.resourceMap) {
+    resourcesMap[""] = buildConfig.resourceMap;
+  }
   const { fnMap } = await fileInfoFromConfig(
     workspace!,
     path.join(output, "source"),
@@ -644,6 +649,9 @@ async function generateOneConfig(
     const barrelFnMaps = await Promise.all(
       Object.entries(buildConfig.barrelMap)
         .map(([barrel, resolvedBarrel]) => {
+          if (resolvedBarrel.resources) {
+            resourcesMap[barrel] = resolvedBarrel.resources;
+          }
           dependencyFiles = dependencyFiles.concat(
             resolvedBarrel.jungles,
             resolvedBarrel.manifest
@@ -717,11 +725,7 @@ async function generateOneConfig(
 
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
-  const diagnostics = await optimizeMonkeyC(
-    fnMap,
-    Object.keys(buildConfig.barrelMap || {}),
-    config
-  );
+  const diagnostics = await optimizeMonkeyC(fnMap, resourcesMap, config);
   return Prettier.resolveConfig(config.workspace!, {
     useCache: false,
     editorconfig: true,
@@ -798,15 +802,27 @@ export async function getProjectAnalysis(
     return { fnMap, paths };
   }
 
-  const barrelObj: Record<string, true> = {};
+  const resourcesMap: Record<string, JungleResourceMap> = {};
+  const addResources = (
+    name: string,
+    resources: JungleResourceMap | null | undefined
+  ) => {
+    if (!resources) return;
+    if (!hasProperty(resourcesMap, name)) {
+      resourcesMap[name] = { ...resources };
+    } else {
+      Object.assign(resourcesMap[name], resources);
+    }
+  };
   targets.forEach((target) => {
+    addResources("", target.qualifier.resourceMap);
     if (target.qualifier.barrelMap) {
-      Object.keys(target.qualifier.barrelMap).forEach(
-        (key) => (barrelObj[key] = true)
+      Object.entries(target.qualifier.barrelMap).forEach(([key, value]) =>
+        addResources(key, value.resources)
       );
     }
   });
-  const state = await analyze(fnMap, Object.keys(barrelObj), options);
+  const state = await analyze(fnMap, resourcesMap, options);
   reportMissingSymbols(state, options);
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state };
