@@ -128,6 +128,19 @@ function getConfig(options: BuildConfig) {
 
 /**
  *
+ * WARNING WARNING WARNING WARNING WARNING WARNING
+ *
+ * prettier-extension-monkeyc can dynamically import this
+ * function from a local copy of @markw65/monkeyc-optimizer,
+ * rather than using the version that ships with the
+ * extension.
+ *
+ * For this to work, buildOptimizedProject's signature cannot
+ * change (or at least, can only change in a backward compatible
+ * way).
+ *
+ * DON'T CHANGE THIS FUNCTION's SIGNATURE
+ *
  * @param {string | null} product
  * @param {BuildConfig} options
  * @returns
