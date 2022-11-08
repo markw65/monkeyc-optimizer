@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { ResolvedJungle } from "./jungles";
 
 export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
 // Configuration options for build
@@ -29,10 +28,6 @@ export type BuildConfig = {
   sizeBasedPRE?: boolean | string;
   prettier?: Record<string, unknown>;
   extensionVersion?: string;
-  _cache?: {
-    barrels?: Record<string, ResolvedJungle>;
-    barrelMap?: Record<string, Record<string, ResolvedJungle>>;
-  };
 };
 export type StateNodeDecl =
   | StateNode

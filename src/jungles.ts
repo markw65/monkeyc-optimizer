@@ -16,6 +16,11 @@ import { BuildConfig } from "./optimizer-types.js";
 import { DeviceInfo, getDeviceInfo, getLanguages, xmlUtil } from "./sdk-util";
 import { globa } from "./util";
 
+type JungleCache = {
+  barrels?: Record<string, ResolvedJungle>;
+  barrelMap?: Record<string, Record<string, ResolvedJungle>>;
+};
+
 type JNode = Literal | QName | SubList;
 type Literal = {
   type: "Literal";
@@ -852,9 +857,9 @@ function resolve_barrel(
   barrel: string,
   barrelDir: string,
   products: string[],
-  options: BuildConfig
+  options: BuildConfig,
+  cache: JungleCache
 ): ResolvedJungle | Promise<ResolvedJungle> {
-  const cache = options._cache!;
   if (hasProperty(cache.barrels, barrel)) {
     return cache.barrels[barrel];
   }
@@ -893,7 +898,7 @@ function resolve_barrel(
     );
   }
   return promise
-    .then(() => get_jungle_and_barrels(rawBarrel, products, options))
+    .then(() => get_jungle_and_barrels(rawBarrel, products, options, cache))
     .then((result) => {
       if (!cache.barrels) cache.barrels = {};
       return (cache.barrels[barrel] = { ...result });
@@ -915,7 +920,8 @@ function resolve_barrels(
   qualifier: JungleQualifier,
   barrels: string[],
   products: string[],
-  options: BuildConfig
+  options: BuildConfig,
+  cache: JungleCache
 ) {
   if (qualifier.annotations) {
     Object.keys(qualifier.annotations).forEach((key) => {
@@ -929,7 +935,6 @@ function resolve_barrels(
     delete qualifier.barrelPath;
     return null;
   }
-  const cache = options._cache || (options._cache = {});
   const barrelMapKey = JSON.stringify([barrels, qualifier.barrelPath]);
   const setBarrelMap = (barrelMap: Record<string, ResolvedJungle>) => {
     qualifier.barrelMap = barrels.reduce((result, barrel) => {
@@ -963,7 +968,7 @@ function resolve_barrels(
           .then((barrelPaths) => {
             return Promise.all(
               barrelPaths.map((barrel) =>
-                resolve_barrel(barrel, barrelDir, products, options)
+                resolve_barrel(barrel, barrelDir, products, options, cache)
               )
             );
           })
@@ -1013,7 +1018,8 @@ function resolve_barrels(
 async function get_jungle_and_barrels(
   jungleFiles: string,
   defaultProducts: string[] | null,
-  options: BuildConfig
+  options: BuildConfig,
+  cache: JungleCache
 ): Promise<ResolvedJungle> {
   const jungles = jungleFiles
     .split(";")
@@ -1064,7 +1070,14 @@ async function get_jungle_and_barrels(
       .then(() => resolve_literals(rawQualifier, manifest, devices[product]))
       .then((qualifier) => {
         targets.push({ product, qualifier, shape });
-        return resolve_barrels(product, qualifier, barrels, products, options);
+        return resolve_barrels(
+          product,
+          qualifier,
+          barrels,
+          products,
+          options,
+          cache
+        );
       })
       .then(() => {
         return;
@@ -1093,7 +1106,8 @@ export async function get_jungle(
   options: BuildConfig
 ): Promise<ResolvedJungle> {
   options = options || {};
-  const result = await get_jungle_and_barrels(jungles, null, options);
+  const cache: JungleCache = {};
+  const result = await get_jungle_and_barrels(jungles, null, options, cache);
   identify_optimizer_groups(result.targets, options);
   return result;
 }
