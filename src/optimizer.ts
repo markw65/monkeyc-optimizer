@@ -758,8 +758,16 @@ export async function getProjectAnalysis(
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
   const sourcePath = targets
-    .map(({ qualifier: { sourcePath } }) => sourcePath)
-    .filter((sp): sp is NonNullable<typeof sp> => sp != null)
+    .map(({ qualifier: { sourcePath, barrelMap } }) => {
+      let sp = sourcePath ? sourcePath : [];
+      if (barrelMap) {
+        Object.values(barrelMap).forEach(
+          (bm) =>
+            bm.qualifier.sourcePath && (sp = sp.concat(bm.qualifier.sourcePath))
+        );
+      }
+      return sp;
+    })
     .flat()
     .sort()
     .filter((s, i, arr) => !i || s !== arr[i - 1]);
