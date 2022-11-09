@@ -11,20 +11,20 @@ import { diagnostic } from "./inliner";
 import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import {
+  ClassStateNode,
+  FunctionInfo,
+  FunctionStateNode,
+  ImportUsing,
   LookupDefinition,
+  LookupResult,
+  ModuleStateNode,
   ProgramState,
   ProgramStateLive,
   ProgramStateNode,
+  ProgramStateStack,
   StateNode,
   StateNodeDecl,
-  ClassStateNode,
-  ModuleStateNode,
-  ProgramStateStack,
-  LookupResult,
   StateNodeDecls,
-  ImportUsing,
-  FunctionInfo,
-  FunctionStateNode,
 } from "./optimizer-types";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
