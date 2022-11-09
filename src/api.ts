@@ -276,7 +276,6 @@ function lookup(
           results.some((ld) =>
             ld.results.some(
               (sn) =>
-                (isStateNode(sn) && sn.fullName?.match(/^\$\.(\w+\.)?Rez\./)) ||
                 sn.type === "VariableDeclarator" ||
                 sn.type === "Identifier" ||
                 sn.type === "BinaryExpression" ||
@@ -285,8 +284,6 @@ function lookup(
             )
           )
         ) {
-          // - The Rez module can contain lots of things from the resource
-          //   compiler which we don't track.
           // - Variables, and formal parameters would require type tracking
           //   which we don't yet do
           // - Its ok to call an undeclared initialize method.
