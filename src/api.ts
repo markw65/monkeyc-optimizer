@@ -312,7 +312,7 @@ function lookup(
     }
     case "ThisExpression": {
       for (let i = stack.length; ; ) {
-        const si = stack[i];
+        const si = stack[--i];
         if (
           si.type == "ModuleDeclaration" ||
           si.type == "ClassDeclaration" ||
