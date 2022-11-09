@@ -611,6 +611,8 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       barrelMap,
       excludeAnnotations,
       annotations,
+      resourceMap,
+      resourcePath,
     } = target.qualifier;
     if (excludeAnnotations && ignoredExcludeAnnotations) {
       excludeAnnotations = getStrsWithIgnore(
@@ -638,6 +640,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       barrelMap,
       excludeAnnotations,
       annotations,
+      resourceMap,
     };
 
     const toSortedEntries = <T>(value: Record<string, T>) =>
@@ -649,12 +652,17 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       if (!value || Array.isArray(value) || typeof value !== "object") {
         return value;
       }
-      if (key === "" && barrelMap) {
-        const bm = toSortedEntries(barrelMap).map(([k, v]) => {
-          const { jungles, qualifier } = v;
-          return [k, [jungles, qualifier]];
-        });
-        value = { ...value, barrelMap: bm };
+      if (key === "") {
+        if (barrelMap) {
+          const bm = toSortedEntries(barrelMap).map(([k, v]) => {
+            const { jungles, qualifier } = v;
+            return [k, [jungles, qualifier]];
+          });
+          value = { ...value, barrelMap: bm };
+        }
+        if (resourceMap) {
+          value = { ...value, resourceMap: resourcePath };
+        }
       }
       return toSortedEntries(value);
     });
