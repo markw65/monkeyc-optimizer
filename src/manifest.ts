@@ -133,7 +133,11 @@ export async function checkManifest(
       deviceInfo[p] &&
       deviceInfo[p].appTypes.find((at) => {
         const t = at.type.toLowerCase();
-        return t === type || `${t}app` === type;
+        return (
+          t === type ||
+          `${t}app` === type ||
+          (type === "widget" && t === "watchapp")
+        );
       })
   );
   if (
