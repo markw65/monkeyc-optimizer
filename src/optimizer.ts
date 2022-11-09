@@ -19,7 +19,20 @@ import {
   manifestProducts,
   writeManifest,
 } from "./manifest";
-import { analyze, getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
+import {
+  analyze,
+  getFileASTs,
+  optimizeMonkeyC,
+  reportMissingSymbols,
+} from "./mc-rewrite";
+import {
+  BuildConfig,
+  ExcludeAnnotationsMap,
+  FilesToOptimizeMap,
+  ProgramState,
+  ProgramStateAnalysis,
+  StateNode,
+} from "./optimizer-types";
 import { appSupport } from "./sdk-util";
 import {
   copyRecursiveAsNeeded,
@@ -27,14 +40,6 @@ import {
   globa,
   last_modified,
 } from "./util";
-import {
-  BuildConfig,
-  ProgramState,
-  FilesToOptimizeMap,
-  ProgramStateAnalysis,
-  ExcludeAnnotationsMap,
-  StateNode,
-} from "./optimizer-types";
 
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
@@ -802,6 +807,7 @@ export async function getProjectAnalysis(
     }
   });
   const state = await analyze(fnMap, Object.keys(barrelObj), options);
+  reportMissingSymbols(state, options);
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state };
 }

@@ -279,6 +279,15 @@ export async function analyze(
 
   collectClassInfo(state);
 
+  state.exposed = state.nextExposed;
+  state.nextExposed = {};
+  return state;
+}
+
+export function reportMissingSymbols(
+  state: ProgramStateAnalysis,
+  config?: BuildConfig
+) {
   const diagnosticType =
     config?.checkInvalidSymbols !== "OFF"
       ? config?.checkInvalidSymbols || "WARNING"
@@ -289,7 +298,7 @@ export async function analyze(
   ) {
     const checkTypes =
       config?.typeCheckLevel && config.typeCheckLevel !== "Off";
-    Object.entries(fnMap).forEach(([, v]) => {
+    Object.entries(state.fnMap).forEach(([, v]) => {
       visitReferences(state, v.ast!, null, false, (node, results, error) => {
         if (!error) return undefined;
         const nodeStr = formatAst(node);
@@ -308,10 +317,6 @@ export async function analyze(
       });
     });
   }
-
-  state.exposed = state.nextExposed;
-  state.nextExposed = {};
-  return state;
 }
 
 function compareLiteralLike(a: mctree.Node, b: mctree.Node) {
@@ -1403,10 +1408,16 @@ export async function optimizeMonkeyC(
       }
       return ret;
     });
+  });
+
+  reportMissingSymbols(state, config);
+
+  Object.entries(fnMap).forEach(([name, f]) => {
     if (state.config && state.config.checkBuildPragmas) {
       pragmaChecker(state, f.ast!, state.diagnostics?.[name]);
     }
   });
+
   return state.diagnostics;
 }
 
