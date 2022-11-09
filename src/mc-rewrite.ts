@@ -301,6 +301,10 @@ export function reportMissingSymbols(
     Object.entries(state.fnMap).forEach(([, v]) => {
       visitReferences(state, v.ast!, null, false, (node, results, error) => {
         if (!error) return undefined;
+        if (node.type === "BinaryExpression" && node.operator === "has") {
+          // Its not an error to check whether a property exists...
+          return undefined;
+        }
         const nodeStr = formatAst(node);
         if (state.inType) {
           if (!checkTypes || nodeStr.match(/^Void|Null$/)) {
