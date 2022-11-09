@@ -29,7 +29,7 @@ import {
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
 
-export { visitReferences } from "./visitor";
+export { visitorNode, visitReferences } from "./visitor";
 export { traverseAst, hasProperty };
 
 /*

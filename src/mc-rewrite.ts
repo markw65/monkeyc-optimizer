@@ -10,6 +10,7 @@ import {
   isStateNode,
   markInvokeClassMethod,
   variableDeclarationName,
+  visitReferences,
 } from "./api";
 import { cloneDeep, getNodeValue, traverseAst, withLoc } from "./ast";
 import {
@@ -44,7 +45,6 @@ import { sizeBasedPRE } from "./pre";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
-import { visitReferences } from "./visitor";
 
 function collectClassInfo(state: ProgramStateAnalysis) {
   const toybox = state.stack[0].decls!["Toybox"][0] as ModuleStateNode;
@@ -1354,7 +1354,7 @@ export async function optimizeMonkeyC(
     }
     return null;
   };
-  Object.entries(fnMap).forEach(([name, f]) => {
+  Object.entries(fnMap).forEach(([, f]) => {
     traverseAst(f.ast!, undefined, (node) => {
       const ret = cleanup(node);
       if (ret === false) {

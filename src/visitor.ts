@@ -2,6 +2,27 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { collectNamespaces, isLookupCandidate, sameLookupResult } from "./api";
 import { LookupDefinition, ProgramStateAnalysis } from "./optimizer-types";
 
+export function visitorNode(node: mctree.Node): mctree.Node {
+  if (node.type === "Identifier") {
+    return node;
+  }
+
+  if (node.type === "MemberExpression") {
+    return node.property;
+  }
+
+  if (
+    node.type === "BinaryExpression" &&
+    node.operator === "has" &&
+    node.right.type === "UnaryExpression" &&
+    node.right.operator === ":"
+  ) {
+    return node.right.argument;
+  }
+
+  return node;
+}
+
 export function visitReferences(
   state: ProgramStateAnalysis,
   ast: mctree.Program,
@@ -56,7 +77,7 @@ export function visitReferences(
                   property: node.right.argument,
                   computed: false,
                 }),
-                node.right.argument
+                node
               );
             }
           }
