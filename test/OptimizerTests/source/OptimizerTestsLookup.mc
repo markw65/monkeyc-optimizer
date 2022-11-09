@@ -94,6 +94,14 @@ function lookupTestsWorking(logger as Logger) as Boolean {
     return true;
 }
 
+(:test,:typecheck(false))
+function lookupInOuterScope(logger as Logger) as Boolean {
+    ok = true;
+    check(X.Y.XCONSTANT, 0, logger);
+    check($.X.Y.XCONSTANT, 0, logger);
+    return ok;
+}
+
 (:test)
 function lookupTestCrash1(logger as Logger) as Boolean {
     noSystem();
