@@ -1094,6 +1094,47 @@ export async function optimizeMonkeyC(
         }
         break;
 
+      case "BinaryExpression":
+        if (
+          node.operator === "has" &&
+          node.right.type === "UnaryExpression" &&
+          node.right.operator === ":"
+        ) {
+          const [, results] = state.lookup(node.left);
+          if (
+            results &&
+            results.length === 1 &&
+            results[0].results.length === 1
+          ) {
+            const obj = results[0].results[0];
+            if (
+              (obj.type === "ModuleDeclaration" ||
+                obj.type === "Program" ||
+                obj.type === "ClassDeclaration") &&
+              obj.decls &&
+              obj.stack
+            ) {
+              const exists =
+                hasProperty(obj.decls, node.right.argument.name) ||
+                // This is overkill, since we've already looked up
+                // node.left, but the actual lookup rules are complicated,
+                // and embedded within state.lookup; so just defer to that.
+                state.lookup({
+                  type: "MemberExpression",
+                  object: node.left,
+                  property: node.right.argument,
+                  computed: false,
+                })[1];
+              if (!exists) {
+                return replace(
+                  { type: "Literal", value: false, raw: "false" },
+                  node
+                );
+              }
+            }
+          }
+        }
+        break;
       case "NewExpression":
         if (state.currentFunction) {
           const [, results] = state.lookup(node.callee);
