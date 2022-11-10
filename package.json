@@ -22,9 +22,9 @@
     "prepack": "webpack --mode production",
     "test": "npm run test-optimized && npm run test-unopt && npm run test-remote",
     "test-remote": "node ./test/test.js --product=pick-one --github",
-    "test-optimized": "node test/test.js --typeCheckLevel Strict --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle",
-    "test-unopt": "node test/test.js --typeCheckLevel Strict --skipOptimization --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle",
-    "test-garmin-opt": "node test/test.js --typeCheckLevel Strict --skipOptimization --garminOptLevel=2 --run-tests --product=fenix5 --product=fr235 --jungle $(pwd)/test/OptimizerTests/monkey.jungle",
+    "test-optimized": "node test/test.js --typeCheckLevel Strict --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
+    "test-unopt": "node test/test.js --typeCheckLevel Strict --skipOptimization --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
+    "test-garmin-opt": "node test/test.js --typeCheckLevel Strict --skipOptimization --garminOptLevel=2 --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
     "eslint": "npx eslint ."
   },
   "files": [
