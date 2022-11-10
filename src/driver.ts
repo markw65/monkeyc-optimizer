@@ -315,12 +315,37 @@ export async function driver() {
           let expectedFailures = 0;
           const handler = (line: string) => {
             if (resultsSeen) {
-              const match = line.match(/^((\w|\.)+)\s+(PASS|FAIL|ERROR)\s*$/);
+              const match = line.match(/^((\w|\.)+)\s*(PASS|FAIL|ERROR)\s*$/);
               if (match) {
-                if (match[1].match(/crash/i)) {
+                if (match[1].match(/crashCompiler2/i)) {
+                  if (usesCompiler2 && match[3] === "ERROR") {
+                    line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
+                    expectedErrors++;
+                  }
+                } else if (match[1].match(/failCompiler2/i)) {
+                  if (usesCompiler2) {
+                    if (match[3] === "FAIL") {
+                      line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
+                      expectedFailures++;
+                    } else {
+                      pass = false;
+                      if (match[3] === "PASS") {
+                        line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
+                      }
+                    }
+                  }
+                } else if (match[1].match(/crash/i)) {
                   if (match[3] === "ERROR") {
                     line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
                     expectedErrors++;
+                  }
+                } else if (match[1].match(/ExpectedFail/i)) {
+                  if (match[3] === "FAIL") {
+                    line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
+                    expectedFailures++;
+                  } else if (match[3] === "PASS") {
+                    line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
+                    pass = false;
                   }
                 } else if (usesCompiler2 && match[1].match(/FailsBeta/i)) {
                   if (match[3] === "FAIL") {
@@ -330,7 +355,7 @@ export async function driver() {
                     // some tests that would fail on Beta are fixed by
                     // our optimizer, so only mark them as failures if
                     // they pass without our optimizer
-                    line = line.replace(/ERROR\s*$/, "UNEXPECTED PASS");
+                    line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
                     pass = false;
                   }
                 }

@@ -131,6 +131,18 @@ export function cleanupUnusedVars(
           if (hasProperty(toRemove, name)) {
             const rep = vdecl.init ? unused(vdecl.init) : [];
             if (rep.length) {
+              if (
+                rep.find(
+                  (s) =>
+                    s.type === "ExpressionStatement" &&
+                    (s.expression.type === "NewExpression" ||
+                      (s.expression.type === "MemberExpression" &&
+                        !s.expression.computed &&
+                        s.expression.object.type === "NewExpression"))
+                )
+              ) {
+                continue;
+              }
               if (parent.node.type === "ForStatement") {
                 // declarations whose inits have side effects
                 // can't be deleted from for statements.

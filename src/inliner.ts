@@ -599,6 +599,9 @@ export function unused(
       if (expression.computed) {
         return unused(expression.object).concat(unused(expression.property));
       }
+      if (expression.object.type === "NewExpression") {
+        break;
+      }
       return unused(expression.object);
     case "ArrayExpression":
       return expression.elements.map((e) => unused(e)).flat(1);

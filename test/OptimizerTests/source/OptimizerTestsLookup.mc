@@ -280,3 +280,69 @@ module Inheritance {
         return x.baz() == 43;
     }
 }
+
+module ShouldCallNew {
+    var wasCalled as Boolean = false;
+    class C {
+        var x as Number = 0;
+        function initialize(logger as Logger) {
+            logger.debug("This should appear");
+            wasCalled = true;
+        }
+        function foo() as Void {}
+    }
+
+    (:test)
+    function callsNew(logger as Logger) as Boolean {
+        wasCalled = false;
+        var c = new C(logger);
+        return wasCalled;
+    }
+    (:test)
+    function callsNewExpectedFail(logger as Logger) as Boolean {
+        wasCalled = false;
+        new C(logger);
+        return wasCalled;
+    }
+    (:test)
+    function callsNewCallExpression(logger as Logger) as Boolean {
+        wasCalled = false;
+        (new C(logger)).foo();
+        return wasCalled;
+    }
+    (:test)
+    function callsNewMemberExpressionFailCompiler2(
+        logger as Logger
+    ) as Boolean {
+        wasCalled = false;
+        (new C(logger)).x;
+        return wasCalled;
+    }
+    (:test)
+    function callsNewMemberExpression(logger as Logger) as Boolean {
+        wasCalled = false;
+        var x = (new C(logger)).x;
+        return wasCalled;
+    }
+    // For now, these all cause syntax errors, so can't be tested
+    /*
+    (:test)
+    function callsNewMemberPreUpdateExpression(logger as Logger) as Boolean {
+        wasCalled = false;
+        ++(new C(logger)).x;
+        return wasCalled;
+    }
+    (:test)
+    function callsNewMemberPostUpdateExpression(logger as Logger) as Boolean {
+        wasCalled = false;
+        (new C(logger)).x++;
+        return wasCalled;
+    }
+    (:test)
+    function callsNewMemberAssignmentExpression(logger as Logger) as Boolean {
+        wasCalled = false;
+        (new C(logger)).x += 42;
+        return wasCalled;
+    }
+    */
+}
