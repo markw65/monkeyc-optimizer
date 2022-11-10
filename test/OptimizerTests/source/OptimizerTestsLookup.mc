@@ -281,6 +281,35 @@ module Inheritance {
     }
 }
 
+module Statics {
+    var ok as Boolean = false;
+    class C {
+        function initialize() {
+            C.foo();
+        }
+        static function bar() as Void {
+            C.foo();
+        }
+
+        private static function foo() as Void {
+            ok = true;
+        }
+    }
+
+    (:test)
+    function staticFromInitializeCrashCompiler2(logger as Logger) as Boolean {
+        ok = false;
+        var c = new C();
+        return ok;
+    }
+    (:test)
+    function staticFromStaticCrashCompiler2(logger as Logger) as Boolean {
+        ok = false;
+        C.bar();
+        return ok;
+    }
+}
+
 module ShouldCallNew {
     var wasCalled as Boolean = false;
     class C {
