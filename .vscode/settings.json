@@ -1,5 +1,6 @@
 {
   "typescript.validate.enable": true,
   "javascript.validate.enable": true,
-  "npm.exclude": "**/build/**"
+  "npm.exclude": "**/build/**",
+  "task.allowAutomaticTasks": "on"
 }
