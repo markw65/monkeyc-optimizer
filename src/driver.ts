@@ -51,6 +51,8 @@ export async function driver() {
     sdk.match(/-(\d\d+|[5-9])\.\d+\.\d+/) ||
     /* sdk 4.2.x or later, or */
     sdk.match(/-4\.([2-9]|\d\d+)\.\d+/) ||
+    /* sdk 4.1.6 or later, or */
+    sdk.match(/-4\.1\.([6-9]|\d\d+)/) ||
     /* one of the 4.1.x compiler2-beta releases */
     sdk.match(/Compiler2Beta/i);
 
