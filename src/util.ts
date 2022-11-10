@@ -15,7 +15,7 @@ export function globa(
   options?: glob.IOptions
 ): Promise<Array<string>> {
   return new Promise((resolve, reject) => {
-    glob.glob(pattern, options || {}, (er, files) => {
+    glob.glob(pattern.replace(/\\/g, "/"), options || {}, (er, files) => {
       if (er) {
         reject(files);
       } else {
