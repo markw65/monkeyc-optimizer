@@ -215,7 +215,10 @@ export async function driver() {
   ) => {
     const genOnly = jungleInfo.build === false || generateOnly;
     const jungleOptions = jungleInfo.options || {};
-    const jungleFiles = jungleInfo.jungle;
+    const jungleFiles = jungleInfo.jungle
+      .split(";")
+      .map((j) => path.resolve(j))
+      .join(";");
     const workspace = path.dirname(jungleFiles.split(";")[0]);
     const options: BuildConfig = {
       jungleFiles,
