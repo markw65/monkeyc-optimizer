@@ -432,3 +432,33 @@ Bug Fixes
 - Allow inlining the argument to an if-statement, with the same constraints as inlining in assignment context
 - Expand `assignment`, `declaration` and `if` contexts to include (recursively) the left operand of any binary operator, the operand of any unary operator, the `test` operand of any conditional operator or the `object` of a member-expression. So now it will inline `inlinableFunction` in:
   - `var x = !((inlinableFunction() + 4) == 42 ? foo() : bar());`
+
+### 1.0.39
+
+- Improvements
+
+  - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.36](https://github.com/markw65/prettier-plugin-monkeyc#1036).
+  - Upgrade all other npm dependencies to the latest versions, and fix a few issues that showed up as a result.
+  - Report missing symbols after optimization, rather than before. Results in fewer false negatives. eg Given `if (foo has :bar) { return foo.bar; }`, where the compiler knows that foo.bar doesn't exist, the whole thing will be optimized away, rather than generate a diagnostic that foo.bar doesn't exist.
+  - Stop reporting `X has :Y` as a missing symbol, even when we know that X does not have Y.
+  - Implement our own xml parser. This was prompted by wanting to tag the parsed xml with source locations.
+  - Since we were already parsing all the resource files to look for `<build>` instructions, additionally identify all the symbols that will get generated. This allows us to detect references to undefined resources, and also makes `Goto Definition` just work for things like `Rez.Strings.foo`.
+
+- Optimizations
+
+  - Optimize has expressions that are guaranteed to be false.
+
+- Bugs
+
+  - Fix an issue with launchSimulator, which caused it to sometimes not bring the simulator window into focus when it should have done.
+  - Fix an issue that caused simulateProgram to fail on windows.
+  - Fix a bug looking up self when not part of a member-expression (this didn't happen until I added optimizations for "has" expressions, in this release)
+  - Add barrel sources to project analysis. This didn't affect optimization, which already included the sources, but did affect `Goto Definition` etc in the vscode extension, and caused lots of diagnostics about missing symbols.
+  - ciq-3.2.0 and later devices don't declare "widget" as a supported type, but the compiler does allow you to compile widget projects for them anyway. Fix that when determining the allowable devices in the manifest.
+  - Don't drop the `x` in `var x = new X();` even if `x` isn't used, because the monkeyc compiler doesn't generate any code for a bare `new X();`.
+
+- Tests
+  - Better error reporting in the driver script.
+  - Handle relative jungle paths correctly.
+  - Add more tests for strange monkeyc behavior, pre and post compiler2
+  - Better identification of compilers that support compiler2
