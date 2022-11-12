@@ -301,12 +301,61 @@ export function reportMissingSymbols(
       config?.typeCheckLevel && config.typeCheckLevel !== "Off";
     Object.entries(state.fnMap).forEach(([, v]) => {
       visitReferences(state, v.ast!, null, false, (node, results, error) => {
-        if (!error) return undefined;
         if (node.type === "BinaryExpression" && node.operator === "has") {
           // Its not an error to check whether a property exists...
           return undefined;
         }
         const nodeStr = formatAst(node);
+        if (!error) {
+          if (
+            node.type === "MemberExpression" &&
+            (node.object.type === "Identifier" ||
+              node.object.type === "MemberExpression") &&
+            results.some((result) => {
+              const parent = result.parent;
+              if (!parent || parent.type !== "ClassDeclaration") {
+                return false;
+              }
+              return result.results.some((sn) => {
+                let attrs = null;
+                switch (sn.type) {
+                  case "VariableDeclarator":
+                    if (sn.node) {
+                      const v = parent.node.body.body.find(
+                        (e) =>
+                          e.item.type === "VariableDeclaration" &&
+                          e.item.declarations.find((d) => d === sn.node)
+                      );
+                      if (v) {
+                        attrs = v.item.attrs;
+                      }
+                    }
+                    break;
+                  case "FunctionDeclaration":
+                    attrs = sn.node.attrs;
+                    break;
+                }
+                return (
+                  attrs &&
+                  attrs.access?.some(
+                    (access) =>
+                      access === "private" ||
+                      access === "protected" ||
+                      access === "hidden"
+                  )
+                );
+              });
+            })
+          ) {
+            diagnostic(
+              state,
+              node.loc,
+              `The expression ${nodeStr} will fail at runtime using compiler2`,
+              "WARNING"
+            );
+          }
+          return undefined;
+        }
         if (state.inType) {
           if (!checkTypes || nodeStr.match(/^Void|Null$/)) {
             return undefined;
