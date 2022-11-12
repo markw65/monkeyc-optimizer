@@ -284,15 +284,49 @@ module Inheritance {
 module Statics {
     var ok as Boolean = false;
     class C {
+        private var v1 as Boolean = false;
+        private const K1 = 42;
+
         function initialize() {
+            // @expect "The expression C.foo will fail at runtime"
             C.foo();
         }
         static function bar() as Void {
+            // @expect "The expression C.foo will fail at runtime"
             C.foo();
+        }
+        static function staticBySelf() as Void {
+            self.foo();
+        }
+        static function staticNoQualifier() as Void {
+            foo();
+        }
+        function nonStaticByName() as Void {
+            // @expect "The expression C.foo will fail at runtime"
+            C.foo();
+        }
+        function nonStaticBySelf() as Void {
+            self.foo();
+        }
+        function nonStaticNoQualifier() as Void {
+            foo();
+        }
+        static function fv1() as Boolean {
+            // @expect "The expression C.v1 will fail at runtime"
+            return C.v1;
+        }
+        static function fK1() as Number {
+            // @expect "The expression C.K1 will fail at runtime"
+            return C.K1;
         }
 
         private static function foo() as Void {
             ok = true;
+        }
+    }
+    class D extends C {
+        static function baz() as Void {
+            C.bar();
         }
     }
 
@@ -307,6 +341,56 @@ module Statics {
         ok = false;
         C.bar();
         return ok;
+    }
+    (:test)
+    function staticFromStaticBySelf(logger as Logger) as Boolean {
+        ok = false;
+        C.staticBySelf();
+        return ok;
+    }
+    (:test)
+    function staticFromStaticNoQualifier(logger as Logger) as Boolean {
+        ok = false;
+        C.staticNoQualifier();
+        return ok;
+    }
+    (:test)
+    function staticFromNonStaticByNameCrashCompiler2(
+        logger as Logger
+    ) as Boolean {
+        ok = false;
+        (new C()).nonStaticByName();
+        return ok;
+    }
+    (:test)
+    function staticFromNonStaticBySelfCrashCompiler2(
+        logger as Logger
+    ) as Boolean {
+        ok = false;
+        (new C()).nonStaticBySelf();
+        return ok;
+    }
+    (:test)
+    function staticFromNonStaticNoQualifierCrashCompiler2(
+        logger as Logger
+    ) as Boolean {
+        ok = false;
+        (new C()).nonStaticNoQualifier();
+        return ok;
+    }
+    (:test)
+    function staticFromDerivedCrash(logger as Logger) as Boolean {
+        ok = false;
+        D.baz();
+        return ok;
+    }
+    (:test)
+    function staticVarCrashCompiler2(logger as Logger) as Boolean {
+        return C.fv1() == false;
+    }
+    (:test)
+    function staticConstCrashCompiler2(logger as Logger) as Boolean {
+        return C.fK1() == 42;
     }
 }
 
@@ -376,32 +460,195 @@ module ShouldCallNew {
     */
 }
 
-class NN {
-    const K = 3;
-}
 module Compiler2 {
     module Nested {
-        module M1 {
+        const L = 3;
+        module M {
             class N {
                 const K = 0;
             }
         }
+    }
+    import Compiler2.Nested.M;
+    module Lang {
+        const ENDIAN_LITTLE = 42;
+        class Klass extends M.N {
+            function foo() as Number {
+                return self.Nested.L;
+            }
+            static function bar() as Number {
+                return self.Lang.ENDIAN_LITTLE;
+            }
+            (:typecheck(false))
+            static function baz() as Number {
+                return self.Lang.Nested.L;
+            }
+        }
+        module Mod {
+        }
+        module Inner {
+            (:test,:typecheck(false))
+            function testOutwardLookup(logger as Logger) as Boolean {
+                // when lookup in a module fails, the runtime
+                // searches outwards through the containing modules
+                if (Toybox.Lang.Lang.ENDIAN_LITTLE != 0) {
+                    return false;
+                }
+                // as above
+                if (self.Mod.Mod.ENDIAN_LITTLE != 42) {
+                    return false;
+                }
+                if ((new Klass()).foo() != 3) {
+                    return false;
+                }
+                if (M.N.K != 0) {
+                    return false;
+                }
+                if (Klass.K != 0) {
+                    return false;
+                }
+                if (Klass.baz() != 3) {
+                    return false;
+                }
+                return true;
+            }
+            (:test,:typecheck(false))
+            function testImportCrash(logger as Logger) as Boolean {
+                // @expect "N will only be found"
+                return N.K == Lang.Lang.ENDIAN_LITTLE;
+            }
+            (:test,:typecheck(false))
+            function testClassNonInstanceLookupCrash(
+                logger as Logger
+            ) as Boolean {
+                // when class lookup fails, it doesn't search
+                // the containing modules *unless* we're inside
+                // a non-static method of the class.
+                return self.Klass.ENDIAN_LITTLE == 42;
+            }
 
-        module M2 {
-            class N {
-                const K = 1;
+            class Nested extends Klass {
+                const K2 = K;
+                const K3 = N.K + 1;
+                (:typecheck(false))
+                function test1(logger as Logger) as Boolean {
+                    ok = true;
+                    check(M.L, 3, logger);
+                    // self.M doesn't resolve because we only check
+                    //        imports for the first component.
+                    check(K, 0, logger);
+                    check(N.K, 0, logger);
+                    check(Klass.Klass.K, 0, logger);
+                    check(Klass.Klass.N.K, 0, logger);
+                    check(K2, 0, logger);
+                    check(K3, 1, logger);
+                    check(self.Lang.ENDIAN_LITTLE, 42, logger);
+                    check(self.Mod.ENDIAN_LITTLE, 42, logger);
+                    return ok;
+                }
+                function test2(logger as Logger) as Boolean {
+                    ok = true;
+                    check(K, 0, logger);
+                    check(N.K, 0, logger);
+                    check(Klass.K, 0, logger);
+                    return ok;
+                }
+                (:typecheck(false))
+                static function test3(logger as Logger) as Boolean {
+                    ok = true;
+                    check(Klass.bar(), 42, logger);
+                    check(Klass.Lang.ENDIAN_LITTLE, 42, logger);
+                    check(Lang.ENDIAN_LITTLE, 0, logger);
+                    check(self.Lang.ENDIAN_LITTLE, 42, logger);
+                    return ok;
+                }
+            }
+            (:test,:typecheck(false))
+            function test(logger as Logger) as Boolean {
+                return (new Nested()).test1(logger);
+            }
+            (:test)
+            function test2(logger as Logger) as Boolean {
+                return (new Nested()).test2(logger);
+            }
+            (:test)
+            function test3(logger as Logger) as Boolean {
+                return Nested.test3(logger);
             }
         }
     }
-    import Compiler2.Nested.M1;
-    module Inner {
-        //import Compiler2.Nested.M2;
+}
 
-        function foo() as Number {
-            return N.K;
+module StaticInheritance {
+    class X {
+        const K1 = 1;
+        static function foo() as Number {
+            return 42;
+        }
+        static function callFooFromX() as Number {
+            return foo();
+        }
+        static function callSelfFooFromX() as Number {
+            return self.foo();
         }
     }
-    function bar() as Number {
-        return 42; //Inner.M2.N.K;
+    class Y extends X {
+        function initialize() {
+            X.initialize();
+        }
+        const K2 = K1 + 1;
+        static function getK1() as Number {
+            // @expect "Undefined symbol K1"
+            return K1;
+        }
+        static function getK2() as Number {
+            // @expect "Undefined symbol K2"
+            return K2;
+        }
+        static function callFooFromY() as Number {
+            // @expect "Undefined symbol foo"
+            return foo();
+        }
+        static function callSelfFooFromY() as Number {
+            // @expect "Undefined symbol self.foo"
+            return self.foo();
+        }
+    }
+    (:test)
+    function test1(logger as Logger) as Boolean {
+        logger.debug("K1=" + X.K1);
+        logger.debug("K2=" + Y.K2);
+        return X.K1 == 1 && (Y.K2 == 2 || Y.K2 == null);
+    }
+    (:test)
+    function test2Crash(logger as Logger) as Boolean {
+        logger.debug("K1=" + Y.getK1());
+        return Y.getK1() == 1;
+    }
+    (:test)
+    function test3Crash(logger as Logger) as Boolean {
+        logger.debug("K2=" + Y.getK2());
+        return Y.getK2() == 2;
+    }
+    (:test)
+    function test4(logger as Logger) as Boolean {
+        var y = new Y();
+        return y.K1 == 1 && y.K2 == 2;
+    }
+    (:test)
+    function testCallFooFromYCrash(logger as Logger) as Boolean {
+        return Y.callFooFromY() == 42;
+    }
+    (:test)
+    function testCallSelfFooFromYCrash(logger as Logger) as Boolean {
+        return Y.callSelfFooFromY() == 42;
+    }
+    (:test)
+    function testCallFooFromX(logger as Logger) as Boolean {
+        return X.callFooFromX() == 42;
+    }
+    (:test)
+    function testCallSelfFooFromX(logger as Logger) as Boolean {
+        return X.callSelfFooFromX() == 42;
     }
 }
