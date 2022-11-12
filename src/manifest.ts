@@ -1,50 +1,6 @@
 import * as fs from "fs/promises";
 import { getDeviceInfo, xmlUtil } from "./sdk-util";
 
-/*
-interface iqApplication
-  extends Element<
-    "iq:application",
-    | Element<"iq:products", iqProduct>
-    | Element<"iq:barrels", iqDepends>
-    | Element<"iq:permissions", iqPermission>
-    | Element<"iq:languages", iqLanguage>
-  > {
-  attrs: {
-    id: string;
-    entry: string;
-    launcherIcon: string;
-    minSdkVersion: string;
-    name: string;
-    type: string;
-    version: string;
-  };
-}
-
-interface iqProduct extends LeafElement<"iq:product"> {
-  attrs: { id: string };
-}
-
-interface iqDepends extends LeafElement<"iq:depends"> {
-  attrs: { name: string; version: string };
-}
-
-interface iqPermission extends LeafElement<"iq:uses-permission"> {
-  attrs: { id: string };
-}
-
-type iqLanguage = Element<"iq:language", never>;
-
-type iqAnnotation = Element<"iq:annotation", never>;
-
-interface iqBarrel
-  extends Element<
-    "iq:barrel",
-    Element<"iq:products", iqProduct> | Element<"iq:annotations", iqAnnotation>
-  > {
-  attrs: { id: string; module: string; version: string };
-}
-*/
 export type ManifestXML = xmlUtil.Document;
 
 export async function readManifest(manifest: string): Promise<ManifestXML> {
