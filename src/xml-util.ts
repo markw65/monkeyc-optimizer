@@ -152,7 +152,8 @@ export class Document {
   constructor(
     public prolog: Prolog,
     public body: Nodes,
-    public misc: Array<Misc>
+    public misc: Array<Misc>,
+    public source?: string
   ) {}
 }
 
@@ -260,7 +261,7 @@ export function parseXml(
   const [prolog, body, misc] = xml.parse(content, {
     grammarSource: fileName || "unknown",
   });
-  return new Document(prolog, new Nodes(body), misc);
+  return new Document(prolog, new Nodes(body), misc, content);
 }
 
 function reference(s: string | Reference | PEReference) {
