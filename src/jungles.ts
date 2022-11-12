@@ -19,6 +19,7 @@ import { globa } from "./util";
 type JungleCache = {
   barrels?: Record<string, ResolvedJungle>;
   barrelMap?: Record<string, Record<string, ResolvedJungle>>;
+  resources?: JungleResourceMap | undefined;
 };
 
 type JNode = Literal | QName | SubList;
@@ -460,7 +461,7 @@ type ResourceGroups = Record<
   }
 >;
 
-async function read_resource_files(targets: Target[]) {
+async function read_resource_files(targets: Target[], cache: JungleCache) {
   const resourceGroups: ResourceGroups = {};
   const resources: JungleResourceMap = {};
   await Promise.all(
@@ -487,8 +488,15 @@ async function read_resource_files(targets: Target[]) {
                 .flat()
                 .filter((file) => file.endsWith(".xml"))
                 .map((file) => {
-                  if (hasProperty(resources, file)) {
-                    return { path: file, resources: resources[file] };
+                  if (!cache.resources) {
+                    cache.resources = {};
+                  } else if (hasProperty(cache.resources, file)) {
+                    const rez = cache.resources[file];
+                    resources[file] = rez;
+                    return {
+                      path: file,
+                      resources: rez,
+                    };
                   }
                   return fs
                     .readFile(file)
@@ -499,7 +507,7 @@ async function read_resource_files(targets: Target[]) {
                         : new Error("An unknown error occurred")
                     )
                     .then((rez) => {
-                      resources[file] = rez;
+                      cache.resources![file] = resources[file] = rez;
                       return {
                         path: file,
                         resources: rez,
@@ -1096,17 +1104,21 @@ async function get_jungle_and_barrels(
     }
   });
   await promise;
-  const { resourceGroups, resources } = await read_resource_files(targets);
+  const { resourceGroups, resources } = await read_resource_files(
+    targets,
+    cache
+  );
   await find_build_instructions(targets, resourceGroups);
   return { manifest, targets, xml, annotations, jungles, resources };
 }
 
 export async function get_jungle(
   jungles: string,
-  options: BuildConfig
+  options: BuildConfig,
+  resources?: JungleResourceMap | undefined
 ): Promise<ResolvedJungle> {
   options = options || {};
-  const cache: JungleCache = {};
+  const cache: JungleCache = resources ? { resources: { ...resources } } : {};
   const result = await get_jungle_and_barrels(jungles, null, options, cache);
   identify_optimizer_groups(result.targets, options);
   return result;
