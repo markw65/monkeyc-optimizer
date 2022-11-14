@@ -24,12 +24,12 @@ function noSystem() as Void {
 
 function noNumber(x as Number or String) as Boolean {
     // Fails at runtime: "Could not find symbol 'Number'"
-    /* @expect "Undefined symbol Number" */
+    /* @expect "Number will only be found" */
     return x instanceof Number;
 }
 
 function properties() as Void {
-    /* @expect "Undefined symbol Properties.getValue" */
+    /* @expect "Properties will only be found" */
     Properties.getValue("What");
 }
 
@@ -71,13 +71,13 @@ class TestClass extends X.Y.Base {
     }
     static function noNumberStatic(x as Number or String) as Boolean {
         // Fails at runtime: "Could not find symbol 'Number'"
-        /* @expect "Undefined symbol Number" */
+        /* @expect "Number will only be found" */
         var t = x instanceof Number;
         /* @expect "Undefined symbol XCONSTANT" */
         return t || XCONSTANT == 0;
     }
     function properties() as Void {
-        /* @expect "Undefined symbol Properties.getValue" */
+        /* @expect "Properties will only be found" */
         Properties.getValue("What");
     }
 }
@@ -374,4 +374,34 @@ module ShouldCallNew {
         return wasCalled;
     }
     */
+}
+
+class NN {
+    const K = 3;
+}
+module Compiler2 {
+    module Nested {
+        module M1 {
+            class N {
+                const K = 0;
+            }
+        }
+
+        module M2 {
+            class N {
+                const K = 1;
+            }
+        }
+    }
+    import Compiler2.Nested.M1;
+    module Inner {
+        //import Compiler2.Nested.M2;
+
+        function foo() as Number {
+            return N.K;
+        }
+    }
+    function bar() as Number {
+        return 42; //Inner.M2.N.K;
+    }
 }

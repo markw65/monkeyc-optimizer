@@ -602,6 +602,7 @@ const configOptionsToCheck = [
   "ignoredAnnotations",
   "ignoredSourcePaths",
   "checkInvalidSymbols",
+  "checkCompilerLookupRules",
   "sizeBasedPRE",
   "extensionVersion",
 ] as const;

@@ -53,6 +53,7 @@ export async function getApiMapping(
   const parser = MonkeyC.parsers.monkeyc;
 
   const sdk = await getSdkPath();
+  if (state) state.sdk = sdk;
 
   const api = (await fs.readFile(`${sdk}bin/api.mir`))
     .toString()
@@ -149,7 +150,7 @@ function checkOne(
     }, null);
   };
   const lookupInContext = (ns: ClassStateNode | ModuleStateNode) => {
-    const [, lkup] = lookup(state, decls, node, null, ns.stack);
+    const [, lkup] = lookup(state, decls, node, null, ns.stack, false, true);
     return lkup && lookupToStateNodeDecls(lkup);
   };
   // follow the superchain, looking up node in each class's scope
@@ -231,7 +232,8 @@ function lookup(
   node: mctree.Node,
   name?: string | null | undefined,
   maybeStack?: ProgramStateStack,
-  nonlocal?: boolean
+  nonlocal?: boolean,
+  ignoreImports?: boolean
 ): LookupResult {
   const stack = maybeStack || state.stack;
   switch (node.type) {
@@ -319,7 +321,8 @@ function lookup(
         return [name || node.name, [{ parent: null, results: [stack[0]] }]];
       }
       let inStatic = false;
-      let checkedImports = false;
+      let checkedImports = ignoreImports;
+      let imports = null;
       for (let i = stack.length; i--; ) {
         const si = stack[i];
         switch (si.type) {
@@ -344,15 +347,16 @@ function lookup(
           case "Program":
             if (!checkedImports) {
               checkedImports = true;
-              const results = findUsingForNode(
-                state,
-                stack,
-                i,
-                node,
-                decls === "type_decls"
-              );
+              const results = findUsingForNode(state, stack, i, node);
               if (results) {
-                return [name || node.name, [{ parent: si, results }]];
+                if (Array.isArray(results)) {
+                  if (!imports) imports = results;
+                } else {
+                  return [
+                    name || node.name,
+                    [{ parent: si, results: [results] }],
+                  ];
+                }
               }
             }
             break;
@@ -369,6 +373,45 @@ function lookup(
           return [name || node.name, [{ parent: si, results }]];
         } else if (results === false) {
           break;
+        }
+      }
+      if (imports) {
+        if (imports.length > 1) {
+          if (state.config?.checkInvalidSymbols !== "OFF") {
+            diagnostic(
+              state,
+              node.loc,
+              `${formatAst(
+                node
+              )} is ambiguous and exists in multiple imported modules [${imports
+                .map(({ name }) => name)
+                .join(", ")}]`,
+              state.config?.checkInvalidSymbols || "WARNING"
+            );
+          } else if (
+            decls !== "type_decls" &&
+            state.lookupRules === "COMPILER1"
+          ) {
+            return [null, null];
+          }
+          return [name || node.name, imports.map((d) => d.decls)];
+        }
+        if (imports.length == 1) {
+          if (decls !== "type_decls") {
+            if (state.config?.checkCompilerLookupRules !== "OFF") {
+              diagnostic(
+                state,
+                node.loc,
+                `${formatAst(
+                  node
+                )} will only be found when compiled with compiler2 at -O1 or above`,
+                state.config?.checkCompilerLookupRules || "WARNING"
+              );
+            } else if (state.lookupRules === "COMPILER1") {
+              return [null, null];
+            }
+          }
+          return [name || node.name, [imports[0].decls]];
         }
       }
       return [null, null];
@@ -388,6 +431,24 @@ export function collectNamespaces(
     state.stack = [
       { type: "Program", name: "$", fullName: "$", node: undefined },
     ];
+  }
+  if (!state.lookupRules) {
+    const rules = state?.config?.compilerLookupRules || "DEFAULT";
+    if (rules !== "COMPILER1" && rules !== "COMPILER2") {
+      const match = state.sdk?.match(/-(\d+)\.(\d+)\.(\d+).(compiler2beta)?/i);
+      if (
+        match &&
+        (match[4] ||
+          parseInt(match[1], 10) * 1000000 +
+            parseInt(match[2], 10) * 1000 +
+            parseInt(match[3], 10) >=
+            4001006)
+      ) {
+        state.lookupRules = "COMPILER2";
+      } else {
+        state.lookupRules = "COMPILER1";
+      }
+    }
   }
   state.removeNodeComments = (node: mctree.Node, ast: mctree.Program) => {
     if (node.start && node.end && ast.comments && ast.comments.length) {
@@ -912,31 +973,33 @@ export function findUsingForNode(
   state: ProgramStateLive,
   stack: ProgramStateStack,
   i: number,
-  node: mctree.Identifier,
-  isType: boolean
+  node: mctree.Identifier
 ) {
+  let imports = null;
   while (i >= 0) {
     const si = stack[i--];
     if (hasProperty(si.usings, node.name)) {
       const using = si.usings[node.name];
-      const module = findUsing(state, stack, using);
-
-      return module && [module];
+      return findUsing(state, stack, using);
     }
-    if (si.imports && isType) {
+    if (si.imports) {
       for (let j = si.imports.length; j--; ) {
         const using = si.imports[j];
         const module = findUsing(state, stack, using);
 
         if (module) {
           if (hasProperty(module.type_decls, node.name)) {
-            return module.type_decls[node.name];
+            if (!imports) imports = [];
+            imports.push({
+              name: `${module.fullName}.${node.name}`,
+              decls: { parent: si, results: module.type_decls[node.name] },
+            });
           }
         }
       }
     }
   }
-  return null;
+  return imports;
 }
 
 const invokeInfo: FunctionInfo | Record<string, never> = {};

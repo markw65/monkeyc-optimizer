@@ -1,6 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 
 export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
+export type LookupRules = "COMPILER1" | "COMPILER2" | "DEFAULT";
 // Configuration options for build
 export type BuildConfig = {
   workspace?: string; // The project's workspace directory
@@ -24,7 +25,9 @@ export type BuildConfig = {
   ignoredSourcePaths?: string; // Semicolon separated list of source path regexes
   returnCommand?: boolean; // If true, build_project just returns the command to run the build, rather than building it
   checkBuildPragmas?: boolean; // If true, check any build pragmas in the generated code
-  checkInvalidSymbols?: DiagnosticType | "OFF";
+  checkInvalidSymbols?: DiagnosticType | "OFF"; // Report missing symbols
+  checkCompilerLookupRules?: DiagnosticType | "OFF"; // Report differences in behavior between compiler1 and compiler2
+  compilerLookupRules?: LookupRules; // Perform lookups as compiler1 or compiler2
   sizeBasedPRE?: boolean | string;
   prettier?: Record<string, unknown>;
   extensionVersion?: string;
@@ -179,6 +182,8 @@ export type ProgramState = {
   inType?: number;
   inlining?: true;
   config?: BuildConfig;
+  sdk?: string;
+  lookupRules?: LookupRules;
   nextExposed?: Record<string, true>;
   exposed?: Record<string, true>;
   usedByName?: Record<string, true>;
@@ -219,6 +224,7 @@ export type ProgramStateLive = Finalized<
   | "removeNodeComments"
   | "inType"
   | "nextExposed"
+  | "lookupRules"
 >;
 export type ProgramStateAnalysis = Finalized<
   ProgramStateLive,

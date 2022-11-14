@@ -41,6 +41,7 @@ export async function driver() {
   let execute = false;
   let testBuild: string | boolean = false;
   let checkInvalidSymbols: DiagnosticType | "OFF" = "ERROR";
+  let checkCompilerLookupRules: DiagnosticType | "OFF" = "ERROR";
   let sizeBasedPRE: string | boolean = true;
   let checkBuildPragmas: boolean | undefined;
   let showInfo = false;
@@ -110,6 +111,11 @@ export async function driver() {
         if (value == null) return key;
         extraMonkeycArgs.push(`-O${value}`);
         break;
+      case "compilerOptions":
+        if (value == null) return key;
+        extraMonkeycArgs.push(...value.split(/\s+/));
+        break;
+
       case "checkInvalidSymbols":
         if (value == null) return key.toUpperCase();
         switch (value) {
@@ -121,6 +127,19 @@ export async function driver() {
             break;
           default:
             error(`Invalid option for checkInvalidSymbols: ${value}`);
+        }
+        break;
+      case "checkCompilerLookupRules":
+        if (value == null) return key.toUpperCase();
+        switch (value) {
+          case "ERROR":
+          case "WARNING":
+          case "INFO":
+          case "OFF":
+            checkCompilerLookupRules = value;
+            break;
+          default:
+            error(`Invalid option for checkCompilerLookupRules: ${value}`);
         }
         break;
       case "sizeBasedPRE":
@@ -240,6 +259,7 @@ export async function driver() {
       typeCheckLevel,
       skipOptimization,
       checkInvalidSymbols,
+      checkCompilerLookupRules,
       sizeBasedPRE,
       ...jungleOptions,
       returnCommand: true,

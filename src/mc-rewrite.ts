@@ -293,6 +293,10 @@ export function reportMissingSymbols(
     config?.checkInvalidSymbols !== "OFF"
       ? config?.checkInvalidSymbols || "WARNING"
       : null;
+  const compiler2DiagnosticType =
+    config?.checkCompilerLookupRules !== "OFF"
+      ? config?.checkCompilerLookupRules || "WARNING"
+      : null;
   if (
     diagnosticType &&
     !config?.compilerOptions?.includes("--Eno-invalid-symbol")
@@ -308,6 +312,7 @@ export function reportMissingSymbols(
         const nodeStr = formatAst(node);
         if (!error) {
           if (
+            compiler2DiagnosticType &&
             node.type === "MemberExpression" &&
             (node.object.type === "Identifier" ||
               node.object.type === "MemberExpression") &&
@@ -351,7 +356,7 @@ export function reportMissingSymbols(
               state,
               node.loc,
               `The expression ${nodeStr} will fail at runtime using compiler2`,
-              "WARNING"
+              compiler2DiagnosticType
             );
           }
           return undefined;
