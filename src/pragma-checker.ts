@@ -16,9 +16,7 @@ export function pragmaChecker(
   if (!comments) return;
   diagnostics = diagnostics
     ?.slice()
-    .sort((d1, d2) =>
-      d1.loc.start < d2.loc.start ? -1 : d1.loc.start == d2.loc.start ? 0 : 1
-    );
+    .sort((d1, d2) => d1.loc.start.offset - d2.loc.start.offset);
   let diagIndex = 0;
   let index = -1;
   let comment: mctree.Comment;
