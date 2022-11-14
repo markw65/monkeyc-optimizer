@@ -17,6 +17,7 @@
   },
   "scripts": {
     "watch": "webpack --mode development --watch",
+    "prettier-live": "test -z \"$(git status --untracked-files=no --porcelain || echo dirty)\" && npm install ../prettier-plugin-monkeyc && git commit -am 'prettier-plugin-monkeyc-live'",
     "build-debug": "webpack --mode development",
     "build-release": "webpack --mode production",
     "prepack": "webpack --mode production",
