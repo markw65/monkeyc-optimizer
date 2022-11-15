@@ -300,11 +300,8 @@ export async function generateOptimizedProject(options: BuildConfig) {
         ? "Optimize the project that uses this barrel, not the barrel itself"
         : "Manifest is missing an `iq:application` tag"
     );
-    (error as ErrorWithLocation).location = {
-      start: { line: 1, column: 1 },
-      end: { line: 1, column: 1 },
-      source: manifest,
-    };
+    (error as ErrorWithLocation).location =
+      xml.body.elements[0].loc || undefined;
     throw error;
   }
   const dependencyFiles = [manifest, ...jungles];
