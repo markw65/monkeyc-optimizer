@@ -127,6 +127,13 @@ export function visitReferences(
         }
         return ["returnType"];
       }
+
+      case "ModuleDeclaration":
+        return ["body"];
+      case "ClassDeclaration":
+        return ["body", "superClass"];
+      case "FunctionDeclaration":
+        return ["params", "returnType", "body"];
     }
     return null;
   };
