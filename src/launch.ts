@@ -43,11 +43,16 @@ export function checkIfSimulatorRunningOn(port: number): Promise<boolean> {
 export function simulateProgram(
   prg: string,
   device: string,
-  test = false,
+  test: boolean | string = false,
   logger?: LineHandler | LineHandler[]
 ): Promise<void> {
   const args = [prg, device];
-  if (test) args.push(isWin ? "/t" : "-t");
+  if (test) {
+    args.push(isWin ? "/t" : "-t");
+    if (typeof test === "string") {
+      args.push(test);
+    }
+  }
   return getSdkPath().then((sdk) =>
     spawnByLine(
       path.resolve(sdk, "bin", isWin ? "monkeydo.bat" : "monkeydo"),

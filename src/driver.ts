@@ -39,7 +39,7 @@ export async function driver() {
   let skipOptimization: boolean | undefined;
   const extraMonkeycArgs: string[] = [];
   let execute = false;
-  let testBuild = false;
+  let testBuild: string | boolean = false;
   let checkInvalidSymbols: DiagnosticType | "OFF" = "ERROR";
   let sizeBasedPRE: string | boolean = true;
   let checkBuildPragmas: boolean | undefined;
@@ -158,7 +158,13 @@ export async function driver() {
         execute = !value || /^true|1$/i.test(value);
         break;
       case "run-tests":
-        testBuild = !value || /^true|1$/i.test(value);
+        if (!value || /^true|1$/i.test(value)) {
+          testBuild = true;
+        } else if (/^false|0$/i.test(value)) {
+          testBuild = false;
+        } else {
+          testBuild = value;
+        }
         break;
       case "showInfo":
         showInfo = !value || /^true|1$/i.test(value);
@@ -229,7 +235,7 @@ export async function driver() {
       outputPath,
       products,
       releaseBuild,
-      testBuild,
+      testBuild: testBuild !== false,
       compilerWarnings,
       typeCheckLevel,
       skipOptimization,
@@ -382,10 +388,12 @@ export async function driver() {
             console.log(line);
           };
           return launchSimulator(pass !== undefined).then(() =>
-            simulateProgram(res.program, res.product!, pass === undefined, [
-              handler,
-              handler,
-            ])
+            simulateProgram(
+              res.program,
+              res.product!,
+              pass === undefined ? testBuild : false,
+              [handler, handler]
+            )
               .catch(() => null)
               .then(() => {
                 if (!pass) {
