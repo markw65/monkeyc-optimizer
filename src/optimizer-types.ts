@@ -117,6 +117,7 @@ export interface VariableStateNode extends BaseStateNode {
   fullName: string;
   stack: ProgramStateStack;
   used?: true;
+  isStatic: boolean;
 }
 export type StateNode =
   | ProgramStateNode

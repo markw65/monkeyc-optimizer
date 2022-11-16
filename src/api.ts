@@ -133,8 +133,7 @@ function checkOne(
   state: ProgramStateLive,
   ns: StateNode,
   decls: DeclKind,
-  node: mctree.Identifier,
-  isStatic: boolean
+  node: mctree.Identifier
 ): StateNodeDecl[] | null | false {
   // follow the superchain, looking up node in each class
   const superChain = (cls: ClassStateNode): StateNodeDecl[] | null => {
@@ -172,10 +171,8 @@ function checkOne(
   }
   switch (ns.type) {
     case "ClassDeclaration":
-      if (!isStatic) {
-        return superChain(ns) || superChainScopes(ns) || false;
-      }
-    // fall through
+      return superChain(ns) || superChainScopes(ns) || false;
+
     case "ModuleDeclaration":
       return lookupInContext(ns) || false;
   }
@@ -243,7 +240,15 @@ function lookup(
       if (!property) break;
       let result;
       if (node.object.type === "ThisExpression") {
-        [, result] = lookup(state, decls, node.property, name, stack, true);
+        [, result] = lookup(
+          state,
+          decls,
+          node.property,
+          name,
+          stack,
+          true,
+          true
+        );
       } else {
         const [, results] = lookup(
           state,
@@ -262,7 +267,7 @@ function lookup(
                 if (!isStateNode(module)) {
                   return null;
                 }
-                const res = checkOne(state, module, decls, property, false);
+                const res = checkOne(state, module, decls, property);
                 return res ? { parent: module, results: res } : null;
               })
               .filter((r): r is NonNullable<typeof r> => r != null);
@@ -319,6 +324,22 @@ function lookup(
         const si = stack[i];
         switch (si.type) {
           case "ClassDeclaration":
+            if (inStatic) {
+              inStatic = false;
+              if (hasProperty(si.decls, node.name)) {
+                const r = si.decls[node.name].filter(
+                  (s) =>
+                    (s.type !== "FunctionDeclaration" &&
+                      s.type !== "VariableDeclarator") ||
+                    s.isStatic
+                );
+                return r.length
+                  ? [name || node.name, [{ parent: si, results: r }]]
+                  : [null, null];
+              }
+              continue;
+            }
+          // fall through
           case "ModuleDeclaration":
           case "Program":
             if (!checkedImports) {
@@ -343,7 +364,7 @@ function lookup(
             break;
         }
 
-        const results = checkOne(state, si, decls, node, inStatic);
+        const results = checkOne(state, si, decls, node);
         if (results) {
           return [name || node.name, [{ parent: si, results }]];
         } else if (results === false) {
@@ -613,6 +634,9 @@ export function collectNamespaces(
               if (!parent.decls) parent.decls = {};
               const decls = parent.decls;
               const stack = state.stackClone();
+              const isStatic = node.attrs?.access?.find((a) => a === "static")
+                ? true
+                : false;
               node.declarations.forEach((decl) => {
                 const name = variableDeclarationName(decl.id);
                 if (!hasProperty(decls, name)) {
@@ -629,6 +653,7 @@ export function collectNamespaces(
                   name,
                   fullName: parent.fullName + "." + name,
                   stack,
+                  isStatic,
                 });
                 if (node.kind == "const") {
                   if (!hasProperty(state.index, name)) {

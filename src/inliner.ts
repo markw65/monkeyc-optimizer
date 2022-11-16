@@ -404,6 +404,8 @@ function processInlineBody<T extends InlineBody>(
   state.inlining = true;
   let insertedVariableDecls: mctree.VariableDeclaration | null = null;
   const replacements = new Set<mctree.Node>();
+  const stack = func.stack!;
+  if (func.isStatic) stack.push(func);
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
@@ -449,7 +451,7 @@ function processInlineBody<T extends InlineBody>(
         }
         return null;
       }
-      const replacement = fixNodeScope(state, node, func.stack!);
+      const replacement = fixNodeScope(state, node, stack);
       if (!replacement) {
         failed = true;
         inlineDiagnostic(state, func, call, `Failed to resolve '${node.name}'`);
