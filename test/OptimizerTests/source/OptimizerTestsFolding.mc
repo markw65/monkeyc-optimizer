@@ -95,6 +95,15 @@ function testLogicalFolding(logger as Logger) as Boolean {
     // prettier-ignore
     /* @match /check\(\(x as Boolean\) \? @42 : @0/ */
     check(NON_ZERO_CONST == 0 || (x as Boolean) ? 42 : 0, 42, logger);
+
+    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
+    check(true and logger != null ? 42 : 0, 42, logger);
+    /* @match /check\(@0, @0, logger\);/ */
+    check(false and logger != null ? 42 : 0, 0, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(true or logger != null ? 42 : 0, 42, logger);
+    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
+    check(false or logger != null ? 42 : 0, 42, logger);
     return ok;
 }
 

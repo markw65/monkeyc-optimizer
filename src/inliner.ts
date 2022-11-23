@@ -555,7 +555,7 @@ export function unused(
         expression.right
       );
       let alternate;
-      if (expression.operator == "||") {
+      if (expression.operator == "||" || expression.operator == "or") {
         alternate = { ...consequent };
         consequent.body = [];
       }

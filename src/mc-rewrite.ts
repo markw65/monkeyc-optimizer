@@ -579,7 +579,7 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
         left.value === null ||
         ((left_type === "Number" || left_type === "Long") &&
           (left.value === 0 || left.value === 0n));
-      if (falsy === (node.operator === "&&")) {
+      if (falsy === (node.operator === "&&" || node.operator === "and")) {
         return left;
       }
       if (
@@ -591,10 +591,14 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
       }
       const [right, right_type] = getNodeValue(node.right);
       if (right && right_type === left_type) {
-        if (left_type === "Boolean" || node.operator === "||") {
+        if (
+          left_type === "Boolean" ||
+          node.operator === "||" ||
+          node.operator === "or"
+        ) {
           return right;
         }
-        if (node.operator !== "&&") {
+        if (node.operator !== "&&" && node.operator !== "and") {
           throw new Error(`Unexpected operator "${node.operator}"`);
         }
         return { ...node, type: "BinaryExpression", operator: "&" } as const;
