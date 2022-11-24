@@ -24,6 +24,7 @@ import {
   ProgramStateNode,
   ProgramStateStack,
   StateNode,
+  StateNodeAttributes,
   StateNodeDecl,
   StateNodeDecls,
 } from "./optimizer-types";
@@ -117,6 +118,27 @@ export function variableDeclarationName(
 }
 
 type DeclKind = "decls" | "type_decls";
+
+function stateNodeAttrs(attrs: mctree.FunctionDeclaration["attrs"]) {
+  return attrs && attrs.access
+    ? attrs.access.reduce((cur, attr) => {
+        switch (attr) {
+          case "static":
+            return cur | StateNodeAttributes.STATIC;
+          case "public":
+            return cur | StateNodeAttributes.PUBLIC;
+          case "protected":
+            return cur | StateNodeAttributes.PROTECTED;
+          case "hidden":
+            return cur | StateNodeAttributes.PROTECTED;
+          case "private":
+            return cur | StateNodeAttributes.PRIVATE;
+          default:
+            return cur;
+        }
+      }, 0)
+    : 0;
+}
 
 function lookupToStateNodeDecls(results: LookupDefinition[]) {
   return results.reduce<StateNodeDecl[] | null>(
@@ -334,7 +356,7 @@ function lookup(
                   (s) =>
                     (s.type !== "FunctionDeclaration" &&
                       s.type !== "VariableDeclarator") ||
-                    s.isStatic
+                    s.attributes & StateNodeAttributes.STATIC
                 );
                 return r.length
                   ? [name || node.name, [{ parent: si, results: r }]]
@@ -361,7 +383,7 @@ function lookup(
             }
             break;
           case "FunctionDeclaration":
-            inStatic = si.isStatic === true;
+            inStatic = !!(si.attributes & StateNodeAttributes.STATIC);
           // fall through
           default:
             if (nonlocal) continue;
@@ -429,7 +451,13 @@ export function collectNamespaces(
   if (!state.index) state.index = {};
   if (!state.stack) {
     state.stack = [
-      { type: "Program", name: "$", fullName: "$", node: undefined },
+      {
+        type: "Program",
+        name: "$",
+        fullName: "$",
+        node: undefined,
+        attributes: 0,
+      },
     ];
   }
   if (!state.lookupRules) {
@@ -565,6 +593,7 @@ export function collectNamespaces(
                   name: undefined,
                   node: node.body,
                   decls: { [id.name]: [id] },
+                  attributes: 0,
                 });
               }
               break;
@@ -575,6 +604,7 @@ export function collectNamespaces(
                   fullName: undefined,
                   name: undefined,
                   node: node,
+                  attributes: 0,
                 });
               }
               break;
@@ -604,6 +634,10 @@ export function collectNamespaces(
                 name,
                 fullName,
                 node,
+                attributes:
+                  node.type === "BlockStatement"
+                    ? 0
+                    : stateNodeAttrs(node.attrs),
               } as StateNode;
               state.stack.push(elm);
               if (name) {
@@ -686,6 +720,7 @@ export function collectNamespaces(
                       node,
                       name,
                       fullName: parent.fullName + "." + name,
+                      attributes: stateNodeAttrs(node.attrs),
                     }
               );
               break;
@@ -695,9 +730,6 @@ export function collectNamespaces(
               if (!parent.decls) parent.decls = {};
               const decls = parent.decls;
               const stack = state.stackClone();
-              const isStatic = node.attrs?.access?.find((a) => a === "static")
-                ? true
-                : false;
               node.declarations.forEach((decl) => {
                 const name = variableDeclarationName(decl.id);
                 if (!hasProperty(decls, name)) {
@@ -708,13 +740,13 @@ export function collectNamespaces(
                   return;
                 }
                 decl.kind = node.kind;
-                pushUnique(decls[name], {
+                decls[name].push({
                   type: "VariableDeclarator",
                   node: decl,
                   name,
                   fullName: parent.fullName + "." + name,
                   stack,
-                  isStatic,
+                  attributes: stateNodeAttrs(node.attrs),
                 });
                 if (node.kind == "const") {
                   if (!hasProperty(state.index, name)) {

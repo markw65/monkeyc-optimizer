@@ -17,6 +17,7 @@ import {
   ProgramStateAnalysis,
   ProgramStateLive,
   ProgramStateStack,
+  StateNodeAttributes,
   StateNodeDecl,
   VariableStateNode,
 } from "./optimizer-types";
@@ -404,8 +405,13 @@ function processInlineBody<T extends InlineBody>(
   state.inlining = true;
   let insertedVariableDecls: mctree.VariableDeclaration | null = null;
   const replacements = new Set<mctree.Node>();
-  const stack = func.stack!;
-  if (func.isStatic) stack.push(func);
+  // lookup determines static-ness of the lookup context based on seeing
+  // a static FunctionDeclaration, but the FunctionDeclaration's stack
+  // doesn't include the FunctionDeclaration itself.
+  const stack =
+    func.attributes & StateNodeAttributes.STATIC
+      ? func.stack!.concat(func)
+      : func.stack!;
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];

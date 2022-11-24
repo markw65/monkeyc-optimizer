@@ -47,6 +47,14 @@ export type ImportUsing = {
   node: mctree.Using | mctree.ImportModule;
   module?: ModuleStateNode | null | undefined;
 };
+
+export enum StateNodeAttributes {
+  PUBLIC = 1,
+  PROTECTED = 2,
+  PRIVATE = 4,
+  STATIC = 8,
+}
+
 interface BaseStateNode {
   type: string;
   node: mctree.Node | null | undefined;
@@ -57,6 +65,7 @@ interface BaseStateNode {
   stack?: ProgramStateStack | undefined;
   usings?: Record<string, ImportUsing>;
   imports?: ImportUsing[];
+  attributes: StateNodeAttributes;
 }
 export interface ProgramStateNode extends BaseStateNode {
   type: "Program";
@@ -96,7 +105,6 @@ export interface FunctionStateNode extends BaseStateNode {
   fullName: string;
   stack?: ProgramStateStack;
   decls?: undefined;
-  isStatic?: boolean;
   info?: FunctionInfo;
   next_info?: FunctionInfo;
 }
@@ -120,7 +128,6 @@ export interface VariableStateNode extends BaseStateNode {
   fullName: string;
   stack: ProgramStateStack;
   used?: true;
-  isStatic: boolean;
 }
 export type StateNode =
   | ProgramStateNode

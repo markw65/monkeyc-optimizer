@@ -40,6 +40,7 @@ import {
   ProgramState,
   ProgramStateAnalysis,
   ProgramStateOptimizer,
+  StateNodeAttributes,
 } from "./optimizer-types";
 import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
@@ -132,7 +133,10 @@ function collectClassInfo(state: ProgramStateAnalysis) {
     if (elm.hasInvoke && elm.decls) {
       Object.values(elm.decls).forEach((funcs) => {
         funcs.forEach((f) => {
-          if (f.type === "FunctionDeclaration" && !f.isStatic) {
+          if (
+            f.type === "FunctionDeclaration" &&
+            !(f.attributes & StateNodeAttributes.STATIC)
+          ) {
             markInvokeClassMethod(f);
           }
         });
@@ -233,11 +237,6 @@ export async function analyze(
           const [scope] = state.stack.slice(-1);
           scope.stack = state.stackClone().slice(0, -1);
           if (scope.type == "FunctionDeclaration") {
-            scope.isStatic =
-              scope.stack.slice(-1)[0].type !== "ClassDeclaration" ||
-              (scope.node.attrs &&
-                scope.node.attrs.access &&
-                scope.node.attrs.access.includes("static"));
             if (markApi) {
               node.body = null;
               scope.info = getApiFunctionInfo(scope);
@@ -322,33 +321,16 @@ export function reportMissingSymbols(
                 return false;
               }
               return result.results.some((sn) => {
-                let attrs = null;
                 switch (sn.type) {
                   case "VariableDeclarator":
-                    if (sn.node) {
-                      const v = parent.node.body.body.find(
-                        (e) =>
-                          e.item.type === "VariableDeclaration" &&
-                          e.item.declarations.find((d) => d === sn.node)
-                      );
-                      if (v) {
-                        attrs = v.item.attrs;
-                      }
-                    }
-                    break;
                   case "FunctionDeclaration":
-                    attrs = sn.node.attrs;
-                    break;
+                    return (
+                      sn.attributes &
+                      (StateNodeAttributes.PRIVATE |
+                        StateNodeAttributes.PROTECTED)
+                    );
                 }
-                return (
-                  attrs &&
-                  attrs.access?.some(
-                    (access) =>
-                      access === "private" ||
-                      access === "protected" ||
-                      access === "hidden"
-                  )
-                );
+                return false;
               });
             })
           ) {
