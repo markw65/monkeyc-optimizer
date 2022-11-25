@@ -17,6 +17,7 @@ export type RemoteProject =
       include?: string;
       sourcePath?: string;
       jungleContent?: string[];
+      garminOptLevel?: number;
     };
 
 export const githubProjects: RemoteProject[] = [
@@ -40,6 +41,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/Laverlin/Yet-Another-WatchFace",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    garminOptLevel: 0,
   },
   "https://github.com/OliverHannover/Aviatorlike",
   "https://github.com/OliverHannover/Formula_1",
@@ -49,6 +51,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/TrainAsONE/trainasone-connectiq",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    garminOptLevel: 0,
   },
   "https://github.com/YoungChulDK/GarminCryptoPrices",
   "https://github.com/adamml/tempo-trainer",
@@ -104,15 +107,22 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/darrencroton/SnapshotRHR",
   "https://github.com/darrencroton/SnapshotWatch",
   "https://github.com/davedoesdemos/ConnectIQ-Watch-IoT",
-  "https://github.com/dazey77/Horizontal-speedo-rep",
+  {
+    root: "https://github.com/dazey77/Horizontal-speedo-rep",
+    garminOptLevel: 0,
+  },
   {
     root: "https://github.com/dbcm/KISSFace",
     options: { checkInvalidSymbols: "WARNING" },
   },
-  "https://github.com/desyat/OpenWeatherMapWidget",
+  {
+    root: "https://github.com/desyat/OpenWeatherMapWidget",
+    garminOptLevel: 0,
+  },
   {
     root: "https://github.com/dkappler/kraken",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    garminOptLevel: 0,
   },
   "https://github.com/dmuino/HMFields",
   "https://github.com/douglasr/connectiq-logo-analog",
@@ -122,6 +132,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/fjbenitog/bike-simulator",
     options: { checkInvalidSymbols: "WARNING" },
+    garminOptLevel: 0,
   },
   "https://github.com/fjbenitog/digital-watch-cas10",
   "https://github.com/fmercado/telemeter",
@@ -139,15 +150,18 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/hakonrossebo/FootballFixtures",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    garminOptLevel: 0,
   },
   {
     root: "https://github.com/hansiglaser/ConnectIQ",
     options: { checkInvalidSymbols: "WARNING" },
+    garminOptLevel: 0,
   },
   "https://github.com/haraldh/SunCalc",
   {
     root: "https://github.com/imgrant/AuxHR",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    garminOptLevel: 0,
   },
   "https://github.com/imgrant/EnergyExpenditureField",
   "https://github.com/imgrant/FlexiRunner",
@@ -175,7 +189,10 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/lcj2/ciq_monkeyfuel",
   "https://github.com/lucamrod/TriathlonDuathlonAquathlon",
   "https://github.com/lukasz-duda/NormalizedPoolDistance",
-  "https://github.com/matco/badminton",
+  {
+    root: "https://github.com/matco/badminton",
+    garminOptLevel: 0,
+  },
   {
     root: "https://github.com/matmuc/SportMonitor",
     options: { compilerOptions: "--Eno-invalid-symbol" },
@@ -220,6 +237,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/rexMingla/low-battery-mode",
     options: { checkInvalidSymbols: "WARNING" },
+    garminOptLevel: 0,
   },
   "https://github.com/rgergely/polesteps",
   "https://github.com/rgrellmann/connectiq-bergsteigen-app",
@@ -273,7 +291,10 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/toomasr/8-min-abs",
   "https://github.com/toskaw/ImageNotify",
   "https://github.com/travisvitek/connectiq_laps_datafield",
-  "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
+  {
+    root: "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
+    garminOptLevel: 0,
+  },
   "https://github.com/victornottat/garmin-trimp-perhour",
   "https://github.com/victornottat/garmin-trimp",
   "https://github.com/vmaywood/Garmin-Watch-Faces",
@@ -290,6 +311,10 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/vtrifonov-esfiddle/Meditate",
     exclude:
       "barrels.jungle|(HrvAlgorithms|ScreenPicker|StatusIconFonts).monkey.jungle",
+    options: {
+      checkInvalidSymbols: "WARNING",
+      checkCompilerLookupRules: "WARNING",
+    },
   },
   "https://github.com/warmsound/crystal-face",
   "https://github.com/werkkrew/ciq-orange-theory",
@@ -325,6 +350,7 @@ export async function fetchGitProjects(projects: RemoteProject[]) {
       sourcePath = null,
       jungleContent = null,
       rename = null,
+      garminOptLevel = null,
     } = typeof p === "string" ? { root: p } : p;
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
@@ -369,8 +395,13 @@ export async function fetchGitProjects(projects: RemoteProject[]) {
           const re = new RegExp(exclude);
           jungles = jungles.filter((j) => !re.test(j.replace(/\\/g, "/")));
         }
-        return options || build === false
-          ? jungles.map((jungle) => ({ jungle, build, options }))
+        return options || build === false || garminOptLevel !== null
+          ? jungles.map((jungle) => ({
+              jungle,
+              build,
+              options,
+              garminOptLevel,
+            }))
           : jungles;
       })
       .catch((e) => {

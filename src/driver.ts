@@ -16,6 +16,7 @@ type JungleInfo = {
   jungle: string;
   build: boolean | null;
   options: BuildConfig | null;
+  garminOptLevel: number | null;
 };
 
 function cleanPath(workspace: string | null | undefined, file: string) {
@@ -264,6 +265,12 @@ export async function driver() {
       checkManifest: true,
       checkBuildPragmas,
     };
+    let extraArgs = extraMonkeycArgs;
+    if (jungleInfo.garminOptLevel != null && supportsCompiler2) {
+      extraArgs = extraArgs
+        .filter((arg) => !arg.startsWith("-O"))
+        .concat(`-O${jungleInfo.garminOptLevel}`);
+    }
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k as keyof typeof options]
     );
@@ -288,13 +295,10 @@ export async function driver() {
                         );
                       });
                     });
-                if (
-                  hasErrors &&
-                  !extraMonkeycArgs.includes("--Eno-invalid-symbol")
-                ) {
+                if (hasErrors && !extraArgs.includes("--Eno-invalid-symbol")) {
                   throw new Error("'ERROR' level diagnostics were reported");
                 }
-                args.push(...extraMonkeycArgs);
+                args.push(...extraArgs);
                 console.log(
                   [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
                 );
@@ -451,7 +455,12 @@ export async function driver() {
     (promise, jungleFiles) => {
       const jf =
         typeof jungleFiles === "string"
-          ? { jungle: jungleFiles, build: null, options: null }
+          ? {
+              jungle: jungleFiles,
+              build: null,
+              options: null,
+              garminOptLevel: null,
+            }
           : jungleFiles;
 
       if (testBuild) {
