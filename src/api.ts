@@ -57,6 +57,31 @@ export function parseSdkVersion(version: string | undefined): number {
   );
 }
 
+export function checkCompilerVersion(version: string, sdkVer: number) {
+  const match = version.match(
+    /^(\d+[._]\d+[._]\d+)?([-_])?(\d+[._]\d+[._]\d+)?$/
+  );
+  if (
+    !match ||
+    (match[1] && match[3] && !match[2]) ||
+    (!match[1] && !match[3])
+  ) {
+    return undefined;
+  }
+  const v1 = parseSdkVersion(match[1]);
+  const v2 = parseSdkVersion(match[3]);
+  if (v1) {
+    if (v2) {
+      return v1 <= sdkVer && sdkVer <= v2;
+    }
+    if (match[2]) {
+      return v1 <= sdkVer;
+    }
+    return v1 === sdkVer;
+  }
+  return sdkVer <= v2;
+}
+
 // Extract all enum values from api.mir
 export async function getApiMapping(
   state?: ProgramState,

@@ -102,31 +102,31 @@ function lookupInOuterScope(logger as Logger) as Boolean {
 }
 
 (:test)
-function lookupTestCrash1(logger as Logger) as Boolean {
+function lookupTest1Crash(logger as Logger) as Boolean {
     noSystem();
     return false;
 }
 (:test)
-function lookupTestCrash2(logger as Logger) as Boolean {
+function lookupTest2Crash(logger as Logger) as Boolean {
     $.Toybox.System.println(noNumber(1));
     // prior to compiler 2, noNumber crashes
     // afterwards, its fine
     return true;
 }
 (:test)
-function lookupTestCrash3(logger as Logger) as Boolean {
+function lookupTest3Crash(logger as Logger) as Boolean {
     $.Toybox.System.println(TestClass.noNumberStatic(1));
     // prior to compiler 2, noNumberStatic crashes
     // afterwards, its fine
     return true;
 }
 (:test)
-function lookupTestCrash4(logger as Logger) as Boolean {
+function lookupTest4Crash(logger as Logger) as Boolean {
     $.properties();
     return false;
 }
 (:test)
-function lookupTestCrash5(logger as Logger) as Boolean {
+function lookupTest5Crash(logger as Logger) as Boolean {
     var x = new TestClass();
     x.properties();
     return false;
@@ -274,7 +274,7 @@ module Inheritance {
         return x.bar() == 43 && x.foo() == 25;
     }
     (:test)
-    function crashOne(logger as Logger) as Boolean {
+    function privateFromDerivedCrash(logger as Logger) as Boolean {
         var x = new Child();
         return x.baz() == 43;
     }
@@ -283,8 +283,8 @@ module Inheritance {
 module Statics {
     var ok as Boolean = false;
     class C {
-        private var v1 as Boolean = false;
-        private const K1 = 42;
+        private static var v1 as Boolean = false;
+        private static const K1 = 42;
 
         function initialize() {
             // @expect 4.1.6 "The expression C.foo will fail at runtime"
@@ -310,12 +310,10 @@ module Statics {
         function nonStaticNoQualifier() as Void {
             foo();
         }
-        (:typecheck(false))
         static function fv1() as Boolean {
             // @expect 4.1.6 "The expression C.v1 will fail at runtime"
             return C.v1;
         }
-        (:typecheck(false))
         static function fK1() as Number {
             // @expect 4.1.6 "The expression C.K1 will fail at runtime"
             return C.K1;
@@ -332,13 +330,13 @@ module Statics {
     }
 
     (:test)
-    function staticFromInitializeCrashCompiler2(logger as Logger) as Boolean {
+    function staticFromInitializeCrash4_1_6(logger as Logger) as Boolean {
         ok = false;
         var c = new C();
         return ok;
     }
     (:test)
-    function staticFromStaticCrashCompiler2(logger as Logger) as Boolean {
+    function staticFromStaticCrash4_1_6(logger as Logger) as Boolean {
         ok = false;
         C.bar();
         return ok;
@@ -356,7 +354,7 @@ module Statics {
         return ok;
     }
     (:test)
-    function staticFromNonStaticByNameCrashCompiler2(
+    function staticFromNonStaticByNameCrash4_1_6(
         logger as Logger
     ) as Boolean {
         ok = false;
@@ -364,7 +362,7 @@ module Statics {
         return ok;
     }
     (:test)
-    function staticFromNonStaticBySelfCrashCompiler2(
+    function staticFromNonStaticBySelfCrash4_1_6(
         logger as Logger
     ) as Boolean {
         ok = false;
@@ -372,7 +370,7 @@ module Statics {
         return ok;
     }
     (:test)
-    function staticFromNonStaticNoQualifierCrashCompiler2(
+    function staticFromNonStaticNoQualifierCrash4_1_6(
         logger as Logger
     ) as Boolean {
         ok = false;
@@ -380,17 +378,17 @@ module Statics {
         return ok;
     }
     (:test)
-    function staticFromDerivedCrash(logger as Logger) as Boolean {
+    function staticFromDerivedCrash4_1_6(logger as Logger) as Boolean {
         ok = false;
         D.baz();
         return ok;
     }
     (:test)
-    function staticVarCrashCompiler2(logger as Logger) as Boolean {
+    function staticVarCrash4_1_6(logger as Logger) as Boolean {
         return C.fv1() == false;
     }
     (:test)
-    function staticConstCrashCompiler2(logger as Logger) as Boolean {
+    function staticConstCrash4_1_6U(logger as Logger) as Boolean {
         return C.fK1() == 42;
     }
 }
@@ -413,7 +411,7 @@ module ShouldCallNew {
         return wasCalled;
     }
     (:test)
-    function callsNewAsStatement(logger as Logger) as Boolean {
+    function callsNewAsStatementExpectedFail_4_1_6(logger as Logger) as Boolean {
         wasCalled = false;
         new C(logger);
         return wasCalled;

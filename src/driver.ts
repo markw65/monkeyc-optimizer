@@ -10,6 +10,7 @@ import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
 import { globa, spawnByLine } from "./util";
 import { BuildConfig, DiagnosticType } from "./optimizer-types";
 import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
+import { checkCompilerVersion, parseSdkVersion } from "./api";
 
 type JungleInfo = {
   jungle: string;
@@ -47,15 +48,12 @@ export async function driver() {
   let showInfo = false;
 
   const sdk = await getSdkPath();
+  const sdkVersion = (() => {
+    const match = sdk.match(/-(\d+\.\d+\.\d+)/);
+    return match ? parseSdkVersion(match[1]) : 0;
+  })();
   const supportsCompiler2 =
-    /* sdk 5 or later, or */
-    sdk.match(/-(\d\d+|[5-9])\.\d+\.\d+/) ||
-    /* sdk 4.2.x or later, or */
-    sdk.match(/-4\.([2-9]|\d\d+)\.\d+/) ||
-    /* sdk 4.1.6 or later, or */
-    sdk.match(/-4\.1\.([6-9]|\d\d+)/) ||
-    /* one of the 4.1.x compiler2-beta releases */
-    sdk.match(/Compiler2Beta/i);
+    sdkVersion >= 4001006 || sdk.match(/compiler2beta/i);
 
   const prev = process.argv.slice(2).reduce<string | null>((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
@@ -348,41 +346,28 @@ export async function driver() {
                     line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
                     expectedErrors++;
                   }
-                } else if (match[1].match(/failCompiler2/i)) {
-                  if (usesCompiler2) {
-                    if (match[3] === "FAIL") {
+                } else {
+                  const m = match[1].match(/(ExpectedFail|crash)(.*?)(U)?$/i);
+                  if (m && (!m[2] || checkCompilerVersion(m[2], sdkVersion))) {
+                    if (m[1].toLowerCase() === "crash") {
+                      if (match[3] === "ERROR") {
+                        line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
+                        expectedErrors++;
+                      } else if (
+                        m[2] &&
+                        match[3] === "PASS" &&
+                        (!m[3] || options.skipOptimization)
+                      ) {
+                        line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
+                        pass = false;
+                      }
+                    } else if (match[3] === "FAIL") {
                       line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
                       expectedFailures++;
-                    } else {
+                    } else if (match[3] === "PASS") {
+                      line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
                       pass = false;
-                      if (match[3] === "PASS") {
-                        line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
-                      }
                     }
-                  }
-                } else if (match[1].match(/crash/i)) {
-                  if (match[3] === "ERROR") {
-                    line = line.replace(/ERROR\s*$/, "EXPECTED ERROR");
-                    expectedErrors++;
-                  }
-                } else if (match[1].match(/ExpectedFail/i)) {
-                  if (match[3] === "FAIL") {
-                    line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
-                    expectedFailures++;
-                  } else if (match[3] === "PASS") {
-                    line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
-                    pass = false;
-                  }
-                } else if (usesCompiler2 && match[1].match(/FailsBeta/i)) {
-                  if (match[3] === "FAIL") {
-                    line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
-                    expectedFailures++;
-                  } else if (match[3] === "PASS" && skipOptimization) {
-                    // some tests that would fail on Beta are fixed by
-                    // our optimizer, so only mark them as failures if
-                    // they pass without our optimizer
-                    line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
-                    pass = false;
                   }
                 }
               }

@@ -191,19 +191,19 @@ module nesting {
 
     /* these are expected to crash. They fail if they don't */
     (:test)
-    function crashNestedLookupNESTINGA1(logger as Logger) as Boolean {
+    function nestedLookupNESTINGA1Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGA1());
         return false;
     }
     (:test)
-    function crashNestedLookupNESTINGA2(logger as Logger) as Boolean {
+    function nestedLookupNESTINGA2Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGA2());
         return false;
     }
     (:test)
-    function crashNestedLookupNESTINGA3(logger as Logger) as Boolean {
+    function nestedLookupNESTINGA3Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGA3());
         // In compiler2Beta 2, outer modules, and the global scope
@@ -211,13 +211,13 @@ module nesting {
         return true;
     }
     (:test)
-    function crashNestedLookupNESTINGA4(logger as Logger) as Boolean {
+    function nestedLookupNESTINGA4Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGA4());
         return false;
     }
     (:test)
-    function crashNestedLookupNESTINGC1(logger as Logger) as Boolean {
+    function nestedLookupNESTINGC1Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC1());
         // In compiler2Beta 2, outer modules, and the global scope
@@ -225,7 +225,7 @@ module nesting {
         return true;
     }
     (:test)
-    function crashNestedLookupNESTINGC2(logger as Logger) as Boolean {
+    function nestedLookupNESTINGC2Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC2());
         // In compiler2Beta 2, outer modules, and the global scope
@@ -233,7 +233,7 @@ module nesting {
         return true;
     }
     (:test)
-    function crashNestedLookupNESTINGC3(logger as Logger) as Boolean {
+    function nestedLookupNESTINGC3Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC3());
         // In compiler2Beta 2, outer modules, and the global scope
@@ -241,7 +241,7 @@ module nesting {
         return true;
     }
     (:test)
-    function crashNestedLookupNESTINGC4(logger as Logger) as Boolean {
+    function nestedLookupNESTINGC4Crash(logger as Logger) as Boolean {
         var x = new nesting.MC.X.Y();
         logger.debug(x.getNESTINGC4());
         // In compiler2Beta 2, outer modules, and the global scope
