@@ -73,8 +73,7 @@ class TestClass extends X.Y.Base {
         // Fails at runtime: "Could not find symbol 'Number'"
         /* @expect "Number will only be found" */
         var t = x instanceof Number;
-        /* @expect "Undefined symbol XCONSTANT" */
-        return t || XCONSTANT == 0;
+        return t;
     }
     function properties() as Void {
         /* @expect "Properties will only be found" */
@@ -311,10 +310,12 @@ module Statics {
         function nonStaticNoQualifier() as Void {
             foo();
         }
+        (:typecheck(false))
         static function fv1() as Boolean {
             // @expect "The expression C.v1 will fail at runtime"
             return C.v1;
         }
+        (:typecheck(false))
         static function fK1() as Number {
             // @expect "The expression C.K1 will fail at runtime"
             return C.K1;
@@ -412,7 +413,7 @@ module ShouldCallNew {
         return wasCalled;
     }
     (:test)
-    function callsNewExpectedFail(logger as Logger) as Boolean {
+    function callsNewAsStatement(logger as Logger) as Boolean {
         wasCalled = false;
         new C(logger);
         return wasCalled;
@@ -423,6 +424,8 @@ module ShouldCallNew {
         (new C(logger)).foo();
         return wasCalled;
     }
+    /*
+    // 4.1.7 was fixed to make this fail at compile time.
     (:test)
     function callsNewMemberExpressionFailCompiler2(
         logger as Logger
@@ -431,6 +434,7 @@ module ShouldCallNew {
         (new C(logger)).x;
         return wasCalled;
     }
+    */
     (:test)
     function callsNewMemberExpression(logger as Logger) as Boolean {
         wasCalled = false;
@@ -597,18 +601,22 @@ module StaticInheritance {
             X.initialize();
         }
         const K2 = K1 + 1;
+        (:typecheck(false))
         static function getK1() as Number {
             // @expect "Undefined symbol K1"
             return K1;
         }
+        (:typecheck(false))
         static function getK2() as Number {
             // @expect "Undefined symbol K2"
             return K2;
         }
+        (:typecheck(false))
         static function callFooFromY() as Number {
             // @expect "Undefined symbol foo"
             return foo();
         }
+        (:typecheck(false))
         static function callSelfFooFromY() as Number {
             // @expect "Undefined symbol self.foo"
             return self.foo();
