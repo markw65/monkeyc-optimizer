@@ -1162,7 +1162,6 @@ export async function optimizeMonkeyC(
               (obj.type === "ModuleDeclaration" ||
                 obj.type === "Program" ||
                 obj.type === "ClassDeclaration") &&
-              obj.decls &&
               obj.stack
             ) {
               const exists =
