@@ -1285,7 +1285,7 @@ export async function optimizeMonkeyC(
             }
           }
         } else {
-          const ret = unused(node.expression, true);
+          const ret = unused(state, node.expression, true);
           if (ret) {
             return ret
               .map((r) => replace(r, r))

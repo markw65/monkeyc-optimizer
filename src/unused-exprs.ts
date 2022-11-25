@@ -76,7 +76,7 @@ export function cleanupUnusedVars(
                   node.expression.left.type === "Identifier" &&
                   hasProperty(toRemove, node.expression.left.name)
                 ) {
-                  return unused(node.expression.right);
+                  return unused(state, node.expression.right);
                 }
               } else if (
                 node.expression.type === "UpdateExpression" &&
@@ -94,7 +94,7 @@ export function cleanupUnusedVars(
                     expr.left.type === "Identifier" &&
                     hasProperty(toRemove, expr.left.name)
                   ) {
-                    const rep = unused(expr.right);
+                    const rep = unused(state, expr.right);
                     if (!rep.length) {
                       node.expressions.splice(i, 1);
                     } else {
@@ -129,9 +129,10 @@ export function cleanupUnusedVars(
           const vdecl = decl.declarations[i];
           const name = variableDeclarationName(vdecl.id);
           if (hasProperty(toRemove, name)) {
-            const rep = vdecl.init ? unused(vdecl.init) : [];
+            const rep = vdecl.init ? unused(state, vdecl.init) : [];
             if (rep.length) {
               if (
+                (state.sdkVersion || 0) < 4001007 &&
                 rep.find(
                   (s) =>
                     s.type === "ExpressionStatement" &&
@@ -141,6 +142,8 @@ export function cleanupUnusedVars(
                         s.expression.object.type === "NewExpression"))
                 )
               ) {
+                // prior to 4.1.7 vanilla new expressions were discarded,
+                // so don't create top level new expressions.
                 continue;
               }
               if (parent.node.type === "ForStatement") {

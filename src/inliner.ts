@@ -514,13 +514,16 @@ function processInlineBody<T extends InlineBody>(
 }
 
 export function unused(
+  state: ProgramStateAnalysis,
   expression: mctree.ExpressionStatement["expression"]
 ): mctree.Statement[];
 export function unused(
+  state: ProgramStateAnalysis,
   expression: mctree.ExpressionStatement["expression"],
   top: true
 ): mctree.Statement[] | null;
 export function unused(
+  state: ProgramStateAnalysis,
   expression: mctree.ExpressionStatement["expression"],
   top?: boolean
 ): mctree.Statement[] | null {
@@ -541,12 +544,14 @@ export function unused(
       return [];
     case "BinaryExpression":
       if (expression.operator === "as") {
-        return unused(expression.left);
+        return unused(state, expression.left);
       }
-      return unused(expression.left).concat(unused(expression.right));
+      return unused(state, expression.left).concat(
+        unused(state, expression.right)
+      );
     case "LogicalExpression": {
-      const right = unused(expression.right);
-      if (!right.length) return unused(expression.left);
+      const right = unused(state, expression.right);
+      if (!right.length) return unused(state, expression.left);
       const consequent = withLoc(
         {
           type: "BlockStatement",
@@ -572,10 +577,10 @@ export function unused(
       ];
     }
     case "ConditionalExpression": {
-      const consequentExprs = unused(expression.consequent);
-      const alternateExprs = unused(expression.alternate);
+      const consequentExprs = unused(state, expression.consequent);
+      const alternateExprs = unused(state, expression.alternate);
       if (!consequentExprs.length && !alternateExprs.length) {
-        return unused(expression.test);
+        return unused(state, expression.test);
       }
       return [
         withLoc(
@@ -602,20 +607,28 @@ export function unused(
       ];
     }
     case "UnaryExpression":
-      return unused(expression.argument);
+      return unused(state, expression.argument);
     case "MemberExpression":
       if (expression.computed) {
-        return unused(expression.object).concat(unused(expression.property));
+        return unused(state, expression.object).concat(
+          unused(state, expression.property)
+        );
       }
-      if (expression.object.type === "NewExpression") {
+      if (
+        (state.sdkVersion || 0) < 4001007 &&
+        expression.object.type === "NewExpression"
+      ) {
+        // prior to 4.1.7 top level new expressions were discarded,
+        // but (new X()).a was not. After 4.1.7, top level new is
+        // executed, but top level (new X()).a is an error.
         break;
       }
-      return unused(expression.object);
+      return unused(state, expression.object);
     case "ArrayExpression":
-      return expression.elements.map((e) => unused(e)).flat(1);
+      return expression.elements.map((e) => unused(state, e)).flat(1);
     case "ObjectExpression":
       return expression.properties
-        .map((p) => unused(p.key).concat(unused(p.value)))
+        .map((p) => unused(state, p.key).concat(unused(state, p.value)))
         .flat(1);
   }
   return top ? null : [estmt(expression)];
@@ -836,7 +849,7 @@ function inlineWithArgs(
           context,
         ];
       } else {
-        const side_exprs = unused(last.argument);
+        const side_exprs = unused(state, last.argument);
         block.body.splice(block.body.length - 1, 1, ...side_exprs);
       }
     } else {
