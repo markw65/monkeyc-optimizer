@@ -45,6 +45,18 @@ export { traverseAst, hasProperty };
  * but those are at least in a standard format.
  */
 
+export function parseSdkVersion(version: string | undefined): number {
+  if (!version) return 0;
+  const match = version.match(/^(\d+)[._](\d+)[._](\d+)$/);
+  if (!match) return 0;
+
+  return (
+    parseInt(match[1], 10) * 1000000 +
+    parseInt(match[2], 10) * 1000 +
+    parseInt(match[3], 10)
+  );
+}
+
 // Extract all enum values from api.mir
 export async function getApiMapping(
   state?: ProgramState,
@@ -54,7 +66,13 @@ export async function getApiMapping(
   const parser = MonkeyC.parsers.monkeyc;
 
   const sdk = await getSdkPath();
-  if (state) state.sdk = sdk;
+  if (state) {
+    state.sdk = sdk;
+    const match = state.sdk?.match(/-(\d+\.\d+\.\d+)/);
+    if (match) {
+      state.sdkVersion = parseSdkVersion(match[1]);
+    }
+  }
 
   const api = (await fs.readFile(`${sdk}bin/api.mir`))
     .toString()
@@ -473,15 +491,8 @@ export function collectNamespaces(
   if (!state.lookupRules) {
     const rules = state?.config?.compilerLookupRules || "DEFAULT";
     if (rules !== "COMPILER1" && rules !== "COMPILER2") {
-      const match = state.sdk?.match(/-(\d+)\.(\d+)\.(\d+).(compiler2beta)?/i);
-      if (
-        match &&
-        (match[4] ||
-          parseInt(match[1], 10) * 1000000 +
-            parseInt(match[2], 10) * 1000 +
-            parseInt(match[3], 10) >=
-            4001006)
-      ) {
+      const match = state.sdk?.match(/-(\d+\.\d+\.\d+).(compiler2beta)?/i);
+      if (match && (match[2] || parseSdkVersion(match[1]) >= 4001006)) {
         state.lookupRules = "COMPILER2";
       } else {
         state.lookupRules = "COMPILER1";

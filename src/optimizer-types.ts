@@ -192,6 +192,7 @@ export type ProgramState = {
   inlining?: true;
   config?: BuildConfig;
   sdk?: string;
+  sdkVersion?: number;
   lookupRules?: LookupRules;
   nextExposed?: Record<string, true>;
   exposed?: Record<string, true>;
