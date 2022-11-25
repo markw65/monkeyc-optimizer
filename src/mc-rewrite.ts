@@ -311,6 +311,7 @@ export function reportMissingSymbols(
         const nodeStr = formatAst(node);
         if (!error) {
           if (
+            state.sdkVersion === 4001006 &&
             compiler2DiagnosticType &&
             node.type === "MemberExpression" &&
             (node.object.type === "Identifier" ||
@@ -337,7 +338,7 @@ export function reportMissingSymbols(
             diagnostic(
               state,
               node.loc,
-              `The expression ${nodeStr} will fail at runtime using compiler2`,
+              `The expression ${nodeStr} will fail at runtime using sdk-4.1.6`,
               compiler2DiagnosticType
             );
           }

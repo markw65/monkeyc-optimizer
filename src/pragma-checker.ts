@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { formatAst } from "./api";
+import { checkCompilerVersion, formatAst } from "./api";
 import { traverseAst } from "./ast";
 import { diagnostic } from "./inliner";
 import { ProgramState, ProgramStateOptimizer } from "./optimizer-types";
@@ -28,6 +28,14 @@ export function pragmaChecker(
       if (!match) continue;
       const kind = match[1];
       let str = match[2];
+      const verCheck = checkCompilerVersion(
+        str.replace(/\s.*/, ""),
+        state.sdkVersion || 0
+      );
+      if (verCheck === false) continue;
+      if (verCheck === true) {
+        str = str.replace(/^\S+\s+/, "");
+      }
       matchers = [];
       while (
         (match = str.match(/^([/%&#@"])(.+?(?<!\\)(?:\\{2})*)\1(\s+|$)/))

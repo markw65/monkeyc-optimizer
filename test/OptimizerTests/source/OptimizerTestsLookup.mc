@@ -287,11 +287,11 @@ module Statics {
         private const K1 = 42;
 
         function initialize() {
-            // @expect "The expression C.foo will fail at runtime"
+            // @expect 4.1.6 "The expression C.foo will fail at runtime"
             C.foo();
         }
         static function bar() as Void {
-            // @expect "The expression C.foo will fail at runtime"
+            // @expect 4.1.6 "The expression C.foo will fail at runtime"
             C.foo();
         }
         static function staticBySelf() as Void {
@@ -301,7 +301,7 @@ module Statics {
             foo();
         }
         function nonStaticByName() as Void {
-            // @expect "The expression C.foo will fail at runtime"
+            // @expect 4.1.6 "The expression C.foo will fail at runtime"
             C.foo();
         }
         function nonStaticBySelf() as Void {
@@ -312,12 +312,12 @@ module Statics {
         }
         (:typecheck(false))
         static function fv1() as Boolean {
-            // @expect "The expression C.v1 will fail at runtime"
+            // @expect 4.1.6 "The expression C.v1 will fail at runtime"
             return C.v1;
         }
         (:typecheck(false))
         static function fK1() as Number {
-            // @expect "The expression C.K1 will fail at runtime"
+            // @expect 4.1.6 "The expression C.K1 will fail at runtime"
             return C.K1;
         }
 
