@@ -2,6 +2,7 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 
 export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
 export type LookupRules = "COMPILER1" | "COMPILER2" | "DEFAULT";
+export type EnforceStatic = "YES" | "NO";
 // Configuration options for build
 export type BuildConfig = {
   workspace?: string; // The project's workspace directory
@@ -28,6 +29,7 @@ export type BuildConfig = {
   checkInvalidSymbols?: DiagnosticType | "OFF"; // Report missing symbols
   checkCompilerLookupRules?: DiagnosticType | "OFF"; // Report differences in behavior between compiler1 and compiler2
   compilerLookupRules?: LookupRules; // Perform lookups as compiler1 or compiler2
+  enforceStatic?: EnforceStatic;
   sizeBasedPRE?: boolean | string;
   prettier?: Record<string, unknown>;
   extensionVersion?: string;

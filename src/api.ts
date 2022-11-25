@@ -349,18 +349,28 @@ function lookup(
         const si = stack[i];
         switch (si.type) {
           case "ClassDeclaration":
-            if (inStatic) {
+            if (inStatic && state.config?.enforceStatic != "NO") {
               inStatic = false;
               if (hasProperty(si.decls, node.name)) {
-                const r = si.decls[node.name].filter(
-                  (s) =>
-                    (s.type !== "FunctionDeclaration" &&
-                      s.type !== "VariableDeclarator") ||
-                    s.attributes & StateNodeAttributes.STATIC
-                );
-                return r.length
-                  ? [name || node.name, [{ parent: si, results: r }]]
-                  : [null, null];
+                const r = si.decls[node.name].filter((s) => {
+                  switch (s.type) {
+                    case "FunctionDeclaration":
+                    case "VariableDeclarator":
+                    case "ClassDeclaration":
+                      // In theory we should include EnumStringMember here too, but
+                      // without adding an attributes field to EnumStringMember,
+                      // or turning it into a StateNodeDecl, we don't know whether
+                      // its static or not. But thats ok, because the optimizer
+                      // will replace its use with its value, so the optimized
+                      // code *will* work anyway.
+                      return s.attributes & StateNodeAttributes.STATIC;
+                    default:
+                      return true;
+                  }
+                });
+                if (r.length) {
+                  return [name || node.name, [{ parent: si, results: r }]];
+                }
               }
               continue;
             }
