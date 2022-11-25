@@ -462,3 +462,26 @@ Bug Fixes
   - Handle relative jungle paths correctly.
   - Add more tests for strange monkeyc behavior, pre and post compiler2
   - Better identification of compilers that support compiler2
+
+### 1.0.40
+
+- Improvements
+
+  - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.37](https://github.com/markw65/prettier-plugin-monkeyc#1037).
+  - Report locations of errors in manifest.xml (rather than just reporting an error somewhere in the file)
+  - Minor improvements to Goto References etc
+  - Keep a cache of parsed resource files, and update errors/warnings relating to resources as you type, rather than when the resource file is saved.
+  - Add diagnostics for known issues in sdk-4.1.6
+  - Add diagnostics for changes in behavior between compiler1 and compiler2
+  - Fix lookups to be aware of compiler1 vs compiler2. Add an option to always use compiler1 rules, or always use compiler2 rules.
+  - Fix lookups in static methods, under a new option that defaults to true.
+
+- Testing
+
+  - Fix pragma checker to sort the diagnostics properly
+  - Allow specifying which test to run on the command line
+  - Update all tests to work with 4.1.6 and 4.1.7
+
+- Bug fixes
+  - Fix optimization of `and` and `or` (alternate names for `&&` and `||`)
+  - Fix a bug that could sometimes prevent the `has` optimization from kicking in.
