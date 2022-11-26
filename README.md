@@ -485,3 +485,8 @@ Bug Fixes
 - Bug fixes
   - Fix optimization of `and` and `or` (alternate names for `&&` and `||`)
   - Fix a bug that could sometimes prevent the `has` optimization from kicking in.
+
+### 1.0.41
+
+- Bug fixes
+  - The fix to avoid visiting definitions from visitReferences was incomplete
