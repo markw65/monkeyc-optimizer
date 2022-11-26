@@ -32,7 +32,8 @@ export function visitReferences(
     node: mctree.Node,
     results: LookupDefinition[],
     error: boolean
-  ) => undefined | false
+  ) => undefined | false,
+  includeDefs = false
 ) {
   const checkResults = (
     [name, results]: ReturnType<ProgramStateAnalysis["lookup"]>,
@@ -129,11 +130,30 @@ export function visitReferences(
       }
 
       case "ModuleDeclaration":
+        if (includeDefs) break;
         return ["body"];
       case "ClassDeclaration":
+        if (includeDefs) break;
         return ["body", "superClass"];
       case "FunctionDeclaration":
+        if (includeDefs) break;
         return ["params", "returnType", "body"];
+      case "TypedefDeclaration":
+        if (includeDefs) break;
+        return ["ts"];
+
+      case "VariableDeclarator":
+        if (includeDefs) break;
+        return ["init"];
+      case "EnumDeclaration":
+        if (includeDefs) break;
+        return [];
+      case "CatchClause":
+        if (includeDefs) break;
+        if (node.param && node.param.type !== "Identifier") {
+          state.traverse(node.param.right);
+        }
+        return ["body"];
     }
     return null;
   };
