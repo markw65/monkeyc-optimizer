@@ -111,9 +111,9 @@ interface Public extends BaseNode {
   pubid: string;
 }
 
-type Misc = Comment | PI | CharData;
+export type Misc = Comment | PI | CharData;
 
-type Content = Element | Reference | CData | Misc;
+export type Content = Element | Reference | CData | Misc;
 
 export interface CData extends BaseNode {
   type: "cdata";

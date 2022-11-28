@@ -28,12 +28,12 @@ import {
   StateNodeDecl,
   StateNodeDecls,
 } from "./optimizer-types";
-import { add_resources_to_ast } from "./resources";
+import { add_resources_to_ast, visit_resources } from "./resources";
 import { getSdkPath } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
 
 export { visitorNode, visitReferences } from "./visitor";
-export { traverseAst, hasProperty };
+export { traverseAst, hasProperty, visit_resources };
 
 /*
  * This is an unfortunate hack. I want to be able to extract things
