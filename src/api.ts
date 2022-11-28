@@ -844,6 +844,9 @@ export function collectNamespaces(
                   throw new Error("Unexpected enum initializer");
                 }
                 if (init != m.init) {
+                  if (m.init.enumType) {
+                    init.enumType = m.init.enumType;
+                  }
                   m.init = init;
                 }
                 if (
