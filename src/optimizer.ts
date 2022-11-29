@@ -313,7 +313,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
     throw error;
   }
   const dependencyFiles = [manifest, ...jungles];
-  await createLocalBarrels(targets, options);
+  await createLocalBarrels(targets, config);
 
   const buildConfigs: Record<string, JungleQualifier | null> = {};
   const products: Record<string, string[]> = {};
