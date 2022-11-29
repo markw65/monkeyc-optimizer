@@ -16,6 +16,9 @@ export async function writeManifest(
 }
 
 export function manifestProducts(manifest: ManifestXML): string[] {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
   return manifest.body
     .children()
     .filter((c) => c.name === "iq:application" || c.name === "iq:barrel")
@@ -29,6 +32,9 @@ export function manifestProducts(manifest: ManifestXML): string[] {
 }
 
 export function manifestBarrels(manifest: ManifestXML): string[] {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
   return manifest.body
     .children("iq:application")
     .children("iq:barrels")
@@ -41,6 +47,9 @@ export function manifestBarrels(manifest: ManifestXML): string[] {
 }
 
 export function manifestDropBarrels(manifest: ManifestXML): void {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
   manifest.body.children("iq:application").deleteChildren("iq:barrels");
 }
 
@@ -48,10 +57,13 @@ export function manifestBarrelName(
   manifestName: string,
   manifest: ManifestXML
 ): string {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
   const barrel = manifest.body.children("iq:barrel");
   if (!barrel.elements.length) {
     throw new xmlUtil.PeggyError(
-      `Not a barrel manifest: ${manifestName}`,
+      `Missing 'iq:barrel' in manifest`,
       manifest.body.elements[0].loc
     );
   }
@@ -61,7 +73,7 @@ export function manifestBarrelName(
     .filter((a): a is NonNullable<typeof a> => a != null);
   if (!modules.length) {
     throw new xmlUtil.PeggyError(
-      `Not a barrel manifest: ${manifestName}`,
+      `Missing 'module' attribute in barrel manifest`,
       barrel.elements[0].loc
     );
   }
@@ -77,6 +89,9 @@ export function manifestBarrelName(
 export function manifestAnnotations(
   manifest: ManifestXML
 ): string[] | undefined {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
   return manifest.body
     .children("iq:barrel")
     .children("iq:annotations")
@@ -88,6 +103,9 @@ export async function checkManifest(
   manifest: ManifestXML,
   products: string[]
 ): Promise<boolean> {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
   let ok = true;
   const mattrs = manifest.body.attrs();
   if (

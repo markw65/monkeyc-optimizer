@@ -22,6 +22,11 @@ type JungleCache = {
   resources?: JungleResourceMap | undefined;
 };
 
+export type JungleBuildDependencies = Record<string, xmlUtil.Document | true>;
+export type JungleError = Error & {
+  buildDependencies?: JungleBuildDependencies;
+};
+
 type JNode = Literal | QName | SubList;
 type Literal = {
   type: "Literal";
@@ -451,7 +456,7 @@ type ResourceGroups = Record<
   string,
   {
     resourcePath: string[];
-    resourceFiles: { path: string; resources: xmlUtil.Document | Error }[];
+    resourceFiles: { path: string; resources: xmlUtil.Document }[];
     resourceMap: JungleResourceMap;
     products: string[];
     buildInstructions?: {
@@ -501,11 +506,6 @@ async function read_resource_files(targets: Target[], cache: JungleCache) {
                   return fs
                     .readFile(file)
                     .then((data) => xmlUtil.parseXml(data.toString(), file))
-                    .catch((e) =>
-                      e instanceof Error
-                        ? e
-                        : new Error("An unknown error occurred")
-                    )
                     .then((rez) => {
                       cache.resources![file] = resources[file] = rez;
                       return {
@@ -540,11 +540,16 @@ async function read_resource_files(targets: Target[], cache: JungleCache) {
 
 async function find_build_instructions_in_resource(
   file: string,
-  rez: xmlUtil.Document | Error
+  rez: xmlUtil.Document,
+  buildDependencies: JungleBuildDependencies
 ) {
-  if (rez instanceof Error) return null;
+  if (rez.body instanceof Error) {
+    buildDependencies[file] = true;
+    return null;
+  }
   const build = rez.body.skip("resources").filter("build");
   if (!build.length()) return null;
+  buildDependencies[file] = true;
   const excludes = build.children("exclude").attrs();
   if (!excludes.length) return null;
   const dir = path.dirname(file);
@@ -569,7 +574,8 @@ async function find_build_instructions_in_resource(
 
 async function find_build_instructions(
   targets: Target[],
-  resourceGroups: ResourceGroups
+  resourceGroups: ResourceGroups,
+  buildDependencies: JungleBuildDependencies
 ) {
   await Promise.all(
     targets.map(async (p) => {
@@ -580,7 +586,11 @@ async function find_build_instructions(
         resourceGroups[key].buildInstructions = (
           await Promise.all(
             resourceGroups[key].resourceFiles.map(({ path, resources }) =>
-              find_build_instructions_in_resource(path, resources)
+              find_build_instructions_in_resource(
+                path,
+                resources,
+                buildDependencies
+              )
             )
           )
         )
@@ -837,9 +847,10 @@ type JungleInfoBase = {
   xml: ManifestXML; // The xml content of the manifest
   annotations?: string[]; // Array of annotations supported by this barrel
   resources: JungleResourceMap;
+  buildDependencies: JungleBuildDependencies;
 };
 
-export type JungleResourceMap = Record<string, xmlUtil.Document | Error>;
+export type JungleResourceMap = Record<string, xmlUtil.Document>;
 
 // The result of parsing an application's jungle file
 export type ResolvedJungle = JungleInfoBase & {
@@ -866,7 +877,8 @@ function resolve_barrel(
   barrelDir: string,
   products: string[],
   options: BuildConfig,
-  cache: JungleCache
+  cache: JungleCache,
+  buildDependencies: JungleBuildDependencies
 ): ResolvedJungle | Promise<ResolvedJungle> {
   if (hasProperty(cache.barrels, barrel)) {
     return cache.barrels[barrel];
@@ -908,8 +920,22 @@ function resolve_barrel(
   return promise
     .then(() => get_jungle_and_barrels(rawBarrel, products, options, cache))
     .then((result) => {
+      Object.entries(result.buildDependencies).forEach(
+        ([k, v]) => (buildDependencies[k] = v)
+      );
       if (!cache.barrels) cache.barrels = {};
       return (cache.barrels[barrel] = { ...result });
+    })
+    .catch((e) => {
+      if (e instanceof Error) {
+        const err: JungleError = e;
+        if (err.buildDependencies) {
+          Object.entries(err.buildDependencies).forEach(
+            ([k, v]) => (buildDependencies[k] = v)
+          );
+        }
+      }
+      throw e;
     });
 }
 
@@ -929,7 +955,8 @@ function resolve_barrels(
   barrels: string[],
   products: string[],
   options: BuildConfig,
-  cache: JungleCache
+  cache: JungleCache,
+  buildDependencies: JungleBuildDependencies
 ) {
   if (qualifier.annotations) {
     Object.keys(qualifier.annotations).forEach((key) => {
@@ -976,7 +1003,14 @@ function resolve_barrels(
           .then((barrelPaths) => {
             return Promise.all(
               barrelPaths.map((barrel) =>
-                resolve_barrel(barrel, barrelDir, products, options, cache)
+                resolve_barrel(
+                  barrel,
+                  barrelDir,
+                  products,
+                  options,
+                  cache,
+                  buildDependencies
+                )
               )
             );
           })
@@ -1029,87 +1063,115 @@ async function get_jungle_and_barrels(
   options: BuildConfig,
   cache: JungleCache
 ): Promise<ResolvedJungle> {
-  const jungles = jungleFiles
-    .split(";")
-    .map((jungle) => path.resolve(options.workspace || "./", jungle));
-  const barrels_jungle = path.resolve(
-    path.dirname(jungles[0]),
-    "barrels.jungle"
-  );
-  if (!jungles.includes(barrels_jungle)) {
-    if (
-      await fs
-        .stat(barrels_jungle)
-        .then((s) => s.isFile())
-        .catch(() => false)
-    ) {
-      jungles.push(barrels_jungle);
-    }
-  }
-  const { state, devices } = await process_jungles(jungles);
-  // apparently square_watch is an alias for rectangle_watch
-  state["square_watch"] = state["rectangle_watch"];
-  const manifest_node = resolve_node(
-    state,
-    resolve_node_by_path(state, ["project", "manifest"])
-  ) as string[] | null;
-  if (!manifest_node) throw new Error("No manifest found!");
-  const manifest = resolve_filename(manifest_node[0]);
-  if (!options.workspace) {
-    options.workspace = path.dirname(manifest);
-  }
-  const xml = await readManifest(manifest);
-  const targets: Target[] = [];
-  const barrels = manifestBarrels(xml);
-  const annotations = manifestAnnotations(xml);
-  const products = manifestProducts(xml);
-  if (products.length === 0) {
-    if (defaultProducts) {
-      products.push(...defaultProducts);
-    } else if (xml.body.children("iq:barrel").length()) {
-      products.push(...Object.keys(devices).sort());
-    }
-  }
-  let promise = Promise.resolve();
-  const add_one = (product: string, shape: string | undefined = undefined) => {
-    const rawQualifier = resolve_node(state, state[product]);
-    if (!rawQualifier || Array.isArray(rawQualifier)) return;
-    promise = promise
-      .then(() => resolve_literals(rawQualifier, manifest, devices[product]))
-      .then((qualifier) => {
-        targets.push({ product, qualifier, shape });
-        return resolve_barrels(
-          product,
-          qualifier,
-          barrels,
-          products,
-          options,
-          cache
-        );
-      })
-      .then(() => {
-        return;
-      });
-  };
-  products.forEach((product) => {
-    if (hasProperty(state, product)) {
-      const sp = state[product];
-      if (sp && !Array.isArray(sp) && sp.products) {
-        // this was something like round_watch. Add all the corresponding
-        // products.
-        sp.products.forEach((p: string) => add_one(p, product));
-      } else {
-        add_one(product);
+  const buildDependencies: JungleBuildDependencies = {};
+  try {
+    const jungles = jungleFiles
+      .split(";")
+      .map((jungle) => path.resolve(options.workspace || "./", jungle));
+    const barrels_jungle = path.resolve(
+      path.dirname(jungles[0]),
+      "barrels.jungle"
+    );
+    if (!jungles.includes(barrels_jungle)) {
+      if (
+        await fs
+          .stat(barrels_jungle)
+          .then((s) => s.isFile())
+          .catch(() => false)
+      ) {
+        jungles.push(barrels_jungle);
       }
     }
-  });
-  await promise;
-  const { resourceGroups, resources } = await read_resource_files(
-    targets,
-    cache
-  );
-  await find_build_instructions(targets, resourceGroups);
-  return { manifest, targets, xml, annotations, jungles, resources };
+    jungles.forEach((j) => (buildDependencies[j] = true));
+    const { state, devices } = await process_jungles(jungles);
+    // apparently square_watch is an alias for rectangle_watch
+    state["square_watch"] = state["rectangle_watch"];
+    const manifest_node = resolve_node(
+      state,
+      resolve_node_by_path(state, ["project", "manifest"])
+    ) as string[] | null;
+    if (!manifest_node) throw new Error("No manifest found!");
+    const manifest = resolve_filename(manifest_node[0]);
+    buildDependencies[manifest] = true;
+    if (!options.workspace) {
+      options.workspace = path.dirname(manifest);
+    }
+    const xml =
+      (hasProperty(cache.resources, manifest) && cache.resources[manifest]) ||
+      (await readManifest(manifest));
+    if (xml.body instanceof Error) {
+      throw xml;
+    }
+    buildDependencies[manifest] = xml;
+    const targets: Target[] = [];
+    const barrels = manifestBarrels(xml);
+    const annotations = manifestAnnotations(xml);
+    const products = manifestProducts(xml);
+    if (products.length === 0) {
+      if (defaultProducts) {
+        products.push(...defaultProducts);
+      } else if (xml.body.children("iq:barrel").length()) {
+        products.push(...Object.keys(devices).sort());
+      }
+    }
+    let promise = Promise.resolve();
+    const add_one = (
+      product: string,
+      shape: string | undefined = undefined
+    ) => {
+      const rawQualifier = resolve_node(state, state[product]);
+      if (!rawQualifier || Array.isArray(rawQualifier)) return;
+      promise = promise
+        .then(() => resolve_literals(rawQualifier, manifest, devices[product]))
+        .then((qualifier) => {
+          targets.push({ product, qualifier, shape });
+          return resolve_barrels(
+            product,
+            qualifier,
+            barrels,
+            products,
+            options,
+            cache,
+            buildDependencies
+          );
+        })
+        .then(() => {
+          return;
+        });
+    };
+    products.forEach((product) => {
+      if (hasProperty(state, product)) {
+        const sp = state[product];
+        if (sp && !Array.isArray(sp) && sp.products) {
+          // this was something like round_watch. Add all the corresponding
+          // products.
+          sp.products.forEach((p: string) => add_one(p, product));
+        } else {
+          add_one(product);
+        }
+      }
+    });
+    await promise;
+    const { resourceGroups, resources } = await read_resource_files(
+      targets,
+      cache
+    );
+    await find_build_instructions(targets, resourceGroups, buildDependencies);
+    return {
+      manifest,
+      targets,
+      xml,
+      annotations,
+      jungles,
+      resources,
+      buildDependencies,
+    };
+  } catch (e) {
+    const err: JungleError =
+      e instanceof Error ? e : new Error("An unknown error occurred");
+    err.buildDependencies = buildDependencies;
+    throw err;
+  }
 }
 
 export async function get_jungle(

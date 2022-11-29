@@ -87,6 +87,9 @@ async function getProjectInfo() {
 
 export async function getLanguages() {
   const projectInfo = await getProjectInfo();
+  if (projectInfo.body instanceof Error) {
+    throw projectInfo.body;
+  }
   return projectInfo.body
     .children("languages")
     .children("language")

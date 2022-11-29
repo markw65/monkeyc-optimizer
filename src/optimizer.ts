@@ -7,6 +7,8 @@ import { formatAst, getApiMapping, hasProperty, isStateNode } from "./api";
 import { build_project } from "./build";
 import {
   get_jungle,
+  JungleBuildDependencies,
+  JungleError,
   JungleQualifier,
   JungleResourceMap,
   ResolvedBarrel,
@@ -48,6 +50,9 @@ export * from "./optimizer-types";
 export {
   copyRecursiveAsNeeded,
   get_jungle,
+  JungleBuildDependencies,
+  JungleError,
+  JungleResourceMap,
   launchSimulator,
   manifestProducts,
   mctree,
@@ -294,6 +299,9 @@ export async function generateOptimizedProject(options: BuildConfig) {
     config.jungleFiles!,
     config
   );
+  if (xml.body instanceof Error) {
+    throw xml.body;
+  }
   if (!xml.body.children("iq:application").length()) {
     const error = new Error(
       xml.body.children("iq:barrel").length()

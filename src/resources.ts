@@ -196,7 +196,7 @@ export function add_resources_to_ast(
       Strings: [],
     };
     Object.values(resourceMap).forEach((rez) => {
-      if (!rez || !(rez instanceof xmlUtil.Document)) return;
+      if (!rez || rez.body instanceof Error) return;
       visit_resources(rez.body.elements, null, (e, s) => {
         if (!s) return;
         if (!hasProperty(rezModules, s)) return;

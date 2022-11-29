@@ -158,8 +158,8 @@ interface XmlDecl extends BaseNode {
 
 export class Document {
   constructor(
-    public prolog: Prolog,
-    public body: Nodes,
+    public prolog: Prolog | null,
+    public body: Nodes | Error,
     public misc: Array<Misc>,
     public source?: string
   ) {}
@@ -283,10 +283,19 @@ export function parseXml(
   content: string,
   fileName: string | null = null
 ): Document {
-  const [prolog, body, misc] = parse(content, {
-    grammarSource: fileName || "unknown",
-  });
-  return new Document(prolog, new Nodes(body), misc, content);
+  try {
+    const [prolog, body, misc] = parse(content, {
+      grammarSource: fileName || "unknown",
+    });
+    return new Document(prolog, new Nodes(body), misc, content);
+  } catch (e) {
+    return new Document(
+      null,
+      e instanceof Error ? e : new Error("An unknown error occurred"),
+      [],
+      content
+    );
+  }
 }
 
 function reference(s: string | Reference | PEReference) {
@@ -404,6 +413,9 @@ function writeNode(
 }
 
 export function writeXml(doc: Document) {
+  if (doc.body instanceof Error) {
+    throw doc.body;
+  }
   const parts: string[] = [];
   parts.push(writeNode(doc.prolog));
   doc.body.elements.forEach((e) => parts.push(writeNode(e)));
