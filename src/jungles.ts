@@ -20,6 +20,7 @@ type JungleCache = {
   barrels?: Record<string, ResolvedJungle>;
   barrelMap?: Record<string, Record<string, ResolvedJungle>>;
   resources?: JungleResourceMap | undefined;
+  resolvedPaths?: Record<string, boolean>;
 };
 
 export type JungleBuildDependencies = Record<string, xmlUtil.Document | true>;
@@ -363,7 +364,8 @@ function resolve_filename(
 async function resolve_literals(
   qualifier: RawJungle,
   default_source: string,
-  deviceInfo: DeviceInfo[string]
+  deviceInfo: DeviceInfo[string],
+  cache: JungleCache
 ): Promise<JungleQualifier> {
   const resolve_file_list = async (
     literals: JNode[] | NestedStringArray
@@ -381,18 +383,26 @@ async function resolve_literals(
           if (v.type == "SubList") {
             return resolve_file_list(v.values);
           }
-          let resolved = resolve_filename(v, default_source);
-          if (/[*?[\]{}]/.test(resolved)) {
-            // Jungle files can contain "./**.mc" which is supposed to match
-            // any mc file under "./". The standard way to express that
-            // is "./**/*.mc", which is what glob expects, so translate.
-            resolved = resolved.replace(/[\\/]\*\*([^\\/])/g, "/**/*$1");
-            const match = await globa(resolved);
-            return match.length ? resolved : null;
-          } else {
-            const stat = await fs.stat(resolved).catch(() => null);
-            return stat ? resolved : null;
+          // Jungle files can contain "./**.mc" which is supposed to match
+          // any mc file under "./". The standard way to express that
+          // is "./**/*.mc", which is what glob expects, so translate.
+          const resolved = resolve_filename(v, default_source).replace(
+            /[\\/]\*\*([^\\/])/g,
+            "/**/*$1"
+          );
+          if (!cache.resolvedPaths) {
+            cache.resolvedPaths = {};
           }
+          if (!hasProperty(cache.resolvedPaths, resolved)) {
+            if (/[*?[\]{}]/.test(resolved)) {
+              const match = await globa(resolved);
+              cache.resolvedPaths[resolved] = match.length !== 0;
+            } else {
+              const stat = await fs.stat(resolved).catch(() => null);
+              cache.resolvedPaths[resolved] = !!stat;
+            }
+          }
+          return cache.resolvedPaths[resolved] ? resolved : null;
         })
       )
     ).filter((name): name is NonNullable<typeof name> => name != null);
@@ -1122,7 +1132,9 @@ async function get_jungle_and_barrels(
       const rawQualifier = resolve_node(state, state[product]);
       if (!rawQualifier || Array.isArray(rawQualifier)) return;
       promise = promise
-        .then(() => resolve_literals(rawQualifier, manifest, devices[product]))
+        .then(() =>
+          resolve_literals(rawQualifier, manifest, devices[product], cache)
+        )
         .then((qualifier) => {
           targets.push({ product, qualifier, shape });
           return resolve_barrels(
