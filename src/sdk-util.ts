@@ -91,8 +91,13 @@ export async function getLanguages() {
     .children("languages")
     .children("language")
     .attrs()
-    .map(({ id, name }) => ({
-      id,
-      name,
-    }));
+    .map(
+      ({ id, name }) =>
+        id &&
+        name && {
+          id: id.value.value,
+          name: name.value.value,
+        }
+    )
+    .filter((s): s is NonNullable<typeof s> => s != null);
 }

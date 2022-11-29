@@ -549,21 +549,21 @@ async function find_build_instructions_in_resource(
   if (!excludes.length) return null;
   const dir = path.dirname(file);
   const sourceExcludes = excludes
-    .map((e) => e.file)
-    .filter((f: string | null) => f != null)
+    .map((e) => e.file?.value.value)
+    .filter((f: string | undefined): f is string => f != null)
     .map((f: string) => path.resolve(dir, f).replace(/\\/g, "/"));
 
   const filePatterns: string[] = excludes
-    .map((e) => e.dir)
-    .filter((f: string | null) => f != null)
+    .map((e) => e.dir?.value.value)
+    .filter((f: string | undefined): f is string => f != null)
     .map((f: string) => path.join(dir, f, "**", "*.mc").replace(/\\/g, "/"));
   if (filePatterns.length) {
     const files = (await Promise.all(filePatterns.map((p) => globa(p)))).flat();
     sourceExcludes.push(...files);
   }
   const excludeAnnotations = excludes
-    .map((e) => e.annotation)
-    .filter((f: string | null) => f != null);
+    .map((e) => e.annotation?.value.value)
+    .filter((f: string | undefined): f is string => f != null);
   return { sourceExcludes, excludeAnnotations };
 }
 

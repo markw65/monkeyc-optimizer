@@ -1,4 +1,13 @@
-import * as xml from "../build/xml.js";
+import { parse } from "../build/xml.js";
+
+export class PeggyError extends Error {
+  constructor(
+    message: string,
+    public location: SourceLocation | null | undefined
+  ) {
+    super(message);
+  }
+}
 
 export interface Position {
   /** >= 0 */
@@ -25,16 +34,15 @@ interface BaseNode {
   range?: [number, number] | undefined;
 }
 
-/*
- // Attributes are flattened into a Record<string,string>
- // so this isn't actually used.
-
-interface Attribute extends BaseNode {
-  type: "attribute";
-  name: string;
+interface AttrStr extends BaseNode {
+  type: "attrstr";
   value: string;
 }
-*/
+interface Attribute extends BaseNode {
+  type: "attribute";
+  name: AttrStr;
+  value: AttrStr;
+}
 
 interface CharData extends BaseNode {
   type: "chardata";
@@ -129,7 +137,7 @@ export interface PI extends BaseNode {
 export interface Element extends BaseNode {
   type: "element";
   name: string;
-  attr: Record<string, string>;
+  attr: Record<string, Attribute | undefined>;
   children?: Array<Content> | undefined;
 }
 
@@ -254,11 +262,28 @@ export class Nodes {
   }
 }
 
+export function attrString(value: string | AttrStr) {
+  return typeof value === "string"
+    ? ({ type: "attrstr", value } as const)
+    : value;
+}
+
+export function makeAttribute(
+  name: string | AttrStr,
+  value: string | AttrStr
+): Attribute {
+  return {
+    type: "attribute",
+    name: attrString(name),
+    value: attrString(value),
+  };
+}
+
 export function parseXml(
   content: string,
   fileName: string | null = null
 ): Document {
-  const [prolog, body, misc] = xml.parse(content, {
+  const [prolog, body, misc] = parse(content, {
     grammarSource: fileName || "unknown",
   });
   return new Document(prolog, new Nodes(body), misc, content);
@@ -354,7 +379,7 @@ function writeNode(
         .join("")}`;
     case "element": {
       const start = `<${node.name}${Object.entries(node.attr)
-        .map(([k, v]) => ` ${k}=${attributeString(v)}`)
+        .map(([k, v]) => ` ${k}=${attributeString(v!.value.value)}`)
         .join("")}`;
       return node.children && node.children.length
         ? `${start}>${node.children.map(writeNode).join("")}</${node.name}>`

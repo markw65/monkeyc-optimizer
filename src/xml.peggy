@@ -38,11 +38,12 @@
 
   function convertAttr(attr) {
     const ret = {};
-    for (const { name, value, loc } of attr) {
+    for (const at of attr) {
+      const name = at.name.value;
       if (ret[name]) {
-        error(`Duplicate attribute "${name}"`, loc);
+        error(`Duplicate attribute "${name}"`, at.loc);
       }
-      ret[name] = value;
+      ret[name] = at;
     }
     return ret;
   }
@@ -256,8 +257,12 @@ STag
       });
     }
 
+AName = value:Name { return wrap({ type: "attrstr", value }); }
+
+AVal = value:AttValue { return wrap({ type: "attrstr", value }); }
+
 Attribute
-  = name:Name Eq value:AttValue {
+  = name:AName Eq value:AVal {
       return wrap({
         type: "attribute",
         name,

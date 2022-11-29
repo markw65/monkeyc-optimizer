@@ -22,7 +22,8 @@ export function manifestProducts(manifest: ManifestXML): string[] {
     .children("iq:products")
     .children("iq:product")
     .attrs()
-    .map((p) => p.id)
+    .map((p) => p.id?.value.value)
+    .filter((p): p is string => p != null)
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);
 }
@@ -33,7 +34,8 @@ export function manifestBarrels(manifest: ManifestXML): string[] {
     .children("iq:barrels")
     .children("iq:depends")
     .attrs()
-    .map((p) => p.name)
+    .map((p) => p.name?.value.value)
+    .filter((p): p is string => p != null)
     .sort()
     .filter((p, i, a) => !i || p !== a[i - 1]);
 }
@@ -46,20 +48,30 @@ export function manifestBarrelName(
   manifestName: string,
   manifest: ManifestXML
 ): string {
-  const modules = manifest.body
-    .children("iq:barrel")
+  const barrel = manifest.body.children("iq:barrel");
+  if (!barrel.elements.length) {
+    throw new xmlUtil.PeggyError(
+      `Not a barrel manifest: ${manifestName}`,
+      manifest.body.elements[0].loc
+    );
+  }
+  const modules = barrel
     .attrs()
-    .map((a) => a.module);
+    .map((a) => a.module)
+    .filter((a): a is NonNullable<typeof a> => a != null);
   if (!modules.length) {
-    throw new Error(`Not a barrel manifest: ${manifestName}`);
+    throw new xmlUtil.PeggyError(
+      `Not a barrel manifest: ${manifestName}`,
+      barrel.elements[0].loc
+    );
   }
   if (modules.length !== 1) {
-    throw new Error(`Manifest defines multiple modules`);
+    throw new xmlUtil.PeggyError(
+      `Manifest defines multiple modules`,
+      modules[0].loc
+    );
   }
-  if (typeof modules[0] !== "string") {
-    throw new Error("Missing barrel name in manifest");
-  }
-  return modules[0];
+  return modules[0].value.value;
 }
 
 export function manifestAnnotations(
@@ -80,7 +92,7 @@ export async function checkManifest(
   const mattrs = manifest.body.attrs();
   if (
     mattrs.length !== 1 ||
-    mattrs[0]["xmlns:iq"] !== "http://www.garmin.com/xml/connectiq"
+    mattrs[0]["xmlns:iq"]?.value.value !== "http://www.garmin.com/xml/connectiq"
   ) {
     ok = false;
   }
@@ -89,12 +101,15 @@ export async function checkManifest(
   if (app.length() !== 1) return false;
 
   const attrs = app.attrs()[0];
-  const id = attrs.id;
+  const id = attrs.id?.value.value;
   if (typeof id !== "string" || id.length < 32 || !/^[-_0-9a-f.]+$/.test(id)) {
     ok = false;
-    attrs.id = "08070f9d-8b4e-40a4-9c49-fe67a2a55dec";
+    attrs.id = xmlUtil.makeAttribute(
+      "id",
+      "08070f9d-8b4e-40a4-9c49-fe67a2a55dec"
+    );
   }
-  const type = attrs.type.replace(/-/g, "").toLowerCase();
+  const type = attrs.type?.value.value.replace(/-/g, "").toLowerCase();
   const deviceInfo = await getDeviceInfo();
   const allowedProducts = products.sort().filter(
     (p) =>
@@ -117,7 +132,13 @@ export async function checkManifest(
     products.deleteChildren("iq:product");
     products.addChildren(
       allowedProducts.map((id) => {
-        return { type: "element", name: "iq:product", attr: { id } };
+        return {
+          type: "element",
+          name: "iq:product",
+          attr: {
+            id: xmlUtil.makeAttribute("id", id),
+          },
+        };
       })
     );
   }

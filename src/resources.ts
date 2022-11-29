@@ -234,7 +234,11 @@ export function add_resources_to_ast(
               {
                 type: "VariableDeclarator",
                 kind: "var",
-                id: { type: "Identifier", name: e.attr.id, loc: e.loc },
+                id: {
+                  type: "Identifier",
+                  name: e.attr.id.value.value,
+                  loc: e.loc,
+                },
                 loc: e.loc,
               },
             ],
