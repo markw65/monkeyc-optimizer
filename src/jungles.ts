@@ -19,7 +19,12 @@ import { globa } from "./util";
 type JungleCache = {
   barrels?: Record<string, ResolvedJungle>;
   barrelMap?: Record<string, Record<string, ResolvedJungle>>;
-  resources?: JungleResourceMap | undefined;
+  resources:
+    | Record<
+        string,
+        Promise<JungleResourceMap[string]> | JungleResourceMap[string]
+      >
+    | JungleResourceMap;
   resolvedPaths?: Record<string, boolean>;
 };
 
@@ -478,71 +483,82 @@ type ResourceGroups = Record<
 
 async function read_resource_files(targets: Target[], cache: JungleCache) {
   const resourceGroups: ResourceGroups = {};
+  const resourceGroupPromises: Record<
+    string,
+    Promise<ResourceGroups[string]> //| ResourceGroups[string]
+  > = {};
   const resources: JungleResourceMap = {};
+  if (!cache.resources) {
+    cache.resources = {};
+  }
   await Promise.all(
-    targets.map(async (p) => {
-      if (!p.qualifier.resourcePath) return;
+    targets.map((p) => {
+      if (!p.qualifier.resourcePath) return null;
       const key = p.qualifier.resourcePath.join(";");
-      if (!hasProperty(resourceGroups, key)) {
-        const resourceFiles = await Promise.all(
+      if (!hasProperty(resourceGroupPromises, key)) {
+        resourceGroupPromises[key] = Promise.all(
           p.qualifier.resourcePath.map((pattern) =>
             globa(pattern, { mark: true })
           )
-        ).then((patterns) =>
-          Promise.all(
-            patterns
-              .flat()
-              .map((path) =>
-                path.endsWith("/")
-                  ? globa(`${path}**/*.xml`, { mark: true })
-                  : path
-              )
-          ).then((paths) =>
+        )
+          .then((patterns) =>
             Promise.all(
-              paths
+              patterns
                 .flat()
-                .filter((file) => file.endsWith(".xml"))
-                .map((file) => {
-                  if (!cache.resources) {
-                    cache.resources = {};
-                  } else if (hasProperty(cache.resources, file)) {
-                    const rez = cache.resources[file];
-                    resources[file] = rez;
-                    return {
-                      path: file,
-                      resources: rez,
-                    };
-                  }
-                  return fs
-                    .readFile(file)
-                    .then((data) => xmlUtil.parseXml(data.toString(), file))
-                    .then((rez) => {
-                      cache.resources![file] = resources[file] = rez;
-                      return {
-                        path: file,
-                        resources: rez,
-                      };
-                    });
-                })
+                .map((path) =>
+                  path.endsWith("/")
+                    ? globa(`${path}**/*.xml`, { mark: true })
+                    : path
+                )
+            ).then((paths) =>
+              Promise.all(
+                paths
+                  .flat()
+                  .filter((file) => file.endsWith(".xml"))
+                  .map((file) => {
+                    if (!hasProperty(cache.resources, file)) {
+                      cache.resources[file] = fs
+                        .readFile(file)
+                        .then((data) =>
+                          xmlUtil.parseXml(data.toString(), file)
+                        );
+                    }
+                    return Promise.resolve(cache.resources[file]).then(
+                      (rez) => {
+                        cache.resources[file] = resources[file] = rez;
+                        return {
+                          path: file,
+                          resources: rez,
+                        };
+                      }
+                    );
+                  })
+              )
             )
           )
-        );
-        resourceGroups[key] = {
-          resourcePath: p.qualifier.resourcePath,
-          resourceFiles,
-          resourceMap: Object.fromEntries(
-            resourceFiles.map((e) => [e.path, e.resources])
-          ),
-          products: [],
-        };
+          .then(
+            (resourceFiles) =>
+              (resourceGroups[key] = {
+                resourcePath: p.qualifier.resourcePath!,
+                resourceFiles,
+                resourceMap: Object.fromEntries(
+                  resourceFiles.map((e) => [e.path, e.resources])
+                ),
+                products: [],
+              })
+          );
       }
       if (p.qualifier.barrelMap) {
         Object.values(p.qualifier.barrelMap).forEach((e) =>
           Object.assign(resources, e.resources)
         );
       }
-      p.qualifier.resourceMap = resourceGroups[key].resourceMap;
-      resourceGroups[key].products.push(p.product);
+      resourceGroupPromises[key] = resourceGroupPromises[key].then((rg) => {
+        rg.products.push(p.product);
+        p.qualifier.resourceMap = rg.resourceMap;
+        return rg;
+      });
+      return resourceGroupPromises[key];
     })
   );
   return { resources, resourceGroups };
@@ -1106,9 +1122,10 @@ async function get_jungle_and_barrels(
     if (!options.workspace) {
       options.workspace = path.dirname(manifest);
     }
-    const xml =
-      (hasProperty(cache.resources, manifest) && cache.resources[manifest]) ||
-      (await readManifest(manifest));
+    if (!hasProperty(cache.resources, manifest)) {
+      cache.resources[manifest] = readManifest(manifest);
+    }
+    const xml = await Promise.resolve(cache.resources[manifest]);
     if (xml.body instanceof Error) {
       throw xml;
     }
@@ -1192,7 +1209,9 @@ export async function get_jungle(
   resources?: JungleResourceMap | undefined
 ): Promise<ResolvedJungle> {
   options = options || {};
-  const cache: JungleCache = resources ? { resources: { ...resources } } : {};
+  const cache: JungleCache = resources
+    ? { resources: { ...resources } }
+    : { resources: {} };
   const result = await get_jungle_and_barrels(jungles, null, options, cache);
   identify_optimizer_groups(result.targets, options);
   return result;
