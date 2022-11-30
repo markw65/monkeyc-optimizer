@@ -308,7 +308,6 @@ export function reportMissingSymbols(
           // Its not an error to check whether a property exists...
           return undefined;
         }
-        const nodeStr = formatAst(node);
         if (!error) {
           if (
             state.sdkVersion === 4001006 &&
@@ -338,21 +337,24 @@ export function reportMissingSymbols(
             diagnostic(
               state,
               node.loc,
-              `The expression ${nodeStr} will fail at runtime using sdk-4.1.6`,
+              `The expression ${formatAst(
+                node
+              )} will fail at runtime using sdk-4.1.6`,
               compiler2DiagnosticType
             );
           }
           return undefined;
         }
+        let nodeStr;
         if (state.inType) {
-          if (!checkTypes || nodeStr.match(/^Void|Null$/)) {
+          if (!checkTypes || (nodeStr = formatAst(node)).match(/^Void|Null$/)) {
             return undefined;
           }
         }
         diagnostic(
           state,
           node.loc,
-          `Undefined symbol ${nodeStr}`,
+          `Undefined symbol ${nodeStr || formatAst(node)}`,
           diagnosticType
         );
         return false;
