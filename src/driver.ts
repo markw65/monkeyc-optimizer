@@ -1,7 +1,10 @@
 import * as path from "path";
 import {
   buildOptimizedProject,
+  defaultConfig,
   generateOptimizedProject,
+  getProjectAnalysis,
+  get_jungle,
   launchSimulator,
   mctree,
   simulateProgram,
@@ -37,7 +40,8 @@ export async function driver() {
   let promise = Promise.resolve();
   let remoteProjects: RemoteProject[] | undefined;
   let generateOnly: boolean | undefined;
-  let jungleOnly;
+  let jungleOnly: boolean | undefined;
+  let analyzeOnly: boolean | undefined;
   let skipOptimization: boolean | undefined;
   const extraMonkeycArgs: string[] = [];
   let execute = false;
@@ -95,6 +99,9 @@ export async function driver() {
         break;
       case "jungle-only":
         jungleOnly = !value || /^true|1$/i.test(value);
+        break;
+      case "analyze-only":
+        analyzeOnly = !value || /^true|1$/i.test(value);
         break;
       case "typeCheckLevel":
         if (value == null) return key;
@@ -246,6 +253,7 @@ export async function driver() {
       .map((j) => path.resolve(j))
       .join(";");
     const workspace = path.dirname(jungleFiles.split(";")[0]);
+    if (!outputPath) outputPath = defaultConfig.outputPath;
     const options: BuildConfig = {
       jungleFiles,
       workspace,
@@ -276,7 +284,11 @@ export async function driver() {
     );
     return promise
       .then(() =>
-        genOnly
+        analyzeOnly
+          ? get_jungle(options.jungleFiles!, options).then(({ targets }) =>
+              getProjectAnalysis(targets, null, options).then(() => null)
+            )
+          : genOnly
           ? generateOptimizedProject(options).then(() => null)
           : buildOptimizedProject(products ? products[0] : null, options).then(
               ({ exe, args, program, product, hasTests, diagnostics }) => {
