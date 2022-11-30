@@ -206,6 +206,9 @@ export async function driver() {
     promise = promise
       .then(() => fetchGitProjects(rp))
       .then((j) => {
+        console.log(
+          `${new Date().toLocaleString()} - Finished updating projects`
+        );
         jungles.push(...j);
       });
   }
@@ -282,47 +285,57 @@ export async function driver() {
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k as keyof typeof options]
     );
+    let start = 0;
     return promise
-      .then(() =>
-        analyzeOnly
-          ? get_jungle(options.jungleFiles!, options).then(({ targets }) =>
-              getProjectAnalysis(targets, null, options).then(() => null)
-            )
-          : genOnly
-          ? generateOptimizedProject(options).then(() => null)
-          : buildOptimizedProject(products ? products[0] : null, options).then(
-              ({ exe, args, program, product, hasTests, diagnostics }) => {
-                let hasErrors = false;
-                diagnostics &&
-                  Object.keys(diagnostics)
-                    .sort()
-                    .forEach((file) => {
-                      const diags = diagnostics[file];
-                      diags.forEach((diag) => {
-                        if (diag.type === "ERROR") {
-                          hasErrors = true;
-                        }
-                        console.log(
-                          `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
-                        );
+      .then(
+        () => (
+          (start = Date.now()),
+          analyzeOnly
+            ? get_jungle(options.jungleFiles!, options).then(({ targets }) =>
+                getProjectAnalysis(targets, null, options).then(() => null)
+              )
+            : genOnly
+            ? generateOptimizedProject(options).then(() => null)
+            : buildOptimizedProject(
+                products ? products[0] : null,
+                options
+              ).then(
+                ({ exe, args, program, product, hasTests, diagnostics }) => {
+                  let hasErrors = false;
+                  diagnostics &&
+                    Object.keys(diagnostics)
+                      .sort()
+                      .forEach((file) => {
+                        const diags = diagnostics[file];
+                        diags.forEach((diag) => {
+                          if (diag.type === "ERROR") {
+                            hasErrors = true;
+                          }
+                          console.log(
+                            `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
+                          );
+                        });
                       });
-                    });
-                if (hasErrors && !extraArgs.includes("--Eno-invalid-symbol")) {
-                  throw new Error("'ERROR' level diagnostics were reported");
+                  if (
+                    hasErrors &&
+                    !extraArgs.includes("--Eno-invalid-symbol")
+                  ) {
+                    throw new Error("'ERROR' level diagnostics were reported");
+                  }
+                  args.push(...extraArgs);
+                  console.log(
+                    [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
+                  );
+                  return spawnByLine(exe, args, console.log, {
+                    cwd: workspace,
+                  }).then(() => ({
+                    program,
+                    product,
+                    hasTests,
+                  }));
                 }
-                args.push(...extraArgs);
-                console.log(
-                  [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
-                );
-                return spawnByLine(exe, args, console.log, {
-                  cwd: workspace,
-                }).then(() => ({
-                  program,
-                  product,
-                  hasTests,
-                }));
-              }
-            )
+              )
+        )
       )
       .then((res) => {
         if (showInfo && res && res.program) {
@@ -434,7 +447,11 @@ export async function driver() {
         return null;
       })
       .then(() =>
-        console.log(`Done: ${new Date().toLocaleString()} - ${jungleFiles}`)
+        console.log(
+          `Done: ${new Date().toLocaleString()} (${
+            Date.now() - start
+          }ms) - ${jungleFiles}`
+        )
       )
       .catch((ex: unknown) => {
         if (ex instanceof Error) {
