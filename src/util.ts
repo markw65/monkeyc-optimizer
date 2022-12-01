@@ -1,7 +1,7 @@
 import * as child_process from "child_process";
 import * as fsc from "fs";
 import * as fs from "fs/promises";
-import * as glob from "glob";
+import * as glob from "fast-glob";
 import * as path from "path";
 import * as readline from "readline";
 
@@ -12,14 +12,36 @@ global["lastModifiedSource" + ""] = 0;
 
 export function globa(
   pattern: string,
-  options?: glob.IOptions
+  options?: glob.Options & { mark?: boolean }
 ): Promise<Array<string>> {
-  return new Promise((resolve, reject) => {
-    glob.glob(pattern.replace(/\\/g, "/"), options || {}, (er, files) => {
-      if (er) {
-        reject(files);
-      } else {
-        resolve(files);
+  if (options?.mark) {
+    options.markDirectories = true;
+    options.onlyFiles = false;
+  }
+  return glob(pattern.replace(/\\/g, "/"), options || {});
+}
+
+export function globSome(
+  pattern: string,
+  predicate: (path: string) => boolean,
+  options?: glob.Options & { mark?: boolean }
+): Promise<boolean> {
+  return new Promise<boolean>((resolve, _reject) => {
+    const stream = glob.stream(
+      pattern,
+      options || {}
+    ) as NodeJS.ReadableStream & {
+      destroy: () => void;
+    };
+    let result = false;
+    const resolver = () => {
+      resolve(result);
+    };
+    stream.on("close", resolver);
+    stream.on("data", (str: string) => {
+      if (predicate(str)) {
+        result = true;
+        stream.destroy();
       }
     });
   });

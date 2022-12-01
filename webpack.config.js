@@ -140,6 +140,7 @@ export default async (env, argv) => {
         child_process: "child_process",
         readline: "readline",
         assert: "assert",
+        os: "os",
         util: "util",
         stream: "stream",
         string_decoder: "string_decoder",

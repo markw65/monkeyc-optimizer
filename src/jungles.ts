@@ -14,7 +14,7 @@ import {
 } from "./manifest";
 import { BuildConfig } from "./optimizer-types.js";
 import { DeviceInfo, getDeviceInfo, getLanguages, xmlUtil } from "./sdk-util";
-import { globa } from "./util";
+import { globa, globSome } from "./util";
 
 type JungleCache = {
   barrels?: Record<string, ResolvedJungle>;
@@ -25,7 +25,7 @@ type JungleCache = {
         Promise<JungleResourceMap[string]> | JungleResourceMap[string]
       >
     | JungleResourceMap;
-  resolvedPaths?: Record<string, boolean>;
+  resolvedPaths: Record<string, Promise<boolean>>;
 };
 
 export type JungleBuildDependencies = Record<string, xmlUtil.Document | true>;
@@ -397,19 +397,17 @@ async function resolve_literals(
             /[\\/]\*\*([^\\/])/g,
             "/**/*$1"
           );
-          if (!cache.resolvedPaths) {
-            cache.resolvedPaths = {};
-          }
           if (!hasProperty(cache.resolvedPaths, resolved)) {
             if (/[*?[\]{}]/.test(resolved)) {
-              const match = await globa(resolved);
-              cache.resolvedPaths[resolved] = match.length !== 0;
+              cache.resolvedPaths[resolved] = globSome(resolved, () => true);
             } else {
-              const stat = await fs.stat(resolved).catch(() => null);
-              cache.resolvedPaths[resolved] = !!stat;
+              cache.resolvedPaths[resolved] = fs
+                .stat(resolved)
+                .then(() => true)
+                .catch(() => false);
             }
           }
-          return cache.resolvedPaths[resolved] ? resolved : null;
+          return (await cache.resolvedPaths[resolved]) ? resolved : null;
         })
       )
     ).filter((name): name is NonNullable<typeof name> => name != null);
@@ -1211,9 +1209,10 @@ export async function get_jungle(
   resources?: JungleResourceMap | undefined
 ): Promise<ResolvedJungle> {
   options = options || {};
-  const cache: JungleCache = resources
-    ? { resources: { ...resources } }
-    : { resources: {} };
+  const cache: JungleCache = {
+    resources: { ...(resources || {}) },
+    resolvedPaths: {},
+  };
   const result = await get_jungle_and_barrels(jungles, null, options, cache);
   identify_optimizer_groups(result.targets, options);
   return result;
