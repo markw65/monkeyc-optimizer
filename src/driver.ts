@@ -10,7 +10,7 @@ import {
   simulateProgram,
 } from "./optimizer";
 import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
-import { globa, spawnByLine } from "./util";
+import { globa, promiseAll, spawnByLine } from "./util";
 import { BuildConfig, DiagnosticType } from "./optimizer-types";
 import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
 import { checkCompilerVersion, parseSdkVersion } from "./api";
@@ -51,6 +51,7 @@ export async function driver() {
   let sizeBasedPRE: string | boolean = true;
   let checkBuildPragmas: boolean | undefined;
   let showInfo = false;
+  let parallelism = 4;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -72,6 +73,10 @@ export async function driver() {
       error(`Missing arg for '${key}'`);
     }
     switch (key) {
+      case "parallelism":
+        if (value == null) return key;
+        parallelism = parseInt(value, 10);
+        break;
       case "output-path":
         if (value == null) return key;
         outputPath = value;
@@ -246,6 +251,8 @@ export async function driver() {
   const failures: [string, unknown][] = [];
   const runOne = (
     promise: Promise<unknown>,
+    serializeSim: { promise: Promise<unknown> },
+    logger: (line: unknown, err?: boolean) => void,
     products: string[],
     jungleInfo: JungleInfo
   ) => {
@@ -311,7 +318,7 @@ export async function driver() {
                           if (diag.type === "ERROR") {
                             hasErrors = true;
                           }
-                          console.log(
+                          logger(
                             `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
                           );
                         });
@@ -323,10 +330,10 @@ export async function driver() {
                     throw new Error("'ERROR' level diagnostics were reported");
                   }
                   args.push(...extraArgs);
-                  console.log(
+                  logger(
                     [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
                   );
-                  return spawnByLine(exe, args, console.log, {
+                  return spawnByLine(exe, args, logger, {
                     cwd: workspace,
                   }).then(() => ({
                     program,
@@ -340,7 +347,7 @@ export async function driver() {
       .then((res) => {
         if (showInfo && res && res.program) {
           return readPrg(res.program).then((info) => {
-            console.log(
+            logger(
               `${path.basename(res.program)} sizes: text: ${
                 info[SectionKinds.TEXT]
               } data: ${info[SectionKinds.DATA]}`
@@ -357,7 +364,7 @@ export async function driver() {
           res.program &&
           res.product
         ) {
-          console.log(
+          logger(
             `${testBuild && res.hasTests ? "Running tests" : "Executing"} ${
               res.program
             } on ${res.product}`
@@ -419,35 +426,38 @@ export async function driver() {
                 pass = false;
               }
             }
-            console.log(line);
+            logger(line);
           };
-          return launchSimulator(pass !== undefined).then(() =>
-            simulateProgram(
-              res.program,
-              res.product!,
-              pass === undefined ? testBuild : false,
-              [handler, handler]
-            )
-              .catch(() => null)
-              .then(() => {
-                if (!pass) {
-                  const e: Error & { products?: string[] } = new Error(
-                    pass === false
-                      ? "Tests failed!"
-                      : "Tests didn't report their status!"
-                  );
-                  if (res.product) {
-                    e.products = [res.product];
+          serializeSim.promise = serializeSim.promise
+            .then(() => launchSimulator(pass !== undefined))
+            .then(() =>
+              simulateProgram(
+                res.program,
+                res.product!,
+                pass === undefined ? testBuild : false,
+                [handler, handler]
+              )
+                .catch(() => null)
+                .then(() => {
+                  if (!pass) {
+                    const e: Error & { products?: string[] } = new Error(
+                      pass === false
+                        ? "Tests failed!"
+                        : "Tests didn't report their status!"
+                    );
+                    if (res.product) {
+                      e.products = [res.product];
+                    }
+                    throw e;
                   }
-                  throw e;
-                }
-              })
-          );
+                })
+            );
+          return serializeSim.promise;
         }
         return null;
       })
       .then(() =>
-        console.log(
+        logger(
           `Done: ${new Date().toLocaleString()} (${
             Date.now() - start
           }ms) - ${jungleFiles}`
@@ -459,50 +469,61 @@ export async function driver() {
             products?: string[];
             location?: NonNullable<mctree.Node["loc"]>;
           };
-          const products =
-            "products" in e && e.products && e.products.join(",");
-          console.error(
+          const products = e.products && e.products.join(",");
+          logger(
             `While building '${jungleFiles}${
               products ? ` for ${products}` : ""
-            }`
+            }`,
+            true
           );
           if (e.name && e.message && e.location) {
             const source = e.location.source
               ? cleanPath(options.workspace, e.location.source)
               : "<unknown>";
             ex = `${e.name}: ${source}:${e.location.start.line},${e.location.start.column}: ${e.message}`;
-            console.error(`ERROR: ${ex}`);
+            logger(`ERROR: ${ex}`, true);
           } else {
             ex = e.toString();
-            console.error(e);
+            logger(e, true);
           }
         }
         failures.push([jungleFiles, ex]);
       });
   };
-  await jungles.reduce(
-    (promise, jungleFiles) => {
-      const jf =
-        typeof jungleFiles === "string"
-          ? {
-              jungle: jungleFiles,
-              build: null,
-              options: null,
-              garminOptLevel: null,
-            }
-          : jungleFiles;
+  const serializeSim = { promise: Promise.resolve() };
+  const start = Date.now();
+  await promiseAll((index: number) => {
+    if (index >= jungles.length) return null;
+    const jungleFiles = jungles[index];
+    const parts: { line: unknown; err: boolean | undefined }[] = [];
+    const logger = (line: unknown, err?: boolean) => {
+      parts.push({ line, err });
+    };
+    const jf =
+      typeof jungleFiles === "string"
+        ? {
+            jungle: jungleFiles,
+            build: null,
+            options: null,
+            garminOptLevel: null,
+          }
+        : jungleFiles;
 
-      if (testBuild) {
-        return products!.reduce(
-          (promise, product) => runOne(promise, [product], jf),
-          promise
-        );
-      }
-      return runOne(promise, products!, jf);
-    },
+    const promise = testBuild
+      ? products!.reduce(
+          (promise, product) =>
+            runOne(promise, serializeSim, logger, [product], jf),
+          Promise.resolve()
+        )
+      : runOne(Promise.resolve(), serializeSim, logger, products!, jf);
 
-    Promise.resolve()
-  );
+    return promise.then(() =>
+      parts.forEach((part) =>
+        part.err ? console.error(part.line) : console.log(part.line)
+      )
+    );
+  }, parallelism);
+  console.log(`Total runtime: ${Date.now() - start}ms`);
   if (failures.length) {
     throw new Error(
       failures
