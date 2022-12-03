@@ -221,7 +221,9 @@ async function parse_one(file: string | string[]) {
   const source = await fs.readFile(fileName).catch(() => {
     throw new Error(`Couldn't read jungle file '${fileName}`);
   });
-  const assignments = jungle.parse(source.toString(), { grammarSource });
+  const assignments = jungle.parse(source.toString(), {
+    grammarSource,
+  }) as Assignment[];
   return evaluate_locals(assignments);
 }
 

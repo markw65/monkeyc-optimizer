@@ -1,4 +1,5 @@
 import { parse } from "../build/xml.js";
+import { xmlUtil } from "./sdk-util.js";
 
 export class PeggyError extends Error {
   constructor(
@@ -286,7 +287,7 @@ export function parseXml(
   try {
     const [prolog, body, misc] = parse(content, {
       grammarSource: fileName || "unknown",
-    });
+    }) as [xmlUtil.Prolog, xmlUtil.Element, xmlUtil.Misc[]];
     return new Document(prolog, new Nodes(body), misc, content);
   } catch (e) {
     return new Document(
