@@ -102,8 +102,6 @@ export async function getApiMapping(
   const api = (await fs.readFile(`${sdk}bin/api.mir`))
     .toString()
     .replace(/\r\n/g, "\n")
-    .replace(/^\s*\[.*?\]\s*$/gm, "")
-    //.replace(/(COLOR_TRANSPARENT|LAYOUT_[HV]ALIGN_\w+) = (\d+)/gm, "$1 = -$2")
     .replace(/^(\s*type)\s/gm, "$1def ");
 
   try {
