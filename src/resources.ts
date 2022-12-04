@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { Program } from "@markw65/prettier-plugin-monkeyc/build/src/estree-types";
 import { hasProperty } from "./ast";
 import { JungleResourceMap } from "./jungles";
 import { xmlUtil } from "./sdk-util";
@@ -144,14 +143,14 @@ export function visit_resources(
             error(e);
             break;
           }
-          visit(e, null);
+          visit(e, "Settings");
           break;
         case "group":
           if (pname !== "settings" /* && pname !== "resources" */) {
             error(e);
             break;
           }
-          visit(e, null);
+          visit(e, "Settings");
           break;
 
         case "fitField":
@@ -159,7 +158,7 @@ export function visit_resources(
             error(e);
             break;
           }
-          visit(e, null);
+          visit(e, "FitFields");
           break;
         case "jsonData":
           if (pname && pname != "jsonDataResources" && pname !== "resources") {
@@ -182,34 +181,47 @@ export function visit_resources(
 }
 
 export function add_resources_to_ast(
-  ast: Program,
+  ast: mctree.Program,
   resources: Record<string, JungleResourceMap>
 ) {
+  const modules = {
+    Drawables: true,
+    Fonts: true,
+    JsonData: true,
+    Layouts: true,
+    Menus: true,
+    Strings: true,
+    Properties: false,
+    Settings: false,
+    FitFields: false,
+  };
+  const outerLoc = ast.loc && { ...ast.loc };
+  const makeModule = (m: string): mctree.ModuleDeclaration => ({
+    type: "ModuleDeclaration",
+    id: { type: "Identifier", name: m },
+    body: { type: "BlockStatement", body: [] },
+    loc: outerLoc,
+  });
+  const makeImport = <T extends "ImportModule" | "Using">(
+    type: T,
+    module: string,
+    as?: string | null
+  ) => {
+    const id = makeScopedName(module)!;
+    return type === "Using" && as
+      ? { type, id, as: makeIdentifier(as) }
+      : { type, id };
+  };
+
+  ast.body.push(
+    makeImport("ImportModule", "Toybox.Lang"),
+    makeImport("Using", "Toybox.WatchUi"),
+    makeImport("Using", "Toybox.WatchUi", "Ui"),
+    makeImport("Using", "Toybox.Graphics"),
+    makeImport("Using", "Toybox.Graphics", "Gfx")
+  );
+
   Object.entries(resources).forEach(([barrel, resourceMap]) => {
-    const rezModules: Record<string, xmlUtil.Element[]> = {
-      Drawables: [],
-      Fonts: [],
-      JsonData: [],
-      Layouts: [],
-      Menus: [],
-      Properties: [],
-      Strings: [],
-    };
-    Object.values(resourceMap).forEach((rez) => {
-      if (!rez || rez.body instanceof Error) return;
-      visit_resources(rez.body.elements, null, (e, s) => {
-        if (!s) return;
-        if (!hasProperty(rezModules, s)) return;
-        rezModules[s].push(e);
-      });
-    });
-    const outerLoc = ast.loc && { ...ast.loc };
-    const makeModule = (m: string): mctree.ModuleDeclaration => ({
-      type: "ModuleDeclaration",
-      id: { type: "Identifier", name: m },
-      body: { type: "BlockStatement", body: [] },
-      loc: outerLoc,
-    });
     let body: (mctree.Statement | mctree.ImportStatement)[] = ast.body;
 
     if (barrel !== "") {
@@ -220,32 +232,261 @@ export function add_resources_to_ast(
 
     const rez = makeModule("Rez");
     body.push(rez);
-    body = rez.body.body;
+    const hiddenRez = makeModule("*Rez*");
+    rez.body.body.push(hiddenRez);
 
-    Object.entries(rezModules).forEach(([m, elements]) => {
-      const module = makeModule(m);
-      body.push(module);
-      elements.forEach(
-        (e) =>
-          e.attr.id &&
-          module.body.body.push({
-            type: "VariableDeclaration",
-            declarations: [
-              {
-                type: "VariableDeclarator",
-                kind: "var",
-                id: {
-                  type: "Identifier",
-                  name: e.attr.id.value.value,
-                  loc: e.loc,
-                },
-                loc: e.loc,
-              },
-            ],
-            kind: "var",
-            loc: e.loc,
-          })
-      );
+    const rezModules = Object.fromEntries(
+      Object.entries(modules).map(([moduleName, isPublic]) => {
+        const module = makeModule(moduleName);
+        (isPublic ? rez : hiddenRez).body.body.push(module);
+        return [moduleName, module];
+      })
+    );
+    Object.values(resourceMap).forEach((rez) => {
+      if (!rez || rez.body instanceof Error) return;
+      visit_resources(rez.body.elements, null, (e, s) => {
+        if (!s) return;
+        if (!hasProperty(rezModules, s)) return;
+        const module = rezModules[s];
+
+        add_one_resource(module, e);
+      });
     });
   });
+}
+
+function makeIdentifier(
+  name: string,
+  loc?: mctree.SourceLocation | null | undefined
+) {
+  return wrap({ type: "Identifier", name }, loc);
+}
+
+function makeMemberExpression(
+  object: mctree.ScopedName,
+  property: mctree.Identifier
+): mctree.DottedName {
+  return wrap(
+    {
+      type: "MemberExpression",
+      object,
+      property,
+      computed: false,
+    },
+    object.loc && locRange(object.loc, property.loc!)
+  );
+}
+
+function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
+  const loc = l && adjustLoc(l, 0, l.start.offset - l.end.offset);
+  return dotted.split(".").reduce<{
+    cur: mctree.ScopedName | null;
+    offset: number;
+  }>(
+    ({ cur, offset }, next) => {
+      const id = makeIdentifier(
+        next,
+        loc && adjustLoc(loc, offset, offset + next.length)
+      );
+      if (!cur) {
+        cur = id;
+      } else {
+        cur = makeMemberExpression(cur, id);
+      }
+      offset += next.length + 1;
+      return { cur, offset };
+    },
+    { cur: null, offset: 0 }
+  ).cur;
+}
+
+function visit_resource_refs(e: xmlUtil.Element) {
+  const result: Array<mctree.ScopedName> = [];
+  const stringToScopedName = (
+    element: string,
+    id: string | null,
+    dotted: string,
+    l: mctree.SourceLocation
+  ) => {
+    const match = dotted.match(/^(@)?([\w_$]+\s*\.\s*)*[\w_$]+$/);
+    if (!match) return;
+    let offset = 0;
+    if (match[1]) {
+      offset = 1;
+    } else if (
+      (element === "drawable" && id === "class") ||
+      (element === "iq:application" && id === "entry")
+    ) {
+      // nothing to do
+    } else {
+      return;
+    }
+    const dn = makeScopedName(
+      dotted.substring(offset),
+      adjustLoc(l, offset, 0)
+    );
+    if (dn) result.push(dn);
+  };
+
+  visit_resources([e], null, {
+    pre(node: xmlUtil.Content) {
+      if (node.type === "element") {
+        Object.values(node.attr).forEach((attr) => {
+          if (!attr || !attr.value.loc) return;
+          const loc = adjustLoc(attr.value.loc!);
+          attr &&
+            stringToScopedName(
+              node.name,
+              attr.name.value,
+              attr.value.value,
+              loc
+            );
+        });
+        if (
+          node.children &&
+          node.children.length === 1 &&
+          node.children[0].type === "chardata"
+        ) {
+          stringToScopedName(
+            node.name,
+            null,
+            node.children[0].value,
+            node.children[0].loc!
+          );
+        }
+        return;
+      }
+    },
+  });
+  return result;
+}
+
+function wrap<T extends mctree.Node>(
+  node: T,
+  loc?: mctree.SourceLocation | null
+): T {
+  if (loc) {
+    node.loc = loc;
+    node.start = loc.start.offset;
+    node.end = loc.end.offset;
+  }
+  return node;
+}
+
+function locRange(start: mctree.SourceLocation, end: mctree.SourceLocation) {
+  return {
+    source: start.source || end.source,
+    start: start.start,
+    end: end.end,
+  };
+}
+
+function adjustLoc(loc: xmlUtil.SourceLocation, start = 1, end = -1) {
+  /* Attributes are quoted, so skip the quotes */
+  return {
+    source: loc.source,
+    start: {
+      offset: loc.start.offset + start,
+      line: loc.start.line,
+      column: loc.start.column + start,
+    },
+    end: {
+      offset: loc.end.offset + end,
+      line: loc.end.line,
+      column: loc.end.column + end,
+    },
+  } as const;
+}
+
+function add_one_resource(
+  module: mctree.ModuleDeclaration,
+  e: xmlUtil.Element
+) {
+  let id: xmlUtil.Attribute | undefined;
+  let func: (() => mctree.Declaration | null) | undefined;
+
+  const varDecl = (): mctree.VariableDeclaration => {
+    const loc = id && adjustLoc(id.value.loc!);
+    return wrap(
+      {
+        type: "VariableDeclaration",
+        declarations: [
+          wrap(
+            {
+              type: "VariableDeclarator",
+              kind: "var",
+              id: makeIdentifier(id ? id.value.value : "*invalid*", loc),
+              init,
+            },
+            loc
+          ),
+        ],
+        kind: "var",
+      },
+      loc
+    );
+  };
+
+  const classDecl = (parent: string): mctree.ClassDeclaration | null => {
+    if (!id) return null;
+    const loc = id.value.loc;
+    const items: mctree.ClassElement[] = init
+      ? [{ type: "ClassElement", item: varDecl(), loc }]
+      : [];
+    return {
+      type: "ClassDeclaration",
+      body: { type: "ClassBody", body: items, loc },
+      id: makeIdentifier(id.value.value, loc),
+      superClass: makeScopedName(parent),
+      loc,
+    };
+  };
+
+  switch (e.name) {
+    case "font":
+    case "string":
+    case "jsonData":
+    case "animation":
+    case "bitmap":
+    case "layout":
+    case "drawable-list":
+    case "property":
+    case "fitField":
+      id = e.attr.id;
+      func = varDecl;
+      break;
+    case "menu":
+      id = e.attr.id;
+      func = () => classDecl("Ui.Menu");
+      break;
+    case "menu2":
+      id = e.attr.id;
+      func = () => classDecl("Ui.Menu2");
+      break;
+    case "checkbox-menu":
+      id = e.attr.id;
+      func = () => classDecl("Ui.CheckboxMenu");
+      break;
+    case "action-menu":
+      id = e.attr.id;
+      func = () => classDecl("Ui.Menu2");
+      break;
+
+    case "setting":
+    case "group":
+      func = varDecl;
+      break;
+  }
+  if (!func) return;
+  const elements = visit_resource_refs(e);
+  const init = elements.length
+    ? ({ type: "ArrayExpression", elements } as const)
+    : undefined;
+  if (!id) {
+    if (!init) return;
+  }
+  const item = func();
+  if (item) {
+    module.body.body.push(item);
+  }
 }

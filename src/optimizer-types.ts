@@ -152,6 +152,7 @@ export type ProgramState = {
   allFunctions?: Record<string, FunctionStateNode[]>;
   allClasses?: ClassStateNode[];
   fnMap?: FilesToOptimizeMap;
+  rezAst?: mctree.Program;
   stack?: ProgramStateStack;
   currentFunction?: FunctionStateNode;
   removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;

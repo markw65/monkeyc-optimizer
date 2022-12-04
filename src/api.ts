@@ -109,9 +109,16 @@ export async function getApiMapping(
       filepath: "api.mir",
     }) as mctree.Program;
     if (resourcesMap) {
-      add_resources_to_ast(ast, resourcesMap);
+      const rezAst: mctree.Program = state
+        ? state.rezAst || { type: "Program", body: [] }
+        : ast;
+      add_resources_to_ast(rezAst, resourcesMap);
+      if (state) state.rezAst = rezAst;
     }
     const result = collectNamespaces(ast, state);
+    if (state && state.rezAst) {
+      collectNamespaces(state.rezAst, state);
+    }
     negativeFixups.forEach((fixup) => {
       const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
         const decls = isStateNode(state) && state.decls?.[part];

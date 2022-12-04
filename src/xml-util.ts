@@ -39,13 +39,13 @@ interface AttrStr extends BaseNode {
   type: "attrstr";
   value: string;
 }
-interface Attribute extends BaseNode {
+export interface Attribute extends BaseNode {
   type: "attribute";
   name: AttrStr;
   value: AttrStr;
 }
 
-interface CharData extends BaseNode {
+export interface CharData extends BaseNode {
   type: "chardata";
   value: string;
 }

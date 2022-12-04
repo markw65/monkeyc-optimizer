@@ -302,8 +302,8 @@ export function reportMissingSymbols(
   ) {
     const checkTypes =
       config?.typeCheckLevel && config.typeCheckLevel !== "Off";
-    Object.entries(state.fnMap).forEach(([, v]) => {
-      visitReferences(state, v.ast!, null, false, (node, results, error) => {
+    const report = (ast: mctree.Program) => {
+      visitReferences(state, ast, null, false, (node, results, error) => {
         if (node.type === "BinaryExpression" && node.operator === "has") {
           // Its not an error to check whether a property exists...
           return undefined;
@@ -359,7 +359,9 @@ export function reportMissingSymbols(
         );
         return false;
       });
-    });
+    };
+    Object.values(state.fnMap).forEach((v) => v.ast && report(v.ast));
+    state.rezAst && report(state.rezAst);
   }
 }
 
