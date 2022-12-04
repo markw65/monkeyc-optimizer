@@ -729,13 +729,15 @@ async function generateOneConfig(
     }
   }
 
-  await fs.rm(output, { recursive: true, force: true });
-  await fs.mkdir(output, { recursive: true });
-  const diagnostics = await optimizeMonkeyC(fnMap, resourcesMap, config);
-  return Prettier.resolveConfig(config.workspace!, {
-    useCache: false,
-    editorconfig: true,
-  }).then((prettierConfig) => {
+  const [, , prettierConfig] = await Promise.all([
+    fs.rm(output, { recursive: true, force: true }),
+    fs.mkdir(output, { recursive: true }),
+    Prettier.resolveConfig(config.workspace!, {
+      useCache: false,
+      editorconfig: true,
+    }),
+  ]);
+  return optimizeMonkeyC(fnMap, resourcesMap, config).then((diagnostics) => {
     const options = { ...prettierConfig, ...(config.prettier || {}) };
     return Promise.all(
       Object.values(fnMap).map(async (info) => {
