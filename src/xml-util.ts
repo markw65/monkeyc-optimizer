@@ -158,6 +158,7 @@ interface XmlDecl extends BaseNode {
 }
 
 export class Document {
+  public data?: Record<string, unknown>;
   constructor(
     public prolog: Prolog | null,
     public body: Nodes | Error,

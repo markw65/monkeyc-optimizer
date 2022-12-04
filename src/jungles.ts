@@ -946,6 +946,9 @@ function resolve_barrel(
   return promise
     .then(() => get_jungle_and_barrels(rawBarrel, products, options, cache))
     .then((result) => {
+      Object.values(result.resources).forEach(
+        (rez) => rez.data || (rez.data = { barrel })
+      );
       Object.entries(result.buildDependencies).forEach(
         ([k, v]) => (buildDependencies[k] = v)
       );
