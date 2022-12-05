@@ -166,6 +166,9 @@ export async function copyRecursiveAsNeeded(
 ): Promise<void> {
   const fstat = fs.stat;
   const sstat = await fstat(source);
+  if (filter && !filter(source, target)) {
+    return;
+  }
   if (sstat.isDirectory()) {
     const stat = await fstat(target).catch(() => null);
 
@@ -185,9 +188,6 @@ export async function copyRecursiveAsNeeded(
       return;
     });
   } else {
-    if (filter && !filter(source, target)) {
-      return;
-    }
     const tstat = await fstat(target).catch(() => null);
     if (!tstat || tstat.mtimeMs < sstat.mtimeMs) {
       return fs.copyFile(source, target, fsc.constants.COPYFILE_FICLONE);
