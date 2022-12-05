@@ -44,6 +44,7 @@ import {
 } from "./optimizer-types";
 import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
+import { xmlUtil } from "./sdk-util";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
@@ -191,8 +192,9 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
 
 export async function analyze(
   fnMap: FilesToOptimizeMap,
-  resourcesMap?: Record<string, JungleResourceMap>,
-  config?: BuildConfig
+  resourcesMap: Record<string, JungleResourceMap>,
+  manifestXML: xmlUtil.Document,
+  config: BuildConfig
 ) {
   let hasTests = false;
   let markApi = true;
@@ -258,7 +260,7 @@ export async function analyze(
     },
   };
 
-  await getApiMapping(preState, resourcesMap);
+  await getApiMapping(preState, resourcesMap, manifestXML);
   markApi = false;
 
   const state = preState as ProgramStateAnalysis;
@@ -696,14 +698,17 @@ function markFunctionCalled(
   }
   pushUnique(state.calledFunctions[func.id.name], func);
 }
+
 export async function optimizeMonkeyC(
   fnMap: FilesToOptimizeMap,
-  resourcesMap?: Record<string, JungleResourceMap>,
-  config?: BuildConfig
+  resourcesMap: Record<string, JungleResourceMap>,
+  manifestXML: xmlUtil.Document,
+  config: BuildConfig
 ) {
   const state = (await analyze(
     fnMap,
     resourcesMap,
+    manifestXML,
     config
   )) as ProgramStateOptimizer;
   state.localsStack = [{}];

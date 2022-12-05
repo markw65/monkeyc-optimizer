@@ -298,8 +298,11 @@ export async function driver() {
         () => (
           (start = Date.now()),
           analyzeOnly
-            ? get_jungle(options.jungleFiles!, options).then(({ targets }) =>
-                getProjectAnalysis(targets, null, options).then(() => null)
+            ? get_jungle(options.jungleFiles!, options).then(
+                ({ targets, xml }) =>
+                  getProjectAnalysis(targets, null, xml, options).then(
+                    () => null
+                  )
               )
             : genOnly
             ? generateOptimizedProject(options).then(() => null)

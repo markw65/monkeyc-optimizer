@@ -36,7 +36,7 @@ import {
   ProgramStateAnalysis,
   StateNode,
 } from "./optimizer-types";
-import { appSupport } from "./sdk-util";
+import { appSupport, xmlUtil } from "./sdk-util";
 import {
   copyRecursiveAsNeeded,
   first_modified,
@@ -391,7 +391,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
       const outputPath = path.join(config.outputPath!, key);
 
       return buildConfig
-        ? generateOneConfig(buildConfig, dependencyFiles, {
+        ? generateOneConfig(buildConfig, xml, dependencyFiles, {
             ...config,
             outputPath,
           })
@@ -623,6 +623,7 @@ const configOptionsToCheck = [
  */
 async function generateOneConfig(
   buildConfig: JungleQualifier,
+  manifestXML: xmlUtil.Document,
   dependencyFiles: string[],
   config: BuildConfig
 ): Promise<{
@@ -737,41 +738,44 @@ async function generateOneConfig(
       editorconfig: true,
     }),
   ]);
-  return optimizeMonkeyC(fnMap, resourcesMap, config).then((diagnostics) => {
-    const options = { ...prettierConfig, ...(config.prettier || {}) };
-    return Promise.all(
-      Object.values(fnMap).map(async (info) => {
-        const name = info.output;
-        const dir = path.dirname(name);
-        await fs.mkdir(dir, { recursive: true });
+  return optimizeMonkeyC(fnMap, resourcesMap, manifestXML, config).then(
+    (diagnostics) => {
+      const options = { ...prettierConfig, ...(config.prettier || {}) };
+      return Promise.all(
+        Object.values(fnMap).map(async (info) => {
+          const name = info.output;
+          const dir = path.dirname(name);
+          await fs.mkdir(dir, { recursive: true });
 
-        options.filepath = name;
-        const opt_source = formatAst(info.ast!, info.monkeyCSource, options);
-        await fs.writeFile(name, opt_source);
-        return info.hasTests;
-      })
-    ).then((results) => {
-      const hasTests = results.some((v) => v);
-      return fs
-        .writeFile(
-          path.join(output, "build-info.json"),
-          JSON.stringify({
-            hasTests,
-            diagnostics,
-            optimizerVersion: MONKEYC_OPTIMIZER_VERSION,
-            ...Object.fromEntries(
-              configOptionsToCheck.map((option) => [option, config[option]])
-            ),
-          })
-        )
-        .then(() => ({ hasTests, diagnostics }));
-    });
-  });
+          options.filepath = name;
+          const opt_source = formatAst(info.ast!, info.monkeyCSource, options);
+          await fs.writeFile(name, opt_source);
+          return info.hasTests;
+        })
+      ).then((results) => {
+        const hasTests = results.some((v) => v);
+        return fs
+          .writeFile(
+            path.join(output, "build-info.json"),
+            JSON.stringify({
+              hasTests,
+              diagnostics,
+              optimizerVersion: MONKEYC_OPTIMIZER_VERSION,
+              ...Object.fromEntries(
+                configOptionsToCheck.map((option) => [option, config[option]])
+              ),
+            })
+          )
+          .then(() => ({ hasTests, diagnostics }));
+      });
+    }
+  );
 }
 
 export async function getProjectAnalysis(
   targets: Target[],
   analysis: PreAnalysis | null,
+  manifestXML: xmlUtil.Document,
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
   const sourcePath = targets
@@ -830,7 +834,7 @@ export async function getProjectAnalysis(
       );
     }
   });
-  const state = await analyze(fnMap, resourcesMap, options);
+  const state = await analyze(fnMap, resourcesMap, manifestXML, options);
   reportMissingSymbols(state, options);
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state };

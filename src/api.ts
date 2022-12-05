@@ -29,7 +29,7 @@ import {
   StateNodeDecls,
 } from "./optimizer-types";
 import { add_resources_to_ast, visit_resources } from "./resources";
-import { getSdkPath } from "./sdk-util";
+import { getSdkPath, xmlUtil } from "./sdk-util";
 import { pushUnique, sameArrays } from "./util";
 
 export { visitorNode, visitReferences } from "./visitor";
@@ -85,7 +85,8 @@ export function checkCompilerVersion(version: string, sdkVer: number) {
 // Extract all enum values from api.mir
 export async function getApiMapping(
   state?: ProgramState,
-  resourcesMap?: Record<string, JungleResourceMap>
+  resourcesMap?: Record<string, JungleResourceMap>,
+  manifestXML?: xmlUtil.Document
 ): Promise<ProgramStateNode | null> {
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
@@ -112,8 +113,11 @@ export async function getApiMapping(
       const rezAst: mctree.Program = state
         ? state.rezAst || { type: "Program", body: [] }
         : ast;
-      add_resources_to_ast(rezAst, resourcesMap);
-      if (state) state.rezAst = rezAst;
+      add_resources_to_ast(rezAst, resourcesMap, manifestXML);
+      if (state) {
+        state.rezAst = rezAst;
+        state.manifestXML = manifestXML;
+      }
     }
     const result = collectNamespaces(ast, state);
     if (state && state.rezAst) {

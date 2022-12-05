@@ -182,7 +182,8 @@ export function visit_resources(
 
 export function add_resources_to_ast(
   ast: mctree.Program,
-  resources: Record<string, JungleResourceMap>
+  resources: Record<string, JungleResourceMap>,
+  manifestXML?: xmlUtil.Document
 ) {
   const modules = {
     Drawables: true,
@@ -234,6 +235,11 @@ export function add_resources_to_ast(
     body.push(rez);
     const hiddenRez = makeModule("*Rez*");
     rez.body.body.push(hiddenRez);
+    if (manifestXML && manifestXML.body instanceof xmlUtil.Nodes) {
+      manifestXML.body
+        .children("iq:application")
+        .elements.forEach((e) => add_one_resource(rez, e));
+    }
 
     const rezModules = Object.fromEntries(
       Object.entries(modules).map(([moduleName, isPublic]) => {
@@ -474,6 +480,10 @@ function add_one_resource(
 
     case "setting":
     case "group":
+      func = varDecl;
+      break;
+
+    case "iq:application":
       func = varDecl;
       break;
   }

@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { xmlUtil } from "./sdk-util";
 
 export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
 export type LookupRules = "COMPILER1" | "COMPILER2" | "DEFAULT";
@@ -153,6 +154,7 @@ export type ProgramState = {
   allClasses?: ClassStateNode[];
   fnMap?: FilesToOptimizeMap;
   rezAst?: mctree.Program;
+  manifestXML?: xmlUtil.Document;
   stack?: ProgramStateStack;
   currentFunction?: FunctionStateNode;
   removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;
