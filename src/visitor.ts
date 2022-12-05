@@ -8,7 +8,10 @@ export function visitorNode(node: mctree.Node): mctree.Node {
   }
 
   if (node.type === "MemberExpression") {
-    return node.property;
+    return node.property.type === "UnaryExpression" &&
+      node.property.operator === ":"
+      ? node.property.argument
+      : node.property;
   }
 
   if (
@@ -33,7 +36,8 @@ export function visitReferences(
     results: LookupDefinition[],
     error: boolean
   ) => undefined | false,
-  includeDefs = false
+  includeDefs = false,
+  filter: ((node: mctree.Node) => boolean) | null = null
 ) {
   const checkResults = (
     [name, results]: ReturnType<ProgramStateAnalysis["lookup"]>,
@@ -53,6 +57,7 @@ export function visitReferences(
     return null;
   };
   state.pre = (node) => {
+    if (filter && !filter(node)) return [];
     switch (node.type) {
       case "AttributeList":
         return [];
