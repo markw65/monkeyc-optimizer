@@ -11,7 +11,7 @@ import {
 } from "./optimizer";
 import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
 import { globa, promiseAll, spawnByLine } from "./util";
-import { BuildConfig, DiagnosticType } from "./optimizer-types";
+import { BuildConfig, DiagnosticType, ProgramState } from "./optimizer-types";
 import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
 import { checkCompilerVersion, parseSdkVersion } from "./api";
 
@@ -301,37 +301,26 @@ export async function driver() {
             ? get_jungle(options.jungleFiles!, options).then(
                 ({ targets, xml }) =>
                   getProjectAnalysis(targets, null, xml, options).then(
-                    () => null
+                    (analysis) =>
+                      "state" in analysis
+                        ? reportDiagnostics(
+                            analysis.state.diagnostics,
+                            logger,
+                            extraArgs
+                          )
+                        : null
                   )
               )
             : genOnly
-            ? generateOptimizedProject(options).then(() => null)
+            ? generateOptimizedProject(options).then(({ diagnostics }) =>
+                reportDiagnostics(diagnostics, logger, extraArgs)
+              )
             : buildOptimizedProject(
                 products ? products[0] : null,
                 options
               ).then(
                 ({ exe, args, program, product, hasTests, diagnostics }) => {
-                  let hasErrors = false;
-                  diagnostics &&
-                    Object.keys(diagnostics)
-                      .sort()
-                      .forEach((file) => {
-                        const diags = diagnostics[file];
-                        diags.forEach((diag) => {
-                          if (diag.type === "ERROR") {
-                            hasErrors = true;
-                          }
-                          logger(
-                            `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
-                          );
-                        });
-                      });
-                  if (
-                    hasErrors &&
-                    !extraArgs.includes("--Eno-invalid-symbol")
-                  ) {
-                    throw new Error("'ERROR' level diagnostics were reported");
-                  }
+                  reportDiagnostics(diagnostics, logger, extraArgs);
                   args.push(...extraArgs);
                   logger(
                     [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
@@ -539,4 +528,30 @@ export async function driver() {
 export function error(message: string): never {
   console.error(message);
   process.exit(1);
+}
+
+function reportDiagnostics(
+  diagnostics: ProgramState["diagnostics"],
+  logger: (line: string) => void,
+  extraArgs: string[]
+) {
+  let hasErrors = false;
+  diagnostics &&
+    Object.keys(diagnostics)
+      .sort()
+      .forEach((file) => {
+        const diags = diagnostics[file];
+        diags.forEach((diag) => {
+          if (diag.type === "ERROR") {
+            hasErrors = true;
+          }
+          logger(
+            `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
+          );
+        });
+      });
+  if (hasErrors && !extraArgs.includes("--Eno-invalid-symbol")) {
+    throw new Error("'ERROR' level diagnostics were reported");
+  }
+  return null;
 }
