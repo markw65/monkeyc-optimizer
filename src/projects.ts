@@ -56,7 +56,10 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/YoungChulDK/GarminCryptoPrices",
   "https://github.com/adamml/tempo-trainer",
   "https://github.com/admsteck/ConnectIQ",
-  "https://github.com/alanfischer/hassiq",
+  {
+    root: "https://github.com/alanfischer/hassiq",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   {
     root: "https://github.com/alexphredorg/ConnectIqSailingApp",
     options: { checkInvalidSymbols: "WARNING" },
@@ -203,7 +206,10 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/miss-architect/garmin-squash",
   {
     root: "https://github.com/mrfoto/ForecastLine",
-    build: false,
+    options: {
+      checkInvalidSymbols: "WARNING",
+      compilerOptions: "--Eno-invalid-symbol",
+    },
     comment: "Missing a 'secrets' file",
   },
   "https://github.com/myneur/HeartRateRunner",
@@ -269,7 +275,10 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/spikyjt/SailingTimer",
     options: { checkInvalidSymbols: "WARNING" },
   },
-  "https://github.com/srwalter/garmin-tesla",
+  {
+    root: "https://github.com/srwalter/garmin-tesla",
+    options: { checkInvalidSymbols: "WARNING" },
+  },
   "https://github.com/sunpazed/garmin-ciqsummit17",
   "https://github.com/sunpazed/garmin-drawaa",
   {
@@ -316,7 +325,10 @@ export const githubProjects: RemoteProject[] = [
       checkCompilerLookupRules: "WARNING",
     },
   },
-  "https://github.com/warmsound/crystal-face",
+  {
+    root: "https://github.com/warmsound/crystal-face",
+    options: { compilerOptions: "--Eno-invalid-symbol" },
+  },
   "https://github.com/werkkrew/ciq-orange-theory",
   "https://github.com/zbraniecki/ultitimer",
   "https://gitlab.com/HankG/GarminConnectIQ",
