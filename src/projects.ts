@@ -82,8 +82,8 @@ export const githubProjects: RemoteProject[] = [
     comment: "missing launcher icon",
   },
   "https://github.com/breber/nest-iq",
-  "https://github.com/cedric-dufour/connectiq-app-glidersk",
-  "https://github.com/cedric-dufour/connectiq-app-towplanesk",
+  "https://github.com/markw65/connectiq-app-glidersk",
+  "https://github.com/markw65/connectiq-app-towplanesk",
   "https://github.com/chanezgr/IQwprimebal",
   "https://github.com/chris220688/garmin-myBus-app",
   {
