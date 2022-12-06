@@ -490,3 +490,20 @@ Bug Fixes
 
 - Bug fixes
   - The fix to avoid visiting definitions from visitReferences was incomplete
+
+### 1.0.42
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.38](https://github.com/markw65/prettier-plugin-monkeyc#1038)
+
+  - faster parsing
+  - supports parsing the attributes in api.mir, including sdk version etc.
+
+- Performance
+
+  - Using the updated prettier-plugin-monkeyc halves the time spent in the parser
+  - There was some pathalogical behavior in the jungle processing. For most projects, it was quite fast (under 1s), but the worst project I found took nearly 5 minutes. I fixed a lot of redundant processing, which dropped most projects to under 500ms, with a worst case of 20s.
+  - I had some caching code to prevent reading the same resource file multiple times, but the cache didn't work properly because an async function ran in between the test of the cache, and the fill of the cache; which meant that lots of threads could test the cache and decide it needed to be filled. Fixed by caching Promises, rather than the promise results. Dropped the worst case 20s down to under 500ms, and the average down below 100ms.
+  - improved incremental builds (which helps with prettier-extension-monkeyc's live analysis)
+
+- New features
+  - Resource files, and manifest.xml generate definitions and references so that prettier-extension-monkeyc can provide Goto Ref/Def between monkeyc, resource, and manifest files.
