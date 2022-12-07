@@ -28,7 +28,7 @@ export function globSome(
 ): Promise<boolean> {
   return new Promise<boolean>((resolve, _reject) => {
     const stream = glob.stream(
-      pattern,
+      pattern.replace(/\\/g, "/"),
       options || {}
     ) as NodeJS.ReadableStream & {
       destroy: () => void;
