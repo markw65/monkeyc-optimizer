@@ -235,7 +235,11 @@ export function add_resources_to_ast(
     body.push(rez);
     const hiddenRez = makeModule("*Rez*");
     rez.body.body.push(hiddenRez);
-    if (manifestXML && manifestXML.body instanceof xmlUtil.Nodes) {
+    if (
+      barrel === "" &&
+      manifestXML &&
+      manifestXML.body instanceof xmlUtil.Nodes
+    ) {
       manifestXML.body
         .children("iq:application")
         .elements.forEach((e) => add_one_resource(rez, e));
