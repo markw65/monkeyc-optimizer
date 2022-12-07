@@ -122,6 +122,12 @@ function getArgSafety(
   if (
     !args.every((arg, i) => {
       switch (arg.type) {
+        case "UnaryExpression":
+          if (arg.operator === ":") {
+            safeArgs.push(true);
+            return true;
+          }
+          break;
         case "Literal":
           safeArgs.push(true);
           return true;
