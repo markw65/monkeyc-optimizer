@@ -257,14 +257,19 @@ export function hasProperty(obj: unknown, prop: string): boolean {
 export function withLoc<T extends mctree.Node>(
   node: T,
   start: mctree.Node | null,
-  end?: mctree.Node | undefined
+  end?: mctree.Node | undefined | false
 ): T {
   if (start && start.loc) {
     node.start = start.start;
     if (!node.end) node.end = start.end;
     node.loc = { ...(node.loc || start.loc), start: start.loc.start };
   }
-  if (end && end.loc) {
+  if (end === false) {
+    if (node.loc) {
+      node.loc.end = node.loc.start;
+      node.end = node.start;
+    }
+  } else if (end && end.loc) {
     node.end = end.end;
     node.loc = { ...(node.loc || end.loc), end: end.loc.end };
   }
@@ -274,7 +279,7 @@ export function withLoc<T extends mctree.Node>(
 export function withLocDeep<T extends mctree.Node>(
   node: T,
   start: mctree.Node | null,
-  end?: mctree.Node | undefined,
+  end?: mctree.Node | undefined | false,
   inplace?: boolean
 ): T {
   node = withLoc(inplace ? node : { ...node }, start, end);

@@ -866,7 +866,22 @@ function inlineWithArgs(
   return body;
 }
 
-export function inlineFunction(
+function isTypecheckArg(
+  node: mctree.Attributes["elements"][number],
+  arg: boolean | null
+) {
+  return (
+    node.type === "CallExpression" &&
+    node.callee.type === "Identifier" &&
+    node.callee.name === ":typecheck" &&
+    (arg === null ||
+      (node.arguments.length === 1 &&
+        node.arguments[0].type === "Literal" &&
+        node.arguments[0].value === arg))
+  );
+}
+
+function inlineFunctionHelper(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   call: mctree.CallExpression,
@@ -887,6 +902,54 @@ export function inlineFunction(
   const ret = processInlineBody(state, func, call, retArg, params);
   state.localsStack![state.localsStack!.length - 1].map = map;
   return ret && withLocDeep(ret, call, call, true);
+}
+
+export function inlineFunction(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
+  call: mctree.CallExpression,
+  context: InlineContext | null
+): InlineBody | null {
+  const ret = inlineFunctionHelper(state, func, call, context);
+  if (!ret) return ret;
+  const typecheckFalse = func.node.attrs?.attributes?.elements.find((attr) =>
+    isTypecheckArg(attr, false)
+  );
+  if (!typecheckFalse) {
+    return ret;
+  }
+  const callerSn = state.stack.find(
+    (sn) => sn.type === "FunctionDeclaration"
+  ) as FunctionStateNode;
+  if (!callerSn) {
+    return ret;
+  }
+  const caller = callerSn.node;
+  if (!caller.attrs) {
+    caller.attrs = withLoc(
+      {
+        type: "AttributeList",
+      },
+      caller,
+      false
+    );
+  }
+  if (!caller.attrs.attributes) {
+    caller.attrs.attributes = withLoc(
+      { type: "Attributes", elements: [] },
+      caller.attrs,
+      false
+    );
+  }
+  if (
+    caller.attrs.attributes.elements.find((attr) => isTypecheckArg(attr, null))
+  ) {
+    return ret;
+  }
+  caller.attrs.attributes.elements.unshift(
+    withLocDeep({ ...typecheckFalse }, caller.attrs, false)
+  );
+  return ret;
 }
 
 export function applyTypeIfNeeded(node: mctree.Node) {
