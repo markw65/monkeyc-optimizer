@@ -287,7 +287,7 @@ export function parseXml(
 ): Document {
   try {
     const [prolog, body, misc] = parse(content, {
-      grammarSource: fileName || "unknown",
+      grammarSource: (fileName || "unknown").replace(/\\/g, "/"),
     }) as [xmlUtil.Prolog, xmlUtil.Element, xmlUtil.Misc[]];
     return new Document(prolog, new Nodes(body), misc, content);
   } catch (e) {
