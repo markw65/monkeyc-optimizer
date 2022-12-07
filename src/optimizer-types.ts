@@ -34,6 +34,7 @@ export type BuildConfig = {
   sizeBasedPRE?: boolean | string;
   prettier?: Record<string, unknown>;
   extensionVersion?: string;
+  useLocalOptimizer?: boolean;
 };
 export type StateNodeDecl =
   | StateNode
