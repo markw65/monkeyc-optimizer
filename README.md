@@ -507,3 +507,14 @@ Bug Fixes
 
 - New features
   - Resource files, and manifest.xml generate definitions and references so that prettier-extension-monkeyc can provide Goto Ref/Def between monkeyc, resource, and manifest files.
+
+### 1.0.43
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.39](https://github.com/markw65/prettier-plugin-monkeyc#1039)
+
+  - Fixes issues parsing/printing/optimizing NaN
+
+- Fix issues with windows paths introduced in 1.0.42
+- Add Symbols (`:name`) to the list of things the inliner knows are constants
+- Propagate `:typecheck(false)` to the caller when inlining
+- Fix an issue with bogus undefined symbols being reported against manifest.xml in some projects that use barrels.
