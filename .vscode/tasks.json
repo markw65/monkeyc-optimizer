@@ -12,7 +12,7 @@
     {
       "type": "npm",
       "script": "watch",
-      "label": "Auto watch",
+      "label": "Auto watch (mc)",
       "group": "none",
       "presentation": {
         "reveal": "always",
