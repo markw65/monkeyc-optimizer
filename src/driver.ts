@@ -1,19 +1,19 @@
+import * as os from "node:os";
 import * as path from "path";
+import { checkCompilerVersion, parseSdkVersion } from "./api";
 import {
-  buildOptimizedProject,
   defaultConfig,
-  generateOptimizedProject,
   getProjectAnalysis,
   get_jungle,
   launchSimulator,
   mctree,
   simulateProgram,
 } from "./optimizer";
-import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
-import { globa, promiseAll, spawnByLine } from "./util";
 import { BuildConfig, DiagnosticType, ProgramState } from "./optimizer-types";
 import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
-import { checkCompilerVersion, parseSdkVersion } from "./api";
+import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
+import { globa, promiseAll, spawnByLine } from "./util";
+import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
 type JungleInfo = {
   jungle: string;
@@ -51,7 +51,7 @@ export async function driver() {
   let sizeBasedPRE: string | boolean = true;
   let checkBuildPragmas: boolean | undefined;
   let showInfo = false;
-  let parallelism = 4;
+  let parallelism: number | undefined = undefined;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -312,13 +312,21 @@ export async function driver() {
                   )
               )
             : genOnly
-            ? generateOptimizedProject(options).then(({ diagnostics }) =>
+            ? runTaskInPool({
+                type: "generateOptimizedProject",
+                data: {
+                  options,
+                },
+              }).then(({ diagnostics }) =>
                 reportDiagnostics(diagnostics, logger, extraArgs)
               )
-            : buildOptimizedProject(
-                products ? products[0] : null,
-                options
-              ).then(
+            : runTaskInPool({
+                type: "buildOptimizedProject",
+                data: {
+                  product: products ? products[0] : null,
+                  options,
+                },
+              }).then(
                 ({ exe, args, program, product, hasTests, diagnostics }) => {
                   reportDiagnostics(diagnostics, logger, extraArgs);
                   args.push(...extraArgs);
@@ -490,6 +498,10 @@ export async function driver() {
   };
   const serializeSim = { promise: Promise.resolve() };
   const start = Date.now();
+  if (parallelism == null) {
+    parallelism = Math.min(Math.ceil(os.cpus().length / 2), jungles.length);
+  }
+  startPool(parallelism);
   await promiseAll((index: number) => {
     if (index >= jungles.length) return null;
     const jungleFiles = jungles[index];
@@ -524,7 +536,7 @@ export async function driver() {
         part.err ? console.error(part.line) : console.log(part.line)
       )
     );
-  }, parallelism);
+  }, parallelism).finally(stopPool);
   console.log(`Total runtime: ${Date.now() - start}ms`);
   if (failures.length) {
     throw new Error(

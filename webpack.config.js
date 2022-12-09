@@ -110,6 +110,8 @@ export default async (env, argv) => {
       "sdk-util": "./src/sdk-util.ts",
       api: "./src/api.ts",
       driver: "./src/driver.ts",
+      "worker-thread": "./src/worker-thread.ts",
+      "worker-pool": "./src/worker-pool.ts",
     },
     optimization: { minimize: false },
     dependencies: ["peggy"],
@@ -149,12 +151,22 @@ export default async (env, argv) => {
         zlib: "zlib",
         buffer: "buffer",
         crypto: "crypto",
+        "node:worker_threads": "node:worker_threads",
+        "node:events": "node:events",
+        "node:async_hooks": "node:async_hooks",
+        "node:os": "node:os",
       };
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);
       }
       const match = request.match(
-        /^(\.|src)\/(util|api|sdk-util|optimizer)(\.js)?$/
+        /*
+         * We don't want this to match the entry point itself, which
+         * is what appears on the rhs in the entry object.
+         * It should match the string passed to import. ie
+         *   import { foo } from "./<name>"
+         */
+        /^(\.\.?|src)\/(util|api|sdk-util|optimizer|worker-pool)(\.js)?$/
       );
       if (match) {
         return callback(null, `./${match[2]}.cjs`);
