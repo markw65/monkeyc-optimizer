@@ -245,6 +245,7 @@ element
   = EmptyElemTag
   / start:STag c:content ETag {
       start.children = c;
+      start.loc.end = location().end;
       return start;
     }
 
