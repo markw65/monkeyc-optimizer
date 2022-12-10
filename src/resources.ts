@@ -1,6 +1,8 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
-import { hasProperty } from "./ast";
+import { hasProperty, traverseAst } from "./ast";
+import { diagnostic } from "./inliner";
 import { JungleResourceMap } from "./jungles";
+import { ProgramState } from "./optimizer-types";
 import { xmlUtil } from "./sdk-util";
 
 type Visit = (
@@ -180,6 +182,7 @@ export function visit_resources(
 }
 
 export function add_resources_to_ast(
+  state: ProgramState | undefined,
   ast: mctree.Program,
   resources: Record<string, JungleResourceMap>,
   manifestXML?: xmlUtil.Document
@@ -241,7 +244,7 @@ export function add_resources_to_ast(
     ) {
       manifestXML.body
         .children("iq:application")
-        .elements.forEach((e) => add_one_resource(rez, e));
+        .elements.forEach((e) => add_one_resource(state, manifestXML, rez, e));
     }
 
     const rezModules = Object.fromEntries(
@@ -258,7 +261,7 @@ export function add_resources_to_ast(
         if (!hasProperty(rezModules, s)) return;
         const module = rezModules[s];
 
-        add_one_resource(module, e);
+        add_one_resource(state, rez, module, e);
       });
     });
   });
@@ -327,7 +330,23 @@ const drawableSkips: Record<string, Record<string, true>> = {
   justification: {},
 };
 
-function visit_resource_refs(e: xmlUtil.Element) {
+function addPositions(base: mctree.Position, pos: mctree.Position) {
+  const result = { ...base };
+  if (pos.line > 1) {
+    result.line += pos.line - 1;
+    result.column = pos.column;
+  } else {
+    result.column += pos.column - 1;
+  }
+  result.offset += pos.offset;
+  return result;
+}
+
+function visit_resource_refs(
+  state: ProgramState | undefined,
+  doc: xmlUtil.Document,
+  e: xmlUtil.Element
+) {
   const result: Array<mctree.Expression> = [];
   const parseArg = (
     name: string,
@@ -346,15 +365,42 @@ function visit_resource_refs(e: xmlUtil.Element) {
       if (dn) result.push(dn);
       return;
     }
+    // We wrap the expression in parentheses, so adjust
+    // the start position by 1 character to compensate
+    // for the opening '('
+    const startPos = adjustLoc(loc, -1, 0).start;
     try {
-      result.push(
-        MonkeyC.parsers.monkeyc.parse(name, null, {
-          filepath: loc.source || undefined,
-          singleExpression: true,
-        }) as mctree.Expression
-      );
-    } catch (e) {
-      console.log(e);
+      const expr = MonkeyC.parsers.monkeyc.parse(`(${name})`, null, {
+        filepath: loc.source || undefined,
+        singleExpression: true,
+      }) as mctree.Expression;
+      traverseAst(expr, (node) => {
+        if (node.loc) {
+          node.loc = {
+            source: node.loc.source,
+            start: addPositions(startPos, node.loc.start),
+            end: addPositions(startPos, node.loc.end),
+          };
+          node.start = (node.start || 0) + startPos.offset;
+          node.end = (node.end || 0) + startPos.offset;
+        }
+      });
+      result.push(expr);
+    } catch (ex) {
+      if (state) {
+        const check = state.config?.checkInvalidSymbols;
+        if (check !== "OFF" && ex instanceof Error) {
+          const error = ex as Error & { location?: mctree.SourceLocation };
+          if (error.location) {
+            const location = {
+              source: error.location.source,
+              start: addPositions(startPos, error.location.start),
+              end: addPositions(startPos, error.location.end),
+            };
+            diagnostic(state, location, ex.message, check || "WARNING");
+          }
+        }
+      }
     }
   };
   const stringToScopedName = (
@@ -363,9 +409,14 @@ function visit_resource_refs(e: xmlUtil.Element) {
     dotted: string,
     l: mctree.SourceLocation
   ) => {
-    if (/^\s*(0x)?\d+%?\s*$/i.test(dotted)) return;
+    dotted = doc.processRefs(dotted);
     if (dotted.startsWith("@")) {
       return parseArg(dotted, l);
+    }
+    if (
+      /^\s*(true|false|null|NaN|(0x|#)[0-9a-f]+|[-+]?\d+%?)\s*$/i.test(dotted)
+    ) {
+      return;
     }
     switch (element.name) {
       case "param":
@@ -406,16 +457,16 @@ function visit_resource_refs(e: xmlUtil.Element) {
         attr &&
           stringToScopedName(node, attr.name.value, attr.value.value, loc);
       });
-      if (
-        node.children &&
-        node.children.length === 1 &&
-        node.children[0].type === "chardata"
-      ) {
+      const content = doc.textContent(node);
+      if (content) {
         stringToScopedName(
           node,
           null,
-          node.children[0].value,
-          node.children[0].loc!
+          content,
+          locRange(
+            node.children![0].loc!,
+            node.children![node.children!.length - 1].loc!
+          )
         );
         return false;
       }
@@ -463,6 +514,8 @@ function adjustLoc(loc: xmlUtil.SourceLocation, start = 1, end = -1) {
 }
 
 function add_one_resource(
+  state: ProgramState | undefined,
+  doc: xmlUtil.Document,
   module: mctree.ModuleDeclaration,
   e: xmlUtil.Element
 ) {
@@ -546,7 +599,7 @@ function add_one_resource(
       break;
   }
   if (!func) return;
-  const elements = visit_resource_refs(e);
+  const elements = visit_resource_refs(state, doc, e);
   const init = elements.length
     ? ({ type: "ArrayExpression", elements } as const)
     : undefined;

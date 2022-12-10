@@ -1,5 +1,5 @@
 import { parse } from "../build/xml.js";
-import { xmlUtil } from "./sdk-util.js";
+import { hasProperty } from "./ast";
 
 export class PeggyError extends Error {
   constructor(
@@ -157,14 +157,97 @@ interface XmlDecl extends BaseNode {
   standalone?: string[];
 }
 
+const entities = {
+  lt: "<",
+  gt: ">",
+  amp: "&",
+  apos: "'",
+  quot: '"',
+};
+
 export class Document {
   public data?: Record<string, unknown>;
+  private entities: Record<string, XValue>;
+  private pentities: Record<string, XValue>;
+
   constructor(
     public prolog: Prolog | null,
     public body: Nodes | Error,
     public misc: Array<Misc>,
     public source?: string
-  ) {}
+  ) {
+    this.entities = {};
+    this.pentities = {};
+    this.prolog?.doctypedecl?.intSubset?.forEach((v) => {
+      if (v.type === "entitydecl" && v.def.value) {
+        (v.kind === "&" ? this.entities : this.pentities)[v.name] = v.def;
+      }
+    });
+  }
+
+  /**
+   * If all the children are chardata, charref or entityref,
+   * return the resulting string. Otherwise null.
+   */
+  textContent(element: Element) {
+    if (!element.children) return null;
+    const result: string[] = [];
+    return element.children.every((child) => {
+      switch (child.type) {
+        case "chardata":
+          result.push(child.value);
+          return true;
+        case "charref":
+          result.push(String.fromCharCode(child.value));
+          return true;
+        case "entityref":
+          if (hasProperty(entities, child.name)) {
+            result.push(entities[child.name as keyof typeof entities]);
+            return true;
+          }
+          if (hasProperty(this.entities, child.name)) {
+            result.push(
+              this.processRefs(referenceList(this.entities[child.name].value!))
+            );
+          }
+          return true;
+        default:
+          return false;
+      }
+    })
+      ? result.join("")
+      : null;
+  }
+
+  processRefs(text: string) {
+    let changes: boolean;
+    let i = 10;
+    do {
+      changes = false;
+      text = text.replace(
+        /(?:&#(\d+);)|(?:&#x([0-9a-f]+);)|(?:&(\w+);)|(?:%(\w+);)/gi,
+        (_match, decref, hexref, entref, peref) => {
+          changes = true;
+          if (decref) {
+            return String.fromCharCode(parseInt(decref, 10));
+          } else if (hexref) {
+            return String.fromCharCode(parseInt(decref, 16));
+          } else if (entref) {
+            if (hasProperty(entities, entref)) {
+              return entities[entref as keyof typeof entities];
+            }
+            if (hasProperty(this.entities, entref)) {
+              return referenceList(this.entities[entref].value!);
+            }
+          } else if (hasProperty(this.pentities, peref)) {
+            return referenceList(this.pentities[peref].value!);
+          }
+          return "";
+        }
+      );
+    } while (changes && --i);
+    return text;
+  }
 }
 
 export function elementKids(e: Element) {
@@ -288,7 +371,7 @@ export function parseXml(
   try {
     const [prolog, body, misc] = parse(content, {
       grammarSource: (fileName || "unknown").replace(/\\/g, "/"),
-    }) as [xmlUtil.Prolog, xmlUtil.Element, xmlUtil.Misc[]];
+    }) as [Prolog, Element, Misc[]];
     return new Document(prolog, new Nodes(body), misc, content);
   } catch (e) {
     return new Document(
@@ -426,11 +509,11 @@ export function writeXml(doc: Document) {
 }
 
 export type Visitor = {
-  pre?: (node: xmlUtil.Content) => boolean | null | undefined | void;
-  post?: (node: xmlUtil.Content) => void;
+  pre?: (node: Content) => boolean | null | undefined | void;
+  post?: (node: Content) => void;
 };
 
-export function visit_xml(contents: xmlUtil.Content[], visitor: Visitor) {
+export function visit_xml(contents: Content[], visitor: Visitor) {
   contents.forEach((c) => {
     if (visitor.pre && visitor.pre(c) === false) {
       return;

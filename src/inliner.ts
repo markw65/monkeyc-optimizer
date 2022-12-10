@@ -14,8 +14,8 @@ import {
 } from "./function-info";
 import {
   FunctionStateNode,
+  ProgramState,
   ProgramStateAnalysis,
-  ProgramStateLive,
   ProgramStateStack,
   StateNodeAttributes,
   StateNodeDecl,
@@ -641,7 +641,7 @@ export function unused(
 }
 
 export function diagnostic(
-  state: ProgramStateLive,
+  state: ProgramState,
   loc: mctree.Node["loc"],
   message: string | null,
   type: NonNullable<

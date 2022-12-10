@@ -113,7 +113,7 @@ export async function getApiMapping(
       const rezAst: mctree.Program = state
         ? state.rezAst || { type: "Program", body: [] }
         : ast;
-      add_resources_to_ast(rezAst, resourcesMap, manifestXML);
+      add_resources_to_ast(state, rezAst, resourcesMap, manifestXML);
       if (state) {
         state.rezAst = rezAst;
         state.manifestXML = manifestXML;
