@@ -1,4 +1,4 @@
-import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
 import { hasProperty } from "./ast";
 import { JungleResourceMap } from "./jungles";
 import { xmlUtil } from "./sdk-util";
@@ -12,9 +12,8 @@ type Visit = (
 type Visitor = {
   visit?: Visit;
   error?: (node: xmlUtil.Element, parent: string | null) => void;
-  pre?: (node: xmlUtil.Content) => boolean | null | undefined | void;
-  post?: (node: xmlUtil.Content) => void;
-};
+} & xmlUtil.Visitor;
+
 /*
  * This is unavoidably ad-hoc. Garmin has arbitrary rules for how
  * resources can be nested, which we need to mimic here.
@@ -289,7 +288,7 @@ function makeMemberExpression(
 
 function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
   const loc = l && adjustLoc(l, 0, l.start.offset - l.end.offset);
-  return dotted.split(".").reduce<{
+  return dotted.split(/\s*\.\s*/).reduce<{
     cur: mctree.ScopedName | null;
     offset: number;
   }>(
@@ -310,62 +309,117 @@ function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
   ).cur;
 }
 
+const drawableSkips: Record<string, Record<string, true>> = {
+  x: { center: true, left: true, right: true, start: true },
+  y: { center: true, top: true, bottom: true, start: true },
+  width: { fill: true },
+  height: { fill: true },
+  a: { fill: true },
+  b: { fill: true },
+  color: {},
+  corner_radius: {},
+  radius: {},
+  border_width: {},
+  border_color: {},
+  foreground: {},
+  background: {},
+  font: {},
+  justification: {},
+};
+
 function visit_resource_refs(e: xmlUtil.Element) {
-  const result: Array<mctree.ScopedName> = [];
+  const result: Array<mctree.Expression> = [];
+  const parseArg = (
+    name: string,
+    loc: mctree.SourceLocation,
+    skip?: Record<string, true> | null
+  ) => {
+    if (name.startsWith("@")) {
+      name = name.substring(1);
+      loc = adjustLoc(loc, 1, 0);
+    }
+    if (hasProperty(skip, name)) {
+      return;
+    }
+    if (/^([\w_$]+\s*\.\s*)*[\w_$]+$/.test(name)) {
+      const dn = makeScopedName(name, loc);
+      if (dn) result.push(dn);
+      return;
+    }
+    try {
+      result.push(
+        MonkeyC.parsers.monkeyc.parse(name, null, {
+          filepath: loc.source || undefined,
+          singleExpression: true,
+        }) as mctree.Expression
+      );
+    } catch (e) {
+      console.log(e);
+    }
+  };
   const stringToScopedName = (
-    element: string,
+    element: xmlUtil.Element,
     id: string | null,
     dotted: string,
     l: mctree.SourceLocation
   ) => {
-    const match = dotted.match(/^(@)?([\w_$]+\s*\.\s*)*[\w_$]+$/);
-    if (!match) return;
-    let offset = 0;
-    if (match[1]) {
-      offset = 1;
-    } else if (
-      (element === "drawable" && id === "class") ||
-      (element === "iq:application" && id === "entry")
-    ) {
-      // nothing to do
-    } else {
-      return;
+    if (/^\s*(0x)?\d+%?\s*$/i.test(dotted)) return;
+    if (dotted.startsWith("@")) {
+      return parseArg(dotted, l);
     }
-    const dn = makeScopedName(
-      dotted.substring(offset),
-      adjustLoc(l, offset, 0)
-    );
-    if (dn) result.push(dn);
-  };
-
-  visit_resources([e], null, {
-    pre(node: xmlUtil.Content) {
-      if (node.type === "element") {
-        Object.values(node.attr).forEach((attr) => {
-          if (!attr || !attr.value.loc) return;
-          const loc = adjustLoc(attr.value.loc!);
-          attr &&
-            stringToScopedName(
-              node.name,
-              attr.name.value,
-              attr.value.value,
-              loc
-            );
-        });
-        if (
-          node.children &&
-          node.children.length === 1 &&
-          node.children[0].type === "chardata"
-        ) {
-          stringToScopedName(
-            node.name,
-            null,
-            node.children[0].value,
-            node.children[0].loc!
-          );
+    switch (element.name) {
+      case "param":
+        if (id === null) {
+          parseArg(dotted, l);
         }
         return;
+      case "drawable":
+        if (id === "class") {
+          parseArg(dotted, l);
+        }
+        return;
+      case "shape":
+      case "bitmap":
+      case "drawable-list":
+      case "text-area":
+      case "label":
+        if (id && hasProperty(drawableSkips, id)) {
+          parseArg(dotted, l, drawableSkips[id]);
+        }
+        return;
+      case "iq:application":
+        if (id === "entry") {
+          parseArg(dotted, l);
+        }
+        return;
+      default:
+        return;
+    }
+  };
+
+  xmlUtil.visit_xml([e], {
+    pre(node: xmlUtil.Content) {
+      if (node.type !== "element") return false;
+      Object.values(node.attr).forEach((attr) => {
+        if (!attr || !attr.value.loc) return;
+        const loc = adjustLoc(attr.value.loc!);
+        attr &&
+          stringToScopedName(node, attr.name.value, attr.value.value, loc);
+      });
+      if (
+        node.children &&
+        node.children.length === 1 &&
+        node.children[0].type === "chardata"
+      ) {
+        stringToScopedName(
+          node,
+          null,
+          node.children[0].value,
+          node.children[0].loc!
+        );
+        return false;
       }
+      return;
     },
   });
   return result;
