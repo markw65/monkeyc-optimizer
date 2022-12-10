@@ -428,12 +428,12 @@ function add_one_resource(
               id: makeIdentifier(id ? id.value.value : "*invalid*", loc),
               init,
             },
-            loc
+            e.loc
           ),
         ],
         kind: "var",
       },
-      loc
+      e.loc
     );
   };
 
@@ -441,14 +441,14 @@ function add_one_resource(
     if (!id) return null;
     const loc = id.value.loc;
     const items: mctree.ClassElement[] = init
-      ? [{ type: "ClassElement", item: varDecl(), loc }]
+      ? [{ type: "ClassElement", item: varDecl(), loc: e.loc }]
       : [];
     return {
       type: "ClassDeclaration",
-      body: { type: "ClassBody", body: items, loc },
+      body: { type: "ClassBody", body: items, loc: e.loc },
       id: makeIdentifier(id.value.value, loc),
       superClass: makeScopedName(parent),
-      loc,
+      loc: e.loc,
     };
   };
 
