@@ -424,3 +424,20 @@ export function writeXml(doc: Document) {
   doc.misc.forEach((e) => parts.push(writeNode(e)));
   return parts.join("");
 }
+
+export type Visitor = {
+  pre?: (node: xmlUtil.Content) => boolean | null | undefined | void;
+  post?: (node: xmlUtil.Content) => void;
+};
+
+export function visit_xml(contents: xmlUtil.Content[], visitor: Visitor) {
+  contents.forEach((c) => {
+    if (visitor.pre && visitor.pre(c) === false) {
+      return;
+    }
+    if (c.type == "element" && c.children) {
+      visit_xml(c.children, visitor);
+    }
+    if (visitor.post) visitor.post(c);
+  });
+}
