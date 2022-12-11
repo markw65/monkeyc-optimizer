@@ -313,3 +313,43 @@ function testXorFolding(logger as Logger) as Boolean {
 
     return ok;
 }
+
+function shl(
+    logger as Logger,
+    a as Number or Long,
+    b as Number or Long,
+    c as Number or Long
+) as Void {
+    check(c, a << b, logger);
+}
+
+(:test)
+function testShlFolding(logger as Logger) as Boolean {
+    ok = true;
+    shl(logger, 0x7e, 8, /* @match /^@32256$/ */ 0x7e << 8);
+    shl(logger, 0x7el, 8, /* @match /^@32256l$/ */ 0x7el << 8);
+    shl(logger, 0x7e, 8l, /* @match /^@32256l$/ */ 0x7e << 8l);
+    shl(logger, 0x7el, 8l, /* @match /^@32256l$/ */ 0x7el << 8l);
+
+    return ok;
+}
+
+function shr(
+    logger as Logger,
+    a as Number or Long,
+    b as Number or Long,
+    c as Number or Long
+) as Void {
+    check(c, a >> b, logger);
+}
+
+(:test)
+function testShrFolding(logger as Logger) as Boolean {
+    ok = true;
+    shr(logger, 0x7e00, 8, /* @match /^@126$/ */ 0x7e00 >> 8);
+    shr(logger, 0x7e00l, 8, /* @match /^@126l$/ */ 0x7e00l >> 8);
+    shr(logger, 0x7e00, 8l, /* @match /^@126l$/ */ 0x7e00 >> 8l);
+    shr(logger, 0x7e00l, 8l, /* @match /^@126l$/ */ 0x7e00l >> 8l);
+
+    return ok;
+}
