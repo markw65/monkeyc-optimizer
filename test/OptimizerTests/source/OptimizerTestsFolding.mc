@@ -121,9 +121,9 @@ function testLogicalFoldingNonTypeSafe(logger as Logger) as Boolean {
 (:typecheck(false))
 function add(
     logger as Logger,
-    a as Number or Long or Float or Double or String or Null,
-    b as Number or Long or Float or Double or String or Null,
-    c as Number or Long or Float or Double or String
+    a as Number or Long or Float or Double or String or Char or Null,
+    b as Number or Long or Float or Double or String or Char or Null,
+    c as Number or Long or Float or Double or String or Char
 ) as Void {
     check(c, a + b, logger);
 }
@@ -139,6 +139,9 @@ function testAddFolding(logger as Logger) as Boolean {
     add(logger, null, "foo", /* @match "nullfoo" */ null + "foo");
     add(logger, 1, "foo", /* @match "1foo" */ 1 + "foo");
     add(logger, 1l, "foo", /* @match "1foo" */ 1l + "foo");
+    add(logger, "foo", 'a', /* @match "fooa" */ "foo" + 'a');
+    add(logger, 1, 'a', /* @match "'b'" */ 1 + 'a');
+    // null + 'a' and 'a' + null are errors
 
     // skip these because we don't know what precision to use when
     // converting the float to a string; and because garmin isn't
@@ -151,6 +154,8 @@ function testAddFolding(logger as Logger) as Boolean {
     add(logger, "foo", null, /* @match "foonull" */ "foo" + null);
     add(logger, "foo", 1, /* @match "foo1" */ "foo" + 1);
     add(logger, "foo", 1l, /* @match "foo1" */ "foo" + 1l);
+    add(logger, 'a', "foo", /* @match "afoo" */ 'a' + "foo");
+    add(logger, 'a', 1, /* @match "'b'" */ 'a' + 1);
     // skip these as above
     // add(logger, "foo", 1.1, /* @match /@"foo" \+ @1.1/ */ "foo" + 1.1);
     // add(logger, "foo", 1.2d, /* @match /@"foo" \+ @1.2d/ */ "foo" + 1.2d);

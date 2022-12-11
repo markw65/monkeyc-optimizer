@@ -307,6 +307,9 @@ interface LongLiteral extends mctree.Literal {
 interface StringLiteral extends mctree.Literal {
   value: string;
 }
+interface CharLiteral extends mctree.Literal {
+  value: string;
+}
 interface BooleanLiteral extends mctree.Literal {
   value: boolean;
 }
@@ -317,6 +320,7 @@ type LiteralValues =
   | [NumberLiteral, "Number" | "Float" | "Double"]
   | [LongLiteral, "Long"]
   | [StringLiteral, "String"]
+  | [CharLiteral, "Char"]
   | [BooleanLiteral, "Boolean"]
   | [NullLiteral, "Null"];
 
@@ -355,7 +359,9 @@ export function getNodeValue(node: mctree.Node): LiteralValues | [null, null] {
     return [node as LongLiteral, "Long"];
   }
   if (type === "string") {
-    return [node as StringLiteral, "String"];
+    return node.raw.startsWith("'")
+      ? [node as CharLiteral, "Char"]
+      : [node as StringLiteral, "String"];
   }
   if (type === "boolean") {
     return [node as BooleanLiteral, "Boolean"];

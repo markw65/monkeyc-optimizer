@@ -63,7 +63,9 @@ module A {
     const K as Number = B.x;
 }
 
-function getinst(x as Number or Long or Float or Double or String) as String {
+function getinst(
+    x as Number or Long or Float or Double or String or Char
+) as String {
     return x instanceof Lang.Number
         ? "Number"
         : x instanceof Lang.Long
@@ -74,13 +76,15 @@ function getinst(x as Number or Long or Float or Double or String) as String {
         ? "Double"
         : x instanceof Lang.String
         ? "String"
+        : x instanceof Lang.Char
+        ? "Char"
         : "<unknown>";
 }
 
 var ok as Boolean = false;
 function check(
-    x as Number or Long or Float or Double or String,
-    expected as Number or Long or Float or Double or String,
+    x as Number or Long or Float or Double or String or Char,
+    expected as Number or Long or Float or Double or String or Char,
     logger as Logger
 ) as Void {
     if (!x.equals(expected)) {

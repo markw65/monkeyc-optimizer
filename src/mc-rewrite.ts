@@ -422,7 +422,7 @@ export function getLiteralNode(
       case "-": {
         const [arg, type] = getNodeValue(node.argument);
         if (type === "Number" || type === "Long") {
-          return replacementLiteral(arg, -arg.value, type);
+          return replacementLiteral(node, -arg.value, type);
         }
       }
     }
@@ -487,17 +487,20 @@ type MCLiteralTypes =
   | "Float"
   | "Double"
   | "String"
+  | "Char"
   | "Null";
+
+type LiteralArg = mctree.Literal["value"];
 
 function roundToFloat(value: number) {
   return new Float32Array([value as number])[0];
 }
 
 function replacementLiteral(
-  arg: mctree.Literal,
+  arg: mctree.Node,
   value: bigint | number | boolean | string | null,
   type: MCLiteralTypes
-) {
+): mctree.Literal {
   if (value === null) {
     type = "Null";
   } else if (typeof value === "boolean") {
@@ -512,6 +515,10 @@ function replacementLiteral(
   let raw =
     type === "String"
       ? JSON.stringify(value)
+      : type === "Char"
+      ? value === "'"
+        ? "'\\''"
+        : "'" + JSON.stringify(value).slice(1, -1) + "'"
       : value == null
       ? "null"
       : value.toString();
@@ -522,14 +529,17 @@ function replacementLiteral(
   } else if (type === "Float" && LiteralIntegerRe.test(raw)) {
     raw += "f";
   }
+  const { start, end, loc } = arg;
   return {
-    ...arg,
+    type: "Literal",
     value,
     raw,
+    start,
+    end,
+    loc,
   };
 }
 
-type LiteralArg = mctree.Literal["value"];
 type OpDesc = [MCLiteralTypes, (a: LiteralArg) => LiteralArg];
 type OpInfo = {
   typeFn: (left: MCLiteralTypes, right: MCLiteralTypes) => OpDesc | null;
@@ -600,6 +610,15 @@ function plus_types(
     }
     return ["String", String];
   }
+  if (left === "Char" || right === "Char") {
+    if (left === right) {
+      // adding two chars produces a string
+      return ["String", String];
+    }
+    if (/Number|Long/.test(left + right)) {
+      return ["Char", (v: LiteralArg) => v];
+    }
+  }
   return common_arith_types(left, right);
 }
 
@@ -617,7 +636,12 @@ const operators: Record<
 > = {
   "+": {
     typeFn: plus_types,
-    valueFn: (left, right) => (left as number) + (right as number),
+    valueFn: (left, right) =>
+      typeof left === "string" && typeof right !== "string"
+        ? String.fromCharCode(left.charCodeAt(0) + Number(right))
+        : typeof left !== "string" && typeof right === "string"
+        ? String.fromCharCode(right.charCodeAt(0) + Number(left))
+        : (left as number) + (right as number),
   },
   "-": {
     typeFn: common_arith_types,
@@ -716,7 +740,9 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
             type === "Number" ||
             type === "Long" ||
             type === "Float" ||
-            type === "Double"
+            type === "Double" ||
+            type === "Char" ||
+            type === "String"
           ) {
             return arg;
           }
@@ -728,18 +754,18 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
             type === "Float" ||
             type === "Double"
           ) {
-            return replacementLiteral(arg, -arg.value, type);
+            return replacementLiteral(node, -arg.value, type);
           }
           break;
         case "!":
         case "~":
           {
             if (type === "Number" || type === "Long") {
-              return replacementLiteral(arg, ~BigInt(arg.value), type);
+              return replacementLiteral(node, ~BigInt(arg.value), type);
             }
 
             if (type === "Boolean" && node.operator == "!") {
-              return replacementLiteral(arg, !arg.value, type);
+              return replacementLiteral(node, !arg.value, type);
             }
           }
           break;
@@ -756,7 +782,7 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
         if (!type) break;
         const value = op.valueFn(type[1](left.value), type[1](right.value));
         if (value === null) break;
-        return replacementLiteral(left, value, type[0]);
+        return replacementLiteral(node, value, type[0]);
       }
       break;
     }
