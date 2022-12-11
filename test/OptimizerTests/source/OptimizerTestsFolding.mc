@@ -253,3 +253,63 @@ function testModFolding(logger as Logger) as Boolean {
 
     return ok;
 }
+
+function band(
+    logger as Logger,
+    a as Number or Long,
+    b as Number or Long,
+    c as Number or Long
+) as Void {
+    check(c, a & b, logger);
+}
+
+(:test)
+function testAndFolding(logger as Logger) as Boolean {
+    ok = true;
+    band(logger, 0x7e, 0x55, /* @match /^@84$/ */ 0x7e & 0x55);
+    band(logger, 0x7el, 0x55, /* @match /^@84l$/ */ 0x7el & 0x55);
+    band(logger, 0x7e, 0x55l, /* @match /^@84l$/ */ 0x7e & 0x55l);
+    band(logger, 0x7el, 0x55l, /* @match /^@84l$/ */ 0x7el & 0x55l);
+
+    return ok;
+}
+
+function bor(
+    logger as Logger,
+    a as Number or Long,
+    b as Number or Long,
+    c as Number or Long
+) as Void {
+    check(c, a | b, logger);
+}
+
+(:test)
+function testOrFolding(logger as Logger) as Boolean {
+    ok = true;
+    bor(logger, 0x22, 0x55, /* @match /^@119$/ */ 0x22 | 0x55);
+    bor(logger, 0x22l, 0x55, /* @match /^@119l$/ */ 0x22l | 0x55);
+    bor(logger, 0x22, 0x55l, /* @match /^@119l$/ */ 0x22 | 0x55l);
+    bor(logger, 0x22l, 0x55l, /* @match /^@119l$/ */ 0x22l | 0x55l);
+
+    return ok;
+}
+
+function bxor(
+    logger as Logger,
+    a as Number or Long,
+    b as Number or Long,
+    c as Number or Long
+) as Void {
+    check(c, a ^ b, logger);
+}
+
+(:test)
+function testXorFolding(logger as Logger) as Boolean {
+    ok = true;
+    bxor(logger, 0x7e, 0x55, /* @match /^@43$/ */ 0x7e ^ 0x55);
+    bxor(logger, 0x7el, 0x55, /* @match /^@43l$/ */ 0x7el ^ 0x55);
+    bxor(logger, 0x7e, 0x55l, /* @match /^@43l$/ */ 0x7e ^ 0x55l);
+    bxor(logger, 0x7el, 0x55l, /* @match /^@43l$/ */ 0x7el ^ 0x55l);
+
+    return ok;
+}
