@@ -63,11 +63,43 @@ module A {
     const K as Number = B.x;
 }
 
+function getinst(x as Number or Long or Float or Double or String) as String {
+    return x instanceof Lang.Number
+        ? "Number"
+        : x instanceof Lang.Long
+        ? "Long"
+        : x instanceof Lang.Float
+        ? "Float"
+        : x instanceof Lang.Double
+        ? "Double"
+        : x instanceof Lang.String
+        ? "String"
+        : "<unknown>";
+}
+
 var ok as Boolean = false;
-function check(x as Number, expected as Number, logger as Logger) as Void {
-    if (x != expected) {
+function check(
+    x as Number or Long or Float or Double or String,
+    expected as Number or Long or Float or Double or String,
+    logger as Logger
+) as Void {
+    if (!x.equals(expected)) {
         logger.debug(
             "Got " + x + " Should be " + expected + " (B.x = " + A.B.x + ")"
+        );
+        ok = false;
+    }
+    var xinst = getinst(x);
+    var einst = getinst(expected);
+    if (!xinst.equals(einst)) {
+        logger.debug(
+            "Wrong types " +
+                xinst +
+                " Should be " +
+                einst +
+                " (B.x = " +
+                A.B.x +
+                ")"
         );
         ok = false;
     }
@@ -353,7 +385,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     x = assignContext(1);
     check(x, 6, logger);
     /* @match /var \w+x\w+ = @z;/ */
-    x = -((assignContext(z) + 1) == 13 ? 42 : 0);
+    x = -(assignContext(z) + 1 == 13 ? 42 : 0);
     check(x, -42, logger);
     /* @match /\b(\w+x\w+) = \1\.slice/ */
     x = assignContext3(arr)[2] + 1;

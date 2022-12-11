@@ -117,3 +117,134 @@ function testLogicalFoldingNonTypeSafe(logger as Logger) as Boolean {
     check((NON_ZERO_CONST || x) == 42 ? 0 : 42, 0, logger);
     return ok;
 }
+
+(:typecheck(false))
+function add(
+    logger as Logger,
+    a as Number or Long or Float or Double or String or Null,
+    b as Number or Long or Float or Double or String or Null,
+    c as Number or Long or Float or Double or String
+) as Void {
+    check(c, a + b, logger);
+}
+
+(:test)
+function testAddFolding(logger as Logger) as Boolean {
+    ok = true;
+    add(logger, 1, 41, /* @match /^@42$/ */ 1 + 41);
+    add(logger, 1.5, 41, /* @match /^@42.5$/ */ 1.5 + 41);
+    add(logger, 1.5, 41l, /* @match /^@42.5d$/ */ 1.5 + 41l);
+    add(logger, 1.5d, 41, /* @match /^@42.5d$/ */ 1.5d + 41l);
+
+    add(logger, null, "foo", /* @match "nullfoo" */ null + "foo");
+    add(logger, 1, "foo", /* @match "1foo" */ 1 + "foo");
+    add(logger, 1l, "foo", /* @match "1foo" */ 1l + "foo");
+
+    // skip these because we don't know what precision to use when
+    // converting the float to a string; and because garmin isn't
+    // even consistent about that precision. See
+    // https://forums.garmin.com/developer/connect-iq/i/bug-reports/sdk-4-1-7-constant-folds-floats-strings-incorrectly
+
+    // add(logger, 1.1, "foo", /* @match /@1.1 \+ @"foo"/ */ 1.1 + "foo");
+    // add(logger, 1.2d, "foo", /* @match /@1.2d \+ @"foo"/ */ 1.2d + "foo");
+
+    add(logger, "foo", null, /* @match "foonull" */ "foo" + null);
+    add(logger, "foo", 1, /* @match "foo1" */ "foo" + 1);
+    add(logger, "foo", 1l, /* @match "foo1" */ "foo" + 1l);
+    // skip these as above
+    // add(logger, "foo", 1.1, /* @match /@"foo" \+ @1.1/ */ "foo" + 1.1);
+    // add(logger, "foo", 1.2d, /* @match /@"foo" \+ @1.2d/ */ "foo" + 1.2d);
+    return ok;
+}
+
+function sub(
+    logger as Logger,
+    a as Number or Long or Float or Double,
+    b as Number or Long or Float or Double,
+    c as Number or Long or Float or Double
+) as Void {
+    check(c, a - b, logger);
+}
+
+(:test)
+function testSubFolding(logger as Logger) as Boolean {
+    ok = true;
+    sub(logger, 1, 41, /* @match /^@-40$/ */ 1 - 41);
+    sub(logger, 1.5, 41, /* @match /^@-39.5$/ */ 1.5 - 41);
+    sub(logger, 1.5, 41l, /* @match /^@-39.5d$/ */ 1.5 - 41l);
+    sub(logger, 1.5d, 41, /* @match /^@-39.5d$/ */ 1.5d - 41l);
+
+    sub(logger, 1.5, 0.5, /* @match /^@1f$/ */ 1.5 - 0.5);
+    sub(logger, 1.5d, 0.5, /* @match /^@1d$/ */ 1.5d - 0.5);
+    sub(logger, 1.5, 0.5d, /* @match /^@1d$/ */ 1.5 - 0.5d);
+    sub(logger, 1.5d, 0.5d, /* @match /^@1d$/ */ 1.5d - 0.5d);
+    return ok;
+}
+
+function mul(
+    logger as Logger,
+    a as Number or Long or Float or Double,
+    b as Number or Long or Float or Double,
+    c as Number or Long or Float or Double
+) as Void {
+    check(c, a * b, logger);
+}
+
+(:test)
+function testMulFolding(logger as Logger) as Boolean {
+    ok = true;
+    mul(logger, 2, 41, /* @match /^@82$/ */ 2 * 41);
+    mul(logger, 1.5, 42, /* @match /^@63f$/ */ 1.5 * 42);
+    mul(logger, 1.5, 42l, /* @match /^@63d$/ */ 1.5 * 42l);
+    mul(logger, 1.5d, 42, /* @match /^@63d$/ */ 1.5d * 42);
+
+    mul(logger, 1.5, 0.5, /* @match /^@0.75$/ */ 1.5 * 0.5);
+    mul(logger, 1.5d, 0.5, /* @match /^@0.75d$/ */ 1.5d * 0.5);
+    mul(logger, 1.5, 0.5d, /* @match /^@0.75d$/ */ 1.5 * 0.5d);
+    mul(logger, 1.5d, 0.5d, /* @match /^@0.75d$/ */ 1.5d * 0.5d);
+    return ok;
+}
+
+function div(
+    logger as Logger,
+    a as Number or Long or Float or Double,
+    b as Number or Long or Float or Double,
+    c as Number or Long or Float or Double
+) as Void {
+    check(c, a / b, logger);
+}
+
+(:test)
+function testDivFolding(logger as Logger) as Boolean {
+    ok = true;
+    div(logger, 55, 2, /* @match /^@27$/ */ 55 / 2);
+    div(logger, 55.0, 2, /* @match /^@27.5$/ */ 55.0 / 2);
+    div(logger, 55.0, 2l, /* @match /^@27.5d$/ */ 55.0 / 2l);
+    div(logger, 55d, 2, /* @match /^@27.5d$/ */ 55d / 2);
+
+    div(logger, 1.5, 0.5, /* @match /^@3f$/ */ 1.5 / 0.5);
+    div(logger, 1.5d, 0.5, /* @match /^@3d$/ */ 1.5d / 0.5);
+    div(logger, 1.5, 0.5d, /* @match /^@3d$/ */ 1.5 / 0.5d);
+    div(logger, 1.5d, 0.5d, /* @match /^@3d$/ */ 1.5d / 0.5d);
+    return ok;
+}
+
+function mod(
+    logger as Logger,
+    a as Number or Long,
+    b as Number or Long,
+    c as Number or Long
+) as Void {
+    check(c, a % b, logger);
+}
+
+(:test)
+function testModFolding(logger as Logger) as Boolean {
+    ok = true;
+    mod(logger, 55, 4, /* @match /^@3$/ */ 55 % 4);
+    mod(logger, 55l, 4, /* @match /^@3l$/ */ 55l % 4);
+    mod(logger, 55, 4l, /* @match /^@3l$/ */ 55 % 4l);
+    mod(logger, 55l, 4l, /* @match /^@3l$/ */ 55l % 4l);
+
+    return ok;
+}

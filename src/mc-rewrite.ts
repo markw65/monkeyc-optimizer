@@ -1,4 +1,8 @@
-import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
+import {
+  default as MonkeyC,
+  LiteralIntegerRe,
+  mctree,
+} from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
   collectNamespaces,
@@ -476,50 +480,230 @@ function isBooleanExpression(
   return false;
 }
 
+type MCLiteralTypes =
+  | "Number"
+  | "Long"
+  | "Boolean"
+  | "Float"
+  | "Double"
+  | "String"
+  | "Null";
+
+function roundToFloat(value: number) {
+  return new Float32Array([value as number])[0];
+}
+
 function replacementLiteral(
   arg: mctree.Literal,
-  value: bigint | number | boolean,
-  type: "Number" | "Long" | "Boolean"
+  value: bigint | number | boolean | string | null,
+  type: MCLiteralTypes
 ) {
-  if (typeof value === "boolean") {
+  if (value === null) {
+    type = "Null";
+  } else if (typeof value === "boolean") {
     type = "Boolean";
   } else if (type === "Number") {
     value = Number(BigInt.asIntN(32, BigInt(value)));
   } else if (type === "Long") {
     value = BigInt.asIntN(64, BigInt(value));
+  } else if (type === "Float") {
+    value = roundToFloat(Number(value));
+  }
+  let raw =
+    type === "String"
+      ? JSON.stringify(value)
+      : value == null
+      ? "null"
+      : value.toString();
+  if (type === "Long") {
+    raw += "l";
+  } else if (type === "Double") {
+    raw += "d";
+  } else if (type === "Float" && LiteralIntegerRe.test(raw)) {
+    raw += "f";
   }
   return {
     ...arg,
     value,
-    raw: value.toString() + (type === "Long" ? "l" : ""),
+    raw,
   };
 }
 
-const operators = {
-  "+": (left: bigint, right: bigint) => left + right,
-  "-": (left: bigint, right: bigint) => left - right,
-  "*": (left: bigint, right: bigint) => left * right,
-  "/": (left: bigint, right: bigint) => left / right,
-  "%": (left: bigint, right: bigint) => left % right,
-  "&": (left: bigint, right: bigint) => left & right,
-  "|": (left: bigint, right: bigint) => left | right,
-  "^": (left: bigint, right: bigint) => left ^ right,
-  "<<": (left: bigint, right: bigint) => left << (right & 127n),
-  ">>": (left: bigint, right: bigint) => left >> (right & 127n),
-  "==": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
-    // two string literals will compare unequal, becuase string
-    // equality is object equality.
-    typeof left === "string" ? false : left === right,
-  "!=": (left: mctree.Literal["value"], right: mctree.Literal["value"]) =>
-    typeof left === "string" ? true : left !== right,
-  "<=": (left: bigint, right: bigint) => left <= right,
-  ">=": (left: bigint, right: bigint) => left >= right,
-  "<": (left: bigint, right: bigint) => left < right,
-  ">": (left: bigint, right: bigint) => left > right,
+type LiteralArg = mctree.Literal["value"];
+type OpDesc = [MCLiteralTypes, (a: LiteralArg) => LiteralArg];
+type OpInfo = {
+  typeFn: (left: MCLiteralTypes, right: MCLiteralTypes) => OpDesc | null;
+  valueFn: (left: LiteralArg, right: LiteralArg) => LiteralArg;
+};
+
+function classify(arg: MCLiteralTypes) {
+  switch (arg) {
+    case "Number":
+      return { big: false, int: true };
+    case "Long":
+      return { big: true, int: true };
+    case "Float":
+      return { big: false, int: false };
+    case "Double":
+      return { big: true, int: false };
+  }
+  return null;
+}
+
+function common_arith_types(
+  left: MCLiteralTypes,
+  right: MCLiteralTypes
+): OpDesc | null {
+  const l = classify(left);
+  if (!l) return null;
+  const r = classify(right);
+  if (!r) return null;
+  if (l.big || r.big) {
+    return l.int && r.int
+      ? ["Long", (v: LiteralArg) => BigInt.asIntN(64, BigInt(v!))]
+      : ["Double", (v: LiteralArg) => Number(v)];
+  } else {
+    return l.int && r.int
+      ? ["Number", (v: LiteralArg) => BigInt.asIntN(32, BigInt(v!))]
+      : ["Float", (v: LiteralArg) => roundToFloat(Number(v))];
+  }
+}
+
+function common_bitwise_types(
+  left: MCLiteralTypes,
+  right: MCLiteralTypes
+): OpDesc | null {
+  if (left === "Boolean" && right === "Boolean") {
+    return ["Boolean", (v: LiteralArg) => (v ? true : false)];
+  }
+  const l = classify(left);
+  if (!l) return null;
+  const r = classify(right);
+  if (!r) return null;
+  if (!l.int || !r.int) return null;
+  return l.big || r.big
+    ? ["Long", (v: LiteralArg) => BigInt.asIntN(64, BigInt(v!))]
+    : ["Number", (v: LiteralArg) => Number(BigInt.asIntN(32, BigInt(v!)))];
+}
+
+function plus_types(
+  left: MCLiteralTypes,
+  right: MCLiteralTypes
+): OpDesc | null {
+  if (left === "String" || right === "String") {
+    // Boolean + String is an error, and
+    // Float/Double + String is legal, but its hard to predict
+    // the way the float will be formatted (and it won't match
+    // what javascript would do by default)
+    if (/Float|Double|Boolean/.test(left + right)) {
+      return null;
+    }
+    return ["String", String];
+  }
+  return common_arith_types(left, right);
+}
+
+function shift_mod_types(left: MCLiteralTypes, right: MCLiteralTypes) {
+  const result = common_bitwise_types(left, right);
+  if (result && result[0] === "Boolean") {
+    return null;
+  }
+  return result;
+}
+
+const operators: Record<
+  mctree.BinaryOperator | "as" | "instanceof",
+  OpInfo | null
+> = {
+  "+": {
+    typeFn: plus_types,
+    valueFn: (left, right) => (left as number) + (right as number),
+  },
+  "-": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) - (right as number),
+  },
+  "*": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) * (right as number),
+  },
+  "/": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) / (right as number),
+  },
+  "%": {
+    typeFn: shift_mod_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) % (right as number),
+  },
+  "&": {
+    typeFn: common_bitwise_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) & (right as number),
+  },
+  "|": {
+    typeFn: common_bitwise_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) | (right as number),
+  },
+  "^": {
+    typeFn: common_bitwise_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) ^ (right as number),
+  },
+  "<<": {
+    typeFn: shift_mod_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      typeof right === "bigint"
+        ? (left as bigint) << (right as bigint & 127n)
+        : (left as number) << (right as number & 63),
+  },
+  ">>": {
+    typeFn: shift_mod_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      typeof right === "bigint"
+        ? (left as bigint) >> (right as bigint & 127n)
+        : (left as number) >> (right as number & 63),
+  },
+  "==": {
+    typeFn: () => ["Boolean", (v: LiteralArg) => v],
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      // two string literals will compare unequal, becuase string
+      // equality is object equality.
+      typeof left === "string" ? false : left === right,
+  },
+  "!=": {
+    typeFn: () => ["Boolean", (v: LiteralArg) => v],
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      typeof left === "string" ? true : left !== right,
+  },
+  "<=": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) <= (right as number),
+  },
+  ">=": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) >= (right as number),
+  },
+  "<": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) < (right as number),
+  },
+  ">": {
+    typeFn: common_arith_types,
+    valueFn: (left: LiteralArg, right: LiteralArg) =>
+      (left as number) > (right as number),
+  },
   as: null,
   instanceof: null,
   has: null,
-} as const;
+};
 
 function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
   switch (node.type) {
@@ -528,12 +712,22 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
       if (arg === null) break;
       switch (node.operator) {
         case "+":
-          if (type === "Number" || type === "Long") {
+          if (
+            type === "Number" ||
+            type === "Long" ||
+            type === "Float" ||
+            type === "Double"
+          ) {
             return arg;
           }
           break;
         case "-":
-          if (type === "Number" || type === "Long") {
+          if (
+            type === "Number" ||
+            type === "Long" ||
+            type === "Float" ||
+            type === "Double"
+          ) {
             return replacementLiteral(arg, -arg.value, type);
           }
           break;
@@ -558,23 +752,11 @@ function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
         const [left, left_type] = getNodeValue(node.left);
         const [right, right_type] = getNodeValue(node.right);
         if (!left || !right) break;
-        let value = null;
-        let type: "Boolean" | "Number" | "Long";
-        if (
-          (left_type != "Number" && left_type != "Long") ||
-          left_type != right_type
-        ) {
-          if (node.operator !== "==" && node.operator !== "!=") {
-            break;
-          }
-          value = operators[node.operator](left.value, right.value);
-          type = "Boolean" as const;
-        } else {
-          type = left_type;
-          value = op(BigInt(left.value), BigInt(right.value));
-        }
+        const type = op.typeFn(left_type, right_type);
+        if (!type) break;
+        const value = op.valueFn(type[1](left.value), type[1](right.value));
         if (value === null) break;
-        return replacementLiteral(left, value, type);
+        return replacementLiteral(left, value, type[0]);
       }
       break;
     }
