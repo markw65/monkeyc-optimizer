@@ -488,9 +488,13 @@ export async function driver() {
     if (index >= jungles.length) return null;
     const jungleFiles = jungles[index];
     const parts: { line: unknown; err: boolean | undefined }[] = [];
-    const logger = (line: unknown, err?: boolean) => {
-      parts.push({ line, err });
-    };
+    const logger =
+      jungles.length > 1
+        ? (line: unknown, err?: boolean) => {
+            parts.push({ line, err });
+          }
+        : (line: unknown, err?: boolean) =>
+            err ? console.error(line) : console.log(line);
     const jf =
       typeof jungleFiles === "string"
         ? {
