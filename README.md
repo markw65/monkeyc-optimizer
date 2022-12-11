@@ -518,3 +518,13 @@ Bug Fixes
 - Add Symbols (`:name`) to the list of things the inliner knows are constants
 - Propagate `:typecheck(false)` to the caller when inlining
 - Fix an issue with bogus undefined symbols being reported against manifest.xml in some projects that use barrels.
+
+### 1.0.44
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.40](https://github.com/markw65/prettier-plugin-monkeyc#1040)
+
+  - Fixes location ranges associated with parenthesized expressions
+  - Fixes parsing of Lang.Char literals
+
+- Add more parsing of expressions embedded in resource files. This should now be complete, in that the analasis pass should see every symbol definition and reference from anywhere in the project.
+- Generalize constant folding to (nearly) all supported types. We don't fold additions between Float or Double and String, because the exact behavior is [buggy and upredictable](https://forums.garmin.com/developer/connect-iq/i/bug-reports/sdk-4-1-7-constant-folds-floats-strings-incorrectly)
