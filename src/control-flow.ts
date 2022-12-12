@@ -132,6 +132,8 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         stmtStack.push(node);
       }
       switch (node.type) {
+        case "FunctionDeclaration":
+          return ["body"];
         case "AttributeList":
           return [];
         case "SwitchStatement": {

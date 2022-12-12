@@ -1,32 +1,21 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import {
-  Block,
-  buildReducedGraph,
-  getPostOrder,
-  BaseEvent,
-} from "./control-flow";
-import * as PriorityQueue from "priorityqueuejs";
-import {
-  getNodeValue,
-  isExpression,
-  isStatement,
-  traverseAst,
-  withLoc,
-  withLocDeep,
-} from "./ast";
 import { formatAst } from "./api";
+import { isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
+import { getPostOrder } from "./control-flow";
 import {
-  VariableStateNode,
-  ProgramStateAnalysis,
-  FunctionStateNode,
-} from "./optimizer-types";
-import {
-  cloneSet,
-  findCallees,
-  findCalleesForNew,
-  functionMayModify,
-  mergeSet,
-} from "./function-info";
+  buildDataFlowGraph,
+  declFullName,
+  declName,
+  Event,
+  EventDecl,
+  ModEvent,
+  RefNode,
+  DataFlowBlock as PREBlock,
+  DataflowQueue,
+} from "./data-flow";
+import { cloneSet, functionMayModify, mergeSet } from "./function-info";
+import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
+import { every } from "./util";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination
@@ -54,69 +43,6 @@ import {
  */
 
 const logging = false;
-
-type EventDecl = VariableStateNode | mctree.Literal;
-
-type RefNodes = mctree.Identifier | mctree.MemberExpression | mctree.Literal;
-interface RefEvent extends BaseEvent {
-  type: "ref";
-  node: RefNodes;
-  decl: EventDecl;
-}
-
-interface DefEvent extends BaseEvent {
-  type: "def";
-  node:
-    | mctree.AssignmentExpression
-    | mctree.UpdateExpression
-    | mctree.VariableDeclarator;
-  decl: EventDecl;
-}
-
-interface ModEvent extends BaseEvent {
-  type: "mod";
-  node: mctree.Node;
-  decl?: EventDecl | undefined | null;
-  before?: boolean;
-  id?: mctree.Identifier | mctree.MemberExpression | mctree.Literal;
-  callees?: FunctionStateNode[] | null;
-}
-
-interface ExnEvent extends BaseEvent {
-  type: "exn";
-  node: mctree.Node;
-}
-
-type Event = RefEvent | DefEvent | ModEvent | ExnEvent;
-
-interface PREBlock extends Block<Event> {
-  order?: number;
-}
-
-function declFullName(decl: EventDecl) {
-  switch (decl.type) {
-    case "Literal":
-      return decl.raw || decl.value?.toString() || "null";
-    case "VariableDeclarator":
-      return decl.fullName;
-    default:
-      throw new Error(`Unexpected EventDecl type: ${(decl as EventDecl).type}`);
-  }
-}
-
-function declName(decl: EventDecl) {
-  switch (decl.type) {
-    case "Literal":
-      return (decl.raw || decl.value?.toString() || "null").replace(
-        /[^\w]/g,
-        "_"
-      );
-    case "VariableDeclarator":
-      return decl.name;
-    default:
-      throw new Error(`Unexpected EventDecl type: ${(decl as EventDecl).type}`);
-  }
-}
 
 function logAntState(s: AnticipatedState, decl: EventDecl) {
   const defs = Array.from(s.ant).reduce<number>((defs, event) => {
@@ -209,200 +135,14 @@ export function sizeBasedPRE(
   }
 }
 
-function unhandledExpression(node: never) {
-  throw new Error(`Unhandled expression type: ${(node as mctree.Node).type}`);
-}
-
 function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
-  const findDecl = (node: mctree.Node): EventDecl | null => {
-    if (
-      node.type === "Identifier" ||
-      (node.type === "MemberExpression" && !node.computed)
-    ) {
-      const [, results] = state.lookup(node);
-      if (
-        results &&
-        results.length === 1 &&
-        results[0].parent?.type != "BlockStatement" &&
-        results[0].results.length === 1 &&
-        results[0].results[0].type === "VariableDeclarator"
-      ) {
-        return results[0].results[0];
-      }
-    }
-    return null;
-  };
-  const literals = new Map<mctree.Literal["value"], mctree.Literal>();
-  const identifiers = new Set<string>();
-  const liveDefs = new Map<EventDecl | null, Set<mctree.Node>>();
-  const liveStmts = new Map<mctree.Node, Map<EventDecl | null, number>>();
-  const liveDef = (def: EventDecl | null, stmt: mctree.Node) => {
-    let curNodes = liveDefs.get(def);
-    if (!curNodes) {
-      liveDefs.set(def, (curNodes = new Set<mctree.Node>()));
-    }
-    curNodes.add(stmt);
-    let defs = liveStmts.get(stmt);
-    if (!defs) {
-      liveStmts.set(stmt, (defs = new Map<EventDecl | null, number>()));
-    }
-    defs.set(def, (defs.get(def) || 0) + 1);
-  };
-  return {
-    identifiers,
-    graph: buildReducedGraph(
-      state,
-      func,
-      (node, stmt, mayThrow): Event | null => {
-        const defs = liveStmts.get(node);
-        if (defs) {
-          liveStmts.delete(node);
-          defs.forEach((count, def) => {
-            if (count > 1) {
-              defs.set(def, count--);
-              return;
-            }
-            const v = liveDefs.get(def);
-            if (!v || !v.has(node)) {
-              throw new Error(
-                `No stmt in liveDef for ${def ? declFullName(def) : "null"}`
-              );
-            }
-            v.delete(node);
-            if (!v.size) {
-              liveDefs.delete(def);
-            }
-          });
-        }
-        switch (node.type) {
-          case "BinaryExpression":
-          case "UnaryExpression":
-          case "SizedArrayExpression":
-          case "ArrayExpression":
-          case "ObjectExpression":
-          case "ThisExpression":
-          case "LogicalExpression":
-          case "ConditionalExpression":
-          case "SequenceExpression":
-          case "ParenthesizedExpression":
-            break;
-          case "Literal":
-            if (refCost(node) > LocalRefCost) {
-              const result = getNodeValue(node);
-              const key =
-                result[1] +
-                (result[0].value === null
-                  ? ""
-                  : "-" + result[0].value.toString());
-              let decl = literals.get(key);
-              if (!decl) {
-                decl = node;
-                literals.set(key, decl);
-              }
-              return {
-                type: "ref",
-                node,
-                decl: decl,
-                mayThrow,
-              } as RefEvent;
-            }
-            break;
-          case "Identifier":
-            identifiers.add(node.name);
-          // fall through
-          case "MemberExpression":
-            {
-              const decl = findDecl(node);
-              if (decl && decl.type === "VariableDeclarator") {
-                const defStmts =
-                  (decl.node.kind === "var" && liveDefs.get(null)) ||
-                  liveDefs.get(decl);
-                if (defStmts) {
-                  break;
-                  /*
-                  // hold off on this for now. we need to communicate
-                  // which defs need to be fixed, which involves yet-another
-                  // table.
-
-                  if (defStmts.size !== 1) break;
-                  const fixable = isFixableStmt([...defStmts][0]);
-                  if (fixable === false) break;
-                  cost += fixable;
-                */
-                }
-                return {
-                  type: "ref",
-                  node,
-                  decl,
-                  mayThrow,
-                };
-              }
-            }
-            break;
-          case "VariableDeclarator": {
-            const decl = findDecl(
-              node.id.type === "BinaryExpression" ? node.id.left : node.id
-            );
-            if (decl) {
-              liveDef(decl, stmt);
-              return {
-                type: "def",
-                node,
-                decl,
-                mayThrow,
-              };
-            }
-            break;
-          }
-          case "AssignmentExpression": {
-            const decl = findDecl(node.left);
-            if (decl) {
-              liveDef(decl, stmt);
-              return {
-                type: "def",
-                node,
-                decl,
-                mayThrow,
-              };
-            }
-            break;
-          }
-          case "UpdateExpression": {
-            const decl = findDecl(node.argument);
-            if (decl) {
-              liveDef(decl, stmt);
-              return {
-                type: "def",
-                node,
-                decl,
-                mayThrow,
-              };
-            }
-            break;
-          }
-          case "NewExpression": {
-            const [, results] = state.lookup(node.callee);
-            const callees = results ? findCalleesForNew(results) : null;
-            liveDef(null, stmt);
-            return { type: "mod", node, mayThrow, callees };
-          }
-          case "CallExpression": {
-            liveDef(null, stmt);
-            const [, results] = state.lookup(node.callee);
-            const callees = results ? findCallees(results) : null;
-            return { type: "mod", node, mayThrow, callees };
-          }
-          default:
-            if (!isExpression(node)) break;
-            unhandledExpression(node);
-        }
-        if (mayThrow) {
-          return { type: "exn", node, mayThrow };
-        }
-        return null;
-      }
-    ),
-  };
+  return buildDataFlowGraph(
+    state,
+    func,
+    (literal) => refCost(literal) > LocalRefCost,
+    true,
+    false
+  );
 }
 
 /**
@@ -424,7 +164,7 @@ type AnticipatedEvents = Set<Event>;
 type AnticipatedState = {
   ant: AnticipatedEvents;
   live: boolean;
-  node: RefNodes;
+  node: RefNode;
   members: Map<PREBlock, boolean>;
   head?: PREBlock;
   isIsolated?: true;
@@ -456,7 +196,7 @@ function equalMap<T, U>(a: Map<T, U>, b: Map<T, U>) {
 }
 
 function anticipatedState(
-  node: RefNodes,
+  node: RefNode,
   events?: AnticipatedEvents
 ): AnticipatedState {
   return { ant: events || new Set(), live: true, node, members: new Map() };
@@ -518,7 +258,7 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
 
 const LocalRefCost = 2;
 
-function refCost(node: RefNodes) {
+function refCost(node: RefNode) {
   if (node.type === "Literal") {
     switch (typeof node.value) {
       case "string":
@@ -551,7 +291,7 @@ function refCost(node: RefNodes) {
   }
 }
 
-function defCost(node: RefNodes) {
+function defCost(node: RefNode) {
   return refCost(node) + 2;
 }
 
@@ -625,21 +365,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
     });
   }
 
-  const enqueued = new Set<PREBlock>();
-  const queue = new PriorityQueue<PREBlock>(
-    (b, a) => (a.order || 0) - (b.order || 0)
-  );
-  const enqueue = (block: PREBlock) => {
-    if (!enqueued.has(block)) {
-      enqueued.add(block);
-      queue.enq(block);
-    }
-  };
-  const dequeue = () => {
-    const block = queue.deq();
-    enqueued.delete(block);
-    return block;
-  };
+  const queue = new DataflowQueue();
   const blockStates: AnticipatedDecls[] = [];
 
   /*
@@ -654,7 +380,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
   */
 
   const modMap = new Map<Event, Map<EventDecl, Event>>();
-  const getMod = (event: Event, decl: EventDecl, id: RefNodes) => {
+  const getMod = (event: Event, decl: EventDecl, id: RefNode) => {
     if (id.type !== "Identifier" && id.type !== "MemberExpression") {
       throw new Error("Trying to modify a non-variable");
     }
@@ -676,9 +402,9 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
     return result;
   };
 
-  order.forEach((block) => enqueue(block));
-  while (queue.size()) {
-    const top = dequeue();
+  order.forEach((block) => queue.enqueue(block));
+  while (!queue.empty()) {
+    const top = queue.dequeue();
     if (top.order === undefined) {
       throw new Error(`Unreachable block was visited!`);
     }
@@ -718,17 +444,21 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
             break;
           }
           case "mod": {
-            curState.forEach((candidates, decl) => {
+            curState.forEach((candidates, decls) => {
               if (
-                decl.type === "VariableDeclarator" &&
-                decl.node.kind === "var" &&
-                candidates.live &&
-                (!event.callees ||
-                  event.callees.some((callee) =>
-                    functionMayModify(state, callee, decl)
-                  ))
+                every(
+                  decls,
+                  (decl) =>
+                    decl.type === "VariableDeclarator" &&
+                    decl.node.kind === "var" &&
+                    candidates.live &&
+                    (!event.callees ||
+                      event.callees.some((callee) =>
+                        functionMayModify(state, callee, decl)
+                      ))
+                )
               ) {
-                candidates.ant.add(getMod(event, decl, candidates.node));
+                candidates.ant.add(getMod(event, decls, candidates.node));
                 candidates.live = false;
               }
             });
@@ -784,7 +514,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
       logAntDecls(curState);
     }
     if (top.preds) {
-      top.preds.forEach((pred) => enqueue(pred));
+      top.preds.forEach((pred) => queue.enqueue(pred));
     }
   }
 
