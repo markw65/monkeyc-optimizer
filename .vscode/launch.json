@@ -19,7 +19,8 @@
       "program": "${workspaceFolder}/test/test.js",
       "args": [
         "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
-        "--product=fenix5xplus"
+        "--product=fenix5xplus",
+        "--showInfo"
       ],
       "sourceMaps": true
     },
@@ -32,7 +33,8 @@
       "args": [
         "--jungle=${workspaceFolder}/../HRMultifield/monkey.jungle;${workspaceFolder}/../HRMultifield/generated/device-specific.jungle",
         "--product=fenix5xplus",
-        "--release=true"
+        "--release=true",
+        "--showInfo"
       ]
     },
     {
@@ -55,7 +57,8 @@
       "args": [
         "--jungle=${workspaceFolder}/../garmin-samples/Picker/monkey.jungle",
         "--output-path=bin/optimized",
-        "--product=fenix5x"
+        "--product=fenix5x",
+        "--showInfo"
       ]
     },
     {
@@ -64,7 +67,12 @@
       "name": "Optimize Remote projects",
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
-      "args": ["--output-path=bin/optimized", "--github", "--generate-only"]
+      "args": [
+        "--output-path=bin/optimized",
+        "--github",
+        "--generate-only",
+        "--showInfo"
+      ]
     },
     {
       "type": "node",
@@ -72,7 +80,10 @@
       "name": "Optimize and export garmin-samples",
       "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/test/test.js",
-      "args": ["--jungle=${workspaceFolder}/../garmin-samples/*/monkey.jungle"]
+      "args": [
+        "--jungle=${workspaceFolder}/../garmin-samples/*/monkey.jungle",
+        "--showInfo"
+      ]
     }
   ]
 }
