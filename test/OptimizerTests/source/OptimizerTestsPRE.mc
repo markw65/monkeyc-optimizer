@@ -85,3 +85,30 @@ function testPREWithTry(logger as Logger) as Boolean {
     /* @match "return pre_gMaybeModified" */
     return gMaybeModified == 1;
 }
+
+function conflict() as Void {
+    gMaybeModified++;
+}
+
+function safe() as Number {
+    return gMaybeModified * 2;
+}
+
+// testing that PRE
+//   - correctly identifies function callees even in
+//     the presence of same-named locals
+//   - correctly identifies functions with no side-effects
+(:test)
+function testPREWithFunctionConflict(logger as Logger) as Boolean {
+    var /* @match "conflict = pre_gMaybe" */ conflict = gMaybeModified + 2,
+        /* @match "safe = pre_gMaybe" */ safe = gMaybeModified + 1;
+    conflict += safe();
+    /* @match "safe += pre_gMaybe" */
+    safe += gMaybeModified;
+    /* @match "conflict += pre_gMaybe" */
+    conflict += gMaybeModified;
+    conflict();
+
+    /* @match "== 2 * pre_gMaybe" */
+    return conflict - safe == 2 * gMaybeModified - 1;
+}

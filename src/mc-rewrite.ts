@@ -1314,7 +1314,10 @@ export async function optimizeMonkeyC(
             }, but it was not marked current`
           );
         }
-        state.currentFunction.info = state.currentFunction.next_info;
+        state.currentFunction.info = state.currentFunction.next_info || {
+          modifiedDecls: new Set(),
+          calledFuncs: new Set(),
+        };
         delete state.currentFunction.next_info;
         delete state.currentFunction;
         break;

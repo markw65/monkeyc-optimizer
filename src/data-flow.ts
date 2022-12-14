@@ -361,7 +361,7 @@ export function buildDataFlowGraph(
           }
           case "CallExpression": {
             liveDef(null, stmt);
-            const [, results] = state.lookup(node.callee);
+            const [, results] = state.lookupNonlocal(node.callee);
             const callees = results ? findCallees(results) : null;
             return { type: "mod", node, mayThrow, callees };
           }
