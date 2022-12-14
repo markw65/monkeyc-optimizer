@@ -83,6 +83,7 @@ export function functionMayModify(
   decl: VariableStateNode
 ) {
   const info = func.info;
+  if (info === false) return false;
   if (!info || info.modifiedUnknown) return true;
   if (info.resolvedDecls) {
     return info.resolvedDecls.has(decl);
@@ -92,7 +93,7 @@ export function functionMayModify(
   const visited = new Set<FunctionStateNode>();
   const resolved = new Set<VariableStateNode>();
   const resolveDecls = (f: FunctionStateNode): boolean => {
-    if (visited.has(f)) return true;
+    if (f.info === false || visited.has(f)) return true;
     if (!f.info) return false;
     if (f.info.modifiedUnknown) {
       info.modifiedUnknown = true;

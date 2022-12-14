@@ -109,7 +109,7 @@ export interface FunctionStateNode extends BaseStateNode {
   fullName: string;
   stack?: ProgramStateStack;
   decls?: undefined;
-  info?: FunctionInfo;
+  info?: FunctionInfo | false;
   next_info?: FunctionInfo;
 }
 export interface BlockStateNode extends BaseStateNode {

@@ -1095,7 +1095,9 @@ export function findUsingForNode(
 const invokeInfo: FunctionInfo | Record<string, never> = {};
 const toyboxFnInfo: FunctionInfo | Record<string, never> = {};
 
-export function getApiFunctionInfo(func: FunctionStateNode): FunctionInfo {
+export function getApiFunctionInfo(
+  func: FunctionStateNode
+): FunctionInfo | false {
   if (
     func.fullName === "$.Toybox.Lang.Method.invoke" ||
     (func.node.params &&
@@ -1121,9 +1123,7 @@ export function getApiFunctionInfo(func: FunctionStateNode): FunctionInfo {
     return invokeInfo as FunctionInfo;
   }
   if (!toyboxFnInfo.calledFuncs) {
-    toyboxFnInfo.modifiedDecls = new Set();
-    toyboxFnInfo.calledFuncs = new Set();
-    toyboxFnInfo.resolvedDecls = new Set();
+    return false;
   }
   return toyboxFnInfo as FunctionInfo;
 }
