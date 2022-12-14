@@ -216,6 +216,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/myneur/late",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    include: "monkey.jungle",
   },
   "https://github.com/okdar/smartarcs",
   "https://github.com/pedlarstudios/WordOfTheDay",
