@@ -1,4 +1,5 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
+import type { xmlUtil } from "./sdk-util";
 
 type UnionMemberExtends<T, U> = true extends (T extends U ? true : never)
   ? true
@@ -367,4 +368,90 @@ export function getNodeValue(node: mctree.Node): LiteralValues | [null, null] {
     return [node as BooleanLiteral, "Boolean"];
   }
   throw new Error(`Literal has unknown type '${type}'`);
+}
+
+export function wrap<T extends mctree.Node>(
+  node: T,
+  loc?: mctree.SourceLocation | null
+): T {
+  if (loc) {
+    node.loc = loc;
+    node.start = loc.start.offset;
+    node.end = loc.end.offset;
+  }
+  return node;
+}
+
+export function locRange(
+  start: mctree.SourceLocation,
+  end: mctree.SourceLocation
+) {
+  return {
+    source: start.source || end.source,
+    start: start.start,
+    end: end.end,
+  };
+}
+
+export function adjustLoc(loc: xmlUtil.SourceLocation, start = 1, end = -1) {
+  return {
+    source: loc.source,
+    start: {
+      offset: loc.start.offset + start,
+      line: loc.start.line,
+      column: loc.start.column + start,
+    },
+    end: {
+      offset: loc.end.offset + end,
+      line: loc.end.line,
+      column: loc.end.column + end,
+    },
+  } as const;
+}
+
+export function makeIdentifier(
+  name: string,
+  loc?: mctree.SourceLocation | null | undefined
+) {
+  return wrap({ type: "Identifier", name }, loc);
+}
+
+export function makeMemberExpression(
+  object: mctree.ScopedName,
+  property: mctree.Identifier
+): mctree.DottedName {
+  return wrap(
+    {
+      type: "MemberExpression",
+      object,
+      property,
+      computed: false,
+    },
+    object.loc && locRange(object.loc, property.loc!)
+  );
+}
+
+export function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
+  const loc = l && adjustLoc(l, 0, l.start.offset - l.end.offset);
+  const result = dotted.split(/\s*\.\s*/).reduce<{
+    cur: mctree.ScopedName | null;
+    offset: number;
+  }>(
+    ({ cur, offset }, next) => {
+      const id = makeIdentifier(
+        next,
+        loc && adjustLoc(loc, offset, offset + next.length)
+      );
+      if (!cur) {
+        cur = id;
+      } else {
+        cur = makeMemberExpression(cur, id);
+      }
+      offset += next.length + 1;
+      return { cur, offset };
+    },
+    { cur: null, offset: 0 }
+  ).cur;
+  if (!result) throw new Error("Failed to make a ScopedName");
+  return result;
 }

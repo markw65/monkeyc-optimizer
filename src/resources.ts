@@ -1,5 +1,13 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
-import { hasProperty, traverseAst } from "./ast";
+import {
+  adjustLoc,
+  hasProperty,
+  locRange,
+  makeIdentifier,
+  makeScopedName,
+  traverseAst,
+  wrap,
+} from "./ast";
 import { diagnostic } from "./inliner";
 import { JungleResourceMap } from "./jungles";
 import { ProgramState } from "./optimizer-types";
@@ -210,7 +218,7 @@ export function add_resources_to_ast(
     module: string,
     as?: string | null
   ) => {
-    const id = makeScopedName(module)!;
+    const id = makeScopedName(module);
     return type === "Using" && as
       ? { type, id, as: makeIdentifier(as) }
       : { type, id };
@@ -267,51 +275,6 @@ export function add_resources_to_ast(
   });
 }
 
-function makeIdentifier(
-  name: string,
-  loc?: mctree.SourceLocation | null | undefined
-) {
-  return wrap({ type: "Identifier", name }, loc);
-}
-
-function makeMemberExpression(
-  object: mctree.ScopedName,
-  property: mctree.Identifier
-): mctree.DottedName {
-  return wrap(
-    {
-      type: "MemberExpression",
-      object,
-      property,
-      computed: false,
-    },
-    object.loc && locRange(object.loc, property.loc!)
-  );
-}
-
-function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
-  const loc = l && adjustLoc(l, 0, l.start.offset - l.end.offset);
-  return dotted.split(/\s*\.\s*/).reduce<{
-    cur: mctree.ScopedName | null;
-    offset: number;
-  }>(
-    ({ cur, offset }, next) => {
-      const id = makeIdentifier(
-        next,
-        loc && adjustLoc(loc, offset, offset + next.length)
-      );
-      if (!cur) {
-        cur = id;
-      } else {
-        cur = makeMemberExpression(cur, id);
-      }
-      offset += next.length + 1;
-      return { cur, offset };
-    },
-    { cur: null, offset: 0 }
-  ).cur;
-}
-
 const drawableSkips: Record<string, Record<string, true>> = {
   x: { center: true, left: true, right: true, start: true },
   y: { center: true, top: true, bottom: true, start: true },
@@ -361,8 +324,7 @@ function visit_resource_refs(
       return;
     }
     if (/^([\w_$]+\s*\.\s*)*[\w_$]+$/.test(name)) {
-      const dn = makeScopedName(name, loc);
-      if (dn) result.push(dn);
+      result.push(makeScopedName(name, loc));
       return;
     }
     // We wrap the expression in parentheses, so adjust
@@ -474,43 +436,6 @@ function visit_resource_refs(
     },
   });
   return result;
-}
-
-function wrap<T extends mctree.Node>(
-  node: T,
-  loc?: mctree.SourceLocation | null
-): T {
-  if (loc) {
-    node.loc = loc;
-    node.start = loc.start.offset;
-    node.end = loc.end.offset;
-  }
-  return node;
-}
-
-function locRange(start: mctree.SourceLocation, end: mctree.SourceLocation) {
-  return {
-    source: start.source || end.source,
-    start: start.start,
-    end: end.end,
-  };
-}
-
-function adjustLoc(loc: xmlUtil.SourceLocation, start = 1, end = -1) {
-  /* Attributes are quoted, so skip the quotes */
-  return {
-    source: loc.source,
-    start: {
-      offset: loc.start.offset + start,
-      line: loc.start.line,
-      column: loc.start.column + start,
-    },
-    end: {
-      offset: loc.end.offset + end,
-      line: loc.end.line,
-      column: loc.end.column + end,
-    },
-  } as const;
 }
 
 function add_one_resource(
