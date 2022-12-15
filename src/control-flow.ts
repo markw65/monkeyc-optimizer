@@ -115,7 +115,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
   try {
     const localState = new LocalState<T>(func.node);
     const ret = localState.curBlock;
-    state.stack = func.stack!;
+    state.stack = [...func.stack!];
     const stmtStack: mctree.Node[] = [func.node];
     let tryActive = 0;
     state.pre = (node) => {
@@ -393,6 +393,14 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "ContinueStatement":
           localState.terminal(node.type);
           return [];
+        case "CallExpression":
+          if (node.callee.type === "Identifier") {
+            const extra = state.stack.splice(func.stack!.length);
+            state.traverse(node.callee);
+            state.stack.push(...extra);
+            return ["arguments"];
+          }
+          break;
       }
       return null;
     };
