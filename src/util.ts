@@ -47,6 +47,58 @@ export function globSome(
   });
 }
 
+export function forEach<T>(
+  val: T | T[] | null | undefined,
+  fn: (v: T) => void
+) {
+  if (!val) return;
+  if (Array.isArray(val)) {
+    val.forEach(fn);
+  } else {
+    fn(val);
+  }
+}
+
+export function map<T, U>(val: T | T[] | null | undefined, fn: (v: T) => U) {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val.map(fn);
+  } else {
+    return [fn(val)];
+  }
+}
+
+export function every<T>(val: T | T[] | null | undefined, fn: (v: T) => void) {
+  if (!val) return true;
+  if (Array.isArray(val)) {
+    return val.every(fn);
+  } else {
+    return fn(val);
+  }
+}
+
+export function some<T>(val: T | T[] | null | undefined, fn: (v: T) => void) {
+  if (!val) return false;
+  if (Array.isArray(val)) {
+    return val.some(fn);
+  } else {
+    return fn(val);
+  }
+}
+
+export function reduce<T, U>(
+  val: T | T[] | null | undefined,
+  fn: (p: U, v: T) => U,
+  init: U
+) {
+  if (!val) return init;
+  if (Array.isArray(val)) {
+    return val.reduce(fn, init);
+  } else {
+    return fn(init, val);
+  }
+}
+
 async function modified_times(inputs: string[], missing: number) {
   return Promise.all(
     inputs.map(async (path) => {
