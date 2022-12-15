@@ -92,8 +92,6 @@ export function declFullName(decl: EventDecl) {
   }
   if (isStateNode(decl)) return decl.fullName;
   switch (decl.type) {
-    case "EnumDeclaration":
-      return decl.id?.name || "enum";
     case "BinaryExpression":
       return decl.left.name;
     case "EnumStringMember":
@@ -117,8 +115,6 @@ export function declName(decl: EventDecl) {
   }
   if (isStateNode(decl)) return decl.name;
   switch (decl.type) {
-    case "EnumDeclaration":
-      return decl.id?.name || "enum";
     case "BinaryExpression":
       return decl.left.name;
     case "EnumStringMember":

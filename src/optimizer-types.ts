@@ -41,9 +41,7 @@ export type StateNodeDecl =
   /* Enum values */
   | mctree.EnumStringMember
   /* Function parameters */
-  | mctree.TypedIdentifier
-  /* Other declarations */
-  | mctree.EnumDeclaration;
+  | mctree.TypedIdentifier;
 export type StateNodeDecls = {
   [key: string]: StateNodeDecl[];
 };
@@ -133,6 +131,14 @@ export interface VariableStateNode extends BaseStateNode {
   stack: ProgramStateStack;
   used?: true;
 }
+export interface EnumStateNode extends BaseStateNode {
+  type: "EnumDeclaration";
+  node: mctree.EnumDeclaration;
+  name: string;
+  fullName: string;
+  stack: ProgramStateStack;
+}
+
 export type StateNode =
   | ProgramStateNode
   | FunctionStateNode
@@ -140,7 +146,8 @@ export type StateNode =
   | ClassStateNode
   | ModuleStateNode
   | TypedefStateNode
-  | VariableStateNode;
+  | VariableStateNode
+  | EnumStateNode;
 export type ProgramStateStack = StateNode[];
 export type LookupDefinition = {
   parent: StateNode | null;

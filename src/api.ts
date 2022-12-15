@@ -767,17 +767,13 @@ export function collectNamespaces(
               ) {
                 break;
               }
-              parent.type_decls[name].push(
-                node.type === "EnumDeclaration"
-                  ? node
-                  : {
-                      type: "TypedefDeclaration",
-                      node,
-                      name,
-                      fullName: parent.fullName + "." + name,
-                      attributes: stateNodeAttrs(node.attrs),
-                    }
-              );
+              parent.type_decls[name].push({
+                type: node.type,
+                node,
+                name,
+                fullName: parent.fullName + "." + name,
+                attributes: stateNodeAttrs(node.attrs),
+              } as StateNodeDecl);
               break;
             }
             case "VariableDeclaration": {
