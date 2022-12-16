@@ -630,6 +630,21 @@ function shift_mod_types(left: MCLiteralTypes, right: MCLiteralTypes) {
   return result;
 }
 
+function equalsFn(left: LiteralArg, right: LiteralArg) {
+  const lt = typeof left;
+  const rt = typeof right;
+  return lt === "string" || rt === "string"
+    ? // two string literals will compare unequal, becuase string
+      // equality is object equality.
+      false
+    : (lt === "number" || lt === "bigint") &&
+      (rt === "number" || rt === "bigint")
+    ? // numeric types are compared for value equality
+      left == right
+    : // otherwise types and values must match
+      left === right;
+}
+
 const operators: Record<
   mctree.BinaryOperator | "as" | "instanceof",
   OpInfo | null
@@ -694,15 +709,11 @@ const operators: Record<
   },
   "==": {
     typeFn: () => ["Boolean", (v: LiteralArg) => v],
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      // two string literals will compare unequal, becuase string
-      // equality is object equality.
-      typeof left === "string" ? false : left === right,
+    valueFn: equalsFn,
   },
   "!=": {
     typeFn: () => ["Boolean", (v: LiteralArg) => v],
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      typeof left === "string" ? true : left !== right,
+    valueFn: (left, right) => !equalsFn(left, right),
   },
   "<=": {
     typeFn: common_arith_types,

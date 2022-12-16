@@ -48,6 +48,16 @@ function testRelationalFolding1(logger as Logger) as Boolean {
     check(NON_ZERO_CONST > NON_ZERO_CONST ? 42 : 24, 24, logger);
     /* @match /check\(@24, @24, logger\);/ */
     check(ZERO_CONST > NON_ZERO_CONST ? 42 : 24, 24, logger);
+
+    /* @match /check\(@42, @42, logger\);/ */
+    check(ZERO_CONST == 0 ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(ZERO_CONST == 0l ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(ZERO_CONST == 0f ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(ZERO_CONST == 0d ? 42 : 24, 42, logger);
+
     return ok;
 }
 
