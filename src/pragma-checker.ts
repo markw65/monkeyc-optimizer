@@ -68,14 +68,21 @@ export function pragmaChecker(
     const re = new RegExp(
       needle.replace(
         /@([-\d.\w]+|"[^"]*")/g,
-        (_match, pat) => `(?:${pat}|pre_${pat.replace(/[".]/g, "_")}(?:_\\d+)?)`
+        (_match, pat) => `(?:${pat}|pre_${pat.replace(/\W/g, "_")}(?:_\\d+)?)`
       )
     );
     return re.test(haystack);
   };
   next();
   traverseAst(ast, (node) => {
-    if (index >= comments.length) return false;
+    if (
+      index >= comments.length ||
+      node.type === "Line" ||
+      node.type === "Block" ||
+      node.type === "MultiLine"
+    ) {
+      return false;
+    }
     if (node.start && node.start >= (comment.end || Infinity)) {
       const { kind, quote, needle } = matchers.shift()!;
       if (kind === "match") {
