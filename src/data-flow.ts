@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as PriorityQueue from "priorityqueuejs";
-import { formatAst, isStateNode } from "./api";
+import { formatAst, isLocal, isStateNode } from "./api";
 import { getNodeValue, isExpression } from "./ast";
 import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
 import { findCallees, findCalleesForNew } from "./function-info";
@@ -150,26 +150,24 @@ export function buildDataFlowGraph(
         (results &&
           results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
             (decls, result) =>
-              wantsAllRefs || result.parent?.type !== "BlockStatement"
-                ? result.results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
-                    (decls, result) => {
-                      if (
-                        !wantsAllRefs &&
-                        result.type !== "VariableDeclarator"
-                      ) {
-                        return decls;
-                      }
-                      if (!decls) return result;
-                      if (Array.isArray(decls)) {
-                        decls.push(result);
-                        return decls;
-                      } else {
-                        return [decls, result];
-                      }
-                    },
-                    decls
-                  )
-                : decls,
+              result.results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
+                (decls, result) => {
+                  if (
+                    !wantsAllRefs &&
+                    (result.type !== "VariableDeclarator" || isLocal(result))
+                  ) {
+                    return decls;
+                  }
+                  if (!decls) return result;
+                  if (Array.isArray(decls)) {
+                    decls.push(result);
+                    return decls;
+                  } else {
+                    return [decls, result];
+                  }
+                },
+                decls
+              ),
             null
           )) ||
         null;

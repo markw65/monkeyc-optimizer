@@ -1131,3 +1131,7 @@ export function getApiFunctionInfo(func: FunctionStateNode): FunctionInfo {
 export function markInvokeClassMethod(func: FunctionStateNode) {
   func.info = invokeInfo as FunctionInfo;
 }
+
+export function isLocal(v: VariableStateNode) {
+  return v.stack[v.stack.length - 1]?.type === "BlockStatement";
+}
