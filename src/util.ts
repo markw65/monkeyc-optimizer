@@ -121,8 +121,9 @@ export async function first_modified(inputs: string[]) {
 }
 
 export function pushUnique<T, U extends T>(arr: T[], value: U) {
-  if (arr.find((v) => v === value) != null) return;
+  if (arr.find((v) => v === value) != null) return false;
   arr.push(value);
+  return true;
 }
 
 export function sameArrays<T>(
