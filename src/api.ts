@@ -13,6 +13,7 @@ import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import {
   ClassStateNode,
+  EnumStateNode,
   FunctionInfo,
   FunctionStateNode,
   ImportUsing,
@@ -27,6 +28,8 @@ import {
   StateNodeAttributes,
   StateNodeDecl,
   StateNodeDecls,
+  TypedefStateNode,
+  VariableStateNode,
 } from "./optimizer-types";
 import { add_resources_to_ast, visit_resources } from "./resources";
 import { getSdkPath, xmlUtil } from "./sdk-util";
@@ -504,6 +507,435 @@ function lookup(
   return [false, false];
 }
 
+function stateFuncs() {
+  let currentEnum: EnumStateNode | null = null;
+
+  return {
+    removeNodeComments(node: mctree.Node, ast: mctree.Program) {
+      if (node.start && node.end && ast.comments && ast.comments.length) {
+        let low = 0,
+          high = ast.comments.length;
+        while (high > low) {
+          const mid = (low + high) >> 1;
+          if ((ast.comments[mid].start || 0) < node.start) {
+            low = mid + 1;
+          } else {
+            high = mid;
+          }
+        }
+        while (
+          high < ast.comments.length &&
+          (ast.comments[high].end || 0) < node.end
+        ) {
+          high++;
+        }
+        if (high > low) {
+          ast.comments.splice(low, high - low);
+        }
+      }
+    },
+
+    lookup(node, name, stack) {
+      return lookup(
+        this,
+        this.inType ? "type_decls" : "decls",
+        node,
+        name,
+        stack
+      );
+    },
+
+    lookupNonlocal(node, name, stack) {
+      return lookup(this, "decls", node, name, stack, true);
+    },
+
+    lookupValue(node, name, stack) {
+      return lookup(this, "decls", node, name, stack);
+    },
+
+    lookupType(node, name, stack) {
+      return lookup(this, "type_decls", node, name, stack);
+    },
+
+    stackClone() {
+      return this.stack.map((elm) =>
+        elm.type === "ModuleDeclaration" || elm.type === "Program"
+          ? { ...elm }
+          : elm
+      );
+    },
+
+    traverse(root) {
+      return traverseAst(
+        root,
+        (node) => {
+          try {
+            if (this.shouldExclude && this.shouldExclude(node)) {
+              // don't visit any children, but do call post
+              return [];
+            }
+            switch (node.type) {
+              case "MemberExpression": {
+                if (isLookupCandidate(node)) {
+                  return (this.pre && this.pre(node, this)) || ["object"];
+                }
+                break;
+              }
+              case "UnaryExpression":
+                if (node.operator === ":" && !this.inType) {
+                  this.nextExposed[node.argument.name] = true;
+                }
+                break;
+              case "AttributeList":
+                return [];
+              case "Program":
+                if (this.stack.length != 1) {
+                  throw new Error("Unexpected stack length for Program node");
+                }
+                this.stack[0].node = node;
+                break;
+              case "TypeSpecList":
+              case "TypeSpecPart":
+                this.inType++;
+                break;
+              case "ImportModule":
+              case "Using": {
+                const [parent] = this.stack.slice(-1);
+                if (!parent.usings) {
+                  parent.usings = {};
+                }
+                const name =
+                  (node.type === "Using" && node.as && node.as.name) ||
+                  (node.id.type === "Identifier"
+                    ? node.id.name
+                    : node.id.property.name);
+                const using = { node };
+                parent.usings[name] = using;
+                if (node.type == "ImportModule") {
+                  if (!parent.imports) {
+                    parent.imports = [using];
+                  } else {
+                    const index = parent.imports.findIndex(
+                      (using) =>
+                        (using.node.id.type === "Identifier"
+                          ? using.node.id.name
+                          : using.node.id.property.name) === name
+                    );
+                    if (index >= 0) parent.imports.splice(index, 1);
+                    parent.imports.push(using);
+                  }
+                }
+                break;
+              }
+              case "CatchClause":
+                if (node.param) {
+                  const [parent] = this.stack.slice(-1);
+                  if (!parent.decls) parent.decls = {};
+                  const id =
+                    node.param.type === "Identifier"
+                      ? node.param
+                      : node.param.left;
+                  this.stack.push({
+                    type: "BlockStatement",
+                    fullName: undefined,
+                    name: undefined,
+                    node: node.body,
+                    decls: { [id.name]: [id] },
+                    attributes: 0,
+                  });
+                }
+                break;
+              case "ForStatement":
+                if (node.init && node.init.type === "VariableDeclaration") {
+                  this.stack.push({
+                    type: "BlockStatement",
+                    fullName: undefined,
+                    name: undefined,
+                    node: node,
+                    attributes: 0,
+                  });
+                }
+                break;
+              case "BlockStatement": {
+                const [parent] = this.stack.slice(-1);
+                if (
+                  parent.node === node ||
+                  (parent.type != "FunctionDeclaration" &&
+                    parent.type != "BlockStatement")
+                ) {
+                  break;
+                }
+                // fall through
+              }
+              case "ClassDeclaration":
+              case "FunctionDeclaration":
+              case "ModuleDeclaration": {
+                const [parent] = this.stack.slice(-1);
+                const name = "id" in node ? node.id && node.id.name : undefined;
+                const fullName = this.stack
+                  .map((e) => e.name)
+                  .concat(name)
+                  .filter((e) => e != null)
+                  .join(".");
+                const elm = {
+                  type: node.type,
+                  name,
+                  fullName,
+                  node,
+                  attributes:
+                    node.type === "BlockStatement"
+                      ? 0
+                      : stateNodeAttrs(node.attrs),
+                } as StateNode;
+                this.stack.push(elm);
+                if (name) {
+                  if (!parent.decls) parent.decls = {};
+                  if (hasProperty(parent.decls, name)) {
+                    const what =
+                      node.type == "ModuleDeclaration" ? "type" : "node";
+                    const e = parent.decls[name].find(
+                      (d): d is StateNode =>
+                        isStateNode(d) && d[what] == elm[what]
+                    );
+                    if (e != null) {
+                      e.node = node;
+                      this.stack.splice(-1, 1, e);
+                      break;
+                    }
+                  } else {
+                    parent.decls[name] = [];
+                  }
+                  if (
+                    node.type === "FunctionDeclaration" &&
+                    node.params &&
+                    node.params.length
+                  ) {
+                    const decls: StateNodeDecls = (elm.decls = {});
+                    node.params.forEach(
+                      (p) => (decls[variableDeclarationName(p)] = [p])
+                    );
+                  }
+                  parent.decls[name].push(elm);
+                  if (
+                    node.type == "ModuleDeclaration" ||
+                    node.type == "ClassDeclaration"
+                  ) {
+                    if (!parent.type_decls) parent.type_decls = {};
+                    if (!hasProperty(parent.type_decls, name)) {
+                      parent.type_decls[name] = [];
+                    }
+                    parent.type_decls[name].push(elm);
+                  }
+                  break;
+                }
+                break;
+              }
+              // an EnumDeclaration doesn't create a scope, but
+              // it does create a type (if it has a name)
+              case "EnumDeclaration": {
+                if (!node.id) {
+                  this.inType++;
+                  break;
+                }
+                const [parent] = this.stack.slice(-1);
+                const name = (parent.fullName + "." + node.id.name).replace(
+                  /^\$\./,
+                  ""
+                );
+                node.body.members.forEach(
+                  (m) => (("init" in m ? m.init : m).enumType = name)
+                );
+              }
+              // fall through
+              case "TypedefDeclaration": {
+                this.inType++;
+                const name = node.id!.name;
+                const [parent] = this.stack.slice(-1);
+                if (!parent.type_decls) parent.type_decls = {};
+                if (!hasProperty(parent.type_decls, name)) {
+                  parent.type_decls[name] = [];
+                } else if (
+                  parent.type_decls[name].find(
+                    (n) => (isStateNode(n) ? n.node : n) === node
+                  )
+                ) {
+                  break;
+                }
+                const decl = {
+                  type: node.type,
+                  node,
+                  name,
+                  fullName: parent.fullName + "." + name,
+                  attributes: stateNodeAttrs(node.attrs),
+                  stack: this.stack.slice(),
+                } as TypedefStateNode | EnumStateNode;
+                parent.type_decls[name].push(decl);
+                if (decl.type === "EnumDeclaration") {
+                  currentEnum = decl;
+                }
+                break;
+              }
+              case "VariableDeclaration": {
+                const [parent] = this.stack.slice(-1);
+                if (!parent.decls) parent.decls = {};
+                const decls = parent.decls;
+                const stack = this.stackClone();
+                node.declarations.forEach((decl) => {
+                  const name = variableDeclarationName(decl.id);
+                  if (!hasProperty(decls, name)) {
+                    decls[name] = [];
+                  } else if (
+                    decls[name].find(
+                      (n) => (isStateNode(n) ? n.node : n) == decl
+                    )
+                  ) {
+                    return;
+                  }
+                  decl.kind = node.kind;
+                  decls[name].push({
+                    type: "VariableDeclarator",
+                    node: decl,
+                    name,
+                    fullName: parent.fullName + "." + name,
+                    stack,
+                    attributes: stateNodeAttrs(node.attrs),
+                  });
+                  if (node.kind == "const") {
+                    if (!hasProperty(this.index, name)) {
+                      this.index[name] = [];
+                    }
+                    pushUnique(this.index[name], parent);
+                  }
+                });
+                break;
+              }
+              case "EnumStringBody": {
+                if (this.inType !== 1) {
+                  throw new Error(
+                    `Expected inType to be 1 at EnumStringBody. Got ${this.inType}.`
+                  );
+                }
+                this.inType--;
+                const [parent] = this.stack.slice(-1);
+                const values = parent.decls || (parent.decls = {});
+                let prev: number | bigint = -1;
+                node.members.forEach((m, i) => {
+                  if (m.type == "Identifier") {
+                    if (typeof prev === "bigint") {
+                      prev += 1n;
+                    } else {
+                      prev += 1;
+                    }
+                    m = node.members[i] = {
+                      type: "EnumStringMember",
+                      loc: m.loc,
+                      start: m.start,
+                      end: m.end,
+                      id: m,
+                      init: {
+                        type: "Literal",
+                        value: prev,
+                        raw:
+                          prev.toString() +
+                          (typeof prev === "bigint" ? "l" : ""),
+                        enumType: m.enumType,
+                        loc: m.loc,
+                        start: m.start,
+                        end: m.end,
+                      },
+                    };
+                  }
+                  const name = m.id.name;
+                  const init = getLiteralNode(m.init);
+                  if (!init) {
+                    throw new Error("Unexpected enum initializer");
+                  }
+                  if (init != m.init) {
+                    if (m.init.enumType) {
+                      init.enumType = m.init.enumType;
+                    }
+                    m.init = init;
+                  }
+                  if (
+                    init.type == "Literal" &&
+                    init.raw &&
+                    LiteralIntegerRe.test(init.raw)
+                  ) {
+                    prev = init.value as number | bigint;
+                  }
+                  if (!hasProperty(values, name)) {
+                    values[name] = [];
+                  }
+                  if (pushUnique(values[name], m) && currentEnum) {
+                    if (!this.enumMap) this.enumMap = new Map();
+                    this.enumMap.set(m, currentEnum);
+                  }
+                  if (!hasProperty(this.index, name)) {
+                    this.index[name] = [];
+                  }
+                  pushUnique(this.index[name], parent);
+                });
+                break;
+              }
+            }
+            if (this.pre) return this.pre(node, this);
+          } catch (e) {
+            handleException(this, node, e);
+          }
+          return null;
+        },
+        (node) => {
+          try {
+            let ret;
+            if (this.shouldExclude && this.shouldExclude(node)) {
+              // delete the node.
+              ret = false as const;
+            } else {
+              const type = node.type;
+              if (this.post) ret = this.post(node, this);
+              switch (type) {
+                case "EnumDeclaration":
+                  currentEnum = null;
+                // fall through
+                case "TypeSpecPart":
+                case "TypeSpecList":
+                case "TypedefDeclaration":
+                  this.inType--;
+                  break;
+                case "EnumStringBody":
+                  this.inType++;
+                  break;
+              }
+              const [parent] = this.stack.slice(-1);
+              if (
+                parent.node === node ||
+                // The pre function might cause node.body to be skipped,
+                // so we need to check here, just in case.
+                // (this actually happens with prettier-extenison-monkeyc's
+                // findItemsByRange)
+                (node.type === "CatchClause" && parent.node === node.body)
+              ) {
+                delete parent.usings;
+                delete parent.imports;
+                if (node.type != "Program") {
+                  this.stack.pop();
+                }
+              }
+            }
+            if (ret != null && node.loc && node.loc.source && this.fnMap) {
+              const fnInfo = this.fnMap[node.loc.source];
+              fnInfo && fnInfo.ast && this.removeNodeComments(node, fnInfo.ast);
+            }
+            return ret;
+          } catch (e) {
+            handleException(this, node, e);
+          }
+        }
+      );
+    },
+  } as ProgramStateLive;
+}
+
 export function collectNamespaces(
   ast: mctree.Program,
   stateIn?: ProgramState
@@ -533,397 +965,11 @@ export function collectNamespaces(
       }
     }
   }
-  state.removeNodeComments = (node: mctree.Node, ast: mctree.Program) => {
-    if (node.start && node.end && ast.comments && ast.comments.length) {
-      let low = 0,
-        high = ast.comments.length;
-      while (high > low) {
-        const mid = (low + high) >> 1;
-        if ((ast.comments[mid].start || 0) < node.start) {
-          low = mid + 1;
-        } else {
-          high = mid;
-        }
-      }
-      while (
-        high < ast.comments.length &&
-        (ast.comments[high].end || 0) < node.end
-      ) {
-        high++;
-      }
-      if (high > low) {
-        ast.comments.splice(low, high - low);
-      }
-    }
-  };
 
-  state.lookup = (node, name, stack) =>
-    lookup(state, state.inType ? "type_decls" : "decls", node, name, stack);
-
-  state.lookupNonlocal = (node, name, stack) =>
-    lookup(state, "decls", node, name, stack, true);
-
-  state.lookupValue = (node, name, stack) =>
-    lookup(state, "decls", node, name, stack);
-
-  state.lookupType = (node, name, stack) =>
-    lookup(state, "type_decls", node, name, stack);
-
-  state.stackClone = () =>
-    state.stack.map((elm) =>
-      elm.type === "ModuleDeclaration" || elm.type === "Program"
-        ? { ...elm }
-        : elm
-    );
+  Object.assign(state, stateFuncs());
 
   state.inType = 0;
 
-  state.traverse = (root) =>
-    traverseAst(
-      root,
-      (node) => {
-        try {
-          if (state.shouldExclude && state.shouldExclude(node)) {
-            // don't visit any children, but do call post
-            return [];
-          }
-          switch (node.type) {
-            case "UnaryExpression":
-              if (node.operator === ":" && !state.inType) {
-                state.nextExposed[node.argument.name] = true;
-              }
-              break;
-            case "AttributeList":
-              return [];
-            case "Program":
-              if (state.stack.length != 1) {
-                throw new Error("Unexpected stack length for Program node");
-              }
-              state.stack[0].node = node;
-              break;
-            case "TypeSpecList":
-            case "TypeSpecPart":
-              state.inType++;
-              break;
-            case "ImportModule":
-            case "Using": {
-              const [parent] = state.stack.slice(-1);
-              if (!parent.usings) {
-                parent.usings = {};
-              }
-              const name =
-                (node.type === "Using" && node.as && node.as.name) ||
-                (node.id.type === "Identifier"
-                  ? node.id.name
-                  : node.id.property.name);
-              const using = { node };
-              parent.usings[name] = using;
-              if (node.type == "ImportModule") {
-                if (!parent.imports) {
-                  parent.imports = [using];
-                } else {
-                  const index = parent.imports.findIndex(
-                    (using) =>
-                      (using.node.id.type === "Identifier"
-                        ? using.node.id.name
-                        : using.node.id.property.name) === name
-                  );
-                  if (index >= 0) parent.imports.splice(index, 1);
-                  parent.imports.push(using);
-                }
-              }
-              break;
-            }
-            case "CatchClause":
-              if (node.param) {
-                const [parent] = state.stack.slice(-1);
-                if (!parent.decls) parent.decls = {};
-                const id =
-                  node.param.type === "Identifier"
-                    ? node.param
-                    : node.param.left;
-                state.stack.push({
-                  type: "BlockStatement",
-                  fullName: undefined,
-                  name: undefined,
-                  node: node.body,
-                  decls: { [id.name]: [id] },
-                  attributes: 0,
-                });
-              }
-              break;
-            case "ForStatement":
-              if (node.init && node.init.type === "VariableDeclaration") {
-                state.stack.push({
-                  type: "BlockStatement",
-                  fullName: undefined,
-                  name: undefined,
-                  node: node,
-                  attributes: 0,
-                });
-              }
-              break;
-            case "BlockStatement": {
-              const [parent] = state.stack.slice(-1);
-              if (
-                parent.node === node ||
-                (parent.type != "FunctionDeclaration" &&
-                  parent.type != "BlockStatement")
-              ) {
-                break;
-              }
-              // fall through
-            }
-            case "ClassDeclaration":
-            case "FunctionDeclaration":
-            case "ModuleDeclaration": {
-              const [parent] = state.stack.slice(-1);
-              const name = "id" in node ? node.id && node.id.name : undefined;
-              const fullName = state.stack
-                .map((e) => e.name)
-                .concat(name)
-                .filter((e) => e != null)
-                .join(".");
-              const elm = {
-                type: node.type,
-                name,
-                fullName,
-                node,
-                attributes:
-                  node.type === "BlockStatement"
-                    ? 0
-                    : stateNodeAttrs(node.attrs),
-              } as StateNode;
-              state.stack.push(elm);
-              if (name) {
-                if (!parent.decls) parent.decls = {};
-                if (hasProperty(parent.decls, name)) {
-                  const what =
-                    node.type == "ModuleDeclaration" ? "type" : "node";
-                  const e = parent.decls[name].find(
-                    (d): d is StateNode =>
-                      isStateNode(d) && d[what] == elm[what]
-                  );
-                  if (e != null) {
-                    e.node = node;
-                    state.stack.splice(-1, 1, e);
-                    break;
-                  }
-                } else {
-                  parent.decls[name] = [];
-                }
-                if (
-                  node.type === "FunctionDeclaration" &&
-                  node.params &&
-                  node.params.length
-                ) {
-                  const decls: StateNodeDecls = (elm.decls = {});
-                  node.params.forEach(
-                    (p) => (decls[variableDeclarationName(p)] = [p])
-                  );
-                }
-                parent.decls[name].push(elm);
-                if (
-                  node.type == "ModuleDeclaration" ||
-                  node.type == "ClassDeclaration"
-                ) {
-                  if (!parent.type_decls) parent.type_decls = {};
-                  if (!hasProperty(parent.type_decls, name)) {
-                    parent.type_decls[name] = [];
-                  }
-                  parent.type_decls[name].push(elm);
-                }
-              }
-              break;
-            }
-            // an EnumDeclaration doesn't create a scope, but
-            // it does create a type (if it has a name)
-            case "EnumDeclaration": {
-              if (!node.id) {
-                state.inType++;
-                break;
-              }
-              const [parent] = state.stack.slice(-1);
-              const name = (parent.fullName + "." + node.id.name).replace(
-                /^\$\./,
-                ""
-              );
-              node.body.members.forEach(
-                (m) => (("init" in m ? m.init : m).enumType = name)
-              );
-            }
-            // fall through
-            case "TypedefDeclaration": {
-              state.inType++;
-              const name = node.id!.name;
-              const [parent] = state.stack.slice(-1);
-              if (!parent.type_decls) parent.type_decls = {};
-              if (!hasProperty(parent.type_decls, name)) {
-                parent.type_decls[name] = [];
-              } else if (
-                parent.type_decls[name].find(
-                  (n) => (isStateNode(n) ? n.node : n) == node
-                )
-              ) {
-                break;
-              }
-              parent.type_decls[name].push({
-                type: node.type,
-                node,
-                name,
-                fullName: parent.fullName + "." + name,
-                attributes: stateNodeAttrs(node.attrs),
-              } as StateNodeDecl);
-              break;
-            }
-            case "VariableDeclaration": {
-              const [parent] = state.stack.slice(-1);
-              if (!parent.decls) parent.decls = {};
-              const decls = parent.decls;
-              const stack = state.stackClone();
-              node.declarations.forEach((decl) => {
-                const name = variableDeclarationName(decl.id);
-                if (!hasProperty(decls, name)) {
-                  decls[name] = [];
-                } else if (
-                  decls[name].find((n) => (isStateNode(n) ? n.node : n) == decl)
-                ) {
-                  return;
-                }
-                decl.kind = node.kind;
-                decls[name].push({
-                  type: "VariableDeclarator",
-                  node: decl,
-                  name,
-                  fullName: parent.fullName + "." + name,
-                  stack,
-                  attributes: stateNodeAttrs(node.attrs),
-                });
-                if (node.kind == "const") {
-                  if (!hasProperty(state.index, name)) {
-                    state.index[name] = [];
-                  }
-                  pushUnique(state.index[name], parent);
-                }
-              });
-              break;
-            }
-            case "EnumStringBody": {
-              if (state.inType !== 1) {
-                throw new Error(
-                  `Expected inType to be 1 at EnumStringBody. Got ${state.inType}.`
-                );
-              }
-              state.inType--;
-              const [parent] = state.stack.slice(-1);
-              const values = parent.decls || (parent.decls = {});
-              let prev: number | bigint = -1;
-              node.members.forEach((m, i) => {
-                if (m.type == "Identifier") {
-                  if (typeof prev === "bigint") {
-                    prev += 1n;
-                  } else {
-                    prev += 1;
-                  }
-                  m = node.members[i] = {
-                    type: "EnumStringMember",
-                    loc: m.loc,
-                    start: m.start,
-                    end: m.end,
-                    id: m,
-                    init: {
-                      type: "Literal",
-                      value: prev,
-                      raw:
-                        prev.toString() + (typeof prev === "bigint" ? "l" : ""),
-                      enumType: m.enumType,
-                      loc: m.loc,
-                      start: m.start,
-                      end: m.end,
-                    },
-                  };
-                }
-                const name = m.id.name;
-                const init = getLiteralNode(m.init);
-                if (!init) {
-                  throw new Error("Unexpected enum initializer");
-                }
-                if (init != m.init) {
-                  if (m.init.enumType) {
-                    init.enumType = m.init.enumType;
-                  }
-                  m.init = init;
-                }
-                if (
-                  init.type == "Literal" &&
-                  init.raw &&
-                  LiteralIntegerRe.test(init.raw)
-                ) {
-                  prev = init.value as number | bigint;
-                }
-                if (!hasProperty(values, name)) {
-                  values[name] = [];
-                }
-                pushUnique(values[name], m);
-                if (!hasProperty(state.index, name)) {
-                  state.index[name] = [];
-                }
-                pushUnique(state.index[name], parent);
-              });
-              break;
-            }
-          }
-          if (state.pre) return state.pre(node, state);
-        } catch (e) {
-          handleException(state, node, e);
-        }
-        return null;
-      },
-      (node) => {
-        try {
-          let ret;
-          if (state.shouldExclude && state.shouldExclude(node)) {
-            // delete the node.
-            ret = false as const;
-          } else {
-            const type = node.type;
-            if (state.post) ret = state.post(node, state);
-            switch (type) {
-              case "TypeSpecPart":
-              case "TypeSpecList":
-              case "TypedefDeclaration":
-              case "EnumDeclaration":
-                state.inType--;
-                break;
-              case "EnumStringBody":
-                state.inType++;
-                break;
-            }
-            const [parent] = state.stack.slice(-1);
-            if (
-              parent.node === node ||
-              // The pre function might cause node.body to be skipped,
-              // so we need to check here, just in case.
-              // (this actually happens with prettier-extenison-monkeyc's
-              // findItemsByRange)
-              (node.type === "CatchClause" && parent.node === node.body)
-            ) {
-              delete parent.usings;
-              delete parent.imports;
-              if (node.type != "Program") {
-                state.stack.pop();
-              }
-            }
-          }
-          if (ret != null) {
-            state.removeNodeComments(node, ast);
-          }
-          return ret;
-        } catch (e) {
-          handleException(state, node, e);
-        }
-      }
-    );
   state.traverse(ast);
   if (state.inType) {
     throw new Error(`inType was non-zero on exit: ${state.inType}`);
@@ -951,8 +997,10 @@ export function formatAst(
    * should be ignored.
    */
   switch (node.type) {
-    case "Program":
     case "BlockStatement":
+      if (node.body.length) break;
+      return "{}";
+    case "Program":
     case "ExpressionStatement":
       break;
     default: {

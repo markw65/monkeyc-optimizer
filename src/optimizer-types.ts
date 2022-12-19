@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { EnumStringMember } from "@markw65/prettier-plugin-monkeyc/build/estree-types";
 import { xmlUtil } from "./sdk-util";
 
 export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
@@ -227,6 +228,7 @@ export type ProgramState = {
       message: string;
     }[]
   >;
+  enumMap?: Map<EnumStringMember, EnumStateNode>;
 };
 type Finalized<T, Keys extends keyof T> = T & {
   [key in Keys]-?: NonNullable<T[key]>;

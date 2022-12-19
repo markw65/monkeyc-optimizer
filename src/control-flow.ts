@@ -350,12 +350,6 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "VariableDeclarator":
           return ["init"];
 
-        case "MemberExpression":
-          if (!node.computed) {
-            return ["object"];
-          }
-          break;
-
         case "UnaryExpression":
           if (node.operator === ":") {
             return [];
