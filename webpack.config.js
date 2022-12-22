@@ -112,6 +112,7 @@ export default async (env, argv) => {
       driver: "./src/driver.ts",
       "worker-thread": "./src/worker-thread.ts",
       "worker-pool": "./src/worker-pool.ts",
+      mocha: "./test/mocha/root.spec.ts",
     },
     optimization: { minimize: false },
     dependencies: ["peggy"],

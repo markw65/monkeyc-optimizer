@@ -208,7 +208,7 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
 export async function analyze(
   fnMap: FilesToOptimizeMap,
   resourcesMap: Record<string, JungleResourceMap>,
-  manifestXML: xmlUtil.Document,
+  manifestXML: xmlUtil.Document | undefined,
   config: BuildConfig
 ) {
   let hasTests = false;
