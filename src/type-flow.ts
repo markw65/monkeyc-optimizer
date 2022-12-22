@@ -236,14 +236,26 @@ function propagateTypes(
             break;
           }
           case "mod": {
-            curState.forEach((_type, decls) => {
-              if (modifiableDecl(decls, event.callees)) {
+            curState.forEach((type, decls) => {
+              if (
+                event.callees !== undefined &&
+                modifiableDecl(decls, event.callees)
+              ) {
                 curState.set(decls, declInitVal(decls));
+              } else if (
+                type.type & (TypeTag.Array | TypeTag.Dictionary) &&
+                type.value != null
+              ) {
+                // Arrays and dictionaries are reference types, so until
+                // we try to track side effects, just drop any type knowledge
+                // about their contents
+                const newType = cloneType(type);
+                unionInto(newType, {
+                  type: type.type & (TypeTag.Array | TypeTag.Dictionary),
+                });
+                curState.set(decls, newType);
               }
             });
-            if (event.node.type === "CallExpression") {
-              typeMap.set(event.node, evaluate(istate, event.node).value);
-            }
             break;
           }
           case "def": {

@@ -276,7 +276,10 @@ export function hasNoData(v: AbstractValue, t: TypeTag) {
   );
 }
 
-function lookupByFullName(state: ProgramStateAnalysis, fullName: string) {
+export function lookupByFullName(
+  state: ProgramStateAnalysis,
+  fullName: string
+) {
   return fullName.split(".").reduce(
     (results: StateNodeDecl[], part) => {
       return results

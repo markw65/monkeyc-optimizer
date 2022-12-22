@@ -344,6 +344,8 @@ export function buildDataFlowGraph(
                 decl,
                 mayThrow,
               };
+            } else if (wantsAllRefs) {
+              return { type: "mod", node, mayThrow };
             }
             break;
           }
@@ -357,6 +359,8 @@ export function buildDataFlowGraph(
                 decl,
                 mayThrow,
               };
+            } else if (wantsAllRefs) {
+              return { type: "mod", node, mayThrow };
             }
             break;
           }

@@ -3,6 +3,7 @@ import { isLookupCandidate } from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
+  ClassStateNode,
   FunctionStateNode,
   ProgramStateAnalysis,
   StateNodeAttributes,
@@ -15,6 +16,7 @@ import {
   hasNoData,
   hasValue,
   isExact,
+  lookupByFullName,
   mustBeFalse,
   mustBeTrue,
   ObjectType,
@@ -310,23 +312,71 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       const args = node.elements.length
         ? stack.splice(-node.elements.length)
         : [];
-      push({
-        value: {
-          type: TypeTag.Array,
-        },
-        embeddedEffects: args.some((arg) => arg.embeddedEffects),
-        node,
-      });
+      const embeddedEffects = args.some((arg) => arg.embeddedEffects);
+      if (node.byte) {
+        push({
+          value: {
+            type: TypeTag.Object,
+            value: {
+              klass: {
+                type: TypeTag.Class,
+                value: lookupByFullName(
+                  state,
+                  "Toybox.Lang.ByteArray"
+                ) as ClassStateNode[],
+              },
+            },
+          },
+          embeddedEffects,
+          node,
+        });
+      } else {
+        const value = args.reduce(
+          (cur, next) => {
+            unionInto(cur, next.value);
+            return cur;
+          },
+          { type: TypeTag.Never }
+        );
+        const valTypes = value.type & ValueTypeTagsConst;
+        if (valTypes && !hasNoData(value, valTypes)) {
+          // drop any literals from the type
+          unionInto(value, { type: valTypes });
+        }
+        push({
+          value:
+            value.type === TypeTag.Never
+              ? {
+                  type: TypeTag.Array,
+                }
+              : { type: TypeTag.Array, value },
+          embeddedEffects,
+          node,
+        });
+      }
       break;
     }
     case "ObjectExpression": {
       const args = node.properties.length
         ? stack.splice(-node.properties.length * 2)
         : [];
-      push({
-        value: {
-          type: TypeTag.Dictionary,
+      const value = args.reduce(
+        (cur, next, i) => {
+          unionInto(i & 1 ? cur.value : cur.key, next.value);
+          return cur;
         },
+        { key: { type: TypeTag.Never }, value: { type: TypeTag.Never } }
+      );
+      push({
+        value:
+          value.key.type === TypeTag.Never && value.value.type === TypeTag.Never
+            ? {
+                type: TypeTag.Dictionary,
+              }
+            : {
+                type: TypeTag.Dictionary,
+                value,
+              },
         embeddedEffects: args.some((arg) => arg.embeddedEffects),
         node,
       });
