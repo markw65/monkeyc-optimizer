@@ -69,6 +69,9 @@ export const ObjectLikeTagsConst =
   TypeTag.Dictionary |
   TypeTag.Enum;
 
+export const EnumTagsConst =
+  SingleTonTypeTagsConst | (ValueTypeTagsConst & ~TypeTag.Symbol);
+
 type ExactTypeTags =
   | TypeTag.Null
   | TypeTag.False
@@ -201,6 +204,10 @@ export interface EnumType extends AbstractValue {
         enum: EnumStateNode;
         value?: ExactOrUnion | undefined;
       }
+    | {
+        enum?: undefined;
+        value: ExactOrUnion;
+      }
     | undefined;
 }
 export interface SymbolType extends AbstractValue {
@@ -309,6 +316,22 @@ export function cloneType<T extends ExactOrUnion>(t: T): T {
   return { ...t };
 }
 
+function resolveEnum(e: EnumStateNode): ExactOrUnion {
+  if (e.resolvedType) return e.resolvedType;
+  return (e.resolvedType = e.node.body.members.reduce(
+    (result, next) => {
+      unionInto(
+        result,
+        next.type === "EnumStringMember" && next.init?.type === "Literal"
+          ? typeFromLiteral(next.init)
+          : { type: TypeTag.Number }
+      );
+      return result;
+    },
+    { type: TypeTag.Never }
+  ));
+}
+
 export function typeFromTypeStateNode(
   state: ProgramStateAnalysis,
   sn: StateNodeDecl,
@@ -351,17 +374,19 @@ export function typeFromTypeStateNode(
     case "Program":
       return { type: TypeTag.Module };
     case "EnumDeclaration":
-      return { type: TypeTag.Enum, value: { enum: sn } };
+      return {
+        type: TypeTag.Enum,
+        value: { enum: sn, value: resolveEnum(sn) },
+      };
     case "EnumStringMember": {
       const e = state.enumMap?.get(sn);
       const value =
         sn.init?.type === "Literal"
           ? typeFromLiteral(sn.init)
-          : { type: TypeTag.Numeric | TypeTag.String };
-      if (e) {
-        return { type: TypeTag.Enum, value: { enum: e, value } };
-      }
-      return value;
+          : e
+          ? resolveEnum(e)
+          : { type: TypeTag.Number | TypeTag.Long };
+      return { type: TypeTag.Enum, value: { enum: e, value } };
     }
 
     case "TypedefDeclaration": {
@@ -614,15 +639,17 @@ export function mcExprFromType(type: ValueTypes): mctree.Expression | null {
       if (type.value.value && hasValue(type.value.value)) {
         const left = mcExprFromType(type.value.value);
         if (left) {
-          return {
-            type: "BinaryExpression",
-            operator: "as",
-            left,
-            right: {
-              type: "TypeSpecList",
-              ts: [type.value.enum.fullName.slice(2)],
-            },
-          } as unknown as mctree.AsExpression;
+          return type.value.enum
+            ? ({
+                type: "BinaryExpression",
+                operator: "as",
+                left,
+                right: {
+                  type: "TypeSpecList",
+                  ts: [type.value.enum.fullName.slice(2)],
+                },
+              } as unknown as mctree.AsExpression)
+            : left;
         }
       }
   }
@@ -799,9 +826,13 @@ export function display(type: ExactOrUnion): string {
       case TypeTag.Enum: {
         const v = value as EnumValueType;
 
-        return v.value
-          ? `${display(v.value)} as ${v.enum.fullName.slice(2)}`
-          : v.enum.fullName.slice(2);
+        return v.enum != null
+          ? v.value != null
+            ? `${display(v.value)} as ${v.enum.fullName.slice(2)}`
+            : v.enum.fullName.slice(2)
+          : v.value != null
+          ? `enum<${display(v.value)}>`
+          : `enum`;
       }
       case TypeTag.Symbol:
         return `:${value}`;
@@ -914,4 +945,16 @@ export function getUnionComponent(
     return unionData[tag as keyof UnionData] || null;
   }
   return null;
+}
+
+export function setUnionComponent(
+  v: ExactOrUnion,
+  tag: TypeTag,
+  c: SingleValue
+) {
+  if (hasUnionData(v.type)) {
+    (v.value as Record<number, SingleValue>)[tag] = c;
+  } else {
+    v.value = c;
+  }
 }

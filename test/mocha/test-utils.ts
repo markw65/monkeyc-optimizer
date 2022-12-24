@@ -1,3 +1,4 @@
+import { assert } from "chai";
 import { isStateNode } from "../../src/api";
 import { hasProperty } from "../../src/ast";
 import { analyze, getFileASTs } from "../../src/mc-rewrite";
@@ -43,7 +44,7 @@ export function find_by_name(state: ProgramStateAnalysis, name: string) {
 }
 
 export function find_type_by_name(state: ProgramStateAnalysis, name: string) {
-  const sns = find_by_name(state!, name);
+  const sns = find_by_name(state, name);
   if (!sns.length) throw new Error(`Didn't find any state nodes for ${name}`);
 
   return sns.reduce<ExactOrUnion>(
@@ -53,4 +54,11 @@ export function find_type_by_name(state: ProgramStateAnalysis, name: string) {
     },
     { type: TypeTag.Never }
   );
+}
+
+export function assertNonNull<T>(
+  obj: T,
+  message?: string
+): asserts obj is NonNullable<T> {
+  assert.isNotNull(obj, message);
 }

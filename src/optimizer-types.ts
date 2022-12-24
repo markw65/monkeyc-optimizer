@@ -146,6 +146,7 @@ export interface EnumStateNode extends BaseStateNode {
   name: string;
   fullName: string;
   stack: ProgramStateStack;
+  resolvedType?: ExactOrUnion;
 }
 
 interface DiagnosticBase {

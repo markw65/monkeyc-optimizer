@@ -57,7 +57,9 @@ export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
       return true;
     }
 
-    return mergeMultiple(to, from);
+    // always returns true because type changed.
+    mergeMultiple(to, from);
+    return true;
   }
 
   if (from.value == null) {
@@ -200,7 +202,8 @@ function mergeSingle(
       }
       const toValue = tryUnion(toE.value, fromE.value);
       if (toValue) {
-        return [{ enum: toE.enum, value: toValue }, true];
+        const e: EnumValueType = { enum: toE.enum, value: toValue };
+        return [e, true];
       }
       return [toE, false];
     }

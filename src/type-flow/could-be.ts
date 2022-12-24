@@ -1,9 +1,10 @@
 import { unhandledType } from "../data-flow";
-import { some } from "src/util";
+import { some } from "../util";
 import {
   ArrayValueType,
   ClassType,
   DictionaryValueType,
+  EnumTagsConst,
   EnumValueType,
   ExactOrUnion,
   ExactTypes,
@@ -47,8 +48,8 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
     if (result) return true;
   }
   if (
-    (a.type & TypeTag.Enum && b.type & (TypeTag.Numeric | TypeTag.String)) ||
-    (b.type & TypeTag.Enum && a.type & (TypeTag.Numeric | TypeTag.String))
+    (a.type & TypeTag.Enum && b.type & EnumTagsConst) ||
+    (b.type & TypeTag.Enum && a.type & EnumTagsConst)
   ) {
     return true;
   }
