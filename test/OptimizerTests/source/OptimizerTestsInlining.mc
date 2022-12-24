@@ -489,9 +489,7 @@ function inlineIfContext(logger as Logger) as Boolean {
     if (A.B.x != 4) {
         logger.debug("Failed: A.B.x should be 4");
         ok = false;
-    } /* @match /^\{ var pmcr_tmp.* if.* else .*\} \}/ */ else if (
-        ifContext1(2)
-    ) {
+    } /* @match /^\{ ((?!if.* else .*).)+z\+\+.*\}/ */ else if (ifContext1(2)) {
         logger.debug("Failed: ifContext1(2) should return false");
         ok = false;
     } else {

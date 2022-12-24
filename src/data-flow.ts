@@ -76,12 +76,71 @@ export interface ModEvent extends BaseEvent {
   callees?: FunctionStateNode[] | null;
 }
 
+export enum FlowKind {
+  LEFT_EQ_RIGHT_DECL,
+  LEFT_NE_RIGHT_DECL,
+  LEFT_EQ_RIGHT_NODE,
+  LEFT_NE_RIGHT_NODE,
+  LEFT_TRUTHY,
+  LEFT_FALSEY,
+  INSTANCEOF,
+  NOTINSTANCE,
+}
+
+/*
+ * A control flow event.
+ * The truthiness of the condition determines
+ * which successor to go to.
+ */
+interface FlowEventDecl extends BaseEvent {
+  type: "flw";
+  node: mctree.Node;
+  decl?: undefined;
+  kind: FlowKind.LEFT_EQ_RIGHT_DECL | FlowKind.LEFT_NE_RIGHT_DECL;
+  left: EventDecl;
+  right_decl: EventDecl;
+  right_node?: undefined;
+}
+interface FlowEventNode extends BaseEvent {
+  type: "flw";
+  node: mctree.Node;
+  decl?: undefined;
+  kind: FlowKind.LEFT_EQ_RIGHT_NODE | FlowKind.LEFT_NE_RIGHT_NODE;
+  left: EventDecl;
+  right_decl?: undefined;
+  right_node: mctree.Expression;
+}
+interface FlowEventTruthy extends BaseEvent {
+  type: "flw";
+  node: mctree.Node;
+  decl?: undefined;
+  kind: FlowKind.LEFT_TRUTHY | FlowKind.LEFT_FALSEY;
+  left: EventDecl;
+  right_decl?: undefined;
+  right_node?: undefined;
+}
+interface FlowEventInstanceof extends BaseEvent {
+  type: "flw";
+  node: mctree.InstanceofExpression;
+  decl?: undefined;
+  kind: FlowKind.INSTANCEOF | FlowKind.NOTINSTANCE;
+  left: EventDecl;
+  right_decl: EventDecl;
+  right_node?: undefined;
+}
+
+export type FlowEvent =
+  | FlowEventDecl
+  | FlowEventNode
+  | FlowEventTruthy
+  | FlowEventInstanceof;
+
 export interface ExnEvent extends BaseEvent {
   type: "exn";
   node: mctree.Node;
 }
 
-export type Event = RefEvent | DefEvent | ModEvent | ExnEvent;
+export type Event = RefEvent | DefEvent | ModEvent | FlowEvent | ExnEvent;
 
 export interface DataFlowBlock extends Block<Event> {
   order?: number;
@@ -225,7 +284,7 @@ export function buildDataFlowGraph(
       func,
       (node, stmt, mayThrow): Event | null => {
         if (mayThrow === 1) {
-          return null;
+          return wantsAllRefs ? getFlowEvent(node, stmt, findDecl) : null;
         }
         const defs = liveStmts.get(node);
         if (defs) {
@@ -389,6 +448,113 @@ export function buildDataFlowGraph(
       }
     ),
   };
+}
+
+function getFlowEvent(
+  node: mctree.Node,
+  stmt: mctree.Node,
+  findDecl: (node: mctree.Node) => EventDecl | null
+): FlowEvent | null {
+  switch (node.type) {
+    case "BinaryExpression":
+      if (node.operator === "instanceof") {
+        const left = findDecl(node.left);
+        const right = findDecl(node.right);
+        if (left && right) {
+          return {
+            type: "flw",
+            node,
+            kind: FlowKind.INSTANCEOF,
+            left,
+            right_decl: right,
+            mayThrow: false,
+          };
+        }
+      } else if (node.operator === "!=" || node.operator === "==") {
+        const left = findDecl(node.left);
+        const right = findDecl(node.right);
+        if (left && right) {
+          return {
+            type: "flw",
+            node,
+            kind:
+              node.operator === "=="
+                ? FlowKind.LEFT_EQ_RIGHT_DECL
+                : FlowKind.LEFT_NE_RIGHT_DECL,
+            left,
+            right_decl: right,
+            mayThrow: false,
+          };
+        }
+        if (left && !right) {
+          return {
+            type: "flw",
+            node,
+            kind:
+              node.operator === "=="
+                ? FlowKind.LEFT_EQ_RIGHT_NODE
+                : FlowKind.LEFT_NE_RIGHT_NODE,
+            left,
+            right_node: node.right,
+            mayThrow: false,
+          };
+        }
+        if (!left && right) {
+          return {
+            type: "flw",
+            node,
+            kind:
+              node.operator === "=="
+                ? FlowKind.LEFT_EQ_RIGHT_NODE
+                : FlowKind.LEFT_NE_RIGHT_NODE,
+            left: right,
+            right_node: node.left,
+            mayThrow: false,
+          };
+        }
+      }
+      return null;
+    case "UnaryExpression":
+      if (node.operator === "!" || node.operator === "~") {
+        const event = getFlowEvent(node.argument, stmt, findDecl);
+        if (!event) return null;
+        switch (event.kind) {
+          case FlowKind.LEFT_EQ_RIGHT_DECL:
+            event.kind = FlowKind.LEFT_NE_RIGHT_DECL;
+            return event;
+          case FlowKind.LEFT_EQ_RIGHT_NODE:
+            event.kind = FlowKind.LEFT_NE_RIGHT_NODE;
+            return event;
+          case FlowKind.LEFT_NE_RIGHT_DECL:
+            event.kind = FlowKind.LEFT_EQ_RIGHT_DECL;
+            return event;
+          case FlowKind.LEFT_NE_RIGHT_NODE:
+            event.kind = FlowKind.LEFT_EQ_RIGHT_NODE;
+            return event;
+          case FlowKind.INSTANCEOF:
+            event.kind = FlowKind.NOTINSTANCE;
+            return event;
+          case FlowKind.NOTINSTANCE:
+            event.kind = FlowKind.INSTANCEOF;
+            return event;
+        }
+      }
+      return null;
+    case "Identifier":
+    case "MemberExpression": {
+      const left = findDecl(node);
+      if (left) {
+        return {
+          type: "flw",
+          node,
+          mayThrow: false,
+          kind: FlowKind.LEFT_TRUTHY,
+          left,
+        };
+      }
+    }
+  }
+  return null;
 }
 
 export class DataflowQueue {

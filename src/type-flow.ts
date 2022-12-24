@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { formatAst, isLocal, isStateNode } from "./api";
+import { formatAst, getSuperClasses, isLocal, isStateNode } from "./api";
 import { getPostOrder } from "./control-flow";
 import {
   buildDataFlowGraph,
@@ -7,28 +7,45 @@ import {
   DataflowQueue,
   declFullName,
   EventDecl,
+  FlowEvent,
+  FlowKind,
   ModEvent,
 } from "./data-flow";
 import { functionMayModify } from "./function-info";
 import {
+  ClassStateNode,
   FunctionStateNode,
   ProgramStateAnalysis,
   StateNodeDecl,
 } from "./optimizer-types";
 import { evaluate, InterpState, TypeMap } from "./type-flow/interp";
 import {
+  intersection,
+  restrictByEquality,
+} from "./type-flow/intersection-type";
+import {
   cloneType,
   display,
   ExactOrUnion,
+  getObjectValue,
+  getStateNodeDeclsFromType,
+  isExact,
+  ObjectLikeTagsConst,
+  SingleTonTypeTagsConst,
   typeFromLiteral,
   typeFromTypespec,
   typeFromTypeStateNode,
   TypeTag,
 } from "./type-flow/types";
-import { unionInto } from "./type-flow/union-type";
+import { clearValuesUnder, unionInto } from "./type-flow/union-type";
 import { forEach, map, reduce, some } from "./util";
 
 const logging = true;
+
+// Toybox APIs often fail to include Null when they should.
+// To avoid over zealous optimizations, we don't optimize
+// away any Null checks for now.
+export const missingNullWorkaround = true;
 
 export function buildTypeInfo(
   state: ProgramStateAnalysis,
@@ -42,7 +59,16 @@ export function buildTypeInfo(
 
 type TypeState = Map<EventDecl, ExactOrUnion>;
 
-function mergeTypeState(to: TypeState, from: TypeState) {
+function mergeTypeState(
+  blockStates: TypeState[],
+  index: number,
+  from: TypeState
+) {
+  const to = blockStates[index];
+  if (!to) {
+    blockStates[index] = new Map(from);
+    return true;
+  }
   let changes = false;
   from.forEach((v, k) => {
     const tov = to.get(k);
@@ -71,12 +97,19 @@ function printBlockHeader(block: TypeFlowBlock) {
 }
 
 function printBlockEvents(block: TypeFlowBlock, typeMap?: TypeMap) {
+  console.log("Events:");
   forEach(
     block.events,
     (event) =>
       event.type !== "exn" &&
       console.log(
-        `    ${event.type}: ${event.decl ? declFullName(event.decl) : "??"} ${
+        `    ${event.type}: ${
+          event.type === "flw"
+            ? formatAst(event.node)
+            : event.decl
+            ? declFullName(event.decl)
+            : "??"
+        } ${
           event.type === "ref" && typeMap && typeMap.has(event.node)
             ? display(typeMap.get(event.node)!)
             : ""
@@ -96,9 +129,14 @@ function printBlockTrailer(block: TypeFlowBlock) {
 }
 
 function printBlockState(block: TypeFlowBlock, state: TypeState) {
+  console.log("State:");
+  if (!state) {
+    console.log("Not visited!");
+    return;
+  }
   state.forEach((value, key) => {
     console.log(
-      `${map(key, (k) => {
+      ` - ${map(key, (k) => {
         if (k.type === "Literal") {
           return k.raw;
         } else if (isStateNode(k)) {
@@ -126,10 +164,8 @@ function propagateTypes(
   const order = getPostOrder(graph).reverse() as TypeFlowBlock[];
   const queue = new DataflowQueue();
 
-  const blockStates = order.map((block, i) => {
+  order.forEach((block, i) => {
     block.order = i;
-    queue.enqueue(block);
-    return new Map() as TypeState;
   });
 
   if (logging && process.env["TYPEFLOW_FUNC"] === func.fullName) {
@@ -139,6 +175,8 @@ function propagateTypes(
       printBlockTrailer(block);
     });
   }
+
+  const blockStates: TypeState[] = [];
 
   const typeMap = new Map<mctree.Node, ExactOrUnion>();
   const istate: InterpState = {
@@ -181,7 +219,226 @@ function propagateTypes(
     );
   };
 
-  const head = blockStates[0];
+  const mergeSuccState = (top: TypeFlowBlock, curState: TypeState) => {
+    top.succs?.forEach((succ: TypeFlowBlock) => {
+      if (succ.order == null) {
+        throw new Error("Unreachable block was visited");
+      }
+      if (mergeTypeState(blockStates, succ.order, curState)) {
+        queue.enqueue(succ);
+      }
+    });
+  };
+
+  function handleFlowEvent(
+    event: FlowEvent,
+    top: TypeFlowBlock,
+    curState: TypeState
+  ) {
+    const fixTypes = (
+      equal: boolean,
+      left: ExactOrUnion | undefined,
+      right: ExactOrUnion | undefined,
+      leftDecl: EventDecl,
+      rightDecl: EventDecl | null
+    ): TypeState | null | false => {
+      if (!left || !right) return null;
+      if (equal) {
+        let leftr = restrictByEquality(right, left);
+        if (leftr.type === TypeTag.Never) {
+          if (missingNullWorkaround && right.type & TypeTag.Null) {
+            // Its tempting to set leftr = {type:TypeTag.Null} here,
+            // but that would add Null to left's type when we reconverge
+            // which seems like its suboptimal.
+            leftr = left;
+          } else {
+            return false;
+          }
+        }
+        const tmpState = new Map(curState);
+        tmpState.set(leftDecl, leftr);
+        if (rightDecl) {
+          let rightr = restrictByEquality(left, right);
+          if (rightr.type === TypeTag.Never) {
+            if (missingNullWorkaround && left.type & TypeTag.Null) {
+              // see comment for left above.
+              rightr = right;
+            } else {
+              return false;
+            }
+          }
+          tmpState.set(rightDecl, rightr);
+        }
+        return tmpState;
+      }
+      if (
+        isExact(right) &&
+        right.type & SingleTonTypeTagsConst &&
+        left.type & right.type
+      ) {
+        // left is not equal to right, and right is one of the
+        // singleton types; so we can remove that type from left.
+        const singletonRemoved = cloneType(left);
+        singletonRemoved.type -= right.type;
+        if (singletonRemoved.type === TypeTag.Never) return false;
+        const tmpState = new Map(curState);
+        tmpState.set(event.left, singletonRemoved);
+        return tmpState;
+      }
+      return null;
+    };
+    const apply = (truthy: boolean) => {
+      switch (event.kind) {
+        case FlowKind.LEFT_EQ_RIGHT_DECL:
+        case FlowKind.LEFT_NE_RIGHT_DECL: {
+          const left = curState.get(event.left);
+          const right = curState.get(event.right_decl);
+          return fixTypes(
+            truthy === (event.kind === FlowKind.LEFT_EQ_RIGHT_DECL),
+            left,
+            right,
+            event.left,
+            event.right_decl
+          );
+        }
+        case FlowKind.LEFT_EQ_RIGHT_NODE:
+        case FlowKind.LEFT_NE_RIGHT_NODE: {
+          const left = curState.get(event.left);
+          const right = evaluate(istate, event.right_node).value;
+          return fixTypes(
+            truthy === (event.kind === FlowKind.LEFT_EQ_RIGHT_NODE),
+            left,
+            right,
+            event.left,
+            null
+          );
+        }
+        case FlowKind.LEFT_TRUTHY:
+        case FlowKind.LEFT_FALSEY: {
+          const left = curState.get(event.left);
+          if (!left) return false;
+          if (truthy === (event.kind === FlowKind.LEFT_TRUTHY)) {
+            if (left.type & (TypeTag.Null | TypeTag.False)) {
+              // left evaluates as true, so remove null, false
+              const singletonRemoved = cloneType(left);
+              singletonRemoved.type &= ~(TypeTag.Null | TypeTag.False);
+              if (singletonRemoved.type === TypeTag.Never) return false;
+              const tmpState = new Map(curState);
+              tmpState.set(event.left, singletonRemoved);
+              return tmpState;
+            }
+          } else {
+            const nonNullRemoved = intersection(left, {
+              type:
+                TypeTag.Null |
+                TypeTag.False |
+                TypeTag.Number |
+                TypeTag.Long |
+                TypeTag.Enum,
+            });
+            if (nonNullRemoved.type === TypeTag.Never) return false;
+            const tmpState = new Map(curState);
+            tmpState.set(event.left, nonNullRemoved);
+            return tmpState;
+          }
+          break;
+        }
+        case FlowKind.INSTANCEOF:
+        case FlowKind.NOTINSTANCE: {
+          const left = curState.get(event.left);
+          let right = curState.get(event.right_decl);
+          if (!left || !right) break;
+          if (isExact(right) && right.type === TypeTag.Class) {
+            right = { type: TypeTag.Object, value: { klass: right } };
+          }
+          let result: ExactOrUnion | null = null;
+          if (truthy === (event.kind === FlowKind.INSTANCEOF)) {
+            result = intersection(left, right);
+          } else if (isExact(right)) {
+            if (right.type === TypeTag.Object) {
+              if (right.value == null) {
+                result = cloneType(left);
+                clearValuesUnder(
+                  result,
+                  ObjectLikeTagsConst | TypeTag.Object,
+                  true
+                );
+              } else if (left.type & TypeTag.Object) {
+                const leftValue = getObjectValue(left);
+                if (leftValue) {
+                  const rightDecls = getStateNodeDeclsFromType(
+                    state,
+                    right
+                  ) as ClassStateNode[];
+                  const leftDecls = getStateNodeDeclsFromType(state, {
+                    type: TypeTag.Object,
+                    value: leftValue,
+                  }) as ClassStateNode[];
+                  const leftReduced = leftDecls.filter(
+                    (ldec) =>
+                      !rightDecls.every(
+                        (rdec) =>
+                          ldec == rdec ||
+                          (ldec.type === "ClassDeclaration" &&
+                            getSuperClasses(ldec)?.has(rdec))
+                      )
+                  );
+                  if (leftReduced.length != leftDecls.length) {
+                    result = cloneType(left);
+                    clearValuesUnder(result, TypeTag.Object, true);
+                    if (leftReduced.length) {
+                      unionInto(result, {
+                        type: TypeTag.Object,
+                        value: {
+                          klass: { type: TypeTag.Class, value: leftReduced },
+                        },
+                      });
+                    }
+                  }
+                }
+              }
+            } else if (
+              right.type & ObjectLikeTagsConst &&
+              right.type & left.type
+            ) {
+              result = cloneType(left);
+              clearValuesUnder(result, right.type, true);
+            }
+          }
+          if (result) {
+            const tmpState = new Map(curState);
+            tmpState.set(event.left, result);
+            return tmpState;
+          }
+        }
+      }
+      return null;
+    };
+
+    const sTrue = apply(true);
+    const sFalse = apply(false);
+    if (sTrue == null && sFalse == null) {
+      return false;
+    }
+
+    const trueSucc = top.succs![0] as TypeFlowBlock;
+    const falseSucc = top.succs![1] as TypeFlowBlock;
+    if (
+      sTrue !== false &&
+      mergeTypeState(blockStates, trueSucc.order!, sTrue || curState)
+    ) {
+      queue.enqueue(trueSucc);
+    }
+    if (
+      sFalse !== false &&
+      mergeTypeState(blockStates, falseSucc.order!, sFalse || curState)
+    ) {
+      queue.enqueue(falseSucc);
+    }
+    return true;
+  }
+
+  const head = (blockStates[0] = new Map());
   // set the parameters to their initial types
   func.node.params.forEach((param) => {
     head.set(
@@ -207,23 +464,28 @@ function propagateTypes(
     });
   });
 
+  queue.enqueue(order[0]);
+
   while (!queue.empty()) {
     const top = queue.dequeue();
     if (top.order === undefined) {
       throw new Error(`Unreachable block was visited!`);
     }
-
+    if (!blockStates[top.order]) continue;
     const curState = new Map(blockStates[top.order]);
-
+    let successorsHandled = false;
     if (top.events) {
       for (let i = 0; i < top.events.length; i++) {
         const event = top.events[i];
         if (event.mayThrow && top.exsucc) {
-          const succState = blockStates[(top.exsucc as TypeFlowBlock).order!];
-          if (succState) {
-            if (mergeTypeState(succState, curState)) {
-              queue.enqueue(top.exsucc);
-            }
+          if (
+            mergeTypeState(
+              blockStates,
+              (top.exsucc as TypeFlowBlock).order!,
+              curState
+            )
+          ) {
+            queue.enqueue(top.exsucc);
           }
         }
         switch (event.type) {
@@ -281,18 +543,28 @@ function propagateTypes(
             }
             break;
           }
+          case "flw": {
+            if (i !== top.events.length - 1) {
+              throw new Error("Flow event was not last in block");
+            }
+            if (top.succs?.length !== 2) {
+              throw new Error(
+                `Flow event had ${
+                  top.succs?.length || 0
+                } successors (should have 2)`
+              );
+            }
+            if (handleFlowEvent(event, top, curState)) {
+              successorsHandled = true;
+            }
+          }
         }
       }
     }
 
-    top.succs?.forEach((succ: TypeFlowBlock) => {
-      if (succ.order == null) {
-        throw new Error("Unreachable block was visited");
-      }
-      if (mergeTypeState(blockStates[succ.order], curState)) {
-        queue.enqueue(succ);
-      }
-    });
+    if (!successorsHandled) {
+      mergeSuccState(top, curState);
+    }
   }
 
   if (logging && process.env["TYPEFLOW_FUNC"] === func.fullName) {

@@ -8,6 +8,7 @@ import {
   ModuleStateNode,
   ProgramStateAnalysis,
   ProgramStateStack,
+  StateNode,
   StateNodeDecl,
   TypedefStateNode,
 } from "../optimizer-types";
@@ -957,4 +958,56 @@ export function setUnionComponent(
   } else {
     v.value = c;
   }
+}
+
+export function getStateNodeDeclsFromType(
+  state: ProgramStateAnalysis,
+  object: ExactOrUnion
+) {
+  const decls: StateNode[] = [];
+  if (
+    object.value != null &&
+    object.type & (TypeTag.Module | TypeTag.Class | TypeTag.Object)
+  ) {
+    forEachUnionComponent(
+      object,
+      object.type & (TypeTag.Module | TypeTag.Class | TypeTag.Object),
+      (tag, value) => {
+        if (!value) return;
+        if (tag === TypeTag.Object) {
+          const ovalue = value as ObjectValueType;
+          if (ovalue.klass.type === TypeTag.Class && ovalue.klass.value) {
+            if (Array.isArray(ovalue.klass.value)) {
+              decls.push(...(ovalue.klass.value as StateNode[]));
+            } else {
+              decls.push(ovalue.klass.value as StateNode);
+            }
+          }
+        } else {
+          if (Array.isArray(value)) {
+            decls.push(...(value as StateNode[]));
+          } else {
+            decls.push(value as StateNode);
+          }
+        }
+      }
+    );
+  }
+  let bits = object.type & (ObjectLikeTagsConst | TypeTag.Object);
+  if (
+    bits &&
+    (object.value == null ||
+      !(bits & TypeTag.Object) ||
+      !getObjectValue(object))
+  ) {
+    do {
+      const next = bits & (bits - 1);
+      const bit = bits - next;
+      const name = `Toybox.Lang.${TypeTag[bit]}`;
+      const sns = lookupByFullName(state, name);
+      sns.forEach((sn) => isStateNode(sn) && decls.push(sn));
+      bits = next;
+    } while (bits);
+  }
+  return decls;
 }
