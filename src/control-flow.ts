@@ -22,6 +22,18 @@ type LocalInfo<T extends EventConstraint<T>> = {
   posttry?: Block<T>;
 };
 
+type TestContext<T extends EventConstraint<T>> =
+  | {
+      node: mctree.Node;
+      true?: undefined;
+      false?: undefined;
+    }
+  | {
+      node: mctree.Node;
+      true: Block<T>;
+      false: Block<T>;
+    };
+
 type LocalAttributeStack<T extends EventConstraint<T>> = LocalInfo<T>[];
 
 export type Block<T extends EventConstraint<T>> = {
@@ -109,7 +121,11 @@ class LocalState<T extends EventConstraint<T>> {
 export function buildReducedGraph<T extends EventConstraint<T>>(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
-  notice: (node: mctree.Node, stmt: mctree.Node, mayThrow: boolean) => T | null
+  notice: (
+    node: mctree.Node,
+    stmt: mctree.Node,
+    mayThrow: boolean | 1
+  ) => T | null
 ) {
   const { stack, pre, post } = state;
   try {
@@ -117,6 +133,8 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     const ret = localState.curBlock;
     state.stack = [...func.stack!];
     const stmtStack: mctree.Node[] = [func.node];
+    const testStack: TestContext<T>[] = [{ node: func.node }];
+
     let tryActive = 0;
     state.pre = (node) => {
       if (state.inType || localState.unreachable) {
@@ -127,6 +145,11 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         (isStatement(node) || isExpression(node))
       ) {
         localState.curBlock.node = node;
+      }
+
+      let topTest = testStack[testStack.length - 1];
+      if (topTest.node !== node && topTest.true) {
+        testStack.push((topTest = { node }));
       }
       if (isStatement(node)) {
         stmtStack.push(node);
@@ -180,20 +203,32 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           let head;
           if (node.type === "WhileStatement") {
             head = localState.newBlock(top.continue);
+            const body = {};
+            testStack.push({
+              node: node.test,
+              true: body,
+              false: top.break,
+            });
             state.traverse(node.test);
-            localState.addEdge(localState.curBlock, top.break);
-            localState.newBlock();
+            localState.unreachable = true;
+            localState.newBlock(body);
           } else {
             head = localState.newBlock();
           }
           state.traverse(node.body);
           if (node.type === "DoWhileStatement") {
             localState.newBlock(top.continue);
+            testStack.push({
+              node: node.test,
+              true: head,
+              false: top.break,
+            });
             state.traverse(node.test);
-            localState.addEdge(localState.curBlock, top.break);
+            localState.unreachable = true;
+          } else if (!localState.unreachable) {
+            localState.addEdge(localState.curBlock, head);
           }
-          localState.addEdge(localState.curBlock, head);
-          localState.curBlock = top.break;
+          localState.newBlock(top.break);
           return [];
         }
         case "TryStatement": {
@@ -288,9 +323,15 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           top.break = {};
           top.continue = {};
           if (node.test) {
+            const body = {};
+            testStack.push({
+              node: node.test,
+              true: body,
+              false: top.break,
+            });
             state.traverse(node.test);
-            localState.addEdge(localState.curBlock, top.break);
-            localState.newBlock();
+            localState.unreachable = true;
+            localState.newBlock(body);
           }
           state.traverse(node.body);
           localState.newBlock(top.continue);
@@ -312,38 +353,87 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         }
         case "IfStatement":
         case "ConditionalExpression": {
-          state.traverse(node.test);
+          const consequent = {};
           const alternate = {};
-          localState.addEdge(localState.curBlock, alternate);
-          localState.newBlock();
-          state.traverse(node.consequent);
-          const consequent = localState.unreachable
-            ? null
-            : localState.curBlock;
+          const next: Block<T> = node.alternate ? {} : alternate;
+          testStack.push({
+            node: node.test,
+            true: consequent,
+            false: alternate,
+          });
+          state.traverse(node.test);
           localState.unreachable = true;
-          localState.newBlock(alternate);
-          if (node.alternate) {
-            state.traverse(node.alternate);
-            if (!localState.unreachable) {
-              localState.newBlock();
-            }
+          if (topTest.true) {
+            testStack.push({ ...topTest, node: node.consequent });
+          } else {
+            testStack.push({ node: node.consequent, true: next, false: next });
           }
-          if (consequent) {
-            if (localState.unreachable) {
-              localState.newBlock();
+          localState.newBlock(consequent);
+          state.traverse(node.consequent);
+          localState.unreachable = true;
+          if (node.alternate) {
+            if (topTest.true) {
+              testStack.push({ ...topTest, node: node.alternate });
+            } else {
+              testStack.push({ node: node.alternate, true: next, false: next });
             }
-            localState.addEdge(consequent, localState.curBlock);
+            localState.newBlock(alternate);
+            state.traverse(node.alternate);
+            localState.unreachable = true;
+          }
+          if (next.preds) {
+            /*
+             * Given:
+             * if (cond) {
+             * } else if (cond2) {
+             * } // no else
+             *
+             * cond2 will cause a branch to the second if's next block
+             * But if topTest.true, we also need to ensure that next branches
+             * to both true and false.
+             *
+             * So in *this* case, we have to skip the testStack.pop (or manually
+             * add the edges here).
+             */
+            localState.newBlock(next);
+          } else if (topTest.node === node) {
+            testStack.pop();
           }
           return [];
         }
         case "LogicalExpression": {
+          const isAnd = node.operator === "&&" || node.operator === "and";
+          const right = {};
+          const next: Block<T> = {};
+          if (isAnd) {
+            testStack.push({
+              node: node.left,
+              true: right,
+              false: topTest.false || next,
+            });
+          } else {
+            testStack.push({
+              node: node.left,
+              true: topTest.true || next,
+              false: right,
+            });
+          }
           state.traverse(node.left);
-          if (localState.unreachable) break;
-          const mid = localState.curBlock;
-          localState.newBlock();
+          localState.unreachable = true;
+          localState.newBlock(right);
+          testStack.push({
+            node: node.right,
+            true: topTest.true || next,
+            false: topTest.false || next,
+          });
           state.traverse(node.right);
-          localState.newBlock();
-          localState.addEdge(mid, localState.curBlock);
+          localState.unreachable = true;
+          if (next.preds) {
+            localState.newBlock(next);
+          }
+          if (topTest.node === node) {
+            testStack.pop();
+          }
           return [];
         }
 
@@ -407,6 +497,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     };
     state.post = (node) => {
       const curStmt = stmtStack[stmtStack.length - 1];
+      const topTest = testStack[testStack.length - 1];
       if (!state.inType) {
         const throws = tryActive > 0 && mayThrow(node);
         const event = notice(node, curStmt, throws);
@@ -443,11 +534,35 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           addEvent(localState.curBlock, event);
         }
       }
-      if (curStmt === node) {
-        stmtStack.pop();
-      }
       if (localState.top().node === node) {
         localState.pop();
+      }
+      if (topTest.node === node) {
+        testStack.pop();
+        if (topTest.true && !localState.unreachable) {
+          localState.addEdge(localState.curBlock, topTest.true);
+          if (topTest.false !== topTest.true) {
+            if (localState.curBlock.succs?.length !== 1) {
+              throw new Error("Internal error: Unexpected successor edges");
+            }
+            localState.addEdge(localState.curBlock, topTest.false);
+            const event = notice(node, curStmt, 1);
+            if (event) {
+              event.mayThrow = false;
+              addEvent(localState.curBlock, event);
+              localState.unreachable = true;
+            }
+          }
+        }
+      }
+      if (curStmt === node) {
+        stmtStack.pop();
+      } else if (
+        localState.unreachable &&
+        curStmt.type === "BlockStatement" &&
+        isStatement(node)
+      ) {
+        return false;
       }
       return null;
     };

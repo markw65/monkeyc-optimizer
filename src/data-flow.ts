@@ -220,6 +220,9 @@ export function buildDataFlowGraph(
       state,
       func,
       (node, stmt, mayThrow): Event | null => {
+        if (mayThrow === 1) {
+          return null;
+        }
         const defs = liveStmts.get(node);
         if (defs) {
           liveStmts.delete(node);
