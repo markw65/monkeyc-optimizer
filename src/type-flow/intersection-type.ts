@@ -6,20 +6,29 @@ import {
   ModuleStateNode,
   TypedefStateNode,
 } from "../optimizer-types";
-import { some, forEach } from "../util";
+import { some, forEach, reduce } from "../util";
+import { couldBe } from "./could-be";
+import { roundToFloat } from "./interp";
 import {
   ArrayValueType,
   ClassType,
   cloneType,
   DictionaryValueType,
+  DoubleType,
   EnumTagsConst,
+  EnumType,
   EnumValueType,
   ExactOrUnion,
   ExactTypes,
+  FloatType,
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
   hasUnionData,
+  isExact,
+  LongType,
+  NeverType,
+  NumberType,
   ObjectLikeTagsConst,
   ObjectValueType,
   SingleValue,
@@ -131,7 +140,7 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
       return { type: common };
     }
     const result = cloneType(b);
-    clearValuesUnder(result, a.type & ~common, true);
+    clearValuesUnder(result, b.type & ~common, true);
     return result;
   }
   if (b.value == null) {
@@ -298,4 +307,275 @@ function intersectObj(
     result[key] = intersection(to[key], value);
   });
   return result;
+}
+
+function fixupEnum(
+  a: ExactOrUnion,
+  b_restricted: ExactOrUnion,
+  b: ExactOrUnion
+): ExactOrUnion {
+  if (b.type & TypeTag.Enum) {
+    const bvalue = getUnionComponent(b, TypeTag.Enum) as EnumValueType | null;
+    const br = restrictByEquality(
+      a,
+      (bvalue && (bvalue.value || bvalue.enum?.resolvedType)) || {
+        type: EnumTagsConst,
+      }
+    );
+    if (br.type) {
+      b_restricted = cloneType(b_restricted);
+      unionInto(
+        b_restricted,
+        bvalue
+          ? {
+              type: TypeTag.Enum,
+              value: { ...bvalue, value: br },
+            }
+          : br
+      );
+    }
+  }
+  return b_restricted;
+}
+
+function restrictExactTypesByEquality(
+  a: ExactTypes,
+  b: ExactOrUnion
+): ExactOrUnion {
+  switch (a.type) {
+    case TypeTag.Null:
+      if (b.type & TypeTag.Null) {
+        return a;
+      }
+      break;
+    case TypeTag.False:
+    case TypeTag.True: {
+      // intersection correctly handles enums in b
+      return intersection(b, {
+        type: a.type | TypeTag.Number,
+        value: a.type === TypeTag.False ? 0 : 1,
+      });
+    }
+    case TypeTag.Number: {
+      let extra_bits = 0;
+      if (b.type & TypeTag.False && (a.value == null || a.value === 0)) {
+        extra_bits |= TypeTag.False;
+      }
+      if (b.type & TypeTag.True && (a.value == null || a.value === 1)) {
+        extra_bits |= TypeTag.True;
+      }
+      let value_bits = b.type & (TypeTag.Numeric | TypeTag.Char);
+      if (
+        a.value != null &&
+        value_bits & TypeTag.Float &&
+        roundToFloat(Number(a.value)) != a.value
+      ) {
+        value_bits -= TypeTag.Float;
+      }
+
+      let v: ExactOrUnion = {
+        type: value_bits | extra_bits,
+      };
+      if (value_bits && !(value_bits & (value_bits - 1))) {
+        if (a.value != null) {
+          v.value =
+            value_bits === TypeTag.Char
+              ? String.fromCharCode(a.value)
+              : value_bits === TypeTag.Long
+              ? BigInt(a.value)
+              : Number(a.value);
+          if (b.value && !couldBe(v, b)) {
+            v.type = TypeTag.Never;
+            delete v.value;
+          }
+        } else if (b.value != null) {
+          v = intersection(b, v);
+        }
+      }
+      return fixupEnum(a, v, b);
+    }
+
+    case TypeTag.Long: {
+      let value_bits = b.type & TypeTag.Numeric;
+      if (a.value != null) {
+        if (
+          value_bits & TypeTag.Number &&
+          BigInt.asIntN(32, a.value) != a.value
+        ) {
+          value_bits -= TypeTag.Number;
+        }
+        if (
+          value_bits & TypeTag.Float &&
+          BigInt(roundToFloat(Number(a.value))) != a.value
+        ) {
+          value_bits -= TypeTag.Float;
+        }
+        if (value_bits & TypeTag.Double && BigInt(Number(a.value)) != a.value) {
+          value_bits -= TypeTag.Double;
+        }
+      }
+      let v: ExactOrUnion = {
+        type: value_bits,
+      };
+      if (value_bits && !(value_bits & (value_bits - 1))) {
+        if (a.value != null) {
+          v.value =
+            value_bits === TypeTag.Long ? BigInt(a.value) : Number(a.value);
+          if (b.value && !couldBe(v, b)) {
+            v.type = TypeTag.Never;
+            delete v.value;
+          }
+        } else if (b.value != null) {
+          v = intersection(b, v);
+        }
+      }
+      return fixupEnum(a, v, b);
+    }
+
+    case TypeTag.Double:
+    case TypeTag.Float: {
+      let value_bits = TypeTag.Numeric;
+      if (a.value != null) {
+        if (!Number.isInteger(a.value)) {
+          value_bits -= TypeTag.Number | TypeTag.Long;
+        } else {
+          if (Number(BigInt.asIntN(32, BigInt(a.value))) !== a.value) {
+            value_bits -= TypeTag.Number;
+          }
+        }
+      }
+      value_bits &= b.type;
+      let v: ExactOrUnion = {
+        type: value_bits,
+      } as NumberType | FloatType | LongType | DoubleType | NeverType;
+      if (value_bits && !(value_bits & (value_bits - 1))) {
+        if (a.value != null) {
+          v.value =
+            value_bits === TypeTag.Long ? BigInt(a.value) : Number(a.value);
+          if (b.value && !couldBe(v, b)) {
+            v.type = TypeTag.Never;
+            delete v.value;
+          }
+        } else if (b.value != null) {
+          v = intersection(b, v);
+        }
+      }
+      return fixupEnum(a, v, b);
+    }
+
+    case TypeTag.Char: {
+      const value_bits = b.type & (TypeTag.Number | TypeTag.Char);
+      let v: ExactOrUnion = {
+        type: value_bits,
+      };
+      if (value_bits && !(value_bits & (value_bits - 1))) {
+        if (a.value != null) {
+          v.value =
+            value_bits === TypeTag.Number ? a.value.charCodeAt(0) : a.value;
+          if (b.value && !couldBe(v, b)) {
+            v.type = TypeTag.Never;
+            delete v.value;
+          }
+        } else if (b.value != null) {
+          v = intersection(b, v);
+        }
+      }
+      return fixupEnum(a, v, b);
+    }
+
+    case TypeTag.Object:
+    case TypeTag.String:
+    case TypeTag.Array:
+    case TypeTag.Dictionary:
+    case TypeTag.Module:
+    case TypeTag.Function:
+    case TypeTag.Class:
+    case TypeTag.Symbol:
+      return intersection(a, b);
+    case TypeTag.Enum: {
+      return restrictByEquality(
+        (a.value && (a.value.value || a.value.enum?.resolvedType)) || {
+          type: EnumTagsConst,
+        },
+        b
+      );
+    }
+
+    case TypeTag.Typedef:
+      return restrictByEquality(
+        reduce(
+          a.value,
+          (cur, decl) => {
+            unionInto(cur, decl.resolvedType!);
+            return cur;
+          },
+          { type: TypeTag.Never }
+        ),
+        b
+      );
+    default:
+      unhandledType(a);
+  }
+  return { type: TypeTag.Never };
+}
+
+function restrictByEqualityByComponent(
+  a: ExactOrUnion,
+  b: ExactOrUnion
+): ExactOrUnion {
+  let bits = a.type;
+  if (a.value == null && (b.type & bits) == b.type) {
+    // shortcut:
+    // if b.type is contained in a.type, and a has no
+    // specialization, the result is just b.
+    return b;
+  }
+  let br: ExactOrUnion | null = null;
+  do {
+    const next = bits & (bits - 1);
+    const bit = bits - next;
+
+    const brt = restrictExactTypesByEquality(
+      {
+        type: bit,
+        value: getUnionComponent(a, bit) || undefined,
+      } as ExactTypes,
+      b
+    );
+    if (brt.type !== TypeTag.Never) {
+      if (!br) {
+        br = cloneType(brt);
+      } else {
+        unionInto(br, brt);
+      }
+    }
+    bits = next;
+  } while (bits);
+  if (!br) {
+    return { type: TypeTag.Never };
+  }
+  return br;
+}
+/*
+ * Given that a == b, reutnr what we can deduce about b's
+ * type.
+ *
+ * Note that this is similar to intersection. In many cases, it
+ * is intersection. eg if a is the type (Null or "Hello" or Menu)
+ * then we know b's type must be a subtype of intersection(a, b).
+ *
+ * But eg if it was a == 5, and a is known to be Char, String,
+ * Number or Float, we can only eliminate String, because
+ * 5.0 == 5, and 5.toChar() == 5.
+ */
+export function restrictByEquality(
+  a: ExactOrUnion,
+  b: ExactOrUnion
+): ExactOrUnion {
+  if (a.type == TypeTag.Never) return a;
+  if (isExact(a)) {
+    return restrictExactTypesByEquality(a, b);
+  }
+
+  return restrictByEqualityByComponent(a, b);
 }

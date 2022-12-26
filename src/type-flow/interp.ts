@@ -12,6 +12,7 @@ import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { evaluateCall } from "./interp-call";
 import {
   cloneType,
+  EnumTagsConst,
   ExactOrUnion,
   hasNoData,
   hasValue,
@@ -173,7 +174,7 @@ function deEnumerate(t: ExactOrUnion) {
   }
   if (t.type & TypeTag.Enum) {
     return {
-      type: (t.type & ~TypeTag.Enum) | TypeTag.Numeric | TypeTag.String,
+      type: (t.type & ~TypeTag.Enum) | EnumTagsConst,
     };
   }
   return t;

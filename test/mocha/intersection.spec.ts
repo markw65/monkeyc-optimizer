@@ -12,7 +12,10 @@ import {
   TypeTag,
 } from "../../src/type-flow/types";
 import { assertNonNull, find_type_by_name, find_by_name } from "./test-utils";
-import { intersection } from "../../src/type-flow/intersection-type";
+import {
+  intersection,
+  restrictByEquality,
+} from "../../src/type-flow/intersection-type";
 import { assert } from "chai";
 export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
   describe("intersection tests", () => {
@@ -28,12 +31,7 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
             (ti.type & EnumTagsConst && tj.type & TypeTag.Enum) ||
             (tj.type & EnumTagsConst && ti.type & TypeTag.Enum)
           ) {
-            assert.deepEqual(intersect, {
-              type: TypeTag.Enum,
-              value: {
-                value: ti.type === TypeTag.Enum ? tj : ti,
-              },
-            });
+            assert.deepEqual(intersect, ti.type === TypeTag.Enum ? tj : ti);
           } else {
             if (i == j) {
               assert.deepEqual(intersect, ti);
@@ -74,6 +72,11 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
         { type: TypeTag.Number, value: 42 },
         { type: TypeTag.Number, value: 0 },
         { type: TypeTag.Never }
+      );
+      check_intersect(
+        { type: TypeTag.Number, value: 42 },
+        { type: TypeTag.Any },
+        { type: TypeTag.Number, value: 42 }
       );
     });
     it("Enums vs their embedded types", () => {
@@ -142,6 +145,134 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
           type: TypeTag.Array,
           value: { type: TypeTag.Number },
         }
+      );
+    });
+  });
+  function check_restrict(
+    t1: ExactOrUnion,
+    t2: ExactOrUnion,
+    expected: ExactOrUnion
+  ) {
+    const result = restrictByEquality(t1, t2);
+    const estr = display(expected);
+    const istr = display(result);
+    assert.strictEqual(istr, estr, `expected ${istr} to be equal to ${estr}`);
+  }
+
+  describe("restrictByEquality tests", () => {
+    it("Out of range produces Never", () => {
+      check_restrict(
+        { type: TypeTag.Number, value: 5 },
+        { type: TypeTag.Boolean },
+        { type: TypeTag.Never }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 0x1ffffff },
+        { type: TypeTag.Float },
+        { type: TypeTag.Never }
+      );
+      check_restrict(
+        { type: TypeTag.Long, value: 0x1ffffffn },
+        { type: TypeTag.Float },
+        { type: TypeTag.Never }
+      );
+    });
+
+    it("Number only compares true against Numeric, Char or Boolean", () => {
+      check_restrict(
+        { type: TypeTag.Number, value: 5 },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 1 },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.True }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 0 },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.False }
+      );
+      check_restrict(
+        { type: TypeTag.Number },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.Boolean }
+      );
+    });
+
+    it("Mixed tests", () => {
+      check_restrict(
+        { type: TypeTag.Number | TypeTag.Boolean },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.Boolean }
+      );
+      check_restrict(
+        { type: TypeTag.Float | TypeTag.Long },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric }
+      );
+      check_restrict(
+        { type: TypeTag.Float | TypeTag.Double },
+        { type: TypeTag.Any },
+        { type: TypeTag.Numeric }
+      );
+      check_restrict(
+        { type: TypeTag.Float, value: 4.5 },
+        { type: TypeTag.Any },
+        { type: TypeTag.Float | TypeTag.Double }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 0x1ffffff },
+        { type: TypeTag.Any },
+        { type: TypeTag.Number | TypeTag.Long | TypeTag.Double | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Long, value: 0x1ffffffn },
+        { type: TypeTag.Any },
+        { type: TypeTag.Number | TypeTag.Long | TypeTag.Double }
+      );
+      check_restrict(
+        { type: TypeTag.Any },
+        { type: TypeTag.Number, value: 1 },
+        { type: TypeTag.Number, value: 1 }
+      );
+      check_restrict(
+        { type: TypeTag.Any },
+        { type: TypeTag.Number | TypeTag.Float },
+        { type: TypeTag.Number | TypeTag.Float }
+      );
+    });
+
+    it("enum restrictions", () => {
+      const state = statefn();
+      assertNonNull(state);
+      const number_enum = find_type_by_name(state, "NumberEnum") as EnumType;
+      assert.strictEqual(number_enum.type, TypeTag.Enum);
+      assertNonNull(number_enum.value?.enum);
+      assertNonNull(number_enum.value.value);
+
+      check_restrict({ type: TypeTag.Float, value: 4.5 }, number_enum, {
+        type: TypeTag.Never,
+      });
+
+      const four_as_number_enum = {
+        type: TypeTag.Enum,
+        value: {
+          enum: number_enum.value.enum,
+          value: { type: TypeTag.Number, value: 4 },
+        },
+      } as const;
+      check_restrict(
+        { type: TypeTag.Float, value: 4 },
+        number_enum,
+        four_as_number_enum
+      );
+      check_restrict({ type: TypeTag.Any }, number_enum, number_enum);
+      check_restrict(
+        { type: TypeTag.Any },
+        four_as_number_enum,
+        four_as_number_enum
       );
     });
   });
