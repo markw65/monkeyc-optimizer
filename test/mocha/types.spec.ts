@@ -9,6 +9,7 @@ import {
 } from "../../src/type-flow/types";
 import { couldBeTests } from "./coudbe.spec";
 import { intersectionTests } from "./intersection.spec";
+import { subtypeOfTests } from "./subtype.spec";
 import { create_program_analysis } from "./test-utils";
 
 export function typeTests() {
@@ -85,5 +86,6 @@ export function typeTests() {
 
     intersectionTests(() => state);
     couldBeTests(() => state);
+    subtypeOfTests(() => state);
   });
 }

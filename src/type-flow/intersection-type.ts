@@ -37,7 +37,7 @@ import {
 } from "./types";
 import { clearValuesUnder, unionInto } from "./union-type";
 
-function expandTypedef(t: ExactOrUnion) {
+export function expandTypedef(t: ExactOrUnion) {
   const decls = getUnionComponent(t, TypeTag.Typedef) as
     | TypedefStateNode
     | TypedefStateNode[]

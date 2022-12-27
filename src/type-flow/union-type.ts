@@ -291,7 +291,7 @@ export function clearValuesUnder(
   // If the incoming type consists of singletons,
   // we can always merge it without affecting our data.
   tag &= ~SingleTonTypeTagsConst;
-  if (!tag) {
+  if (!tag || v.value == null) {
     v.type = newTag;
     return;
   }
