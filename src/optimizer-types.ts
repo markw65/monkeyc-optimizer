@@ -94,7 +94,11 @@ export interface ClassStateNode extends BaseStateNode {
   fullName: string;
   superClass?: ClassStateNode[] | true;
   hasInvoke?: boolean;
-  superClasses?: Set<ClassStateNode>;
+  // every element of superClasses is a class,
+  // but by declaring it as Set<StateNode> we can
+  // check any StateNode without having to check if
+  // its a class.
+  superClasses?: Set<StateNode>;
 }
 
 export type FunctionInfo = {
@@ -180,10 +184,16 @@ export type LookupResult =
   | [string, LookupDefinition[]]
   | [null, null]
   | [false, false];
+export type ByNameStateNodeDecls =
+  | ModuleStateNode
+  | ClassStateNode
+  | FunctionStateNode
+  | ProgramStateNode;
 export type ProgramState = {
   allFunctions?: Record<string, FunctionStateNode[]>;
   allClasses?: ClassStateNode[];
   invokeInfo?: FunctionInfo;
+  allDeclarations?: Record<string, ByNameStateNodeDecls[]>;
   fnMap?: FilesToOptimizeMap;
   rezAst?: mctree.Program;
   manifestXML?: xmlUtil.Document;
@@ -264,7 +274,7 @@ export type ProgramStateLive = Finalized<
 >;
 export type ProgramStateAnalysis = Finalized<
   ProgramStateLive,
-  "allClasses" | "allFunctions" | "fnMap" | "invokeInfo"
+  "allClasses" | "allFunctions" | "fnMap" | "allDeclarations" | "invokeInfo"
 >;
 export type ProgramStateOptimizer = Finalized<
   ProgramStateAnalysis,

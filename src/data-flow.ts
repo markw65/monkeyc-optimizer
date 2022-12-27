@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as PriorityQueue from "priorityqueuejs";
-import { formatAst, isLocal, isStateNode } from "./api";
+import { formatAst, isLocal, isStateNode, lookupNext } from "./api";
 import { getNodeValue, isExpression } from "./ast";
 import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
 import {
@@ -10,10 +10,12 @@ import {
 } from "./function-info";
 import {
   FunctionStateNode,
+  LookupDefinition,
   ProgramStateAnalysis,
   StateNodeDecl,
+  VariableStateNode,
 } from "./optimizer-types";
-import { some } from "./util";
+import { every, some } from "./util";
 
 /*
  * This is the set of nodes that are of interest to data flow.
@@ -32,7 +34,16 @@ export type RefNode =
  * can be used as a key to a Map or Set, in order to identify
  * Refs and Defs to the same thing.
  */
-export type EventDecl = StateNodeDecl | StateNodeDecl[] | mctree.Literal;
+export type EventDecl =
+  | StateNodeDecl
+  | StateNodeDecl[]
+  | mctree.Literal
+  | {
+      type: "MemberDecl";
+      node: mctree.MemberExpression;
+      base: StateNodeDecl | StateNodeDecl[];
+      path: mctree.MemberExpression[];
+    };
 
 /*
  * An occurance of a use of a node of interest to data flow
@@ -94,7 +105,7 @@ export enum FlowKind {
  */
 interface FlowEventDecl extends BaseEvent {
   type: "flw";
-  node: mctree.Node;
+  node: mctree.BinaryExpression;
   decl?: undefined;
   kind: FlowKind.LEFT_EQ_RIGHT_DECL | FlowKind.LEFT_NE_RIGHT_DECL;
   left: EventDecl;
@@ -103,7 +114,7 @@ interface FlowEventDecl extends BaseEvent {
 }
 interface FlowEventNode extends BaseEvent {
   type: "flw";
-  node: mctree.Node;
+  node: mctree.BinaryExpression;
   decl?: undefined;
   kind: FlowKind.LEFT_EQ_RIGHT_NODE | FlowKind.LEFT_NE_RIGHT_NODE;
   left: EventDecl;
@@ -146,14 +157,14 @@ export interface DataFlowBlock extends Block<Event> {
   order?: number;
 }
 
-export function declFullName(decl: EventDecl) {
+export function declFullName(decl: EventDecl): string {
   if (Array.isArray(decl)) {
     decl = decl[0];
   }
   if (decl.type === "Literal") {
     return decl.raw || decl.value?.toString() || "null";
   }
-  if (isStateNode(decl)) return decl.fullName;
+  if (isStateNode(decl)) return decl.fullName || "<unknown>";
   switch (decl.type) {
     case "Identifier":
       return decl.name;
@@ -163,6 +174,8 @@ export function declFullName(decl: EventDecl) {
       return decl.init
         ? `${decl.id.name}:${formatAst(decl.init)}`
         : decl.id.name;
+    case "MemberDecl":
+      return `${declFullName(decl.base)}->${decl.path.join(".")}`;
     default:
       unhandledType(decl);
   }
@@ -203,59 +216,97 @@ export function buildDataFlowGraph(
   wantsAllRefs: boolean
 ) {
   const uniqueDeclMap = new Map<StateNodeDecl, StateNodeDecl[]>();
-  const findDecl = (node: mctree.Node): EventDecl | null => {
-    if (
-      node.type === "Identifier" ||
-      (node.type === "MemberExpression" && !node.computed)
-    ) {
-      const [, results] = state.lookup(node);
-      const decls =
-        (results &&
-          results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
-            (decls, result) =>
-              result.results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
-                (decls, result) => {
-                  if (
-                    !wantsAllRefs &&
-                    (result.type !== "VariableDeclarator" || isLocal(result))
-                  ) {
-                    return decls;
-                  }
-                  if (!decls) return result;
-                  if (Array.isArray(decls)) {
-                    decls.push(result);
-                    return decls;
-                  } else {
-                    return [decls, result];
-                  }
-                },
-                decls
-              ),
-            null
-          )) ||
-        null;
-      if (!Array.isArray(decls)) return decls;
-      // We use EventDecl as a Map key, so we need to
-      // uniquify it. Note that from any given function,
-      // if state.lookup finds a set of non locals, it will
-      // always find the same set, so we can use the first
-      // such as the unique identifier.
-      const canon = uniqueDeclMap.get(decls[0]);
-      if (!canon) {
-        uniqueDeclMap.set(decls[0], decls);
-        return decls;
-      }
-      if (
-        canon.length != decls.length ||
-        !canon.every((v, i) => v === decls[i])
-      ) {
-        throw new Error(
-          `Canonical representation of ${declFullName(canon)} did not match`
-        );
-      }
-      return canon;
+  const lookupDefToDecl = (results: LookupDefinition[]) => {
+    const decls =
+      results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
+        (decls, result) =>
+          result.results.reduce<StateNodeDecl | StateNodeDecl[] | null>(
+            (decls, result) => {
+              if (
+                !wantsAllRefs &&
+                (result.type !== "VariableDeclarator" || isLocal(result))
+              ) {
+                return decls;
+              }
+              if (!decls) return result;
+              if (Array.isArray(decls)) {
+                decls.push(result);
+                return decls;
+              } else {
+                return [decls, result];
+              }
+            },
+            decls
+          ),
+        null
+      ) || null;
+    if (!Array.isArray(decls)) return decls;
+    // We use EventDecl as a Map key, so we need to
+    // uniquify it. Note that from any given function,
+    // if state.lookup finds a set of non locals, it will
+    // always find the same set, so we can use the first
+    // such as the unique identifier.
+    const canon = uniqueDeclMap.get(decls[0]);
+    if (!canon) {
+      uniqueDeclMap.set(decls[0], decls);
+      return decls;
     }
-    return null;
+    if (
+      canon.length != decls.length ||
+      !canon.every((v, i) => v === decls[i])
+    ) {
+      throw new Error(
+        `Canonical representation of ${declFullName(canon)} did not match`
+      );
+    }
+    return canon;
+  };
+  const findDecl = (node: mctree.Node): EventDecl | null => {
+    const path: mctree.MemberExpression[] = [];
+    while (
+      node.type === "MemberExpression" &&
+      (wantsAllRefs || !node.computed)
+    ) {
+      path.unshift(node);
+      node = node.object;
+    }
+    if (node.type !== "Identifier" && node.type !== "ThisExpression") {
+      return null;
+    }
+    let [, results] = state.lookup(node);
+    if (!results) return null;
+    while (true) {
+      const next = path[0];
+      if (!next || next.computed) {
+        break;
+      }
+      const nextResult = lookupNext(state, results, "decls", next.property);
+      if (!nextResult) break;
+      results = nextResult;
+      node = path.shift()!;
+    }
+    const decl = lookupDefToDecl(results);
+    if (decl && path.length) {
+      if (
+        wantsAllRefs &&
+        every(
+          decl,
+          (d) =>
+            d.type === "VariableDeclarator" ||
+            d.type === "BinaryExpression" ||
+            d.type === "Identifier"
+        )
+      ) {
+        return {
+          type: "MemberDecl",
+          node: node as mctree.MemberExpression,
+          base: decl as VariableStateNode | VariableStateNode[],
+          path,
+        };
+      }
+      return null;
+    }
+    return decl;
   };
   const literals = new Map<mctree.Literal["value"], mctree.Literal>();
   const identifiers = new Set<string>();

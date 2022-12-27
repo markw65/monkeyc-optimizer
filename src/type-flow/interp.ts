@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { resolveDottedMember } from "../type-flow";
 import { isLookupCandidate } from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
@@ -183,33 +184,50 @@ function deEnumerate(t: ExactOrUnion) {
 function pushScopedNameType(
   istate: InterpState,
   node: mctree.MemberExpression | mctree.Identifier,
-  embeddedEffects: boolean
+  object?: InterpStackElem
 ) {
+  let embeddedEffects = object ? object.embeddedEffects : false;
+
   let result;
   if (istate.typeMap) {
     result = istate.typeMap?.get(node);
+    if (
+      !result &&
+      object &&
+      node.type === "MemberExpression" &&
+      !node.computed
+    ) {
+      const resolved = resolveDottedMember(istate, object.value, node);
+      if (resolved) {
+        result = resolved.property;
+        if (resolved.mayThrow) {
+          embeddedEffects = true;
+        }
+      }
+    }
   } else {
     const [, results] = istate.state.lookup(node);
     result =
-      results &&
-      results.reduce<ExactOrUnion | null>(
-        (cur, lookupDefn) =>
-          lookupDefn.results.reduce<ExactOrUnion | null>((cur, result) => {
-            if (
-              result.type !== "BinaryExpression" &&
-              result.type !== "Identifier"
-            ) {
-              const type = typeFromTypeStateNode(istate.state, result, true);
-              if (!cur) {
-                cur = cloneType(type);
-              } else {
-                unionInto(cur, type);
+      (results &&
+        results.reduce<ExactOrUnion | null>(
+          (cur, lookupDefn) =>
+            lookupDefn.results.reduce<ExactOrUnion | null>((cur, result) => {
+              if (
+                result.type !== "BinaryExpression" &&
+                result.type !== "Identifier"
+              ) {
+                const type = typeFromTypeStateNode(istate.state, result, true);
+                if (!cur) {
+                  cur = cloneType(type);
+                } else {
+                  unionInto(cur, type);
+                }
               }
-            }
-            return cur;
-          }, cur),
-        null
-      );
+              return cur;
+            }, cur),
+          null
+        )) ||
+      undefined;
   }
   istate.stack.push({
     value: result || { type: TypeTag.Any },
@@ -463,7 +481,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       });
       break;
     case "Identifier":
-      pushScopedNameType(istate, node, false);
+      pushScopedNameType(istate, node);
       break;
 
     case "MemberExpression":
@@ -503,7 +521,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         });
       } else {
         const object = popIstate(istate, node.object);
-        pushScopedNameType(istate, node, object.embeddedEffects);
+        pushScopedNameType(istate, node, object);
       }
       break;
     case "SequenceExpression": {

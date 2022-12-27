@@ -139,7 +139,7 @@ function testLogicalFolding(logger as Logger) as Boolean {
 (:test,:typecheck(false))
 function testLogicalFoldingNonTypeSafe(logger as Logger) as Boolean {
     ok = true;
-    var x = logger != null;
+    var x = logger != gLogger;
     /* @match /check\(42, 42, logger\);/ */
     check((ZERO_CONST && x) == 0 ? 42 : 0, 42, logger);
     /* @match /check\(0, 0, logger\);/ */

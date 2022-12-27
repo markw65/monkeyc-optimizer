@@ -1003,15 +1003,17 @@ export function getStateNodeDeclsFromType(
     );
   }
   let bits = object.type & (ObjectLikeTagsConst | TypeTag.Object);
-  if (
-    bits &&
-    (object.value == null ||
-      !(bits & TypeTag.Object) ||
-      !getObjectValue(object))
-  ) {
+  if (bits & TypeTag.Object && getObjectValue(object)) {
+    bits -= TypeTag.Object;
+  }
+  if (bits) {
     do {
-      const next = bits & (bits - 1);
-      const bit = bits - next;
+      let next = bits & (bits - 1);
+      let bit = bits - next;
+      if (bit & TypeTag.Boolean) {
+        bit = TypeTag.Boolean;
+        next &= ~TypeTag.Boolean;
+      }
       const name = `Toybox.Lang.${TypeTag[bit]}`;
       const sns = lookupByFullName(state, name);
       sns.forEach((sn) => isStateNode(sn) && decls.push(sn));

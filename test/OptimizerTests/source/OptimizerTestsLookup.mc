@@ -354,17 +354,13 @@ module Statics {
         return ok;
     }
     (:test)
-    function staticFromNonStaticByNameCrash4_1_6(
-        logger as Logger
-    ) as Boolean {
+    function staticFromNonStaticByNameCrash4_1_6(logger as Logger) as Boolean {
         ok = false;
         (new C()).nonStaticByName();
         return ok;
     }
     (:test)
-    function staticFromNonStaticBySelfCrash4_1_6(
-        logger as Logger
-    ) as Boolean {
+    function staticFromNonStaticBySelfCrash4_1_6(logger as Logger) as Boolean {
         ok = false;
         (new C()).nonStaticBySelf();
         return ok;
@@ -411,7 +407,9 @@ module ShouldCallNew {
         return wasCalled;
     }
     (:test)
-    function callsNewAsStatementExpectedFail_4_1_6(logger as Logger) as Boolean {
+    function callsNewAsStatementExpectedFail_4_1_6(
+        logger as Logger
+    ) as Boolean {
         wasCalled = false;
         new C(logger);
         return wasCalled;

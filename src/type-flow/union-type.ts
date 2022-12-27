@@ -3,6 +3,7 @@ import { StateNode } from "../optimizer-types";
 import { forEach, some } from "../util";
 import {
   ArrayValueType,
+  ClassType,
   cloneType,
   DictionaryValueType,
   EnumValueType,
@@ -173,17 +174,18 @@ function mergeSingle(
         from as StateDeclValueType
       );
     case TypeTag.Object: {
-      const klass = (to as ObjectValueType).klass;
+      let klass = (to as ObjectValueType).klass;
       const [obj, objChanged] = mergeObjectValues(
         (to as ObjectValueType).obj,
         (from as ObjectValueType).obj
       );
       const klassChanged = tryUnion(klass, (from as ObjectValueType).klass);
       if (klassChanged || objChanged) {
+        klass = (klassChanged || klass) as ClassType;
         if (obj) {
-          return [{ klass: klassChanged, obj } as SingleValue, true];
+          return [{ klass, obj } as SingleValue, true];
         }
-        return [{ klass: klassChanged } as SingleValue, true];
+        return [{ klass } as SingleValue, true];
       }
       return [to, false];
     }

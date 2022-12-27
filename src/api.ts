@@ -164,7 +164,7 @@ export async function getApiMapping(
   }
 }
 
-export function isStateNode(node: StateNodeDecl): node is StateNode {
+export function isStateNode(node: { type: string }): node is StateNode {
   return hasProperty(node, "node");
 }
 
@@ -289,6 +289,26 @@ export function isLookupCandidate(node: mctree.MemberExpression) {
     : node.property.type === "Identifier" && node.property;
 }
 
+export function lookupNext(
+  state: ProgramStateLive,
+  results: LookupDefinition[],
+  decls: DeclKind,
+  property: mctree.Identifier
+) {
+  return results.reduce<LookupDefinition[] | null>((current, lookupDef) => {
+    const items = lookupDef.results
+      .map((module) => {
+        if (!isStateNode(module)) {
+          return null;
+        }
+        const res = checkOne(state, module, decls, property);
+        return res ? { parent: module, results: res } : null;
+      })
+      .filter((r): r is NonNullable<typeof r> => r != null);
+    if (!items.length) return current;
+    return current ? current.concat(items) : items;
+  }, null);
+}
 /**
  *
  * @param state    - The ProgramState
@@ -341,22 +361,7 @@ function lookup(
         );
         if (results === false) break;
         if (!results) return [null, null];
-        result = results.reduce<LookupDefinition[] | null>(
-          (current, lookupDef) => {
-            const items = lookupDef.results
-              .map((module) => {
-                if (!isStateNode(module)) {
-                  return null;
-                }
-                const res = checkOne(state, module, decls, property);
-                return res ? { parent: module, results: res } : null;
-              })
-              .filter((r): r is NonNullable<typeof r> => r != null);
-            if (!items.length) return current;
-            return current ? current.concat(items) : items;
-          },
-          null
-        );
+        result = lookupNext(state, results, decls, property);
         if (
           !result &&
           results.some((ld) =>

@@ -39,6 +39,7 @@ import {
 import { JungleResourceMap } from "./jungles";
 import {
   BuildConfig,
+  ByNameStateNodeDecls,
   ClassStateNode,
   FilesToOptimizeMap,
   FunctionStateNode,
@@ -46,7 +47,9 @@ import {
   ModuleStateNode,
   ProgramState,
   ProgramStateAnalysis,
+  ProgramStateLive,
   ProgramStateOptimizer,
+  StateNode,
   StateNodeAttributes,
 } from "./optimizer-types";
 import { pragmaChecker } from "./pragma-checker";
@@ -63,6 +66,48 @@ import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
+
+/*
+ * Map each name to the list of StateNodes that declare that
+ * name (excluding Functions, which are already in allFunctions)
+ */
+function collectDeclarationsByName(state: ProgramStateLive) {
+  state.allDeclarations = {};
+  const allDecls = state.allDeclarations;
+  const helper = (sn: StateNode) => {
+    if (
+      sn.type === "ClassDeclaration" ||
+      sn.type === "Program" ||
+      sn.type === "ModuleDeclaration"
+    ) {
+      if (sn.decls) {
+        Object.entries(sn.decls).forEach(([key, decls]) => {
+          const keyed: ByNameStateNodeDecls[] = [];
+          decls.forEach((decl) => {
+            switch (decl.type) {
+              case "ClassDeclaration":
+              case "ModuleDeclaration":
+                helper(decl);
+              // fall through;
+              case "VariableDeclarator":
+              case "EnumStringMember":
+              case "FunctionDeclaration":
+                keyed.push(sn);
+            }
+          });
+          if (keyed.length) {
+            if (!hasProperty(allDecls, key)) {
+              allDecls[key] = keyed;
+            } else {
+              allDecls[key].push(...keyed);
+            }
+          }
+        });
+      }
+    }
+  };
+  helper(state.stack[0]);
+}
 
 function collectClassInfo(state: ProgramStateAnalysis) {
   const toybox = state.stack[0].decls!["Toybox"][0] as ModuleStateNode;
@@ -294,6 +339,7 @@ export async function analyze(
   delete state.shouldExclude;
   delete state.pre;
 
+  collectDeclarationsByName(state);
   collectClassInfo(state);
 
   state.exposed = state.nextExposed;
