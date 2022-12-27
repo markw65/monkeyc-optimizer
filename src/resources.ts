@@ -532,7 +532,20 @@ function add_one_resource(
             {
               type: "VariableDeclarator",
               kind: "var",
-              id: makeIdentifier(id ? id.value.value : "*invalid*", loc),
+              id: {
+                type: "BinaryExpression",
+                operator: "as",
+                left: makeIdentifier(id ? id.value.value : "*invalid*", loc),
+                right: {
+                  type: "TypeSpecList",
+                  ts: [
+                    {
+                      type: "TypeSpecPart",
+                      name: makeIdentifier("Symbol"),
+                    },
+                  ],
+                },
+              },
               init,
             },
             e.loc
@@ -559,18 +572,74 @@ function add_one_resource(
     };
   };
 
+  const layoutDecl = (): mctree.FunctionDeclaration | null => {
+    if (!id) return null;
+    const loc = id.value.loc;
+    const items: mctree.Statement[] = init ? [varDecl()] : [];
+    return {
+      type: "FunctionDeclaration",
+      body: { type: "BlockStatement", body: items, loc: e.loc },
+      id: makeIdentifier(id.value.value, loc),
+      params: [
+        {
+          type: "BinaryExpression",
+          operator: "as",
+          left: makeIdentifier("dc"),
+          right: {
+            type: "TypeSpecList",
+            ts: [
+              {
+                type: "TypeSpecPart",
+                name: makeScopedName("Graphics.Dc"),
+              },
+            ],
+          },
+        },
+      ],
+      returnType: {
+        type: "UnaryExpression",
+        operator: " as",
+        prefix: true,
+        argument: {
+          type: "TypeSpecList",
+          ts: [
+            {
+              type: "TypeSpecPart",
+              name: makeScopedName("$.Toybox.Lang.Array"),
+              generics: [
+                {
+                  type: "TypeSpecList",
+                  ts: [
+                    {
+                      type: "TypeSpecPart",
+                      name: makeScopedName("$.Toybox.WatchUi.Drawable"),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      loc: e.loc,
+    };
+  };
+
   switch (e.name) {
     case "font":
     case "string":
     case "jsonData":
     case "animation":
     case "bitmap":
-    case "layout":
     case "drawable-list":
     case "property":
     case "fitField":
       id = e.attr.id;
       func = varDecl;
+      break;
+    case "layout":
+      id = e.attr.id;
+      func = layoutDecl;
       break;
     case "menu":
       id = e.attr.id;
