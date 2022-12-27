@@ -4,6 +4,7 @@ import { isLookupCandidate } from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
+  DiagnosticType,
   ClassStateNode,
   FunctionStateNode,
   ProgramStateAnalysis,
@@ -46,6 +47,8 @@ export type InterpState = {
   func?: FunctionStateNode;
   pre?: (node: mctree.Node) => mctree.Node | false | null | void;
   post?: (node: mctree.Node) => mctree.Node | false | null | void;
+  typeChecker?: (a: ExactOrUnion, b: ExactOrUnion) => boolean;
+  checkTypes?: DiagnosticType;
 };
 
 export function popIstate(istate: InterpState, node: mctree.Node) {
@@ -596,16 +599,14 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     }
     case "CallExpression": {
       const [callee, ...args] = stack.splice(-1 - node.arguments.length);
-      push({
-        value: evaluateCall(
-          state,
+      push(
+        evaluateCall(
+          istate,
           node,
           callee.value,
           args.map(({ value }) => value)
-        ),
-        embeddedEffects: true,
-        node,
-      });
+        )
+      );
       break;
     }
     // Statements, and other

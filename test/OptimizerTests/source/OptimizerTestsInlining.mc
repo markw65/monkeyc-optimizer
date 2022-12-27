@@ -1,5 +1,6 @@
 import Toybox.Test;
 import Toybox.Lang;
+import Toybox.Math;
 
 var z as Number = 0;
 
@@ -81,20 +82,62 @@ function getinst(
         : "<unknown>";
 }
 
+const FLOAT_EPSILON = Math.pow(2, -23);
+const DOUBLE_EPSILON = Math.pow(2, -52);
+
 var ok as Boolean = false;
 function check(
     x as Number or Long or Float or Double or String or Char,
     expected as Number or Long or Float or Double or String or Char,
     logger as Logger
 ) as Void {
-    if (!x.equals(expected)) {
-        logger.debug(
-            "Got " + x + " Should be " + expected + " (B.x = " + A.B.x + ")"
-        );
-        ok = false;
-    }
+    checker(x, expected, logger, false);
+}
+
+function checker(
+    x as Number or Long or Float or Double or String or Char,
+    expected as Number or Long or Float or Double or String or Char,
+    logger as Logger,
+    isFloat as Boolean
+) as Void {
     var xinst = getinst(x);
     var einst = getinst(expected);
+    if (
+        isFloat
+            ? ((x as Numeric) - (expected as Numeric)).abs() >
+              (einst.equals("Float") ? FLOAT_EPSILON : DOUBLE_EPSILON) *
+                  (expected as Numeric).abs()
+            : !x.equals(expected)
+    ) {
+        logger.debug(
+            "Got " +
+                x +
+                "<" +
+                xinst +
+                "> Should be " +
+                expected +
+                "<" +
+                einst +
+                "> (B.x = " +
+                A.B.x +
+                ")"
+        );
+        if (isFloat) {
+            logger.debug(
+                "    - Difference = " +
+                    ((x as Numeric) - (expected as Numeric)).format("%.17f")
+            );
+            logger.debug(
+                "    - Epsilon = " +
+                    (
+                        (einst.equals("Float")
+                            ? FLOAT_EPSILON
+                            : DOUBLE_EPSILON) * (expected as Numeric).abs()
+                    ).format("%.17f")
+            );
+        }
+        ok = false;
+    }
     if (!xinst.equals(einst)) {
         logger.debug(
             "Wrong types " +

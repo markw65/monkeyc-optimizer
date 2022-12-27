@@ -450,6 +450,159 @@ function testIfFolding(logger as Logger) as Boolean {
     return false;
 }
 
+function mwrap(v as Numeric) as Numeric {
+    v += wrapper(0);
+    return v;
+}
+
+function mcheck(x as Numeric, expected as Numeric, logger as Logger) as Void {
+    checker(x, expected, logger, true);
+}
+
+(:test)
+function testMathFolding(logger as Logger) as Boolean {
+    ok = true;
+    A.B.x = 0;
+    mcheck(Math.acos(0), Math.acos(mwrap(0)), logger);
+    A.B.x = 1;
+    mcheck(Math.asin(1), Math.asin(mwrap(1)), logger);
+    A.B.x = 2;
+    mcheck(Math.atan(42), Math.atan(mwrap(42)), logger);
+    A.B.x = 3;
+    mcheck(Math.atan2(42, 42), Math.atan2(mwrap(42), mwrap(42)), logger);
+    A.B.x = 4;
+    mcheck(Math.ceil(42), Math.ceil(mwrap(42)), logger);
+    A.B.x = 5;
+    mcheck(Math.cos(42), Math.cos(mwrap(42)), logger);
+    A.B.x = 6;
+    mcheck(Math.floor(42), Math.floor(mwrap(42)), logger);
+    A.B.x = 7;
+    mcheck(Math.log(42, 12), Math.log(mwrap(42), 12), logger);
+    A.B.x = 8;
+    mcheck(Math.pow(2, 42), Math.pow(mwrap(2), mwrap(42)), logger);
+    A.B.x = 9;
+    mcheck(Math.round(42), Math.round(mwrap(42)), logger);
+    A.B.x = 10;
+    mcheck(Math.sin(42), Math.sin(mwrap(42)), logger);
+    A.B.x = 11;
+    mcheck(Math.sqrt(42), Math.sqrt(mwrap(42)), logger);
+    A.B.x = 12;
+    mcheck(Math.tan(42), Math.tan(mwrap(42)), logger);
+    A.B.x = 13;
+    mcheck(Math.toDegrees(42), Math.toDegrees(mwrap(42)), logger);
+    A.B.x = 14;
+    mcheck(Math.toRadians(42), Math.toRadians(mwrap(42)), logger);
+
+    A.B.x = 15;
+    mcheck(Math.acos(0l), Math.acos(mwrap(0l)), logger);
+    A.B.x = 16;
+    mcheck(Math.asin(1l), Math.asin(mwrap(1l)), logger);
+    A.B.x = 17;
+    mcheck(Math.atan(42l), Math.atan(mwrap(42l)), logger);
+    A.B.x = 18;
+    mcheck(Math.atan2(42l, 42l), Math.atan2(mwrap(42l), mwrap(42l)), logger);
+    A.B.x = 19;
+    mcheck(Math.ceil(42l), Math.ceil(mwrap(42l)), logger);
+    A.B.x = 20;
+    mcheck(Math.cos(42l), Math.cos(mwrap(42l)), logger);
+    A.B.x = 21;
+    mcheck(Math.floor(42l), Math.floor(mwrap(42l)), logger);
+    A.B.x = 22;
+    mcheck(Math.log(42l, 12l), Math.log(mwrap(42l), 12l), logger);
+    A.B.x = 23;
+    mcheck(Math.pow(2l, 42l), Math.pow(mwrap(2l), mwrap(42l)), logger);
+    A.B.x = 24;
+    mcheck(Math.round(42l), Math.round(mwrap(42l)), logger);
+    A.B.x = 25;
+    mcheck(Math.sin(42l), Math.sin(mwrap(42l)), logger);
+    A.B.x = 26;
+    mcheck(Math.sqrt(42l), Math.sqrt(mwrap(42l)), logger);
+    A.B.x = 27;
+    mcheck(Math.tan(42l), Math.tan(mwrap(42l)), logger);
+    A.B.x = 28;
+    mcheck(Math.toDegrees(42l), Math.toDegrees(mwrap(42l)), logger);
+    A.B.x = 29;
+    mcheck(Math.toRadians(42l), Math.toRadians(mwrap(42l)), logger);
+
+    A.B.x = 30;
+    mcheck(Math.acos(0.5), Math.acos(mwrap(0.5)), logger);
+    A.B.x = 31;
+    mcheck(Math.asin(0.5), Math.asin(mwrap(0.5)), logger);
+    A.B.x = 32;
+    mcheck(Math.atan(0.42), Math.atan(mwrap(0.42)), logger);
+    A.B.x = 33;
+    mcheck(Math.atan2(4.2, 4.2), Math.atan2(mwrap(4.2), mwrap(4.2)), logger);
+    A.B.x = 34;
+    mcheck(Math.ceil(4.2), Math.ceil(mwrap(4.2)), logger);
+    A.B.x = 35;
+    mcheck(Math.cos(0.42), Math.cos(mwrap(0.42)), logger);
+    A.B.x = 36;
+    mcheck(Math.floor(4.2), Math.floor(mwrap(4.2)), logger);
+    A.B.x = 37;
+    mcheck(Math.log(4.2, 12), Math.log(mwrap(4.2), 12), logger);
+    A.B.x = 38;
+    mcheck(Math.pow(2.0, 4.2), Math.pow(mwrap(2.0), mwrap(4.2)), logger);
+    A.B.x = 39;
+    mcheck(Math.round(4.2), Math.round(mwrap(4.2)), logger);
+    A.B.x = 40;
+    mcheck(Math.sin(0.42), Math.sin(mwrap(0.42)), logger);
+    A.B.x = 41;
+    mcheck(Math.sqrt(0.42), Math.sqrt(mwrap(0.42)), logger);
+    A.B.x = 42;
+    mcheck(Math.tan(0.42), Math.tan(mwrap(0.42)), logger);
+    A.B.x = 43;
+    mcheck(Math.toDegrees(4.2), Math.toDegrees(mwrap(4.2)), logger);
+    A.B.x = 44;
+    mcheck(Math.toRadians(4.2), Math.toRadians(mwrap(4.2)), logger);
+
+    A.B.x = 45;
+    mcheck(Math.acos(0.5d), Math.acos(mwrap(0.5d)), logger);
+    A.B.x = 46;
+    mcheck(Math.asin(0.5d), Math.asin(mwrap(0.5d)), logger);
+    A.B.x = 47;
+    mcheck(Math.atan(4.2d), Math.atan(mwrap(4.2d)), logger);
+    A.B.x = 48;
+    mcheck(
+        Math.atan2(4.2d, 4.2d),
+        Math.atan2(mwrap(4.2d), mwrap(4.2d)),
+        logger
+    );
+    A.B.x = 49;
+    mcheck(Math.ceil(4.2d), Math.ceil(mwrap(4.2d)), logger);
+    A.B.x = 50;
+    mcheck(Math.cos(0.42d), Math.cos(mwrap(0.42d)), logger);
+    A.B.x = 51;
+    mcheck(Math.floor(4.2d), Math.floor(mwrap(4.2d)), logger);
+    A.B.x = 52;
+    mcheck(Math.log(4.2d, 12), Math.log(mwrap(4.2d), 12), logger);
+    A.B.x = 53;
+    mcheck(Math.pow(2.0d, 4.2d), Math.pow(mwrap(2.0d), mwrap(4.2d)), logger);
+    A.B.x = 54;
+    mcheck(Math.round(4.2d), Math.round(mwrap(4.2d)), logger);
+    A.B.x = 55;
+    mcheck(Math.sin(0.42d), Math.sin(mwrap(0.42d)), logger);
+    A.B.x = 56;
+    mcheck(Math.sqrt(4.2d), Math.sqrt(mwrap(4.2d)), logger);
+    A.B.x = 57;
+    mcheck(Math.tan(0.42d), Math.tan(mwrap(0.42d)), logger);
+    A.B.x = 58;
+    mcheck(Math.toDegrees(4.2d), Math.toDegrees(mwrap(4.2d)), logger);
+    A.B.x = 59;
+    mcheck(Math.toRadians(4.2d), Math.toRadians(mwrap(4.2d)), logger);
+
+    if (Math has :ln) {
+        A.B.x = 60;
+        mcheck(Math.ln(42), Math.ln(mwrap(42)), logger);
+        A.B.x = 61;
+        mcheck(Math.ln(42l), Math.ln(mwrap(42l)), logger);
+        A.B.x = 62;
+        mcheck(Math.ln(4.2), Math.ln(mwrap(4.2)), logger);
+        A.B.x = 63;
+        mcheck(Math.ln(4.2d), Math.ln(mwrap(4.2d)), logger);
+    }
+    return ok;
+}
+
 function argChecker(x as Array<Number>?) as Void {}
 
 const HR_ZONES_MOCK = null as Array<Number>?;

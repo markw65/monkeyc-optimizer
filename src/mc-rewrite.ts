@@ -63,6 +63,7 @@ import {
   popIstate,
 } from "./type-flow/interp";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
+import { subtypeOf } from "./type-flow/sub-type";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
@@ -910,6 +911,10 @@ export async function optimizeMonkeyC(
            * of fields from state, and then pass that around.
            */
           is.state = state;
+          if (state.config?.checkTypes !== "OFF") {
+            is.typeChecker = subtypeOf;
+            is.checkTypes = state.config?.checkTypes || "WARNING";
+          }
           istate = is;
         }
         if (parent.type == "ClassDeclaration" && !maybeCalled(node)) {
