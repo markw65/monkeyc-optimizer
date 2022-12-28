@@ -459,7 +459,7 @@ function evaluateFunction(
   istate: InterpState,
   func: mctree.FunctionDeclaration,
   args: mctree.Node[] | null
-) {
+): mctree.Literal | null | false {
   if (
     !func.body ||
     istate.state.inlining ||
@@ -574,6 +574,22 @@ export async function optimizeMonkeyC(
     };
     if (isExpression(result)) {
       istate.stack[istate.stack.length - 1].node = result;
+    }
+    return result;
+  };
+
+  let again = false;
+  const optimizeCallHelper = (
+    istate: InterpState,
+    call: mctree.CallExpression,
+    node: InlineContext | null
+  ) => {
+    const result = optimizeCall(istate, call, node);
+    if (result) {
+      if (isExpression(result)) {
+        istate.stack[istate.stack.length - 1].node = result;
+      }
+      again = true;
     }
     return result;
   };
@@ -901,6 +917,12 @@ export async function optimizeMonkeyC(
           throw new Error("Stack was not empty");
         }
         istate = gistate;
+        if (again) {
+          again = false;
+          const top = state.stack.pop();
+          state.traverse(node);
+          state.stack.push(top!);
+        }
         break;
       case "BlockStatement":
         if (node.body.length === 1 && node.body[0].type === "BlockStatement") {
@@ -916,17 +938,14 @@ export async function optimizeMonkeyC(
       case "IfStatement": {
         const call = inlinableSubExpression(node.test);
         if (call) {
-          return replace(optimizeCall(istate, call, node), node.test);
+          return optimizeCallHelper(istate, call, node);
         }
         break;
       }
 
       case "ReturnStatement":
         if (node.argument && node.argument.type === "CallExpression") {
-          return replace(
-            optimizeCall(istate, node.argument, node),
-            node.argument
-          );
+          return optimizeCallHelper(istate, node.argument, node);
         }
         break;
 
@@ -959,7 +978,7 @@ export async function optimizeMonkeyC(
         break;
 
       case "CallExpression": {
-        return replace(optimizeCall(istate, node, null), node);
+        return optimizeCallHelper(istate, node, null);
       }
 
       case "VariableDeclaration": {
@@ -978,10 +997,7 @@ export async function optimizeMonkeyC(
             if (!decl.init) continue;
             const call = inlinableSubExpression(decl.init);
             if (call) {
-              const inlined = replace(
-                optimizeCall(istate, call, decl),
-                decl.init
-              );
+              const inlined = optimizeCallHelper(istate, call, decl);
               if (!inlined) continue;
               if (Array.isArray(inlined) || inlined.type != "BlockStatement") {
                 throw new Error("Unexpected inlined result");
@@ -1019,10 +1035,7 @@ export async function optimizeMonkeyC(
 
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
-          return replace(
-            optimizeCall(istate, node.expression, node),
-            node.expression
-          );
+          return optimizeCallHelper(istate, node.expression, node);
         } else if (node.expression.type === "AssignmentExpression") {
           const call = inlinableSubExpression(node.expression.right);
           if (call) {
@@ -1037,10 +1050,7 @@ export async function optimizeMonkeyC(
               ok = !!result;
             }
             if (ok) {
-              return replace(
-                optimizeCall(istate, call, node.expression),
-                node.expression.right
-              );
+              return optimizeCallHelper(istate, call, node.expression);
             }
           }
         } else {
@@ -1271,7 +1281,7 @@ function optimizeCall(
     ) {
       const ret = evaluateFunction(istate, callee, node.arguments);
       if (ret) {
-        return ret;
+        return withLoc(ret, node, node);
       }
     }
     if (shouldInline(state, callees[0], node, context)) {

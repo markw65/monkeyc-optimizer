@@ -267,7 +267,7 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
         A.B.s4(z);
         check($.z, 23, logger);
     }
-    /* @match /var y = @3;/ */
+    /* @match /z \+= @6;/ */
     A.B.s5(3);
     check(z, 29, logger);
     return ok;
@@ -393,10 +393,10 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = 3;
     var arr = [1, 2, 3] as Array<Number>;
 
-    /* @match /var \w+x\w+ = @1;/ */
+    /* @match /x = @6;/ */
     x = assignContext(1);
     check(x, 6, logger);
-    /* @match /var \w+x\w+ = @3;/ */
+    /* @match /x = @-42;/ */
     x = -(assignContext(z) + 1 == 13 ? 42 : 0);
     check(x, -42, logger);
     /* @match /\b(\w+x\w+) = \1\.slice/ */
@@ -480,8 +480,8 @@ function inlineIfContext(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 4;
 
-    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @1;/ */
-    if (ifContext1(1)) {
+    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = wrapper\(1\);/ */
+    if (ifContext1(wrapper(1))) {
     } else {
         logger.debug("Failed: ifContext1(1) should return true");
         ok = false;
@@ -498,15 +498,15 @@ function inlineIfContext(logger as Logger) as Boolean {
         z++;
     }
 
-    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @1;/ */
-    if (ifContext2(1) == 2) {
+    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = wrapper\(@1\);/ */
+    if (ifContext2(wrapper(1)) == 2) {
     } else {
         logger.debug("Failed: ifContext2(1) should return 2");
         ok = false;
     }
 
-    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = @2;/ */
-    if (ifContext1(2) == true ? false : true) {
+    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = wrapper\(@2\);/ */
+    if (ifContext1(wrapper(2)) == true ? false : true) {
     } else {
         logger.debug("Failed: ifContext1(2) should return false");
         ok = false;
