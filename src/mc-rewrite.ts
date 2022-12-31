@@ -526,8 +526,21 @@ function replacementLiteral(
     raw += "l";
   } else if (type === "Double") {
     raw += "d";
-  } else if (type === "Float" && LiteralIntegerRe.test(raw)) {
-    raw += "f";
+  } else if (type === "Float") {
+    if (LiteralIntegerRe.test(raw)) {
+      raw += "f";
+    } else {
+      const match = raw.match(/^(-)?(\d*)\.(\d+)(e\d+)?/);
+      if (match && match[2].length + match[3].length > 9) {
+        for (let l = 9 - match[2].length; l > 0; l--) {
+          const s = `${match[1] || ""}${match[2]}.${match[3].substring(0, l)}${
+            match[4] || ""
+          }`;
+          if (value !== roundToFloat(parseFloat(s))) break;
+          raw = s;
+        }
+      }
+    }
   }
   const { start, end, loc } = arg;
   return {
