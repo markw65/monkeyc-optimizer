@@ -323,7 +323,7 @@ function visit_resource_refs(
     if (hasProperty(skip, name)) {
       return;
     }
-    if (/^([\w_$]+\s*\.\s*)*[\w_$]+$/.test(name)) {
+    if (/^([-\w_$]+\s*\.\s*)*[-\w_$]+$/.test(name)) {
       result.push(makeScopedName(name, loc));
       return;
     }
