@@ -99,6 +99,18 @@ export function manifestAnnotations(
     .text();
 }
 
+export function manifestLanguages(manifest: ManifestXML): string[] | undefined {
+  if (manifest.body instanceof Error) {
+    throw manifest.body;
+  }
+  return manifest.body
+    .children()
+    .filter((c) => c.name === "iq:application" || c.name === "iq:barrel")
+    .children("iq:languages")
+    .children("iq:language")
+    .text();
+}
+
 export async function checkManifest(
   manifest: ManifestXML,
   products: string[]

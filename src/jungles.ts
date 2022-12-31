@@ -432,10 +432,6 @@ async function resolve_literals(
   if (lang) {
     await Promise.all(
       Object.keys(lang).map((key) => {
-        if (!hasProperty(deviceInfo.languages, key)) {
-          delete lang[key];
-          return null;
-        }
         return resolve_one_file_list(lang, key);
       })
     );
@@ -874,6 +870,7 @@ type JungleInfoBase = {
   annotations?: string[]; // Array of annotations supported by this barrel
   resources: JungleResourceMap;
   buildDependencies: JungleBuildDependencies;
+  devices: DeviceInfo;
 };
 
 export type JungleResourceMap = Record<string, xmlUtil.Document>;
@@ -1197,6 +1194,7 @@ async function get_jungle_and_barrels(
       jungles,
       resources,
       buildDependencies,
+      devices,
     };
   } catch (e) {
     const err: JungleError =

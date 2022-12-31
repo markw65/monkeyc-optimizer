@@ -19,6 +19,7 @@ import { launchSimulator, simulateProgram } from "./launch";
 import {
   checkManifest,
   manifestDropBarrels,
+  manifestLanguages,
   manifestProducts,
   writeManifest,
 } from "./manifest";
@@ -295,7 +296,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
   const config = await getConfig(options);
   const workspace = config.workspace!;
 
-  const { manifest, targets, xml, jungles } = await get_jungle(
+  const { manifest, targets, xml, jungles, devices } = await get_jungle(
     config.jungleFiles!,
     config
   );
@@ -424,18 +425,46 @@ export async function generateOptimizedProject(options: BuildConfig) {
   }
 
   const parts = [`project.manifest=${relative_manifest}`];
+  const map_field = <T extends string>(
+    base: { [k in T]?: string[] },
+    name: T,
+    mapper: ((s: string) => string) | null = null
+  ) => {
+    const obj = base[name];
+    if (!obj) return null;
+    const map_one = (s: string) => (mapper ? mapper(s) : s);
+    const map = (s: string | string[]) =>
+      Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
+    return `${obj.map(map).join(";")}`;
+  };
   const process_field = <T extends string>(
     prefix: string,
     base: { [k in T]?: string[] },
     name: T,
     mapper: ((s: string) => string) | null = null
   ) => {
-    const obj = base[name];
-    if (!obj) return;
-    const map_one = (s: string) => (mapper ? mapper(s) : s);
-    const map = (s: string | string[]) =>
-      Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
-    parts.push(`${prefix}${name} = ${obj.map(map).join(";")}`);
+    const mapped = map_field(base, name, mapper);
+    if (!mapped) return;
+    parts.push(`${prefix}${name} = ${mapped}`);
+  };
+  const languagesToInclude = Object.fromEntries(
+    (manifestLanguages(xml) || []).map((lang) => [lang, true] as const)
+  );
+  const unsupportedLangsCache: Record<string, string> = {};
+  let availableDefaults: string[] | null = null;
+  const nextAvailableDefault = () => {
+    if (!availableDefaults) {
+      availableDefaults = Object.keys(
+        Object.values(devices).reduce((m, d) => {
+          m[d.deviceFamily] = true;
+          const match = d.deviceFamily.match(/^(\w+)-\d+x\d+/);
+          if (match) m[match[1]] = true;
+          return m;
+        }, {} as Record<string, true>)
+      ).sort();
+      availableDefaults.unshift("base");
+    }
+    return availableDefaults.shift();
   };
   targets.forEach((target) => {
     if (!buildConfigs[configKey(target)]) return;
@@ -490,8 +519,42 @@ export async function generateOptimizedProject(options: BuildConfig) {
     process_field(prefix, qualifier, "excludeAnnotations");
     const qlang = qualifier.lang;
     if (qlang) {
+      const devLang = devices[product].languages;
+      const unsupportedLangs = Object.keys(qlang)
+        .sort()
+        .map((key) => {
+          if (
+            hasProperty(devLang, key) ||
+            !hasProperty(languagesToInclude, key)
+          ) {
+            return null;
+          }
+          const mapped = map_field(qlang, key, relative_path);
+          if (!mapped) return null;
+          return [key, mapped] as const;
+        })
+        .filter((a): a is NonNullable<typeof a> => a != null);
+      let keysToSkip: Record<string, string> | null = null;
+      if (unsupportedLangs.length) {
+        const key = JSON.stringify(unsupportedLangs);
+        if (!hasProperty(unsupportedLangsCache, key)) {
+          const base = nextAvailableDefault();
+          if (base) {
+            unsupportedLangs.forEach(([key, value]) =>
+              parts.push(`${base}.lang.${key} = ${value}`)
+            );
+            unsupportedLangsCache[key] = `${base}.lang`;
+          }
+        }
+        if (hasProperty(unsupportedLangsCache, key)) {
+          keysToSkip = Object.fromEntries(unsupportedLangs);
+          parts.push(`${prefix}lang = $(${unsupportedLangsCache[key]})`);
+        }
+      }
       Object.keys(qlang).forEach((key) => {
-        process_field(`${prefix}lang.`, qlang, key, relative_path);
+        hasProperty(keysToSkip, key) ||
+          !hasProperty(languagesToInclude, key) ||
+          process_field(`${prefix}lang.`, qlang, key, relative_path);
       });
     }
   });
