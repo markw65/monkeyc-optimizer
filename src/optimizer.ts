@@ -296,10 +296,8 @@ export async function generateOptimizedProject(options: BuildConfig) {
   const config = await getConfig(options);
   const workspace = config.workspace!;
 
-  const { manifest, targets, xml, jungles, devices } = await get_jungle(
-    config.jungleFiles!,
-    config
-  );
+  const { manifest, targets, xml, devices, resources, buildDependencies } =
+    await get_jungle(config.jungleFiles!, config);
   if (xml.body instanceof Error) {
     throw xml.body;
   }
@@ -313,7 +311,9 @@ export async function generateOptimizedProject(options: BuildConfig) {
       xml.body.elements[0].loc || undefined;
     throw error;
   }
-  const dependencyFiles = [manifest, ...jungles];
+  const dependencyFiles = Object.keys(resources).concat(
+    Object.keys(buildDependencies)
+  );
   await createLocalBarrels(targets, config);
 
   const buildConfigs: Record<string, JungleQualifier | null> = {};
