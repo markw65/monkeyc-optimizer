@@ -18,14 +18,15 @@ export type RemoteProject =
       sourcePath?: string;
       jungleContent?: string[];
       garminOptLevel?: number;
+      test?: boolean;
     };
 
 export const githubProjects: RemoteProject[] = [
   "https://bitbucket.org/mike_polatoglou/moonphase",
   "https://bitbucket.org/obagot/connectiq-hict",
   "https://bitbucket.org/villagehymn/marklaying",
-  "https://github.com/30Wedge/SwagginNumerals",
-  "https://github.com/4ch1m/HueCIQ",
+  { root: "https://github.com/30Wedge/SwagginNumerals", test: true },
+  { root: "https://github.com/4ch1m/HueCIQ", test: true },
   "https://github.com/DeCaPa/MyBigDate",
   "https://github.com/HanSolo/digital",
   "https://github.com/HerrRiebmann/Stretch",
@@ -37,6 +38,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/Laverlin/Yet-Another-Sailing-App",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    test: true,
   },
   {
     root: "https://github.com/Laverlin/Yet-Another-WatchFace",
@@ -45,8 +47,11 @@ export const githubProjects: RemoteProject[] = [
   },
   "https://github.com/OliverHannover/Aviatorlike",
   "https://github.com/OliverHannover/Formula_1",
-  "https://github.com/Peterdedecker/connectiq",
-  "https://github.com/Tkadla-GSG/garmin",
+  {
+    root: "https://github.com/Peterdedecker/connectiq",
+    test: true,
+  },
+  { root: "https://github.com/Tkadla-GSG/garmin", test: true },
   "https://github.com/ToryStark/connect-iq",
   {
     root: "https://github.com/TrainAsONE/trainasone-connectiq",
@@ -58,7 +63,11 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/admsteck/ConnectIQ",
   {
     root: "https://github.com/alanfischer/hassiq",
-    options: { checkInvalidSymbols: "WARNING" },
+    options: {
+      checkInvalidSymbols: "WARNING",
+      compilerOptions: "--Eno-invalid-symbol",
+    },
+    test: true,
   },
   {
     root: "https://github.com/alexphredorg/ConnectIqSailingApp",
@@ -100,6 +109,8 @@ export const githubProjects: RemoteProject[] = [
       "base.sourcePath=source;../creacominc-connectiq-PowerField/source",
       "base.resourcePath=resources;../creacominc-connectiq-PowerField/resources",
     ],
+    test: false,
+    comment: "tests crash the simulator",
   },
   "https://github.com/danielsiwiec/fitnessTimer",
   "https://github.com/danielsiwiec/tabataTimer",
@@ -136,6 +147,7 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/fjbenitog/bike-simulator",
     options: { checkInvalidSymbols: "WARNING" },
     garminOptLevel: 0,
+    test: true,
   },
   "https://github.com/fjbenitog/digital-watch-cas10",
   "https://github.com/fmercado/telemeter",
@@ -143,6 +155,8 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/garmin/connectiq-apps",
     exclude: "/barrels/|barrels.jungle",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    test: false,
+    comment: "tests fail/crash simulator",
   },
   "https://github.com/gcormier9/GRun",
   {
@@ -160,7 +174,7 @@ export const githubProjects: RemoteProject[] = [
     options: { checkInvalidSymbols: "WARNING" },
     garminOptLevel: 0,
   },
-  "https://github.com/haraldh/SunCalc",
+  { root: "https://github.com/haraldh/SunCalc", test: true },
   {
     root: "https://github.com/imgrant/AuxHR",
     options: { compilerOptions: "--Eno-invalid-symbol" },
@@ -191,10 +205,11 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/lcj2/ciq_binarywatch",
   "https://github.com/lcj2/ciq_monkeyfuel",
   "https://github.com/lucamrod/TriathlonDuathlonAquathlon",
-  "https://github.com/lukasz-duda/NormalizedPoolDistance",
+  { root: "https://github.com/lukasz-duda/NormalizedPoolDistance", test: true },
   {
     root: "https://github.com/matco/badminton",
     garminOptLevel: 0,
+    test: true,
   },
   {
     root: "https://github.com/matmuc/SportMonitor",
@@ -217,8 +232,9 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/myneur/late",
     options: { compilerOptions: "--Eno-invalid-symbol" },
     include: "monkey.jungle",
+    test: true,
   },
-  "https://github.com/okdar/smartarcs",
+  { root: "https://github.com/okdar/smartarcs", test: true },
   "https://github.com/pedlarstudios/WordOfTheDay",
   {
     root: "https://github.com/psjo/arcsin",
@@ -252,6 +268,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/samuelmr/garmin-abouttime",
     include: "monkey-eng.jungle",
+    test: true,
   },
   "https://github.com/seajay/ColourHR",
   "https://github.com/simonl-ciq/RollingAverage",
@@ -325,10 +342,12 @@ export const githubProjects: RemoteProject[] = [
       checkInvalidSymbols: "WARNING",
       checkCompilerLookupRules: "WARNING",
     },
+    test: true,
   },
   {
     root: "https://github.com/warmsound/crystal-face",
     options: { compilerOptions: "--Eno-invalid-symbol" },
+    test: true,
   },
   "https://github.com/werkkrew/ciq-orange-theory",
   "https://github.com/zbraniecki/ultitimer",
@@ -347,7 +366,10 @@ export const githubProjects: RemoteProject[] = [
   },
 ];
 
-export async function fetchGitProjects(projects: RemoteProject[]) {
+export async function fetchGitProjects(
+  projects: RemoteProject[],
+  testOnly: boolean
+) {
   const dir = path.join(__dirname, "..", "build", "test", "projects");
   await fs.mkdir(dir, { recursive: true });
   const failures: string[] = [];
@@ -364,7 +386,9 @@ export async function fetchGitProjects(projects: RemoteProject[]) {
       jungleContent = null,
       rename = null,
       garminOptLevel = null,
+      test = false,
     } = typeof p === "string" ? { root: p } : p;
+    if (testOnly && !test) return Promise.resolve([]);
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
     return fetchAndClean(projDir, root)
@@ -388,12 +412,14 @@ export async function fetchGitProjects(projects: RemoteProject[]) {
           Promise.all(
             manifests.map(async (m) => {
               const jungle = path.resolve(path.dirname(m), "monkey.jungle");
-              await fs.writeFile(
-                jungle,
-                `project.manifest = manifest.xml\n${
-                  sourcePath ? `base.sourcePath=${sourcePath}` : ""
-                }\n${jungleContent ? jungleContent.join("\n") : ""}\n`
-              );
+              if (!jungles.includes(jungle)) {
+                await fs.writeFile(
+                  jungle,
+                  `project.manifest = manifest.xml\n${
+                    sourcePath ? `base.sourcePath=${sourcePath}` : ""
+                  }\n${jungleContent ? jungleContent.join("\n") : ""}\n`
+                );
+              }
               return jungle;
             })
           )

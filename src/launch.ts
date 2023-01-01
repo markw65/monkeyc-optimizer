@@ -6,16 +6,20 @@ import { getSdkPath, isWin } from "./sdk-util";
 import { spawnByLine, LineHandler } from "./util";
 
 export async function launchSimulator(force = true): Promise<void> {
-  if (!force && (await checkIfSimulatorRunning())) return;
-  const sdk = await getSdkPath();
-  const child = execFile(
-    path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq")
-  );
-  child.unref();
-  for (let i = 0; ; i++) {
-    if (await checkIfSimulatorRunning()) return;
-    if (i === 5) return;
-    await new Promise((r) => setTimeout(r, 200));
+  try {
+    if (!force && (await checkIfSimulatorRunning())) return;
+    const sdk = await getSdkPath();
+    const child = execFile(
+      path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq")
+    );
+    child.unref();
+    for (let i = 0; ; i++) {
+      if (await checkIfSimulatorRunning()) return;
+      if (i === 5) return;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  } catch (e) {
+    console.log(e);
   }
 }
 
@@ -26,7 +30,7 @@ export function checkIfSimulatorRunning(): Promise<boolean> {
 }
 
 export function checkIfSimulatorRunningOn(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
+  return new Promise<boolean>((resolve) => {
     let listening = false;
     const socket = new net.Socket();
     socket.on(
@@ -37,7 +41,7 @@ export function checkIfSimulatorRunningOn(port: number): Promise<boolean> {
     socket.on("end", () => resolve(listening));
     socket.connect(port, "localhost");
     socket.end();
-  });
+  }).catch(() => false);
 }
 
 export function simulateProgram(

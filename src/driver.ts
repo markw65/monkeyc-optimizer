@@ -209,7 +209,7 @@ export async function driver() {
   if (remoteProjects) {
     const rp = remoteProjects;
     promise = promise
-      .then(() => fetchGitProjects(rp))
+      .then(() => fetchGitProjects(rp, !!testBuild))
       .then((j) => {
         console.log(
           `${new Date().toLocaleString()} - Finished updating projects`
@@ -420,7 +420,7 @@ export async function driver() {
             }
             logger(line);
           };
-          serializeSim.promise = serializeSim.promise
+          const serializePromise = serializeSim.promise
             .then(() => launchSimulator(pass !== undefined))
             .then(() =>
               simulateProgram(
@@ -444,7 +444,13 @@ export async function driver() {
                   }
                 })
             );
-          return serializeSim.promise;
+
+          serializeSim.promise = serializePromise.catch(() => {
+            // swallow the failure so the next simulator
+            // user gets a clean start.
+          });
+          // but return the original promise, including the failure
+          return serializePromise;
         }
         return null;
       })

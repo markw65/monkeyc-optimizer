@@ -1,0 +1,82 @@
+From ab2f7a1cf90ab91ac3b58b1b2b018709c7fe4a43 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 1 Jan 2023 09:32:33 -0800
+Subject: [PATCH] Fix tests
+
+---
+ source/HassIQState.mc | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/source/HassIQState.mc b/source/HassIQState.mc
+index bf8b1a6..5f5f13d 100644
+--- a/source/HassIQState.mc
++++ b/source/HassIQState.mc
+@@ -69,7 +69,7 @@ class HassIQState {
+ 	function setTextsize(textsize) {
+ 		self.textsize = textsize;
+ 	}
+-	
++
+ 	function setGroup(group) {
+ 		self.visibilityGroup = group;
+ 	}
+@@ -79,7 +79,7 @@ class HassIQState {
+ 			return null;
+ 		}
+ 
+-		var size = entities.size();		
++		var size = entities.size();
+ 		var stored = new [size];
+ 
+ 		for (var i=0; i<size; ++i) {
+@@ -175,7 +175,7 @@ class HassIQState {
+ 				"code" => code,
+ 				"client_id" => "https://www.hass-iq.net"
+ 			};
+-			
++
+ 			code = null;
+ 		} else {
+ 			System.println("Requesting token with refresh_token");
+@@ -186,7 +186,7 @@ class HassIQState {
+ 				"client_id" => "https://www.hass-iq.net"
+ 			};
+ 		}
+-		
++
+ 		var options = {
+ 			:method => Comm.HTTP_REQUEST_METHOD_POST,
+ 			:headers => { "Content-Type" => Comm.REQUEST_CONTENT_TYPE_URL_ENCODED },
+@@ -404,7 +404,7 @@ class HassIQState {
+ 			var title = entity[:name] ? entity[:name] : entity[:entity_id];
+ 			var color = Graphics.COLOR_WHITE;
+ 			var font = null;
+-			
++
+ 			if (textsize == 0) {
+ 			    font = Graphics.FONT_XTINY;
+ 			} else {
+@@ -567,7 +567,6 @@ class HassIQState {
+ 		System.println(message);
+ 	}
+ 
+-	(:test)
+ 	function assert(condition) { if(!condition) { oh_no(); }}
+ 	(:test)
+ 	function test_buildEntities(logger) {
+@@ -587,8 +586,10 @@ class HassIQState {
+ 			}
+ 		];
+ 
+-		var entities = buildEntities(data, null);
++		var state = new HassIQState();
++		var entities = state.buildEntities(data, null);
+ 		assert(entities.size() == 1);
+-		assert(getEntityDomain(entities[0]).equals("test"));
++		assert(state.getEntityDomain(entities[0]).equals("test"));
++		return true;
+ 	}
+ }
+-- 
+2.34.1
+

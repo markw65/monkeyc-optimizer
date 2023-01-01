@@ -1,0 +1,25 @@
+From ee11c316000ff90fa9e41f4efa37e65d5f1a09bf Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 1 Jan 2023 08:39:21 -0800
+Subject: [PATCH] Remove bogus 'hidden'
+
+---
+ source/tests.mc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/tests.mc b/source/tests.mc
+index a68174b..b8b6ae2 100644
+--- a/source/tests.mc
++++ b/source/tests.mc
+@@ -26,7 +26,7 @@ function test_numToRoman(logger) {
+     return status;
+ }
+ 
+-hidden function test_case( logger, num, expectedString ){
++function test_case( logger, num, expectedString ){
+     logger.debug("Test case: " + num + " | Expected: " + expectedString);
+ 
+     if( !expectedString.equals( RomanNumeral.numToRoman( num ) )) {
+-- 
+2.34.1
+

@@ -1,0 +1,25 @@
+From 8e98c362addd8890cd4ad817dd2015bae771fcf8 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 1 Jan 2023 10:12:01 -0800
+Subject: [PATCH] Fix call to prepareStrings
+
+---
+ source/AboutTimeTest.mc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/AboutTimeTest.mc b/source/AboutTimeTest.mc
+index ca09044..3c3124c 100644
+--- a/source/AboutTimeTest.mc
++++ b/source/AboutTimeTest.mc
+@@ -15,7 +15,7 @@ class AboutTimeTest {
+       for (var min=0; min<60; min+=5) {
+         time.min = min;
+         var currentLocale = view.localize();
+-        var dict = view.prepareStrings(time, currentLocale);
++        var dict = view.prepareStrings(time.hour, time.min, currentLocale);
+         // var str = "'" + dict[:top] + "' '" + dict[:middle] + "' '" + dict[:bottom] + "'";
+         var str = dict[:top] + "\t" + dict[:middle] + "\t" + dict[:bottom];
+         // logger.debug(time.hour + ":" + time.min.format("%02d") + " = " + str);
+-- 
+2.34.1
+
