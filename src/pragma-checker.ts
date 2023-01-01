@@ -1,7 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { checkCompilerVersion, formatAst } from "./api";
+import { checkCompilerVersion, diagnostic, formatAst } from "./api";
 import { traverseAst } from "./ast";
-import { diagnostic } from "./inliner";
 import { ProgramState, ProgramStateOptimizer } from "./optimizer-types";
 
 export function pragmaChecker(

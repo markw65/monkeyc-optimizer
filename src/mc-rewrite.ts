@@ -1,11 +1,8 @@
-import {
-  default as MonkeyC,
-  LiteralIntegerRe,
-  mctree,
-} from "@markw65/prettier-plugin-monkeyc";
+import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
   collectNamespaces,
+  diagnostic,
   formatAst,
   getApiFunctionInfo,
   getApiMapping,
@@ -16,7 +13,14 @@ import {
   variableDeclarationName,
   visitReferences,
 } from "./api";
-import { cloneDeep, getNodeValue, traverseAst, withLoc } from "./ast";
+import {
+  cloneDeep,
+  getLiteralNode,
+  getNodeValue,
+  isExpression,
+  traverseAst,
+  withLoc,
+} from "./ast";
 import {
   findCallees,
   findCalleesForNew,
@@ -26,7 +30,6 @@ import {
   recordModifiedUnknown,
 } from "./function-info";
 import {
-  diagnostic,
   inlinableSubExpression,
   InlineContext,
   inlineFunction,
@@ -49,6 +52,14 @@ import {
 import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
 import { xmlUtil } from "./sdk-util";
+import { buildTypeInfo } from "./type-flow";
+import {
+  evaluate,
+  evaluateNode,
+  InterpState,
+  popIstate,
+} from "./type-flow/interp";
+import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
@@ -408,471 +419,65 @@ export function getLiteralFromDecls(lookupDefns: LookupDefinition[]) {
   return null;
 }
 
-export function getLiteralNode(
-  node: mctree.Node | null | undefined
-): null | mctree.Literal | mctree.AsExpression {
-  if (node == null) return null;
-  if (node.type == "Literal") return node;
-  if (node.type == "BinaryExpression" && node.operator == "as") {
-    return getLiteralNode(node.left) && node;
-  }
-  if (node.type == "UnaryExpression") {
-    if (node.argument.type != "Literal") return null;
-    switch (node.operator) {
-      case "-": {
-        const [arg, type] = getNodeValue(node.argument);
-        if (type === "Number" || type === "Long") {
-          return replacementLiteral(node, -arg.value, type);
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function fullTypeName(state: ProgramStateAnalysis, tsp: mctree.TypeSpecPart) {
-  if (typeof tsp.name === "string") {
-    return tsp.name;
-  }
-  const [, results] = state.lookupType(tsp.name);
-  if (results && results.length === 1 && results[0].results.length === 1) {
-    const result = results[0].results[0];
-    if (isStateNode(result)) {
-      return result.fullName;
-    }
-  }
-  return null;
-}
-
-function isBooleanExpression(
-  state: ProgramStateAnalysis,
-  node: mctree.Node
-): boolean {
-  switch (node.type) {
-    case "Literal":
-      return typeof node.value === "boolean";
-    case "BinaryExpression":
-      switch (node.operator) {
-        case "==":
-        case "!=":
-        case "<=":
-        case ">=":
-        case "<":
-        case ">":
-          return true;
-        case "as":
-          return node.right.ts.length === 1 &&
-            node.right.ts[0].type === "TypeSpecPart" &&
-            node.right.ts[0].name &&
-            fullTypeName(state, node.right.ts[0]) === "$.Toybox.Lang.Boolean"
-            ? true
-            : false;
-      }
-      return false;
-    case "LogicalExpression":
-      return (
-        isBooleanExpression(state, node.left) &&
-        isBooleanExpression(state, node.right)
-      );
-    case "UnaryExpression":
-      return node.operator === "!" && isBooleanExpression(state, node.argument);
-  }
-  return false;
-}
-
-type MCLiteralTypes =
-  | "Number"
-  | "Long"
-  | "Boolean"
-  | "Float"
-  | "Double"
-  | "String"
-  | "Char"
-  | "Null";
-
-type LiteralArg = mctree.Literal["value"];
-
-function roundToFloat(value: number) {
-  return new Float32Array([value as number])[0];
-}
-
-function replacementLiteral(
-  arg: mctree.Node,
-  value: bigint | number | boolean | string | null,
-  type: MCLiteralTypes
-): mctree.Literal {
-  if (value === null) {
-    type = "Null";
-  } else if (typeof value === "boolean") {
-    type = "Boolean";
-  } else if (type === "Number") {
-    value = Number(BigInt.asIntN(32, BigInt(value)));
-  } else if (type === "Long") {
-    value = BigInt.asIntN(64, BigInt(value));
-  } else if (type === "Float") {
-    value = roundToFloat(Number(value));
-  }
-  let raw =
-    type === "String"
-      ? JSON.stringify(value)
-      : type === "Char"
-      ? value === "'"
-        ? "'\\''"
-        : "'" + JSON.stringify(value).slice(1, -1) + "'"
-      : value == null
-      ? "null"
-      : value.toString();
-  if (type === "Long") {
-    raw += "l";
-  } else if (type === "Double") {
-    raw += "d";
-  } else if (type === "Float") {
-    if (LiteralIntegerRe.test(raw)) {
-      raw += "f";
-    } else {
-      const match = raw.match(/^(-)?(\d*)\.(\d+)(e\d+)?/);
-      if (match && match[2].length + match[3].length > 9) {
-        for (let l = 9 - match[2].length; l > 0; l--) {
-          const s = `${match[1] || ""}${match[2]}.${match[3].substring(0, l)}${
-            match[4] || ""
-          }`;
-          if (value !== roundToFloat(parseFloat(s))) break;
-          raw = s;
-        }
-      }
-    }
-  }
-  const { start, end, loc } = arg;
-  return {
-    type: "Literal",
-    value,
-    raw,
-    start,
-    end,
-    loc,
-  };
-}
-
-type OpDesc = [MCLiteralTypes, (a: LiteralArg) => LiteralArg];
-type OpInfo = {
-  typeFn: (left: MCLiteralTypes, right: MCLiteralTypes) => OpDesc | null;
-  valueFn: (left: LiteralArg, right: LiteralArg) => LiteralArg;
-};
-
-function classify(arg: MCLiteralTypes) {
-  switch (arg) {
-    case "Number":
-      return { big: false, int: true };
-    case "Long":
-      return { big: true, int: true };
-    case "Float":
-      return { big: false, int: false };
-    case "Double":
-      return { big: true, int: false };
-  }
-  return null;
-}
-
-function common_arith_types(
-  left: MCLiteralTypes,
-  right: MCLiteralTypes
-): OpDesc | null {
-  const l = classify(left);
-  if (!l) return null;
-  const r = classify(right);
-  if (!r) return null;
-  if (l.big || r.big) {
-    return l.int && r.int
-      ? ["Long", (v: LiteralArg) => BigInt.asIntN(64, BigInt(v!))]
-      : ["Double", (v: LiteralArg) => Number(v)];
-  } else {
-    return l.int && r.int
-      ? ["Number", (v: LiteralArg) => BigInt.asIntN(32, BigInt(v!))]
-      : ["Float", (v: LiteralArg) => roundToFloat(Number(v))];
-  }
-}
-
-function common_bitwise_types(
-  left: MCLiteralTypes,
-  right: MCLiteralTypes
-): OpDesc | null {
-  if (left === "Boolean" && right === "Boolean") {
-    return ["Boolean", (v: LiteralArg) => (v ? true : false)];
-  }
-  const l = classify(left);
-  if (!l) return null;
-  const r = classify(right);
-  if (!r) return null;
-  if (!l.int || !r.int) return null;
-  return l.big || r.big
-    ? ["Long", (v: LiteralArg) => BigInt.asIntN(64, BigInt(v!))]
-    : ["Number", (v: LiteralArg) => Number(BigInt.asIntN(32, BigInt(v!)))];
-}
-
-function plus_types(
-  left: MCLiteralTypes,
-  right: MCLiteralTypes
-): OpDesc | null {
-  if (left === "String" || right === "String") {
-    // Boolean + String is an error, and
-    // Float/Double + String is legal, but its hard to predict
-    // the way the float will be formatted (and it won't match
-    // what javascript would do by default)
-    if (/Float|Double|Boolean/.test(left + right)) {
-      return null;
-    }
-    return ["String", String];
-  }
-  if (left === "Char" || right === "Char") {
-    if (left === right) {
-      // adding two chars produces a string
-      return ["String", String];
-    }
-    if (/Number|Long/.test(left + right)) {
-      return ["Char", (v: LiteralArg) => v];
-    }
-  }
-  return common_arith_types(left, right);
-}
-
-function shift_mod_types(left: MCLiteralTypes, right: MCLiteralTypes) {
-  const result = common_bitwise_types(left, right);
-  if (result && result[0] === "Boolean") {
+function optimizeNode(istate: InterpState, node: mctree.Node) {
+  if (istate.state.inlining) return null;
+  if (istate.state.inType) {
     return null;
   }
-  return result;
-}
-
-function equalsFn(left: LiteralArg, right: LiteralArg) {
-  const lt = typeof left;
-  const rt = typeof right;
-  return lt === "string" || rt === "string"
-    ? // two string literals will compare unequal, becuase string
-      // equality is object equality.
-      false
-    : (lt === "number" || lt === "bigint") &&
-      (rt === "number" || rt === "bigint")
-    ? // numeric types are compared for value equality
-      left == right
-    : // otherwise types and values must match
-      left === right;
-}
-
-const operators: Record<
-  mctree.BinaryOperator | "as" | "instanceof",
-  OpInfo | null
-> = {
-  "+": {
-    typeFn: plus_types,
-    valueFn: (left, right) =>
-      typeof left === "string" && typeof right !== "string"
-        ? String.fromCharCode(left.charCodeAt(0) + Number(right))
-        : typeof left !== "string" && typeof right === "string"
-        ? String.fromCharCode(right.charCodeAt(0) + Number(left))
-        : (left as number) + (right as number),
-  },
-  "-": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) - (right as number),
-  },
-  "*": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) * (right as number),
-  },
-  "/": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) / (right as number),
-  },
-  "%": {
-    typeFn: shift_mod_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) % (right as number),
-  },
-  "&": {
-    typeFn: common_bitwise_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) & (right as number),
-  },
-  "|": {
-    typeFn: common_bitwise_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) | (right as number),
-  },
-  "^": {
-    typeFn: common_bitwise_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) ^ (right as number),
-  },
-  "<<": {
-    typeFn: shift_mod_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      typeof right === "bigint"
-        ? (left as bigint) << (right as bigint & 127n)
-        : (left as number) << (right as number & 63),
-  },
-  ">>": {
-    typeFn: shift_mod_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      typeof right === "bigint"
-        ? (left as bigint) >> (right as bigint & 127n)
-        : (left as number) >> (right as number & 63),
-  },
-  "==": {
-    typeFn: () => ["Boolean", (v: LiteralArg) => v],
-    valueFn: equalsFn,
-  },
-  "!=": {
-    typeFn: () => ["Boolean", (v: LiteralArg) => v],
-    valueFn: (left, right) => !equalsFn(left, right),
-  },
-  "<=": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) <= (right as number),
-  },
-  ">=": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) >= (right as number),
-  },
-  "<": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) < (right as number),
-  },
-  ">": {
-    typeFn: common_arith_types,
-    valueFn: (left: LiteralArg, right: LiteralArg) =>
-      (left as number) > (right as number),
-  },
-  as: null,
-  instanceof: null,
-  has: null,
-};
-
-function optimizeNode(state: ProgramStateAnalysis, node: mctree.Node) {
   switch (node.type) {
-    case "UnaryExpression": {
-      const [arg, type] = getNodeValue(node.argument);
-      if (arg === null) break;
-      switch (node.operator) {
-        case "+":
-          if (
-            type === "Number" ||
-            type === "Long" ||
-            type === "Float" ||
-            type === "Double" ||
-            type === "Char" ||
-            type === "String"
-          ) {
-            return arg;
-          }
-          break;
-        case "-":
-          if (
-            type === "Number" ||
-            type === "Long" ||
-            type === "Float" ||
-            type === "Double"
-          ) {
-            return replacementLiteral(node, -arg.value, type);
-          }
-          break;
-        case "!":
-        case "~":
-          {
-            if (type === "Number" || type === "Long") {
-              return replacementLiteral(node, ~BigInt(arg.value), type);
-            }
-
-            if (type === "Boolean" && node.operator == "!") {
-              return replacementLiteral(node, !arg.value, type);
-            }
-          }
-          break;
-      }
+    case "UpdateExpression":
+      // we only evaluated any subexpressions of the argument.
+      evaluateNode(istate, node.argument);
+      break;
+    case "AssignmentExpression": {
+      // we only evaluated any subexpressions of the lhs.
+      const right = istate.stack.pop()!;
+      evaluateNode(istate, node.left);
+      istate.stack.push(right);
       break;
     }
-    case "BinaryExpression": {
-      const op = operators[node.operator];
-      if (op) {
-        const [left, left_type] = getNodeValue(node.left);
-        const [right, right_type] = getNodeValue(node.right);
-        if (!left || !right) break;
-        const type = op.typeFn(left_type, right_type);
-        if (!type) break;
-        const value = op.valueFn(type[1](left.value), type[1](right.value));
-        if (value === null) break;
-        return replacementLiteral(node, value, type[0]);
-      }
-      break;
-    }
-    case "LogicalExpression": {
-      const [left, left_type] = getNodeValue(node.left);
-      if (!left) break;
-      const falsy =
-        left.value === false ||
-        left.value === null ||
-        ((left_type === "Number" || left_type === "Long") &&
-          (left.value === 0 || left.value === 0n));
-      if (falsy === (node.operator === "&&" || node.operator === "and")) {
-        return left;
-      }
+    case "BinaryExpression":
       if (
-        left_type !== "Boolean" &&
-        left_type !== "Number" &&
-        left_type !== "Long"
+        node.operator === "has" &&
+        node.right.type === "UnaryExpression" &&
+        node.right.operator === ":"
       ) {
-        break;
-      }
-      const [right, right_type] = getNodeValue(node.right);
-      if (right && right_type === left_type) {
-        if (
-          left_type === "Boolean" ||
-          node.operator === "||" ||
-          node.operator === "or"
-        ) {
-          return right;
-        }
-        if (node.operator !== "&&" && node.operator !== "and") {
-          throw new Error(`Unexpected operator "${node.operator}"`);
-        }
-        return { ...node, type: "BinaryExpression", operator: "&" } as const;
-      }
-      if (left_type === "Boolean") {
-        if (isBooleanExpression(state, node.right)) {
-          return node.right;
-        }
-      }
-      break;
-    }
-    case "FunctionDeclaration":
-      if (node.body && evaluateFunction(state, node, null) !== false) {
-        node.optimizable = true;
+        // we skipped this node, so evaluate it now...
+        istate.stack.push(evaluate(istate, node.right));
       }
       break;
   }
-  return null;
+  const before = beforeEvaluate(istate, node);
+  if (before != null) return before;
+
+  evaluateNode(istate, node);
+
+  return afterEvaluate(istate, node);
 }
 
 function evaluateFunction(
-  state: ProgramStateAnalysis,
+  istate: InterpState,
   func: mctree.FunctionDeclaration,
   args: mctree.Node[] | null
 ) {
-  if (!func.body || (args && args.length != func.params.length)) {
+  if (
+    !func.body ||
+    istate.state.inlining ||
+    (args && args.length != func.params.length)
+  ) {
     return false;
   }
   const paramValues =
     args &&
     Object.fromEntries(
-      func.params.map((p, i) => [variableDeclarationName(p), args[i]])
+      func.params.map((p, i) => [
+        variableDeclarationName(p),
+        args[i] as mctree.Expression,
+      ])
     );
   let ret: mctree.Node | null = null;
   const body = args ? cloneDeep(func.body) : func.body;
+  const depth = istate.stack.length;
   try {
     traverseAst(
       body,
@@ -897,28 +502,32 @@ function evaluateFunction(
                 ret = node.argument || null;
                 return null;
               case "BlockStatement":
-              case "Literal":
                 return null;
               case "Identifier":
                 if (hasProperty(paramValues, node.name)) {
-                  return paramValues[node.name];
+                  istate.stack.push(
+                    evaluate(istate, (node = paramValues[node.name]))
+                  );
+                  return node;
                 }
               // fall through;
               default: {
-                const repl = optimizeNode(state, node);
-                if (repl && repl.type === "Literal") return repl;
+                const repl = optimizeNode(istate, node) || node;
+                if (repl.type === "Literal") return repl;
                 throw new Error("Didn't optimize");
               }
             }
           }
     );
+    delete istate.state.inlining;
+    istate.stack.length = depth;
     return ret;
   } catch (e) {
+    delete istate.state.inlining;
+    istate.stack.length = depth;
     return false;
   }
 }
-
-type MCTreeSome = { [k in keyof mctree.NodeAll]?: unknown };
 
 function markFunctionCalled(
   state: ProgramStateOptimizer,
@@ -952,50 +561,21 @@ export async function optimizeMonkeyC(
     old: mctree.Node
   ): mctree.Node | mctree.Node[] | false | null => {
     if (node === false || node === null) return node;
+    if (isExpression(node)) {
+      popIstate(istate, old);
+    }
     const rep = state.traverse(node);
     if (rep === false || Array.isArray(rep)) return rep;
-    return { ...(rep || node), loc: old.loc, start: old.start, end: old.end };
-  };
-
-  const inPlaceReplacement = (node: MCTreeSome, obj: MCTreeSome) => {
-    const { start, end, loc } = node;
-    for (const k of Object.keys(node)) {
-      delete node[k as keyof MCTreeSome];
+    const result = {
+      ...(rep || node),
+      loc: old.loc,
+      start: old.start,
+      end: old.end,
+    };
+    if (isExpression(result)) {
+      istate.stack[istate.stack.length - 1].node = result;
     }
-    if (obj.enumType) {
-      obj = {
-        type: "BinaryExpression",
-        operator: "as",
-        left: { ...obj, start, end, loc },
-        right: { type: "TypeSpecList", ts: [obj.enumType] },
-      };
-    }
-    for (const [k, v] of Object.entries(obj)) {
-      node[k as keyof MCTreeSome] = v;
-    }
-    node.loc = loc;
-    node.start = start;
-    node.end = end;
-  };
-  const lookupAndReplace = (node: mctree.Node) => {
-    const [, objects] = state.lookup(node);
-    if (!objects) {
-      return false;
-    }
-    let obj = getLiteralFromDecls(objects);
-    if (!obj) {
-      return false;
-    }
-    while (obj.type === "BinaryExpression") {
-      if (obj.left.type === "BinaryExpression" && obj.left.operator === "as") {
-        obj = { ...obj, left: obj.left.left };
-      } else {
-        obj = { ...obj, left: { ...obj.left } };
-        break;
-      }
-    }
-    inPlaceReplacement(node, obj);
-    return true;
+    return result;
   };
 
   const topLocals = () => state.localsStack[state.localsStack.length - 1];
@@ -1111,48 +691,15 @@ export async function optimizeMonkeyC(
     }
   };
 
+  // use this when optimizing initializer expressions,
+  // outside of any function.
+  const gistate: InterpState = { state, stack: [] };
+  // use this when type inference is enabled, and we're
+  // inside a function.
+  let istate: InterpState = gistate;
+
   state.pre = (node) => {
     switch (node.type) {
-      case "ConditionalExpression":
-      case "IfStatement":
-      case "DoWhileStatement":
-      case "WhileStatement": {
-        const test = (state.traverse(node.test) ||
-          node.test) as typeof node.test;
-        const [value, type] = getNodeValue(test);
-        if (value) {
-          let result = null;
-          if (type === "Null") {
-            result = false;
-          } else if (
-            type === "Boolean" ||
-            type === "Number" ||
-            type === "Long"
-          ) {
-            result = !!value.value;
-          }
-          if (result !== null) {
-            node.test = {
-              type: "Literal",
-              value: result,
-              raw: result.toString(),
-            };
-            if (
-              node.type === "IfStatement" ||
-              node.type === "ConditionalExpression"
-            ) {
-              return [result ? "consequent" : "alternate"];
-            } else if (node.type === "WhileStatement") {
-              return result === false ? [] : ["body"];
-            } else if (node.type === "DoWhileStatement") {
-              return ["body"];
-            } else {
-              throw new Error("Unexpected Node type");
-            }
-          }
-        }
-        return null;
-      }
       case "EnumDeclaration":
         return [];
       case "ForStatement": {
@@ -1174,16 +721,18 @@ export async function optimizeMonkeyC(
         }
         break;
       case "BinaryExpression":
-        if (node.operator === "has") {
-          if (
-            node.right.type === "UnaryExpression" &&
-            node.right.operator === ":"
-          ) {
-            // Using `expr has :symbol` doesn't "expose"
-            // symbol. So skip the right operand.
-            return ["left"];
-          }
+        if (
+          node.operator === "has"
+            ? node.right.type === "UnaryExpression" &&
+              node.right.operator === ":"
+            : node.operator === "as"
+        ) {
+          // Using `expr has :symbol` doesn't "expose"
+          // symbol, and the rhs of an "as" isn't an
+          // expression. In both cases, skip the rhs
+          return ["left"];
         }
+
         break;
       case "UnaryExpression":
         if (node.operator == ":") {
@@ -1228,27 +777,7 @@ export async function optimizeMonkeyC(
             }
           }
         }
-        if (hasProperty(state.index, node.name)) {
-          if (!lookupAndReplace(node)) {
-            state.usedByName[node.name] = true;
-          }
-        }
         return [];
-      }
-      case "MemberExpression": {
-        const property = isLookupCandidate(node);
-        if (property) {
-          if (hasProperty(state.index, property.name)) {
-            if (lookupAndReplace(node)) {
-              return false;
-            } else {
-              state.usedByName[property.name] = true;
-            }
-          }
-          // Don't optimize the property.
-          return ["object"];
-        }
-        break;
       }
       case "AssignmentExpression":
       case "UpdateExpression": {
@@ -1265,9 +794,15 @@ export async function optimizeMonkeyC(
             }
           }
         } else if (lhs.type === "MemberExpression") {
-          state.traverse(lhs.object);
-          if (lhs.computed) {
-            state.traverse(lhs.property);
+          const object = state.traverse(lhs.object);
+          if (object) {
+            lhs.object = object as mctree.Expression;
+          }
+          if (!isLookupCandidate(lhs)) {
+            const property = state.traverse(lhs.property);
+            if (property) {
+              lhs.property = property as mctree.Expression;
+            }
           }
         }
         return node.type === "AssignmentExpression" ? ["right"] : [];
@@ -1294,6 +829,27 @@ export async function optimizeMonkeyC(
           );
         }
         state.currentFunction = self as FunctionStateNode;
+        const is =
+          !state.config?.propagateTypes ||
+          node.attrs?.attributes?.elements.find(
+            (attr) =>
+              attr.type == "UnaryExpression" &&
+              attr.argument.name === "noConstProp"
+          )
+            ? null
+            : buildTypeInfo(state, state.currentFunction);
+        if (is) {
+          /*
+           * istate contains a copy of state, but we need the real
+           * thing, because "state" is captured here.
+           *
+           * A better solution will be to separate out a
+           * "lookup context", which will be a stack, plus a couple
+           * of fields from state, and then pass that around.
+           */
+          is.state = state;
+          istate = is;
+        }
         if (parent.type == "ClassDeclaration" && !maybeCalled(node)) {
           let used = false;
           if (node.id.name == "initialize") {
@@ -1305,7 +861,15 @@ export async function optimizeMonkeyC(
             markFunctionCalled(state, node);
           }
         }
+        // We dont want to call evaluateNode on
+        // id, args or returnType
+        return ["body"];
       }
+      case "ClassDeclaration":
+      case "ModuleDeclaration":
+        // We dont want to call evaluateNode on
+        // id, or superClass
+        return ["body"];
     }
     return null;
   };
@@ -1314,12 +878,15 @@ export async function optimizeMonkeyC(
     if (locals.node === node) {
       state.localsStack.pop();
     }
-    const opt = optimizeNode(state, node);
-    if (opt) {
-      return replace(opt, node);
+    const opt = optimizeNode(istate, node);
+    if (opt != null) {
+      return opt;
     }
     switch (node.type) {
       case "FunctionDeclaration":
+        if (node.body && evaluateFunction(istate, node, null) !== false) {
+          node.optimizable = true;
+        }
         if (!state.currentFunction) {
           throw new Error(
             `Finished function ${
@@ -1330,6 +897,10 @@ export async function optimizeMonkeyC(
         state.currentFunction.info = state.currentFunction.next_info || false;
         delete state.currentFunction.next_info;
         delete state.currentFunction;
+        if (istate.stack.length) {
+          throw new Error("Stack was not empty");
+        }
+        istate = gistate;
         break;
       case "BlockStatement":
         if (node.body.length === 1 && node.body[0].type === "BlockStatement") {
@@ -1342,90 +913,37 @@ export async function optimizeMonkeyC(
         }
         break;
 
-      case "ConditionalExpression":
-      case "IfStatement":
-        if (
-          node.test.type === "Literal" &&
-          typeof node.test.value === "boolean"
-        ) {
-          const rep = node.test.value ? node.consequent : node.alternate;
-          if (!rep) return false;
-          return replace(rep, rep);
-        } else if (node.type === "IfStatement") {
-          if (
-            node.alternate &&
-            node.alternate.type === "BlockStatement" &&
-            !node.alternate.body.length
-          ) {
-            delete node.alternate;
-          } else {
-            const call = inlinableSubExpression(node.test);
-            if (call) {
-              return replace(optimizeCall(state, call, node), node.test);
-            }
-          }
+      case "IfStatement": {
+        const call = inlinableSubExpression(node.test);
+        if (call) {
+          return replace(optimizeCall(istate, call, node), node.test);
         }
         break;
-      case "WhileStatement":
-        if (node.test.type === "Literal" && node.test.value === false) {
-          return false;
-        }
-        break;
-      case "DoWhileStatement":
-        if (node.test.type === "Literal" && node.test.value === false) {
-          return node.body;
-        }
-        break;
+      }
 
       case "ReturnStatement":
         if (node.argument && node.argument.type === "CallExpression") {
           return replace(
-            optimizeCall(state, node.argument, node),
+            optimizeCall(istate, node.argument, node),
             node.argument
           );
         }
         break;
 
-      case "BinaryExpression":
-        if (
-          node.operator === "has" &&
-          node.right.type === "UnaryExpression" &&
-          node.right.operator === ":"
-        ) {
-          const [, results] = state.lookup(node.left);
-          if (
-            results &&
-            results.length === 1 &&
-            results[0].results.length === 1
-          ) {
-            const obj = results[0].results[0];
-            if (
-              (obj.type === "ModuleDeclaration" ||
-                obj.type === "Program" ||
-                obj.type === "ClassDeclaration") &&
-              obj.stack
-            ) {
-              const exists =
-                hasProperty(obj.decls, node.right.argument.name) ||
-                // This is overkill, since we've already looked up
-                // node.left, but the actual lookup rules are complicated,
-                // and embedded within state.lookup; so just defer to that.
-                state.lookup({
-                  type: "MemberExpression",
-                  object: node.left,
-                  property: node.right.argument,
-                  computed: false,
-                })[1];
-              if (!exists) {
-                return replace(
-                  { type: "Literal", value: false, raw: "false" },
-                  node
-                );
-              }
-            }
+      case "Identifier":
+        if (hasProperty(state.index, node.name)) {
+          state.usedByName[node.name] = true;
+        }
+        break;
+      case "MemberExpression": {
+        const property = isLookupCandidate(node);
+        if (property) {
+          if (hasProperty(state.index, property.name)) {
+            state.usedByName[property.name] = true;
           }
         }
         break;
+      }
       case "NewExpression":
         if (state.currentFunction) {
           const [, results] = state.lookup(node.callee);
@@ -1441,7 +959,7 @@ export async function optimizeMonkeyC(
         break;
 
       case "CallExpression": {
-        return replace(optimizeCall(state, node, null), node);
+        return replace(optimizeCall(istate, node, null), node);
       }
 
       case "VariableDeclaration": {
@@ -1461,7 +979,7 @@ export async function optimizeMonkeyC(
             const call = inlinableSubExpression(decl.init);
             if (call) {
               const inlined = replace(
-                optimizeCall(state, call, decl),
+                optimizeCall(istate, call, decl),
                 decl.init
               );
               if (!inlined) continue;
@@ -1502,7 +1020,7 @@ export async function optimizeMonkeyC(
       case "ExpressionStatement":
         if (node.expression.type === "CallExpression") {
           return replace(
-            optimizeCall(state, node.expression, node),
+            optimizeCall(istate, node.expression, node),
             node.expression
           );
         } else if (node.expression.type === "AssignmentExpression") {
@@ -1520,7 +1038,7 @@ export async function optimizeMonkeyC(
             }
             if (ok) {
               return replace(
-                optimizeCall(state, call, node.expression),
+                optimizeCall(istate, call, node.expression),
                 node.expression.right
               );
             }
@@ -1542,7 +1060,7 @@ export async function optimizeMonkeyC(
           node.right.type === "Identifier" &&
           node.left.name === node.right.name
         ) {
-          return { type: "Literal", value: null, raw: "null" };
+          return replace({ type: "Literal", value: null, raw: "null" }, node);
         }
       // fall through;
       case "UpdateExpression":
@@ -1708,10 +1226,11 @@ export async function optimizeMonkeyC(
 }
 
 function optimizeCall(
-  state: ProgramStateOptimizer,
+  istate: InterpState,
   node: mctree.CallExpression,
   context: InlineContext | null
 ) {
+  const state = istate.state as ProgramStateOptimizer;
   const [name, results] = state.lookupNonlocal(node.callee);
   const callees = results ? findCallees(results) : null;
   if (!callees || !callees.length) {
@@ -1750,7 +1269,7 @@ function optimizeCall(
       !callee.hasOverride &&
       node.arguments.every((n) => getNodeValue(n)[0] !== null)
     ) {
-      const ret = evaluateFunction(state, callee, node.arguments);
+      const ret = evaluateFunction(istate, callee, node.arguments);
       if (ret) {
         return ret;
       }

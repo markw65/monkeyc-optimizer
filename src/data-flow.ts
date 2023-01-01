@@ -96,6 +96,8 @@ export function declFullName(decl: EventDecl) {
   }
   if (isStateNode(decl)) return decl.fullName;
   switch (decl.type) {
+    case "Identifier":
+      return decl.name;
     case "BinaryExpression":
       return decl.left.name;
     case "EnumStringMember":
@@ -103,7 +105,7 @@ export function declFullName(decl: EventDecl) {
         ? `${decl.id.name}:${formatAst(decl.init)}`
         : decl.id.name;
     default:
-      throw new Error(`Unexpected EventDecl type: ${decl.type}`);
+      unhandledType(decl);
   }
 }
 
@@ -128,8 +130,10 @@ export function declName(decl: EventDecl) {
   }
 }
 
-export function unhandledExpression(node: never) {
-  throw new Error(`Unhandled expression type: ${(node as mctree.Node).type}`);
+export function unhandledType(node: never): never {
+  throw new Error(
+    `Unhandled expression type: ${(node as { type: string | number }).type}`
+  );
 }
 
 export function buildDataFlowGraph(
@@ -372,7 +376,7 @@ export function buildDataFlowGraph(
           }
           default:
             if (!isExpression(node)) break;
-            unhandledExpression(node);
+            unhandledType(node);
         }
         if (mayThrow) {
           return { type: "exn", node, mayThrow };

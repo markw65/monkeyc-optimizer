@@ -6,10 +6,8 @@ import {
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
-import { hasProperty, traverseAst } from "./ast";
-import { diagnostic } from "./inliner";
+import { getLiteralNode, hasProperty, traverseAst } from "./ast";
 import { JungleResourceMap } from "./jungles";
-import { getLiteralNode } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import {
   ClassStateNode,
@@ -768,7 +766,7 @@ function stateFuncs() {
                   name,
                   fullName: parent.fullName + "." + name,
                   attributes: stateNodeAttrs(node.attrs),
-                  stack: this.stack.slice(),
+                  stack: this.stackClone(),
                 } as TypedefStateNode | EnumStateNode;
                 parent.type_decls[name].push(decl);
                 if (decl.type === "EnumDeclaration") {
@@ -1179,4 +1177,43 @@ export function markInvokeClassMethod(
 
 export function isLocal(v: VariableStateNode) {
   return v.stack[v.stack.length - 1]?.type === "BlockStatement";
+}
+
+export function diagnostic(
+  state: ProgramState,
+  loc: mctree.Node["loc"],
+  message: string | null,
+  type: NonNullable<
+    ProgramStateAnalysis["diagnostics"]
+  >[string][number]["type"] = "INFO"
+) {
+  if (!loc || !loc.source) return;
+  const source = loc.source;
+  if (!state.diagnostics) state.diagnostics = {};
+  if (!hasProperty(state.diagnostics, source)) {
+    if (!message) return;
+    state.diagnostics[source] = [];
+  }
+  const diags = state.diagnostics[source];
+  let index = diags.findIndex((item) => item.loc === loc);
+  if (message) {
+    if (index < 0) index = diags.length;
+    diags[index] = { type, loc, message };
+  } else if (index >= 0) {
+    diags.splice(index, 1);
+  }
+}
+
+export function getSuperClasses(klass: ClassStateNode) {
+  if (klass.superClasses) return klass.superClasses;
+  if (!klass.superClass || klass.superClass === true) return null;
+  const superClasses = (klass.superClasses = new Set());
+  klass.superClass.forEach((s) => {
+    superClasses.add(s);
+    const rest = getSuperClasses(s);
+    if (rest) {
+      rest.forEach((r) => superClasses.add(r));
+    }
+  });
+  return superClasses;
 }

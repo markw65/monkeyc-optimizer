@@ -2,7 +2,7 @@ import Toybox.Test;
 import Toybox.Lang;
 import Toybox.Graphics;
 
-const FONT = Graphics.FONT_XTINY;
+var FONT as Graphics.FontDefinition = Graphics.FONT_XTINY;
 
 (:test)
 function testSubstitution(logger as Logger) as Boolean {
@@ -32,32 +32,11 @@ function checksArgs(
 
 (:test)
 function testFloatVsNumber(logger as Logger) as Boolean {
-    /* @match /var n1 = pre_/ */
-    var n1 = 1,
-        n2 = 1,
-        n3 = 1;
-    /* @match /var f1 = pre_/ */
-    var f1 = 1.0f,
-        f2 = 1.0f,
-        f3 = 1.0;
-    /* @match /var l1 = pre_/ */
-    var l1 = 1l,
-        l2 = 1l,
-        l3 = 1l;
-    /* @match /var d1 = pre_/ */
-    var d1 = 1.0d,
-        d2 = 1.0d,
-        d3 = 1.0d;
+    /* @match "checksArgs(pre_1, pre_1f, pre_1l, pre_1d)" */
     return (
-        n1 == n2 &&
-        n2 == n3 &&
-        f1 == f2 &&
-        f2 == f3 &&
-        l1 == l2 &&
-        l2 == l3 &&
-        d1 == d2 &&
-        d2 == d3 &&
-        checksArgs(n1, f1, l1, d1)
+        checksArgs(1, 1f, 1l, 1d) &&
+        checksArgs(1, 1f, 1l, 1d) &&
+        checksArgs(1, 1f, 1l, 1d)
     );
 }
 

@@ -258,13 +258,13 @@ module Inheritance {
         }
         function bar() as Number {
             var h = 42;
-            /* @match "self.h + h" */
+            /* @match /self\.h \+ @42/ */
             return localConflict() + h;
         }
         (:typecheck(false))
         function baz() as Number {
             var p = 42;
-            /* @match "self.p + p" */
+            /* @match /self\.p \+ @42/ */
             return localPrivate() + p;
         }
     }

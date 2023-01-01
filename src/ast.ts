@@ -453,3 +453,25 @@ export function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
   if (!result) throw new Error("Failed to make a ScopedName");
   return result;
 }
+
+export function getLiteralNode(
+  node: mctree.Node | null | undefined
+): null | mctree.Literal | mctree.AsExpression {
+  if (node == null) return null;
+  if (node.type == "Literal") return node;
+  if (node.type == "BinaryExpression" && node.operator == "as") {
+    return getLiteralNode(node.left) && node;
+  }
+  if (node.type == "UnaryExpression") {
+    if (node.argument.type != "Literal") return null;
+    switch (node.operator) {
+      case "-": {
+        const [arg, type] = getNodeValue(node.argument);
+        if (type === "Number" || type === "Long") {
+          return { ...arg, value: -arg.value, raw: `-${arg.raw}` };
+        }
+      }
+    }
+  }
+  return null;
+}

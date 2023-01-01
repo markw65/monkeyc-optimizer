@@ -5,7 +5,7 @@ import Toybox.Test;
 function testUnusedVars(logger as Logger) as Boolean {
     ok = true;
 
-    /* @match "var y;" "A.B.a();" "var v = true;" /for \(\s*var i = @0, k = A.B.a\(\); i < 10; i\+\+, y =/ */
+    /* @match "var y;" "A.B.a();" /for \(\s*var i = @0, k = A.B.a\(\); i < 10; i\+\+, y =/ */
     var x = 100,
         y = 50,
         z = A.B.a(),

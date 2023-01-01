@@ -132,6 +132,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/desyat/OpenWeatherMapWidget",
     garminOptLevel: 0,
+    options: { checkInvalidSymbols: "WARNING" },
   },
   {
     root: "https://github.com/dkappler/kraken",

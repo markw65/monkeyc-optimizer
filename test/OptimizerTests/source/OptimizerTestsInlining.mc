@@ -119,8 +119,8 @@ function inlineHiddenByLocal(v as Number) as Number {
 }
 
 (:inline)
-function doubleSubstitution(v as Logger?) as Logger or Boolean {
-    return v != null ? v : false;
+function doubleSubstitution(v as Logger?) as Logger or Boolean or Null {
+    return v != gLogger ? v : false;
 }
 
 (:test)
@@ -136,10 +136,11 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     check(x, 3, logger);
     // Should fail to inline, because A.B.x might
     // be modified before its used in the body of f
-    // The +1 is to prevent the statement inliner
+    // The +1's are to prevent the statement inliner
     // from inlining it.
-    x = /* @match A.B.f */ A.B.f(A.B.x) + 1;
-    check(x, 8, logger);
+    /* @match A.B.f */
+    x = 1 + A.B.f(A.B.x) + 1;
+    check(x, 9, logger);
 
     A.B.x = 0;
     x = /* @match A.B.a */ A.B.g(1);
@@ -155,7 +156,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     // h can be inlined unless its argument has side effects.
     x = /* @match 2 */ A.B.h(1);
     check(x, 2, logger);
-    x = /* @match /^([\w.]+x) \+ \1/ */ A.B.h(A.B.x);
+    x = /* @match /^@8$/ */ A.B.h(A.B.x);
     check(x, 8, logger);
     x = /* @match A.B.h */ A.B.h(A.B.a()) + 1;
     check(x, 11, logger);
@@ -178,7 +179,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     x = inlineNeedsToyboxImport();
     check(x == null ? 1 : 0, 1, logger);
 
-    /* @match /^var lg = logger \!= null \?/ */
+    /* @match /^var lg = logger \!= @gLogger \?/ */
     var lg = doubleSubstitution(logger);
     check((lg as Logger) == logger ? 1 : 0, 1, logger);
     return ok;
@@ -260,7 +261,7 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
         /* @match /^\{ self.z \+= A\.B\.x; \}$/ */
         A.B.s3(A.B.x);
         check($.z, 21, logger);
-        /* @match /^\{ self.z \+= z; A.B.a\(\); \}$/ */
+        /* @match /^\{ self.z \+= @2; A.B.a\(\); \}$/ */
         A.B.s4(z);
         check($.z, 23, logger);
     }
@@ -377,6 +378,11 @@ module Wrapper {
     }
 }
 
+function wrapper(x as Number) as Number {
+    x++;
+    return x - 1;
+}
+
 (:test) // foo
 function inlineAssignContext(logger as Logger) as Boolean {
     var x;
@@ -388,17 +394,18 @@ function inlineAssignContext(logger as Logger) as Boolean {
     /* @match /var \w+x\w+ = @1;/ */
     x = assignContext(1);
     check(x, 6, logger);
-    /* @match /var \w+x\w+ = @z;/ */
+    /* @match /var \w+x\w+ = @3;/ */
     x = -(assignContext(z) + 1 == 13 ? 42 : 0);
     check(x, -42, logger);
     /* @match /\b(\w+x\w+) = \1\.slice/ */
     x = assignContext3(arr)[2] + 1;
     check(x, 4, logger);
+    z = wrapper(z);
     {
-        var z = 15;
-        /* @match /\* (self\.z|pre_z(_\d+)?);/ */
+        var z = wrapper(15);
+        /* @match /\* (self.z|pre_z(_\d+)?)/ */
         x = assignContext(A.B.x);
-        check(x, 15, logger);
+        check(x, z, logger);
     }
     /* @match /^z \+= A.B.s3/ */
     z += A.B.s3(2);
@@ -411,7 +418,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match /var b = @42, c;/ /z \+= @3/ "var d;" /\w+x\w+ \* z;/ /var e = @42;/ */
+    /* @match /var c;/ /z \+= @3/ "var d;" /\s+d =/ /^check/ */
     var b = 42,
         c = A.B.s3(3),
         d = -assignContext(1) + 1,
@@ -442,6 +449,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     x = argInterference2($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
+    A.B.x += wrapper(0);
     /* @match /^\{ var z = A\.B\.x; A.B.a\(\);/ /check/ */
     x = argInterference3($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);

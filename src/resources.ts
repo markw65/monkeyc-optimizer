@@ -1,4 +1,5 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
+import { diagnostic } from "./api";
 import {
   adjustLoc,
   hasProperty,
@@ -8,7 +9,6 @@ import {
   traverseAst,
   wrap,
 } from "./ast";
-import { diagnostic } from "./inliner";
 import { JungleResourceMap } from "./jungles";
 import { ProgramState } from "./optimizer-types";
 import { xmlUtil } from "./sdk-util";

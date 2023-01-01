@@ -1,5 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
+  diagnostic,
   hasProperty,
   isLookupCandidate,
   isStateNode,
@@ -14,7 +15,6 @@ import {
 } from "./function-info";
 import {
   FunctionStateNode,
-  ProgramState,
   ProgramStateAnalysis,
   ProgramStateStack,
   StateNodeAttributes,
@@ -638,31 +638,6 @@ export function unused(
         .flat(1);
   }
   return top ? null : [estmt(expression)];
-}
-
-export function diagnostic(
-  state: ProgramState,
-  loc: mctree.Node["loc"],
-  message: string | null,
-  type: NonNullable<
-    ProgramStateAnalysis["diagnostics"]
-  >[string][number]["type"] = "INFO"
-) {
-  if (!loc || !loc.source) return;
-  const source = loc.source;
-  if (!state.diagnostics) state.diagnostics = {};
-  if (!hasProperty(state.diagnostics, source)) {
-    if (!message) return;
-    state.diagnostics[source] = [];
-  }
-  const diags = state.diagnostics[source];
-  let index = diags.findIndex((item) => item.loc === loc);
-  if (message) {
-    if (index < 0) index = diags.length;
-    diags[index] = { type, loc, message };
-  } else if (index >= 0) {
-    diags.splice(index, 1);
-  }
 }
 
 function inlineDiagnostic(

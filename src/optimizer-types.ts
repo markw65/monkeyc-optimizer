@@ -1,6 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { EnumStringMember } from "@markw65/prettier-plugin-monkeyc/build/estree-types";
 import { xmlUtil } from "./sdk-util";
+import { ExactOrUnion } from "./type-flow/types";
 
 export type DiagnosticType = "ERROR" | "WARNING" | "INFO";
 export type LookupRules = "COMPILER1" | "COMPILER2" | "DEFAULT";
@@ -36,6 +37,9 @@ export type BuildConfig = {
   prettier?: Record<string, unknown>;
   extensionVersion?: string;
   useLocalOptimizer?: boolean;
+  propagateTypes?: boolean;
+  trustDeclaredTypes?: boolean;
+  checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
 };
 export type StateNodeDecl =
   | StateNode
@@ -90,6 +94,7 @@ export interface ClassStateNode extends BaseStateNode {
   fullName: string;
   superClass?: ClassStateNode[] | true;
   hasInvoke?: boolean;
+  superClasses?: Set<ClassStateNode>;
 }
 
 export type FunctionInfo = {
@@ -123,6 +128,9 @@ export interface TypedefStateNode extends BaseStateNode {
   node: mctree.TypedefDeclaration;
   name: string;
   fullName: string;
+  isExpanding?: true;
+  isRecursive?: true;
+  resolvedType?: ExactOrUnion;
 }
 export interface VariableStateNode extends BaseStateNode {
   type: "VariableDeclarator";
@@ -231,7 +239,7 @@ export type ProgramState = {
   >;
   enumMap?: Map<EnumStringMember, EnumStateNode>;
 };
-type Finalized<T, Keys extends keyof T> = T & {
+export type Finalized<T, Keys extends keyof T> = T & {
   [key in Keys]-?: NonNullable<T[key]>;
 };
 export type ProgramStateLive = Finalized<

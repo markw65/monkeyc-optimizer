@@ -1,12 +1,15 @@
 import Toybox.Test;
 import Toybox.Lang;
+import Toybox.Math;
 
 const NON_ZERO_CONST = 42;
 const ZERO_CONST = 0;
+
+var gLogger as Logger?;
+
 (:test)
 function testRelationalFolding1(logger as Logger) as Boolean {
     ok = true;
-    var x = logger != null;
     /* @match /check\(@24, @24, logger\);/ */
     check(NON_ZERO_CONST == ZERO_CONST ? 42 : 24, 24, logger);
     /* @match /check\(@42, @42, logger\);/ */
@@ -58,13 +61,29 @@ function testRelationalFolding1(logger as Logger) as Boolean {
     /* @match /check\(@42, @42, logger\);/ */
     check(ZERO_CONST == 0d ? 42 : 24, 42, logger);
 
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_CONST == '*' ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check('*' == NON_ZERO_CONST ? 42 : 24, 42, logger);
+    return ok;
+}
+
+(:test)
+function testSymbolComparisonsExpectedFail4_1_6_4_1_7U(
+    logger as Logger
+) as Boolean {
+    ok = true;
+    /* @match /check\(@42, @42, logger\);/ */
+    check(:foo == :foo ? 42 : 24, 42, logger);
+    /* @match /check\(@24, @24, logger\);/ */
+    check(:foo != :foo ? 42 : 24, 24, logger);
+
     return ok;
 }
 
 (:test,:typecheck(false))
 function testRelationalFolding2(logger as Logger) as Boolean {
     ok = true;
-    var x = logger != null;
 
     /* @match /check\(@24, @24, logger\);/ */
     check(false == NON_ZERO_CONST ? 42 : 24, 24, logger);
@@ -81,14 +100,14 @@ function testRelationalFolding2(logger as Logger) as Boolean {
 (:test)
 function testLogicalFolding(logger as Logger) as Boolean {
     ok = true;
-    var x = logger != null;
+    var x = logger != gLogger;
     /* @match /check\(@0, @0, logger\);/ */
     check(NON_ZERO_CONST == 0 && ZERO_CONST == 0 ? 42 : 0, 0, logger);
     /* @match /check\(@0, @0, logger\);/ */
-    check(NON_ZERO_CONST == 0 && logger != null ? 42 : 0, 0, logger);
-    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
-    check(NON_ZERO_CONST != 0 && logger != null ? 42 : 0, 42, logger);
-    /* @match "check(true && x" */
+    check(NON_ZERO_CONST == 0 && logger != gLogger ? 42 : 0, 0, logger);
+    /* @match /check\(logger != @gLogger \? @42 : @0, @42, logger\);/ */
+    check(NON_ZERO_CONST != 0 && logger != gLogger ? 42 : 0, 42, logger);
+    /* @match "check(x ?" */
     check(NON_ZERO_CONST != 0 && x ? 42 : 0, 42, logger);
     // prettier-ignore
     /* @match /check\(\(x as Boolean\) \? @42 : @0/ */
@@ -97,23 +116,23 @@ function testLogicalFolding(logger as Logger) as Boolean {
     /* @match /check\(@42, @42, logger\);/ */
     check(NON_ZERO_CONST != 0 || ZERO_CONST == 0 ? 42 : 0, 42, logger);
     /* @match /check\(@42, @42, logger\);/ */
-    check(NON_ZERO_CONST != 0 || logger != null ? 42 : 0, 42, logger);
-    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
-    check(NON_ZERO_CONST == 0 || logger != null ? 42 : 0, 42, logger);
-    /* @match "check(false || x" */
+    check(NON_ZERO_CONST != 0 || logger != gLogger ? 42 : 0, 42, logger);
+    /* @match /check\(logger != @gLogger \? @42 : @0, @42, logger\);/ */
+    check(NON_ZERO_CONST == 0 || logger != gLogger ? 42 : 0, 42, logger);
+    /* @match "check(x ?" */
     check(NON_ZERO_CONST == 0 || x ? 42 : 0, 42, logger);
     // prettier-ignore
     /* @match /check\(\(x as Boolean\) \? @42 : @0/ */
     check(NON_ZERO_CONST == 0 || (x as Boolean) ? 42 : 0, 42, logger);
 
-    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
-    check(true and logger != null ? 42 : 0, 42, logger);
+    /* @match /check\(logger != @gLogger \? @42 : @0, @42, logger\);/ */
+    check(true and logger != gLogger ? 42 : 0, 42, logger);
     /* @match /check\(@0, @0, logger\);/ */
-    check(false and logger != null ? 42 : 0, 0, logger);
+    check(false and logger != gLogger ? 42 : 0, 0, logger);
     /* @match /check\(@42, @42, logger\);/ */
-    check(true or logger != null ? 42 : 0, 42, logger);
-    /* @match /check\(logger != null \? @42 : @0, @42, logger\);/ */
-    check(false or logger != null ? 42 : 0, 42, logger);
+    check(true or logger != gLogger ? 42 : 0, 42, logger);
+    /* @match /check\(logger != @gLogger \? @42 : @0, @42, logger\);/ */
+    check(false or logger != gLogger ? 42 : 0, 42, logger);
     return ok;
 }
 
@@ -241,6 +260,7 @@ function testDivFolding(logger as Logger) as Boolean {
     div(logger, 1.5d, 0.5, /* @match /^@3d$/ */ 1.5d / 0.5);
     div(logger, 1.5, 0.5d, /* @match /^@3d$/ */ 1.5 / 0.5d);
     div(logger, 1.5d, 0.5d, /* @match /^@3d$/ */ 1.5d / 0.5d);
+    div(logger, Math.PI, 180, Math.PI / 180);
     return ok;
 }
 

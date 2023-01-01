@@ -52,6 +52,9 @@ export async function driver() {
   let checkBuildPragmas: boolean | undefined;
   let showInfo = false;
   let parallelism: number | undefined = undefined;
+  let propagateTypes = true;
+  let trustDeclaredTypes = true;
+  let checkTypes: DiagnosticType | "OFF" = "WARNING";
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -128,7 +131,8 @@ export async function driver() {
         break;
 
       case "checkInvalidSymbols":
-        if (value == null) return key.toUpperCase();
+        if (value == null) return key;
+        value = value.toUpperCase();
         switch (value) {
           case "ERROR":
           case "WARNING":
@@ -141,13 +145,28 @@ export async function driver() {
         }
         break;
       case "checkCompilerLookupRules":
-        if (value == null) return key.toUpperCase();
+        if (value == null) return key;
+        value = value.toUpperCase();
         switch (value) {
           case "ERROR":
           case "WARNING":
           case "INFO":
           case "OFF":
             checkCompilerLookupRules = value;
+            break;
+          default:
+            error(`Invalid option for checkCompilerLookupRules: ${value}`);
+        }
+        break;
+      case "checkTypes":
+        if (value == null) return key;
+        value = value.toUpperCase();
+        switch (value) {
+          case "ERROR":
+          case "WARNING":
+          case "INFO":
+          case "OFF":
+            checkTypes = value;
             break;
           default:
             error(`Invalid option for checkCompilerLookupRules: ${value}`);
@@ -160,6 +179,14 @@ export async function driver() {
           : /^false|0$/i.test(value)
           ? false
           : value;
+        break;
+      case "trustDeclaredTypes":
+        if (value == null) return key;
+        trustDeclaredTypes = /^false|0$/i.test(value) ? false : true;
+        break;
+      case "propagateTypes":
+        if (value == null) return key;
+        propagateTypes = /^false|0$/i.test(value) ? false : true;
         break;
       case "ignoreInvalidSymbols":
         if (!value || /^true|1$/i.test(value)) {
@@ -276,6 +303,9 @@ export async function driver() {
       typeCheckLevel,
       skipOptimization,
       checkInvalidSymbols,
+      trustDeclaredTypes,
+      propagateTypes,
+      checkTypes,
       checkCompilerLookupRules,
       sizeBasedPRE,
       ...jungleOptions,
@@ -400,7 +430,10 @@ export async function driver() {
                     } else if (match[3] === "FAIL") {
                       line = line.replace(/FAIL\s*$/, "EXPECTED FAIL");
                       expectedFailures++;
-                    } else if (match[3] === "PASS") {
+                    } else if (
+                      match[3] === "PASS" &&
+                      (!m[3] || options.skipOptimization)
+                    ) {
                       line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
                       pass = false;
                     }
