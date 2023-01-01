@@ -3,7 +3,11 @@ import * as PriorityQueue from "priorityqueuejs";
 import { formatAst, isLocal, isStateNode } from "./api";
 import { getNodeValue, isExpression } from "./ast";
 import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
-import { findCallees, findCalleesForNew } from "./function-info";
+import {
+  findCallees,
+  findCalleesByNode,
+  findCalleesForNew,
+} from "./function-info";
 import {
   FunctionStateNode,
   ProgramStateAnalysis,
@@ -358,7 +362,9 @@ export function buildDataFlowGraph(
           case "CallExpression": {
             liveDef(null, stmt);
             const [, results] = state.lookupNonlocal(node.callee);
-            const callees = results ? findCallees(results) : null;
+            const callees = results
+              ? findCallees(results)
+              : findCalleesByNode(state, node.callee);
             return { type: "mod", node, mayThrow, callees };
           }
           default:

@@ -1,3 +1,4 @@
+import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { hasProperty } from "./ast";
 import {
   VariableStateNode,
@@ -169,5 +170,21 @@ export function findCalleesForNew(lookupDefs: LookupDefinition[]) {
       .filter((decl): decl is FunctionStateNode =>
         decl ? decl.type === "FunctionDeclaration" : false
       )
+  );
+}
+
+export function findCalleesByNode(
+  state: ProgramStateAnalysis,
+  callee: mctree.Expression
+) {
+  const name =
+    callee.type === "Identifier"
+      ? callee.name
+      : callee.type === "MemberExpression" && !callee.computed
+      ? callee.property.name
+      : null;
+  if (!name) return null;
+  return (
+    (hasProperty(state.allFunctions, name) && state.allFunctions[name]) || null
   );
 }
