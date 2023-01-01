@@ -528,3 +528,21 @@ Bug Fixes
 
 - Add more parsing of expressions embedded in resource files. This should now be complete, in that the analasis pass should see every symbol definition and reference from anywhere in the project.
 - Generalize constant folding to (nearly) all supported types. We don't fold additions between Float or Double and String, because the exact behavior is [buggy and upredictable](https://forums.garmin.com/developer/connect-iq/i/bug-reports/sdk-4-1-7-constant-folds-floats-strings-incorrectly)
+
+### 1.0.45
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.41](https://github.com/markw65/prettier-plugin-monkeyc#1041)
+
+  - Fixes a few parser edge cases
+
+- Bug fixes
+
+  - Fix a bug constant folding == and !=
+  - Make sure to include all languages, even for devices that don't support them, because they're still supported in settings. Do this in a way that avoids creating warnings.
+  - Look at all build dependencies when deciding whether to regenerate the optimized files.
+  - Don't produce errors when "-" is used as the first character of an id in a resource file (although in most cases, this is not a good idea, and will fail at compile time)
+
+- Improvements
+  - Better typing for resources
+  - Refactor PRE
+  - Improve accuracy of whether or not a function can modify a particular global (resulting in better PRE)
