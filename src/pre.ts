@@ -15,7 +15,7 @@ import {
 } from "./data-flow";
 import { cloneSet, functionMayModify, mergeSet } from "./function-info";
 import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
-import { every } from "./util";
+import { some } from "./util";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination
@@ -350,7 +350,11 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
             event.type !== "exn" &&
             console.log(
               `    ${event.type}: ${
-                event.decl ? declFullName(event.decl) : "??"
+                event.decl
+                  ? declFullName(event.decl)
+                  : event.node
+                  ? formatAst(event.node)
+                  : "??"
               }`
             )
         );
@@ -446,7 +450,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
           case "mod": {
             curState.forEach((candidates, decls) => {
               if (
-                every(
+                some(
                   decls,
                   (decl) =>
                     decl.type === "VariableDeclarator" &&
