@@ -16,6 +16,7 @@ import { buildTypeInfo } from "../type-flow";
 import { every } from "../util";
 import { couldBe } from "./could-be";
 import { evaluate, InterpStackElem, InterpState, popIstate } from "./interp";
+import { evaluateBinaryTypes } from "./interp-binary";
 import {
   display,
   hasValue,
@@ -349,6 +350,37 @@ function tryIdentity(
     case "-": {
       const rep = identity(istate, node, left, right, TypeTag.Numeric, 0);
       if (rep) return rep;
+      if (
+        node.right.type === "UnaryExpression" &&
+        node.right.operator === "-"
+      ) {
+        // We can convert a +/- -b to a -/+ b, but we have to know
+        // something about the types. eg if b is Number, with the
+        // value -2^31, negating b will leave the value as -2^31.
+        // This doesn't matter if the a is also Number, but if
+        // a might be Long, Float or Double, we would change the
+        // result. Similarly for Long and -2^63
+        if (
+          !((left.value.type | right.value.type) & ~TypeTag.Numeric) &&
+          (right.value.type & TypeTag.Number // Negating -2^31 goes wrong if left is a wider type
+            ? !(
+                left.value.type &
+                (TypeTag.Long | TypeTag.Float | TypeTag.Double)
+              )
+            : right.value.type & TypeTag.Long // Negating -2^63 goes wrong if left is a float/double
+            ? !(left.value.type & (TypeTag.Float | TypeTag.Double))
+            : true)
+        ) {
+          right.value = evaluateBinaryTypes(
+            "-",
+            { type: TypeTag.Number, value: 0 },
+            right.value
+          );
+          right.node = node.right.argument;
+          node.right = right.node;
+          node.operator = node.operator === "+" ? "-" : "+";
+        }
+      }
       break;
     }
     case "*": {
@@ -421,10 +453,19 @@ function tryCommuteAndAssociate(
     case "&":
     case "|":
     case "^":
+      // flip the left argument to the right if the left has
+      // a known value, but the right does not, or if the
+      // top operator is additive, and the left operand is
+      // negated, and the right operand is not.
       if (
-        right.value.value == null &&
-        left.value.value != null &&
-        !left.embeddedEffects
+        !left.embeddedEffects &&
+        (hasValue(left.value) ||
+          (!right.embeddedEffects &&
+            node.operator === "+" &&
+            node.left.type === "UnaryExpression" &&
+            node.left.operator === "-" &&
+            (node.right.type !== "UnaryExpression" ||
+              node.right.operator !== "-")))
       ) {
         const l = node.left;
         node.left = node.right;
