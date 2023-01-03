@@ -305,6 +305,39 @@ function identity(
   return null;
 }
 
+function zero(
+  istate: InterpState,
+  node: mctree.BinaryExpression,
+  left: InterpStackElem,
+  right: InterpStackElem,
+  allowedTypes: TypeTag,
+  target: number
+) {
+  if (
+    hasValue(right.value) &&
+    right.value.type & allowedTypes &&
+    !(left.value.type & ~allowedTypes) &&
+    Number(right.value.value) === target
+  ) {
+    // a * 0 => 0
+    // but we still need to check that the type of a
+    // doesn't change the type of the zero.
+    if (
+      (right.value.type === TypeTag.Number &&
+        left.value.type === TypeTag.Number) ||
+      (right.value.type === TypeTag.Long &&
+        !(left.value.type & ~(TypeTag.Long | TypeTag.Number))) ||
+      (right.value.type === TypeTag.Float &&
+        !(left.value.type & ~(TypeTag.Float | TypeTag.Number))) ||
+      right.value.type === TypeTag.Double
+    ) {
+      istate.stack.splice(-2, 1);
+      return node.right;
+    }
+  }
+  return null;
+}
+
 function tryIdentity(
   istate: InterpState,
   node: Extract<mctree.Node, { type: "BinaryExpression" }>,
@@ -318,34 +351,44 @@ function tryIdentity(
       if (rep) return rep;
       break;
     }
-    case "*":
+    case "*": {
+      const rep = zero(istate, node, left, right, TypeTag.Numeric, 0);
+      if (rep) return rep;
+      // fall through
+    }
     case "/": {
       const rep = identity(istate, node, left, right, TypeTag.Numeric, 1);
       if (rep) return rep;
       break;
     }
-    case "|":
+    case "|": {
+      const rep = zero(
+        istate,
+        node,
+        left,
+        right,
+        TypeTag.Number | TypeTag.Long,
+        -1
+      );
+      if (rep) return rep;
+      // fall through
+    }
     case "^": {
       const rep = identity(
         istate,
         node,
         left,
         right,
-        TypeTag.Number | TypeTag.Long | TypeTag.Boolean,
+        TypeTag.Number | TypeTag.Long,
         0
       );
       if (rep) return rep;
       break;
     }
     case "&": {
-      const rep = identity(
-        istate,
-        node,
-        left,
-        right,
-        TypeTag.Number | TypeTag.Long | TypeTag.Boolean,
-        -1
-      );
+      const rep =
+        zero(istate, node, left, right, TypeTag.Number | TypeTag.Long, 0) ||
+        identity(istate, node, left, right, TypeTag.Number | TypeTag.Long, -1);
       if (rep) return rep;
       break;
     }
