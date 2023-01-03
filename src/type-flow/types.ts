@@ -432,6 +432,20 @@ export function typeFromTypeStateNode(
   throw new Error(`Internal error: Unexpected StateNodeDecl.type: ${sn.type}`);
 }
 
+export function typeFromTypeStateNodes(
+  state: ProgramStateAnalysis,
+  sns: StateNodeDecl[],
+  classVsObj?: boolean
+) {
+  return sns.reduce<ExactOrUnion>(
+    (cur, sn) => {
+      unionInto(cur, typeFromTypeStateNode(state, sn, classVsObj));
+      return cur;
+    },
+    { type: TypeTag.Never }
+  );
+}
+
 function typeFromSingleTypeSpec(
   state: ProgramStateAnalysis,
   type: mctree.TypeSpecPart | mctree.ObjectExpression,
@@ -480,11 +494,10 @@ function typeFromSingleTypeSpec(
         return { type: TypeTag.Any };
       }
       const resultType = results.reduce<ExactOrUnion>(
-        (cur, lookupDefn) =>
-          lookupDefn.results.reduce<ExactOrUnion>((cur, result) => {
-            unionInto(cur, typeFromTypeStateNode(state, result));
-            return cur;
-          }, cur),
+        (cur, lookupDefn) => {
+          unionInto(cur, typeFromTypeStateNodes(state, lookupDefn.results));
+          return cur;
+        },
         { type: TypeTag.Never }
       );
       if (type.generics) {

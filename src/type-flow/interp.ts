@@ -514,6 +514,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       push({
         value: evaluateCall(
           state,
+          node,
           callee.value,
           args.map(({ value }) => value)
         ),
