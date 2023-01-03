@@ -142,7 +142,7 @@ function collectClassInfo(state: ProgramStateAnalysis) {
             f.type === "FunctionDeclaration" &&
             !(f.attributes & StateNodeAttributes.STATIC)
           ) {
-            markInvokeClassMethod(f);
+            markInvokeClassMethod(state, f);
           }
         });
       });
@@ -245,7 +245,7 @@ export async function analyze(
           if (scope.type == "FunctionDeclaration") {
             if (markApi) {
               node.body = null;
-              scope.info = getApiFunctionInfo(scope);
+              scope.info = getApiFunctionInfo(state, scope);
               delete scope.stack;
             }
             const allFuncs = state.allFunctions!;

@@ -161,6 +161,7 @@ export type LookupResult =
 export type ProgramState = {
   allFunctions?: Record<string, FunctionStateNode[]>;
   allClasses?: ClassStateNode[];
+  invokeInfo?: FunctionInfo;
   fnMap?: FilesToOptimizeMap;
   rezAst?: mctree.Program;
   manifestXML?: xmlUtil.Document;
@@ -251,7 +252,7 @@ export type ProgramStateLive = Finalized<
 >;
 export type ProgramStateAnalysis = Finalized<
   ProgramStateLive,
-  "allClasses" | "allFunctions" | "fnMap"
+  "allClasses" | "allFunctions" | "fnMap" | "invokeInfo"
 >;
 export type ProgramStateOptimizer = Finalized<
   ProgramStateAnalysis,

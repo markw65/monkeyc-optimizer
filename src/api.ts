@@ -21,6 +21,7 @@ import {
   LookupResult,
   ModuleStateNode,
   ProgramState,
+  ProgramStateAnalysis,
   ProgramStateLive,
   ProgramStateNode,
   ProgramStateStack,
@@ -1136,10 +1137,8 @@ export function findUsingForNode(
   return imports;
 }
 
-const invokeInfo: FunctionInfo | Record<string, never> = {};
-const toyboxFnInfo: FunctionInfo | Record<string, never> = {};
-
 export function getApiFunctionInfo(
+  state: ProgramState,
   func: FunctionStateNode
 ): FunctionInfo | false {
   if (
@@ -1153,10 +1152,12 @@ export function getApiFunctionInfo(
           )
       ))
   ) {
-    if (!invokeInfo.calledFuncs) {
-      invokeInfo.modifiedDecls = new Set();
-      invokeInfo.calledFuncs = new Set();
-      invokeInfo.callsExposed = true;
+    if (!state.invokeInfo) {
+      state.invokeInfo = {
+        modifiedDecls: new Set(),
+        calledFuncs: new Set(),
+        callsExposed: true,
+      };
     }
     if (func.name === "initialize") {
       const top = func.stack![func.stack!.length - 1];
@@ -1164,16 +1165,16 @@ export function getApiFunctionInfo(
         top.hasInvoke = true;
       }
     }
-    return invokeInfo as FunctionInfo;
+    return state.invokeInfo;
   }
-  if (!toyboxFnInfo.calledFuncs) {
-    return false;
-  }
-  return toyboxFnInfo as FunctionInfo;
+  return false;
 }
 
-export function markInvokeClassMethod(func: FunctionStateNode) {
-  func.info = invokeInfo as FunctionInfo;
+export function markInvokeClassMethod(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode
+) {
+  func.info = state.invokeInfo;
 }
 
 export function isLocal(v: VariableStateNode) {
