@@ -383,3 +383,17 @@ function testShrFolding(logger as Logger) as Boolean {
 
     return ok;
 }
+
+(:test)
+function testIfFolding(logger as Logger) as Boolean {
+    var x = logger != gLogger;
+    /* @match "if (x) {" */
+    if (!x) {
+        logger.debug("Nope");
+        return false;
+    } else if (x) {
+        logger.debug("Yes");
+        return true;
+    }
+    return false;
+}

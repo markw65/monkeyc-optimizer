@@ -96,6 +96,17 @@ export function beforeEvaluate(
           return rep;
         }
       }
+      if (
+        node.alternate &&
+        node.test.type === "UnaryExpression" &&
+        node.test.operator === "!" &&
+        test.value.type === TypeTag.Boolean
+      ) {
+        const alternate = node.alternate;
+        node.alternate = node.consequent;
+        node.consequent = alternate;
+        test.node = node.test = node.test.argument;
+      }
       istate.stack.push(test);
       break;
     }
