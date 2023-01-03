@@ -1,6 +1,12 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { diagnostic, formatAst } from "../api";
-import { hasProperty, isExpression, withLoc, wrap } from "../ast";
+import {
+  getLiteralNode,
+  hasProperty,
+  isExpression,
+  withLoc,
+  wrap,
+} from "../ast";
 import {
   FunctionStateNode,
   ProgramStateAnalysis,
@@ -150,6 +156,7 @@ export function beforeEvaluate(
           return rep;
         }
       } else {
+        tryCommuteAndAssociate(istate, node);
         const level =
           istate.state.config?.checkTypes === "OFF"
             ? null
@@ -262,4 +269,102 @@ export function afterEvaluate(
     }
   }
   return null;
+}
+
+function tryCommuteAndAssociate(
+  istate: InterpState,
+  node: Extract<mctree.Node, { type: "BinaryExpression" }>
+) {
+  let [left, right] = istate.stack.slice(-2);
+  switch (node.operator) {
+    case "+":
+      // Addition is only commutative/associative if both arguments
+      // are numeric, or one argument is Number, and the other is Char
+      if (
+        left.value.type & ~(TypeTag.Numeric | TypeTag.Char) ||
+        right.value.type & ~(TypeTag.Numeric | TypeTag.Char) ||
+        left.value.type & right.value.type & TypeTag.Char
+      ) {
+        break;
+      }
+    // fallthrough
+    case "*":
+    case "&":
+    case "|":
+    case "^":
+      if (left.value.value != null && right.value.value != null) {
+        // no need to do anything if both sides are constants
+        break;
+      }
+      if (
+        right.value.value == null &&
+        left.value.value != null &&
+        !left.embeddedEffects
+      ) {
+        const l = node.left;
+        node.left = node.right;
+        node.right = l;
+        istate.stack.splice(-2, 2, right, left);
+        const r = right;
+        right = left;
+        left = r;
+      }
+    // fallthrough
+    case "-":
+      if (
+        hasValue(right.value) &&
+        !hasValue(left.value) &&
+        node.left.type === "BinaryExpression" &&
+        (node.left.operator === node.operator ||
+          (node.operator === "+" && node.left.operator === "-") ||
+          (node.operator === "-" && node.left.operator === "+"))
+      ) {
+        const lr = getLiteralNode(node.left.right);
+        if (lr) {
+          const leftRight = evaluate(istate, lr);
+          if (hasValue(leftRight.value)) {
+            // (ll + lr) + r => ll + (r + lr)
+            // (ll - lr) - r => ll - (r + lr)
+            // (ll + lr) - r => ll + (r - lr)
+            // (ll - lr) + r => ll - (r - lr)
+            const tmpNode: mctree.BinaryExpression = {
+              type: "BinaryExpression",
+              operator:
+                node.operator === "+" || node.operator === "-"
+                  ? node.operator === node.left.operator
+                    ? "+"
+                    : "-"
+                  : node.operator,
+              left: node.right,
+              right: node.left.right,
+            };
+            if (tmpNode.operator === "+" || tmpNode.operator === "-") {
+              if (
+                leftRight.value.type & (TypeTag.Float | TypeTag.Double) ||
+                right.value.type & (TypeTag.Float | TypeTag.Double)
+              ) {
+                // we don't want to fold "a + 1.0 - 1.0" because
+                // it could be there for rounding purposes
+                const lsign = (right.value.value as number) < 0;
+                const rsign =
+                  (leftRight.value.value as number) < 0 ===
+                  (tmpNode.operator === "+");
+                if (lsign !== rsign) break;
+              }
+            }
+            const repType = evaluate(istate, tmpNode);
+            if (hasValue(repType.value)) {
+              const repNode = mcExprFromType(repType.value);
+              if (repNode) {
+                node.left = node.left.left;
+                node.right = repNode;
+                istate.stack.splice(-1, 1, repType);
+                repType.node = repNode;
+                left.node = node.left;
+              }
+            }
+          }
+        }
+      }
+  }
 }

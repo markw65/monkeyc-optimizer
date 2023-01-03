@@ -123,6 +123,8 @@ function doubleSubstitution(v as Logger?) as Logger or Boolean or Null {
     return v != gLogger ? v : false;
 }
 
+var gOne as Number = 1;
+
 (:test)
 function inlineAsExpressionTests(logger as Logger) as Boolean {
     ok = true;
@@ -136,10 +138,10 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     check(x, 3, logger);
     // Should fail to inline, because A.B.x might
     // be modified before its used in the body of f
-    // The +1's are to prevent the statement inliner
+    // The gOne's are to prevent the statement inliner
     // from inlining it.
     /* @match A.B.f */
-    x = 1 + A.B.f(A.B.x) + 1;
+    x = gOne + A.B.f(A.B.x) + gOne;
     check(x, 9, logger);
 
     A.B.x = 0;
@@ -403,7 +405,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = wrapper(z);
     {
         var z = wrapper(15);
-        /* @match /\* (self.z|pre_z(_\d+)?)/ */
+        /* @match /(self.z|pre_z(_\d+)?) \* / */
         x = assignContext(A.B.x);
         check(x, z, logger);
     }
