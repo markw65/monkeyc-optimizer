@@ -15,7 +15,7 @@ import {
 import { buildTypeInfo } from "../type-flow";
 import { every } from "../util";
 import { couldBe } from "./could-be";
-import { evaluate, InterpState, popIstate } from "./interp";
+import { evaluate, InterpStackElem, InterpState, popIstate } from "./interp";
 import {
   display,
   hasValue,
@@ -156,7 +156,8 @@ export function beforeEvaluate(
           return rep;
         }
       } else {
-        tryCommuteAndAssociate(istate, node);
+        const rep = tryCommuteAndAssociate(istate, node);
+        if (rep) return rep;
         const level =
           istate.state.config?.checkTypes === "OFF"
             ? null
@@ -271,11 +272,96 @@ export function afterEvaluate(
   return null;
 }
 
+function identity(
+  istate: InterpState,
+  node: mctree.BinaryExpression,
+  left: InterpStackElem,
+  right: InterpStackElem,
+  allowedTypes: TypeTag,
+  target: number
+) {
+  if (
+    hasValue(right.value) &&
+    right.value.type & allowedTypes &&
+    !(left.value.type & ~allowedTypes) &&
+    Number(right.value.value) === target
+  ) {
+    // a +/- 0 => a
+    // but we still need to check that the type of the zero
+    // doesn't change the type of the result.
+    if (
+      right.value.type === TypeTag.Number ||
+      (right.value.type === TypeTag.Long &&
+        !(left.value.type & ~(TypeTag.Long | TypeTag.Double))) ||
+      (right.value.type === TypeTag.Float &&
+        !(left.value.type & ~(TypeTag.Float | TypeTag.Double))) ||
+      (right.value.type === TypeTag.Double &&
+        left.value.type === TypeTag.Double)
+    ) {
+      istate.stack.pop();
+      return node.left;
+    }
+  }
+  return null;
+}
+
+function tryIdentity(
+  istate: InterpState,
+  node: Extract<mctree.Node, { type: "BinaryExpression" }>,
+  left: InterpStackElem,
+  right: InterpStackElem
+) {
+  switch (node.operator) {
+    case "+":
+    case "-": {
+      const rep = identity(istate, node, left, right, TypeTag.Numeric, 0);
+      if (rep) return rep;
+      break;
+    }
+    case "*":
+    case "/": {
+      const rep = identity(istate, node, left, right, TypeTag.Numeric, 1);
+      if (rep) return rep;
+      break;
+    }
+    case "|":
+    case "^": {
+      const rep = identity(
+        istate,
+        node,
+        left,
+        right,
+        TypeTag.Number | TypeTag.Long | TypeTag.Boolean,
+        0
+      );
+      if (rep) return rep;
+      break;
+    }
+    case "&": {
+      const rep = identity(
+        istate,
+        node,
+        left,
+        right,
+        TypeTag.Number | TypeTag.Long | TypeTag.Boolean,
+        -1
+      );
+      if (rep) return rep;
+      break;
+    }
+  }
+  return null;
+}
+
 function tryCommuteAndAssociate(
   istate: InterpState,
   node: Extract<mctree.Node, { type: "BinaryExpression" }>
 ) {
   let [left, right] = istate.stack.slice(-2);
+  // no need to do anything if both sides are constants
+  if (!right || (hasValue(left.value) && hasValue(right.value))) {
+    return null;
+  }
   switch (node.operator) {
     case "+":
       // Addition is only commutative/associative if both arguments
@@ -292,10 +378,6 @@ function tryCommuteAndAssociate(
     case "&":
     case "|":
     case "^":
-      if (left.value.value != null && right.value.value != null) {
-        // no need to do anything if both sides are constants
-        break;
-      }
       if (
         right.value.value == null &&
         left.value.value != null &&
@@ -311,60 +393,63 @@ function tryCommuteAndAssociate(
       }
     // fallthrough
     case "-":
-      if (
-        hasValue(right.value) &&
-        !hasValue(left.value) &&
-        node.left.type === "BinaryExpression" &&
-        (node.left.operator === node.operator ||
-          (node.operator === "+" && node.left.operator === "-") ||
-          (node.operator === "-" && node.left.operator === "+"))
-      ) {
-        const lr = getLiteralNode(node.left.right);
-        if (lr) {
-          const leftRight = evaluate(istate, lr);
-          if (hasValue(leftRight.value)) {
-            // (ll + lr) + r => ll + (r + lr)
-            // (ll - lr) - r => ll - (r + lr)
-            // (ll + lr) - r => ll + (r - lr)
-            // (ll - lr) + r => ll - (r - lr)
-            const tmpNode: mctree.BinaryExpression = {
-              type: "BinaryExpression",
-              operator:
-                node.operator === "+" || node.operator === "-"
-                  ? node.operator === node.left.operator
-                    ? "+"
-                    : "-"
-                  : node.operator,
-              left: node.right,
-              right: node.left.right,
-            };
-            if (tmpNode.operator === "+" || tmpNode.operator === "-") {
-              if (
-                leftRight.value.type & (TypeTag.Float | TypeTag.Double) ||
-                right.value.type & (TypeTag.Float | TypeTag.Double)
-              ) {
-                // we don't want to fold "a + 1.0 - 1.0" because
-                // it could be there for rounding purposes
-                const lsign = (right.value.value as number) < 0;
-                const rsign =
-                  (leftRight.value.value as number) < 0 ===
-                  (tmpNode.operator === "+");
-                if (lsign !== rsign) break;
+      if (hasValue(right.value)) {
+        if (
+          node.left.type === "BinaryExpression" &&
+          (node.left.operator === node.operator ||
+            (node.operator === "+" && node.left.operator === "-") ||
+            (node.operator === "-" && node.left.operator === "+"))
+        ) {
+          const lr = getLiteralNode(node.left.right);
+          if (lr) {
+            const leftRight = evaluate(istate, lr);
+            if (hasValue(leftRight.value)) {
+              // (ll + lr) + r => ll + (r + lr)
+              // (ll - lr) - r => ll - (r + lr)
+              // (ll + lr) - r => ll + (r - lr)
+              // (ll - lr) + r => ll - (r - lr)
+              const tmpNode: mctree.BinaryExpression = {
+                type: "BinaryExpression",
+                operator:
+                  node.operator === "+" || node.operator === "-"
+                    ? node.operator === node.left.operator
+                      ? "+"
+                      : "-"
+                    : node.operator,
+                left: node.right,
+                right: node.left.right,
+              };
+              if (tmpNode.operator === "+" || tmpNode.operator === "-") {
+                if (
+                  leftRight.value.type & (TypeTag.Float | TypeTag.Double) ||
+                  right.value.type & (TypeTag.Float | TypeTag.Double)
+                ) {
+                  // we don't want to fold "a + 1.0 - 1.0" because
+                  // it could be there for rounding purposes
+                  const lsign = (right.value.value as number) < 0;
+                  const rsign =
+                    (leftRight.value.value as number) < 0 ===
+                    (tmpNode.operator === "+");
+                  if (lsign !== rsign) break;
+                }
               }
-            }
-            const repType = evaluate(istate, tmpNode);
-            if (hasValue(repType.value)) {
-              const repNode = mcExprFromType(repType.value);
-              if (repNode) {
-                node.left = node.left.left;
-                node.right = repNode;
-                istate.stack.splice(-1, 1, repType);
-                repType.node = repNode;
-                left.node = node.left;
+              const repType = evaluate(istate, tmpNode);
+              if (hasValue(repType.value)) {
+                const repNode = mcExprFromType(repType.value);
+                if (repNode) {
+                  node.left = node.left.left;
+                  node.right = repNode;
+                  istate.stack.splice(-1, 1, repType);
+                  repType.node = repNode;
+                  left.node = node.left;
+                  right = repType;
+                  break;
+                }
               }
             }
           }
         }
       }
   }
+  return tryIdentity(istate, node, left, right);
 }
