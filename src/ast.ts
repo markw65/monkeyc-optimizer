@@ -231,8 +231,6 @@ export function mayThrow(node: mctree.Node) {
   switch (node.type) {
     case "BinaryExpression":
     case "CallExpression":
-    case "ConditionalExpression":
-    case "LogicalExpression":
     case "NewExpression":
     case "ThrowStatement":
     case "UnaryExpression":
