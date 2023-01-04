@@ -54,8 +54,8 @@ export function beforeEvaluate(
 ): mctree.Node | null | false {
   switch (node.type) {
     case "ConditionalExpression": {
-      const alternate = popIstate(istate, node.alternate);
-      const consequent = popIstate(istate, node.consequent);
+      let alternate = popIstate(istate, node.alternate);
+      let consequent = popIstate(istate, node.consequent);
       const test = popIstate(istate, node.test);
       const result = mustBeTrue(test.value)
         ? true
@@ -68,6 +68,20 @@ export function beforeEvaluate(
           istate.stack.push(arg);
           return result ? node.consequent : node.alternate;
         }
+      }
+      if (
+        node.alternate &&
+        node.test.type === "UnaryExpression" &&
+        node.test.operator === "!" &&
+        test.value.type === TypeTag.Boolean
+      ) {
+        const alternateNode = node.alternate;
+        node.alternate = node.consequent;
+        node.consequent = alternateNode;
+        const tmp = alternate;
+        alternate = consequent;
+        consequent = tmp;
+        test.node = node.test = node.test.argument;
       }
       istate.stack.push(test, consequent, alternate);
       break;
