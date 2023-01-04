@@ -99,37 +99,41 @@ export function sizeBasedPRE(
     );
     variableDecl.end = variableDecl.start;
     variableDecl.loc!.end = variableDecl.loc!.start;
-    candidates.forEach((s, decl) => {
-      let name;
-      let i = 0;
-      do {
-        name = `pre_${declName(decl)}${i ? "_" + i : ""}`;
-        if (!identifiers.has(name)) {
-          identifiers.add(name);
-          break;
-        }
-        i++;
-      } while (true);
-      declMap.set(decl, name);
-      variableDecl.declarations.push(
-        withLoc(
-          {
-            type: "VariableDeclarator",
-            id: withLoc({ type: "Identifier", name }, variableDecl),
-            kind: "var",
-          },
-          variableDecl
-        )
-      );
-      s.ant.forEach((event) => {
-        const events = nodeMap.get(event.node);
-        if (!events) {
-          nodeMap.set(event.node, [event]);
-        } else {
-          events.push(event);
-        }
+    Array.from(candidates.keys())
+      .map((decl) => [declFullName(decl), decl] as const)
+      .sort()
+      .forEach(([, decl]) => {
+        let name;
+        let i = 0;
+        do {
+          name = `pre_${declName(decl)}${i ? "_" + i : ""}`;
+          if (!identifiers.has(name)) {
+            identifiers.add(name);
+            break;
+          }
+          i++;
+        } while (true);
+        declMap.set(decl, name);
+        const s = candidates.get(decl)!;
+        variableDecl.declarations.push(
+          withLoc(
+            {
+              type: "VariableDeclarator",
+              id: withLoc({ type: "Identifier", name }, variableDecl),
+              kind: "var",
+            },
+            variableDecl
+          )
+        );
+        s.ant.forEach((event) => {
+          const events = nodeMap.get(event.node);
+          if (!events) {
+            nodeMap.set(event.node, [event]);
+          } else {
+            events.push(event);
+          }
+        });
       });
-    });
     applyReplacements(func.node, nodeMap, declMap);
     func.node.body.body.unshift(variableDecl);
   }
