@@ -37,7 +37,7 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
     !(b.type & TypeTag.Enum) &&
     b.type & EnumTagsConst
   ) {
-    const value = getUnionComponent(a, TypeTag.Enum) as EnumValueType | null;
+    const value = getUnionComponent(a, TypeTag.Enum);
     if (
       !subtypeOf(
         (value != null && (value.value || value.enum?.resolvedType)) || {

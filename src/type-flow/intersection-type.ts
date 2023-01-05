@@ -4,7 +4,6 @@ import {
   ClassStateNode,
   FunctionStateNode,
   ModuleStateNode,
-  TypedefStateNode,
 } from "../optimizer-types";
 import { some, forEach, reduce } from "../util";
 import { couldBe } from "./could-be";
@@ -38,10 +37,7 @@ import {
 import { clearValuesUnder, unionInto } from "./union-type";
 
 export function expandTypedef(t: ExactOrUnion) {
-  const decls = getUnionComponent(t, TypeTag.Typedef) as
-    | TypedefStateNode
-    | TypedefStateNode[]
-    | null;
+  const decls = getUnionComponent(t, TypeTag.Typedef);
   const tExpanded = cloneType(t);
   clearValuesUnder(tExpanded, TypeTag.Typedef, true);
   forEach(decls, (decl) => unionInto(tExpanded, decl.resolvedType!));
@@ -55,7 +51,7 @@ export function expandTypedef(t: ExactOrUnion) {
  * related to the enum, we need to refine the enum's value
  */
 function intersectEnum(t: ExactOrUnion, e: ExactOrUnion) {
-  const enumData = getUnionComponent(e, TypeTag.Enum) as EnumValueType;
+  const enumData = getUnionComponent(e, TypeTag.Enum);
   const e2 = cloneType(e);
   const i = intersection(
     t,
@@ -315,7 +311,7 @@ function fixupEnum(
   b: ExactOrUnion
 ): ExactOrUnion {
   if (b.type & TypeTag.Enum) {
-    const bvalue = getUnionComponent(b, TypeTag.Enum) as EnumValueType | null;
+    const bvalue = getUnionComponent(b, TypeTag.Enum);
     const br = restrictByEquality(
       a,
       (bvalue && (bvalue.value || bvalue.enum?.resolvedType)) || {

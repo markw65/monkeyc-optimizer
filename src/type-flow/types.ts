@@ -128,6 +128,9 @@ type WithValue<T> = T extends ExactTypes
     : T & { value: NonNullable<T["value"]> }
   : never;
 
+export type ExactData<T extends ExactTypeTags> = T extends SingletonType
+  ? undefined
+  : NonNullable<Extract<ExactTypes, { type: T }>["value"]>;
 export type ValueTypes = WithValue<ExactTypes>;
 export type ExtendedTypes = ExactTypes | NeverType | AnyType;
 export interface NeverType extends AbstractValue {
@@ -413,7 +416,7 @@ export function typeFromTypeStateNode(
           const value = getUnionComponent(result, TypeTag.Typedef);
           if (value) {
             const a = [] as TypedefStateNode[];
-            forEach(value as TypedefValueType, (v) => {
+            forEach(value, (v) => {
               if (v !== sn) a.push(v);
             });
             clearValuesUnder(result, TypeTag.Typedef, true);
@@ -894,7 +897,7 @@ export function forEachUnionComponent(
   v: ExactOrUnion,
   bits: TypeTag,
   fn: (
-    tag: UnionDataKey,
+    tag: ExactTypeTags,
     value: SingleValue | null | undefined
   ) => boolean | void
 ) {
@@ -926,10 +929,10 @@ export function forEachUnionComponent(
   } while (bits);
 }
 
-export function getUnionComponent(
+export function getUnionComponent<T extends ExactTypeTags>(
   v: ExactOrUnion,
-  tag: TypeTag
-): SingleValue | null {
+  tag: T
+): ExactData<T> | null {
   if (v.value == null) return null;
   let bits = v.type & ~SingleTonTypeTagsConst;
   if (!bits) return null;
@@ -940,21 +943,27 @@ export function getUnionComponent(
     }
   }
   if (bits === tag) {
-    return v.value as Exclude<typeof v.value, UnionData>;
+    return v.value as ExactData<T> | null;
   } else if (bits & tag) {
     const unionData = v.value as UnionData;
-    return unionData[tag as keyof UnionData] || null;
+    return (unionData[tag as Exclude<keyof UnionData, "mask">] ||
+      null) as ExactData<T> | null;
   }
   return null;
 }
 
-export function setUnionComponent(
+export function setUnionComponent<T extends ExactTypeTags>(
   v: ExactOrUnion,
-  tag: TypeTag,
-  c: SingleValue
+  tag: T,
+  c: ExactData<T>
 ) {
   if (hasUnionData(v.type)) {
-    (v.value as Record<number, SingleValue>)[tag] = c;
+    const value = (
+      v.value ? { ...(v.value as UnionData) } : { mask: 0 }
+    ) as UnionData;
+    (value as unknown as Record<number, typeof c>)[tag] = c;
+    value.mask |= tag;
+    v.value = value;
   } else {
     v.value = c;
   }
