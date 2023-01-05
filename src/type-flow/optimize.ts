@@ -83,6 +83,29 @@ export function beforeEvaluate(
         consequent = tmp;
         test.node = node.test = node.test.argument;
       }
+      if (
+        test.value.type === TypeTag.Boolean &&
+        ((consequent.value.type === TypeTag.True &&
+          alternate.value.type === TypeTag.False) ||
+          (consequent.value.type === TypeTag.False &&
+            alternate.value.type === TypeTag.True)) &&
+        !consequent.embeddedEffects &&
+        !alternate.embeddedEffects
+      ) {
+        if (consequent.value.type === TypeTag.False) {
+          test.node = wrap(
+            {
+              type: "UnaryExpression",
+              operator: "!",
+              argument: node.test,
+              prefix: true,
+            },
+            test.node.loc
+          );
+        }
+        istate.stack.push(test);
+        return test.node;
+      }
       istate.stack.push(test, consequent, alternate);
       break;
     }
