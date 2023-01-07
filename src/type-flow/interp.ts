@@ -651,11 +651,34 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     case "ExpressionStatement":
       popIstate(istate, node.expression);
       break;
-    case "ReturnStatement":
-      if (node.argument) {
-        popIstate(istate, node.argument);
+    case "ReturnStatement": {
+      const value = node.argument && popIstate(istate, node.argument);
+      if (istate.typeChecker) {
+        if (!istate.func) {
+          throw new Error("ReturnStatement found outside of function");
+        }
+        if (istate.func.node.returnType) {
+          const returnType = typeFromTypespec(
+            istate.state,
+            istate.func.node.returnType.argument,
+            istate.func.stack
+          );
+          if (value) {
+            if (!istate.typeChecker(value.value, returnType)) {
+              diagnostic(
+                istate.state,
+                node.argument!,
+                `Expected ${istate.func.fullName} to return ${display(
+                  returnType
+                )} but got ${display(value.value)}`,
+                istate.checkTypes
+              );
+            }
+          }
+        }
       }
       break;
+    }
     case "IfStatement":
     case "WhileStatement":
     case "DoWhileStatement":

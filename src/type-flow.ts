@@ -481,6 +481,7 @@ function propagateTypes(
     state,
     typeMap,
     stack: [],
+    func,
   };
 
   const modifiableDecl = (
