@@ -157,6 +157,8 @@ function add(
     check(c, a + b, logger);
 }
 
+var xGlobal as Number = 42;
+var yGlobal as Number = 24;
 (:test)
 function testAddFolding(logger as Logger) as Boolean {
     ok = true;
@@ -188,6 +190,31 @@ function testAddFolding(logger as Logger) as Boolean {
     // skip these as above
     // add(logger, "foo", 1.1, /* @match /@"foo" \+ @1.1/ */ "foo" + 1.1);
     // add(logger, "foo", 1.2d, /* @match /@"foo" \+ @1.2d/ */ "foo" + 1.2d);
+
+    add(
+        logger,
+        xGlobal + 1,
+        yGlobal + 2,
+        /* @match /^@xGlobal \+ @yGlobal \+ @3$/ */ xGlobal + 1 + (yGlobal + 2)
+    );
+    add(
+        logger,
+        xGlobal + 1,
+        yGlobal - 2,
+        /* @match /^@xGlobal \+ @yGlobal \+ @-1$/ */ xGlobal + 1 + (yGlobal - 2)
+    );
+    add(
+        logger,
+        xGlobal - 1,
+        yGlobal + 2,
+        /* @match /^@xGlobal \+ @yGlobal - @-1$/ */ xGlobal - 1 + (yGlobal + 2)
+    );
+    add(
+        logger,
+        xGlobal - 1,
+        yGlobal - 2,
+        /* @match /^@xGlobal \+ @yGlobal - @3$/ */ xGlobal - 1 + (yGlobal - 2)
+    );
     return ok;
 }
 
@@ -212,6 +239,31 @@ function testSubFolding(logger as Logger) as Boolean {
     sub(logger, 1.5d, 0.5, /* @match /^@1d$/ */ 1.5d - 0.5);
     sub(logger, 1.5, 0.5d, /* @match /^@1d$/ */ 1.5 - 0.5d);
     sub(logger, 1.5d, 0.5d, /* @match /^@1d$/ */ 1.5d - 0.5d);
+
+    sub(
+        logger,
+        xGlobal + 1,
+        yGlobal + 2,
+        /* @match /^@xGlobal - @yGlobal \+ @-1$/ */ xGlobal + 1 - (yGlobal + 2)
+    );
+    sub(
+        logger,
+        xGlobal + 1,
+        yGlobal - 2,
+        /* @match /^@xGlobal - @yGlobal \+ @3$/ */ xGlobal + 1 - (yGlobal - 2)
+    );
+    sub(
+        logger,
+        xGlobal - 1,
+        yGlobal + 2,
+        /* @match /^@xGlobal - @yGlobal - @3$/ */ xGlobal - 1 - (yGlobal + 2)
+    );
+    sub(
+        logger,
+        xGlobal - 1,
+        yGlobal - 2,
+        /* @match /^@xGlobal - @yGlobal - @-1$/ */ xGlobal - 1 - (yGlobal - 2)
+    );
     return ok;
 }
 

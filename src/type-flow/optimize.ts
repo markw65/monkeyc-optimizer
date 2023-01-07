@@ -525,63 +525,145 @@ function tryCommuteAndAssociate(
       }
     // fallthrough
     case "-":
-      if (hasValue(right.value)) {
-        if (
-          node.left.type === "BinaryExpression" &&
-          (node.left.operator === node.operator ||
-            (node.operator === "+" && node.left.operator === "-") ||
-            (node.operator === "-" && node.left.operator === "+"))
-        ) {
-          const lr = getLiteralNode(node.left.right);
-          if (lr) {
-            const leftRight = evaluate(istate, lr);
-            if (hasValue(leftRight.value)) {
-              // (ll + lr) + r => ll + (r + lr)
-              // (ll - lr) - r => ll - (r + lr)
-              // (ll + lr) - r => ll + (r - lr)
-              // (ll - lr) + r => ll - (r - lr)
-              const tmpNode: mctree.BinaryExpression = {
-                type: "BinaryExpression",
-                operator:
-                  node.operator === "+" || node.operator === "-"
-                    ? node.operator === node.left.operator
-                      ? "+"
-                      : "-"
-                    : node.operator,
-                left: node.right,
-                right: node.left.right,
-              };
-              if (tmpNode.operator === "+" || tmpNode.operator === "-") {
-                if (
-                  leftRight.value.type & (TypeTag.Float | TypeTag.Double) ||
-                  right.value.type & (TypeTag.Float | TypeTag.Double)
-                ) {
-                  // we don't want to fold "a + 1.0 - 1.0" because
-                  // it could be there for rounding purposes
-                  const lsign = (right.value.value as number) < 0;
-                  const rsign =
-                    (leftRight.value.value as number) < 0 ===
-                    (tmpNode.operator === "+");
-                  if (lsign !== rsign) break;
-                }
-              }
-              const repType = evaluate(istate, tmpNode);
-              if (hasValue(repType.value)) {
-                const repNode = mcExprFromType(repType.value);
-                if (repNode) {
-                  node.left = node.left.left;
-                  node.right = repNode;
-                  istate.stack.splice(-1, 1, repType);
-                  repType.node = repNode;
-                  left.node = node.left;
-                  right = repType;
-                  break;
-                }
-              }
-            }
-          }
-        }
+      if (tryReAssociate(istate, node, left, right)) {
+        [left, right] = istate.stack.slice(-2);
       }
   }
   return tryIdentity(istate, node, left, right);
+}
+
+/*
+ * Try to reorder (a op K1) op K2 => a op (K1 op K2),
+ * and fold K1 op K2.
+ *
+ * Failing that,
+ * Try to reorder (a op K1) op (b op K2) as
+ * (a op b) op (K1 op K2), and fold K1 op K2.
+ *
+ * Failing that,
+ * Try to reorder (a op K) op b => (a op b) op K
+ * so that constants float up and to the right.
+ * This helps because now ((a op K1) op b) op K2
+ * becomes ((a op b) op K1) op K2, and we can
+ * fold K1 op K2 by the first transformation.
+ *
+ * Floating point arithmetic isn't really associative
+ * though, so we mostly suppress this when Floats
+ * and Doubles may be involved; except that
+ * (a + K1) + K2 can be safely converted to
+ * a + (K1 + K2) if K1 and K2 have the same sign.
+ */
+function tryReAssociate(
+  istate: InterpState,
+  node: mctree.BinaryExpression,
+  left: InterpStackElem,
+  right: InterpStackElem
+) {
+  if (
+    node.left.type !== "BinaryExpression" ||
+    (node.left.operator !== node.operator &&
+      !(node.operator === "+" && node.left.operator === "-") &&
+      !(node.operator === "-" && node.left.operator === "+"))
+  ) {
+    return false;
+  }
+
+  const lr = getLiteralNode(node.left.right);
+  if (!lr) return false;
+  const leftRight = evaluate(istate, lr);
+  if (!hasValue(leftRight.value)) return false;
+
+  if (hasValue(right.value)) {
+    // (ll + lr) + r => ll + (r + lr)
+    // (ll - lr) - r => ll - (r + lr)
+    // (ll + lr) - r => ll + (r - lr)
+    // (ll - lr) + r => ll - (r - lr)
+    const tmpNode: mctree.BinaryExpression = {
+      type: "BinaryExpression",
+      operator:
+        node.operator === "+" || node.operator === "-"
+          ? node.operator === node.left.operator
+            ? "+"
+            : "-"
+          : node.operator,
+      left: node.right,
+      right: node.left.right,
+    };
+    if (tmpNode.operator === "+" || tmpNode.operator === "-") {
+      if (
+        leftRight.value.type & (TypeTag.Float | TypeTag.Double) ||
+        right.value.type & (TypeTag.Float | TypeTag.Double)
+      ) {
+        // we don't want to fold "a + 1.0 - 1.0" because
+        // it could be there for rounding purposes
+        const lsign = (right.value.value as number) < 0;
+        const rsign =
+          (leftRight.value.value as number) < 0 === (tmpNode.operator === "+");
+        if (lsign !== rsign) return false;
+      }
+    }
+    const repType = evaluate(istate, tmpNode);
+    if (!hasValue(repType.value)) return false;
+    const repNode = mcExprFromType(repType.value);
+    if (!repNode) return false;
+    left.node = node.left = node.left.left;
+    node.right = repNode;
+    istate.stack.splice(-1, 1, repType);
+    repType.node = repNode;
+    return true;
+  }
+  if (
+    leftRight.value.type !== left.value.type ||
+    leftRight.value.type !== right.value.type ||
+    leftRight.value.type & (TypeTag.Float | TypeTag.Double)
+  ) {
+    return false;
+  }
+  if (
+    node.right.type === "BinaryExpression" &&
+    (node.right.operator === node.operator ||
+      ((node.operator === "+" || node.operator === "-") &&
+        (node.right.operator === "+" || node.right.operator === "-")))
+  ) {
+    // (a + K1) + (b + K2) => (a + b) + (K1 + K2)
+    const rr = getLiteralNode(node.right.right);
+    if (!rr) return false;
+    const rightRight = evaluate(istate, rr);
+    if (!hasValue(rightRight.value)) return false;
+    const rightOp =
+      node.operator === "+" || node.operator === "-"
+        ? ((node.left.operator === "+") === (node.right.operator === "+")) ===
+          (node.operator === "+")
+          ? "+"
+          : "-"
+        : node.operator;
+    const topOp = node.left.operator;
+    const leftOp = node.operator;
+    const rightType = evaluateBinaryTypes(
+      rightOp,
+      leftRight.value,
+      rightRight.value
+    );
+    if (!hasValue(rightType)) return false;
+    const repNode = mcExprFromType(rightType);
+    if (!repNode) return false;
+    node.left.right = node.right.left;
+    node.right = repNode;
+    node.left.operator = leftOp;
+    node.operator = topOp;
+    istate.stack.splice(-1, 1, {
+      value: rightType,
+      node: repNode,
+      embeddedEffects: false,
+    });
+    return true;
+  }
+  const op = node.operator;
+  node.operator = node.left.operator;
+  node.left.operator = op;
+  leftRight.node = node.left.right;
+  node.left.right = node.right;
+  node.right = leftRight.node;
+  istate.stack.splice(-1, 1, leftRight);
+  return true;
 }
