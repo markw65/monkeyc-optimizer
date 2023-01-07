@@ -582,3 +582,33 @@ function argInterference4(x as Number, y as Number, z as Number) as Number {
     method.invoke();
     return x + y + z;
 }
+
+(:inline,:typecheck(false))
+function getConfigTry(
+    key as Toybox.Application.PropertyKeyType
+) as Toybox.Application.PropertyValueType {
+    try {
+        return OptimizerTestsApp.getProperty(key);
+    } catch (e) {
+        return null;
+    }
+}
+
+(:inline,:typecheck(false))
+function getConfigIf(
+    key as Toybox.Application.PropertyKeyType
+) as Toybox.Application.PropertyValueType {
+    if (key != 42) {
+        return OptimizerTestsApp.getProperty(key);
+    }
+    return null;
+}
+
+(:test)
+function testPREWIthInterference(logger as Logger) as Boolean {
+    // @expect "Function had more than one return statement"
+    var x = getConfigTry("foo") as String;
+    // @expect "Function had more than one return statement"
+    var y = getConfigIf("foo") as String;
+    return x == y;
+}

@@ -726,7 +726,9 @@ function inlineWithArgs(
         call,
         "Function had more than one return statement"
       );
-    } else if (
+      return null;
+    }
+    if (
       (context.type === "AssignmentExpression" ||
         context.type === "VariableDeclarator" ||
         context.type === "IfStatement") &&
