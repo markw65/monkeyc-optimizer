@@ -1,7 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { formatAst } from "./api";
 import { isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
-import { getPostOrder } from "./control-flow";
+import { getPostOrder, postOrderTraverse } from "./control-flow";
 import {
   buildDataFlowGraph,
   declFullName,
@@ -15,7 +15,7 @@ import {
 } from "./data-flow";
 import { cloneSet, functionMayModify, mergeSet } from "./function-info";
 import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
-import { some } from "./util";
+import { every, some } from "./util";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination
@@ -140,13 +140,85 @@ export function sizeBasedPRE(
 }
 
 function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
-  return buildDataFlowGraph(
+  const result = buildDataFlowGraph(
     state,
     func,
     (literal) => refCost(literal) > LocalRefCost,
     true,
     false
   );
+  // Split blocks that contains refs and defs to the same thing,
+  // to make it easier to pick and choose which refs are converted
+  postOrderTraverse(result.graph, (block) => {
+    if (!block.events) {
+      return;
+    }
+    let modSeen = false;
+    const refs = new Set<EventDecl>();
+    const defs = new Set<EventDecl>();
+    const splitBlock = (eventIndex: number) => {
+      const newBlock = { ...block };
+      delete newBlock.node;
+      newBlock.events = block.events?.splice(eventIndex);
+      newBlock.succs?.forEach((succ) => {
+        const i = succ.preds!.findIndex((b) => b === block);
+        succ.preds![i] = newBlock;
+        if (succ.expreds?.includes(block)) {
+          succ.expreds.push(newBlock);
+        }
+      });
+      block.succs = [newBlock];
+      newBlock.preds = [block];
+      delete newBlock.expreds;
+      modSeen = false;
+      refs.clear();
+      defs.clear();
+    };
+    for (let i = block.events.length; i--; ) {
+      const event = block.events[i];
+      switch (event.type) {
+        case "ref":
+          if (
+            some(
+              event.decl,
+              (decl) =>
+                decl.type === "Literal" ||
+                (decl.type === "VariableDeclarator" &&
+                  decl.node.kind === "const")
+            )
+          ) {
+            break;
+          }
+          if (modSeen || defs.has(event.decl)) {
+            splitBlock(i + 1);
+          }
+          refs.add(event.decl);
+          break;
+        case "def":
+          if (refs.has(event.decl)) {
+            splitBlock(i + 1);
+          }
+          defs.add(event.decl);
+          break;
+        case "mod":
+          if (
+            event.callees &&
+            every(event.callees, (callee) => callee.info === false)
+          ) {
+            // calls known to have no side effects can be
+            // dropped.
+            block.events.splice(i, 1);
+            break;
+          }
+          if (refs.size) {
+            splitBlock(i + 1);
+          }
+          modSeen = true;
+          break;
+      }
+    }
+  });
+  return result;
 }
 
 /**

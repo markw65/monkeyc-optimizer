@@ -396,7 +396,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     check(x, 4, logger);
     {
         var z = 15;
-        /* @match /\* self\.z;/ */
+        /* @match /\* (self\.z|pre_z(_\d+)?);/ */
         x = assignContext(A.B.x);
         check(x, 15, logger);
     }

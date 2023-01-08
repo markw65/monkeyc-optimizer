@@ -109,6 +109,42 @@ function testPREWithFunctionConflict(logger as Logger) as Boolean {
     conflict += gMaybeModified;
     conflict();
 
-    /* @match "== 2 * pre_gMaybe" */
-    return conflict - safe == 2 * gMaybeModified - 1;
+    /* @match "== gMaybeModified * 2" */
+    return conflict - safe == gMaybeModified * 2 - 1;
+}
+
+var mResult as Number = 42;
+(:test)
+function testPreFailure1(logger as Logger) as Boolean {
+    var extHr = "x";
+
+    var result2 = mResult;
+    result2++;
+    mResult = result2;
+
+    /* @match "pre_mResult" */
+    if (mResult != null) {
+        /* @match "pre_mResult" */
+        extHr += " " + mResult;
+    }
+    return extHr.equals("x 43");
+}
+
+(:test)
+function testPreFailure2(logger as Logger) as Boolean {
+    $.gMaybeModified = 0;
+    conflict();
+    if (mResult != 100) {
+        $.gMaybeModified += 5;
+
+        conflict();
+        // PRE doesn't work for this example yet. For now,
+        // check that it failed:
+        // @match /(\b(?!pre_)gMaybeModified.*){2}/
+        if ($.gMaybeModified < 0 || $.gMaybeModified > 100) {
+            return false;
+        }
+    }
+
+    return $.gMaybeModified == 7;
 }
