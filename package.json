@@ -35,7 +35,7 @@
     "build/util.cjs",
     "build/sdk-util.cjs",
     "build/api.cjs",
-    "build/src/*.d.ts"
+    "build/src/**/*.d.ts"
   ],
   "author": "markw65",
   "license": "MIT",
