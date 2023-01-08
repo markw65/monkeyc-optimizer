@@ -546,3 +546,31 @@ Bug Fixes
   - Better typing for resources
   - Refactor PRE
   - Improve accuracy of whether or not a function can modify a particular global (resulting in better PRE)
+
+### 1.1.0
+
+- Implements a type analyzer, to enable better optimizations
+
+  - adds options `trustDeclaredTypes` and `propagateTypes`. See https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis
+
+- Improved optimizations
+
+  - SizeBasedPRE now has finer granularity, making it generally find more opportunities
+  - Lots of improvements to binary operators, and folding. Subject to suitable type checks,
+    - `(x + K1) + K2` => `x + (K1 + K2)`
+    - `(x + K1) + (y + K2)` => `(x + y) + (K1 + K2)`
+    - `(x + K1) + y` => `(x + y) + K1`, so that `((x + K1) + y) + K2` => `(x + y) + (K1 + K2)`
+    - `(x + -y)` and `(-y + x)` => `x - y`
+    - `x + 0` => `x`
+    - `x * 0` => `0`
+  - Various boolean optimizations:
+    - `!x ? y : z` => `x ? z : y`
+    - `x ? true : false` => `x`
+    - `x ? false : true` => `!x`
+    - `x && true` => `x`, `y || false` => `y`
+  - constant propagation
+    - `var x = 42; ...; foo(x)` => `...; foo(42)`
+
+- Bug fixes
+  - Fixes a bug that could ignore side effects from Method.invoke
+  - Fixes a crash in the inliner, when trying to inline a function with multiple returns
