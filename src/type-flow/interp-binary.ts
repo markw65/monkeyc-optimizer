@@ -129,9 +129,11 @@ function equalsCheck(left: ValueTypes, right: ValueTypes): boolean | undefined {
   // otherwise its unknown (we don't track object identity).
 
   // Note that each type can only have a single bit set. This is important!
+
+  const lrBits = left.type | right.type;
   return left.type & TypeTag.Numeric && right.type & TypeTag.Numeric
     ? left.value == right.value
-    : (left.type | right.type) == (TypeTag.Number | TypeTag.Char)
+    : lrBits == (TypeTag.Number | TypeTag.Char)
     ? // Char vs Number is true iff the number is the char-code of the char
       left.type === TypeTag.Char
       ? left.value.charCodeAt(0) === right.value
@@ -141,14 +143,13 @@ function equalsCheck(left: ValueTypes, right: ValueTypes): boolean | undefined {
     : right.type == TypeTag.Number && left.type & TypeTag.Boolean
     ? right.value == (left.value ? 1 : 0)
     : left.type !== right.type
-    ? ((left.type | right.type) &
-        (TypeTag.Object |
-          TypeTag.Module |
-          TypeTag.Function |
-          TypeTag.Class)) ===
-      TypeTag.Object
-      ? undefined
-      : false
+    ? lrBits & TypeTag.Null
+      ? lrBits & (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary)
+        ? undefined
+        : false
+      : lrBits & (TypeTag.Module | TypeTag.Function | TypeTag.Class)
+      ? false
+      : undefined
     : left.type === TypeTag.Char || left.type === TypeTag.Symbol
     ? left.value === right.value
     : isSingleton(left)

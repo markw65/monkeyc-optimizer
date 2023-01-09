@@ -215,8 +215,10 @@ export function beforeEvaluate(
         if (node.operator === "==" || node.operator === "!=") {
           const [{ value: left }, { value: right }] = istate.stack.slice(-2);
           if (
-            (left.type === TypeTag.Null && !(right.type & TypeTag.Null)) ||
-            (right.type === TypeTag.Null && !(left.type & TypeTag.Null))
+            ((left.type === TypeTag.Null && !(right.type & TypeTag.Null)) ||
+              (right.type === TypeTag.Null && !(left.type & TypeTag.Null))) &&
+            (left.type | right.type) &
+              (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary)
           ) {
             diagnostic(
               istate.state,
