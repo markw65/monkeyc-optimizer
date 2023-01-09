@@ -15,30 +15,6 @@ import { forEach, map } from "../util";
 import { evaluateExpr, roundToFloat } from "./interp";
 import { clearValuesUnder, unionInto } from "./union-type";
 
-/**
- * TypeBit gives the position of the 1 bit in TypeTag
- */
-export enum TypeBit {
-  Null,
-  False,
-  True,
-  Number,
-  Long,
-  Float,
-  Double,
-  Char,
-  String,
-  Array,
-  Dictionary,
-  Module,
-  Function,
-  Class,
-  Object,
-  Enum,
-  Symbol,
-  Typedef,
-}
-
 export enum TypeTag {
   Never = 0,
   Null = 0b00000000000000001,
@@ -63,6 +39,8 @@ export enum TypeTag {
   Typedef = 0b100000000000000000,
   Any = 0b111111111111111111,
 }
+
+export const LastTypeTag = TypeTag.Typedef;
 
 export const SingleTonTypeTagsConst =
   TypeTag.Null | TypeTag.False | TypeTag.True;
