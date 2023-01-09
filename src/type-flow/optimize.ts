@@ -278,6 +278,17 @@ export function beforeEvaluate(
         popIstate(istate, node.right);
         return node.left;
       }
+      if (
+        right.value.type === (isAnd ? TypeTag.False : TypeTag.True) &&
+        !left.embeddedEffects &&
+        (left.value.type & TypeTag.Boolean) === left.value.type
+      ) {
+        popIstate(istate, node.right);
+        popIstate(istate, node.left);
+        istate.stack.push(right);
+        return node.right;
+      }
+
       if (isAnd ? !mustBeTrue(left.value) : !mustBeFalse(left.value)) {
         break;
       }
