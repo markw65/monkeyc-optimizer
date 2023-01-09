@@ -449,3 +449,20 @@ function testIfFolding(logger as Logger) as Boolean {
     }
     return false;
 }
+
+function argChecker(x as Array<Number>?) as Void {}
+
+const HR_ZONES_MOCK = null as Array<Number>?;
+const MY_NUMBER = 4 as Number?;
+
+(:test)
+function constantsWithCasts(logger as Logger) as Boolean {
+    // @match "return true;"
+    if (gMaybeModified != 0 && HR_ZONES_MOCK != null) {
+        argChecker(HR_ZONES_MOCK);
+    }
+    if (MY_NUMBER != 4) {
+        return false;
+    }
+    return true;
+}

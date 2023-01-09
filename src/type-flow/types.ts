@@ -289,6 +289,15 @@ export function hasValue(v: AbstractValue): v is WithValue<ExactTypes> {
   );
 }
 
+export function hasNoData(v: AbstractValue, t: TypeTag) {
+  if (v.value == null) return true;
+  return (
+    (hasUnionData(v.type)
+      ? (v.value as UnionData).mask & t
+      : v.type & t & ~SingleTonTypeTagsConst) == 0
+  );
+}
+
 function lookupByFullName(state: ProgramStateAnalysis, fullName: string) {
   return fullName.split(".").reduce(
     (results: StateNodeDecl[], part) => {

@@ -12,15 +12,18 @@ import { evaluateCall } from "./interp-call";
 import {
   cloneType,
   ExactOrUnion,
+  hasNoData,
   hasValue,
   isExact,
   mustBeFalse,
   mustBeTrue,
   ObjectType,
+  SingleTonTypeTagsConst,
   typeFromLiteral,
   typeFromTypespec,
   typeFromTypeStateNode,
   TypeTag,
+  ValueTypeTagsConst,
 } from "./types";
 import { unionInto } from "./union-type";
 
@@ -233,6 +236,19 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       const right = popIstate(istate, node.right);
       const left = popIstate(istate, node.left);
       if (node.operator === "as") {
+        if (
+          (left.value.type & (ValueTypeTagsConst | SingleTonTypeTagsConst)) ==
+            left.value.type &&
+          (right.value.type & left.value.type) === left.value.type &&
+          hasNoData(right.value, left.value.type)
+        ) {
+          push({
+            value: left.value,
+            embeddedEffects: left.embeddedEffects,
+            node,
+          });
+          return;
+        }
         if (hasValue(right.value) && right.value.type === TypeTag.Enum) {
           if (
             (left.value.type & (TypeTag.Numeric | TypeTag.String)) ==
