@@ -578,3 +578,12 @@ Bug Fixes
 ### 1.1.1
 
 - Fix the package spec to include the new .d.ts files
+
+### 1.1.2
+
+- Fix a couple of edge cases when constant folding == and !=
+- Optimize `<boolean> && false`, and `<boolean> || true`, when `<boolean>` has no side effects
+- Better optimization of inlined function bodies
+- Analyze constants with casts to help with constant propagation
+- Ignore widening casts (eg a cast that is given a `Number` and converts it to `Number or String`)
+- More accurate deletion of unused constants. Sometimes a constant that was unused after the optimization phase ended, was still considered used because of references that were eventually deleted.
