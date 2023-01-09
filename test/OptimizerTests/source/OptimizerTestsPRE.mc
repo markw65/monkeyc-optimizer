@@ -127,3 +127,19 @@ function testPreFailure2(logger as Logger) as Boolean {
 
     return $.gMaybeModified == 7;
 }
+
+function checker(x as Array<Number>?) as Void {}
+
+const HR_ZONES_MOCK = null as Array<Number>?;
+const MY_NUMBER = 4 as Number?;
+
+(:test)
+function simple(logger as Logger) as Boolean {
+    if (gMaybeModified != 0 && HR_ZONES_MOCK != null) {
+        checker(HR_ZONES_MOCK);
+    }
+    if (MY_NUMBER != 4) {
+        return false;
+    }
+    return true;
+}

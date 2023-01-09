@@ -416,11 +416,17 @@ export function typeFromTypeStateNode(
 
     case "VariableDeclarator":
       if (sn.node.kind === "const" && sn.node.init) {
-        if (sn.node.init.type === "Literal") {
-          return typeFromLiteral(sn.node.init);
+        let node = sn.node.init;
+        if (node.type === "Literal") {
+          return typeFromLiteral(node);
         }
-        const [value] = getNodeValue(sn.node.init);
-        if (value) {
+        while (node.type === "BinaryExpression" && node.operator === "as") {
+          node = node.left;
+        }
+        if (
+          node.type === "Literal" ||
+          (node.type === "UnaryExpression" && node.operator === ":")
+        ) {
           return evaluateExpr(state, sn.node.init).value;
         }
       }
