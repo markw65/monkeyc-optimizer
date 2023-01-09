@@ -574,3 +574,7 @@ Bug Fixes
 - Bug fixes
   - Fixes a bug that could ignore side effects from Method.invoke
   - Fixes a crash in the inliner, when trying to inline a function with multiple returns
+
+### 1.1.1
+
+- Fix the package spec to include the new .d.ts files
