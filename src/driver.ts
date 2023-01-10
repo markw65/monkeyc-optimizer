@@ -55,6 +55,7 @@ export async function driver() {
   let propagateTypes = true;
   let trustDeclaredTypes = true;
   let checkTypes: DiagnosticType | "OFF" = "WARNING";
+  let skipRemote = false;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -226,6 +227,9 @@ export async function driver() {
       case "showInfo":
         showInfo = !value || /^true|1$/i.test(value);
         break;
+      case "skipRemote":
+        skipRemote = !value || /^true|1$/i.test(value);
+        break;
 
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
@@ -236,7 +240,7 @@ export async function driver() {
   if (remoteProjects) {
     const rp = remoteProjects;
     promise = promise
-      .then(() => fetchGitProjects(rp, !!testBuild))
+      .then(() => fetchGitProjects(rp, !!testBuild, skipRemote))
       .then((j) => {
         console.log(
           `${new Date().toLocaleString()} - Finished updating projects`

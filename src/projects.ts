@@ -369,7 +369,8 @@ export const githubProjects: RemoteProject[] = [
 
 export async function fetchGitProjects(
   projects: RemoteProject[],
-  testOnly: boolean
+  testOnly: boolean,
+  skipRemote: boolean
 ) {
   const dir = path.join(__dirname, "..", "build", "test", "projects");
   await fs.mkdir(dir, { recursive: true });
@@ -392,7 +393,7 @@ export async function fetchGitProjects(
     if (testOnly && !test) return Promise.resolve([]);
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
-    return fetchAndClean(projDir, root)
+    return fetchAndClean(projDir, root, skipRemote)
       .then((output) => {
         if (!rename) {
           return output;
@@ -453,7 +454,7 @@ export async function fetchGitProjects(
   return result.flat();
 }
 
-function fetchAndClean(projDir: string, root: string) {
+function fetchAndClean(projDir: string, root: string, skipRemote: boolean) {
   const gitDir = path.resolve(projDir, ".git");
   const output = [`Updating project ${root}`];
   const logger = (line: string) => output.push(` - ${line}`);
@@ -461,25 +462,35 @@ function fetchAndClean(projDir: string, root: string) {
   return fs
     .stat(gitDir)
     .catch(() => null)
-    .then((s) =>
-      !s
-        ? spawnByLine(
-            "git",
-            ["clone", root + ".git", path.basename(projDir)],
-            loggers,
-            {
-              cwd: path.resolve(projDir, ".."),
-            }
+    .then((s) => {
+      if (s) return null;
+      if (skipRemote) {
+        throw new Error(
+          `skipRemote was set, but ${root}.git had not been cloned`
+        );
+      }
+      return spawnByLine(
+        "git",
+        ["clone", root + ".git", path.basename(projDir)],
+        loggers,
+        {
+          cwd: path.resolve(projDir, ".."),
+        }
+      );
+    })
+    .then(() =>
+      skipRemote
+        ? undefined
+        : spawnByLine("git", ["fetch", "origin"], loggers, {
+            cwd: projDir,
+          }).then(() =>
+            spawnByLine("git", ["diff", "FETCH_HEAD", "origin/HEAD"], loggers, {
+              cwd: projDir,
+            })
           )
-        : null
     )
     .then(() =>
-      spawnByLine("git", ["fetch", "origin"], loggers, {
-        cwd: projDir,
-      })
-    )
-    .then(() =>
-      spawnByLine("git", ["reset", "--hard", "FETCH_HEAD"], loggers, {
+      spawnByLine("git", ["reset", "--hard", "origin/HEAD"], loggers, {
         cwd: projDir,
       })
     )
