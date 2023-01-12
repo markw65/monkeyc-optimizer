@@ -839,8 +839,34 @@ function inlineWithArgs(
       --block.body.length;
     }
   }
-  withLocDeep(body, context, context, true);
-  return body;
+  return updateLocationForInline(body, call, context, func);
+}
+
+function updateLocationForInline<T extends mctree.Node>(
+  node: T,
+  original: mctree.Node,
+  context: mctree.Node,
+  func: FunctionStateNode
+) {
+  const loc = original.loc;
+  if (!loc) {
+    throw new Error("Internal error: Inlined call had no location info");
+  }
+  traverseAst(node, (node) => {
+    if (
+      node.loc &&
+      (node.loc.source !== loc.source ||
+        node.loc.start.offset > loc.end.offset ||
+        node.loc.end.offset <= loc.start.offset)
+    ) {
+      if (!node.origins) {
+        node.origins = [];
+      }
+      node.origins.unshift({ loc: node.loc, func: func.fullName });
+    }
+    withLoc(node, context, context === original ? context : false);
+  });
+  return node;
 }
 
 function isTypecheckArg(
@@ -878,7 +904,7 @@ function inlineFunctionHelper(
   const map = fixupLocalsMap(state);
   const ret = processInlineBody(state, func, call, retArg, params);
   state.localsStack![state.localsStack!.length - 1].map = map;
-  return ret && withLocDeep(ret, call, call, true);
+  return ret && updateLocationForInline(ret, call, call, func);
 }
 
 export function inlineFunction(
