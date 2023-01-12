@@ -466,7 +466,7 @@ function lookup(
           if (state.config?.checkInvalidSymbols !== "OFF") {
             diagnostic(
               state,
-              node.loc,
+              node,
               `${formatAst(
                 node
               )} is ambiguous and exists in multiple imported modules [${imports
@@ -487,7 +487,7 @@ function lookup(
             if (state.config?.checkCompilerLookupRules !== "OFF") {
               diagnostic(
                 state,
-                node.loc,
+                node,
                 `${formatAst(
                   node
                 )} will only be found when compiled with compiler2 at -O1 or above`,
@@ -1094,7 +1094,7 @@ function findUsing(
   if (state.config?.checkInvalidSymbols !== "OFF") {
     diagnostic(
       state,
-      using.node.id.loc,
+      using.node.id,
       `Unable to resolve import of ${formatAst(using.node.id)}`,
       state.config?.checkInvalidSymbols || "WARNING"
     );
@@ -1181,12 +1181,13 @@ export function isLocal(v: VariableStateNode) {
 
 export function diagnostic(
   state: ProgramState,
-  loc: mctree.Node["loc"],
+  node: mctree.Node,
   message: string | null,
   type: NonNullable<
     ProgramStateAnalysis["diagnostics"]
   >[string][number]["type"] = "INFO"
 ) {
+  const loc = node.loc;
   if (!loc || !loc.source) return;
   const source = loc.source;
   if (!state.diagnostics) state.diagnostics = {};

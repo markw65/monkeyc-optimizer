@@ -479,7 +479,7 @@ function typeFromSingleTypeSpec(
         if (level !== "OFF") {
           diagnostic(
             state,
-            id.loc,
+            id,
             `Unable to resolve type ${formatAst(id)}`,
             level || "WARNING"
           );

@@ -222,7 +222,7 @@ export function beforeEvaluate(
           ) {
             diagnostic(
               istate.state,
-              node.loc,
+              node,
               `This comparison seems redundant because ${formatAst(
                 left.type === TypeTag.Null ? node.right : node.left
               )} should never be null`,
@@ -235,7 +235,7 @@ export function beforeEvaluate(
           if (!couldBe(left, right)) {
             diagnostic(
               istate.state,
-              node.loc,
+              node,
               `The type ${display(left)} cannot be converted to ${display(
                 right
               )} because they have nothing in common`,

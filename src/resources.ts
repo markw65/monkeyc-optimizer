@@ -359,7 +359,12 @@ function visit_resource_refs(
               start: addPositions(startPos, error.location.start),
               end: addPositions(startPos, error.location.end),
             };
-            diagnostic(state, location, ex.message, check || "WARNING");
+            diagnostic(
+              state,
+              { type: "Identifier", loc: location, name: "" },
+              ex.message,
+              check || "WARNING"
+            );
           }
         }
       }

@@ -649,7 +649,7 @@ function inlineDiagnostic(
   if (inlineRequested(state, func)) {
     diagnostic(
       state,
-      call.loc,
+      call,
       message && `While inlining ${func.node.id.name}: ${message}`
     );
   }
@@ -755,7 +755,7 @@ function inlineWithArgs(
   if (!processInlineBody(state, func, call, body, params)) {
     return null;
   }
-  diagnostic(state, call.loc, null);
+  diagnostic(state, call, null);
   if (context.type !== "ReturnStatement" && retStmtCount) {
     const [last, block] = lastStmt(body);
     if (last.type != "ReturnStatement") {

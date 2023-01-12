@@ -353,7 +353,7 @@ export function reportMissingSymbols(
           ) {
             diagnostic(
               state,
-              node.loc,
+              node,
               `The expression ${formatAst(
                 node
               )} will fail at runtime using sdk-4.1.6`,
@@ -370,7 +370,7 @@ export function reportMissingSymbols(
         }
         diagnostic(
           state,
-          node.loc,
+          node,
           `Undefined symbol ${nodeStr || formatAst(node)}`,
           diagnosticType
         );

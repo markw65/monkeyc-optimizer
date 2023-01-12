@@ -54,7 +54,7 @@ export function pragmaChecker(
 
       diagnostic(
         state,
-        comment.loc,
+        comment,
         `Build pragma '${comment.value}' is invalid`,
         "ERROR"
       );
@@ -90,7 +90,7 @@ export function pragmaChecker(
           matcher(quote, needle, haystack);
           diagnostic(
             state,
-            comment.loc,
+            comment,
             `Didn't find '${needle}' in '${haystack}'`,
             "ERROR"
           );
@@ -138,7 +138,7 @@ export function pragmaChecker(
         if (!found) {
           diagnostic(
             state,
-            comment.loc,
+            comment,
             `Missing error message '${needle}`,
             "ERROR"
           );
