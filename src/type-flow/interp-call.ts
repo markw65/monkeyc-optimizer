@@ -1,11 +1,12 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { FunctionStateNode } from "src/optimizer-types";
-import { hasProperty } from "../api";
+import { diagnostic, formatAst, hasProperty } from "../api";
 import { reduce } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
 import { subtypeOf } from "./sub-type";
 import {
   cloneType,
+  display,
   ExactOrUnion,
   getUnionComponent,
   hasValue,
@@ -20,7 +21,7 @@ export function evaluateCall(
   istate: InterpState,
   node: mctree.CallExpression,
   callee: ExactOrUnion,
-  _args: ExactOrUnion[]
+  args: ExactOrUnion[]
 ): InterpStackElem {
   while (!hasValue(callee) || callee.type !== TypeTag.Function) {
     const name =
@@ -38,28 +39,85 @@ export function evaluateCall(
         }
       }
     }
+    istate.typeChecker &&
+      diagnostic(
+        istate.state,
+        node,
+        `'${formatAst(node.callee)}' is not callable`,
+        istate.checkTypes
+      );
     return { value: { type: TypeTag.Any }, node, embeddedEffects: true };
   }
   return reduce(
     callee.value,
     (result, cur) => {
-      if (cur.node.returnType) {
-        const returnType = typeFromTypespec(
-          istate.state,
-          cur.node.returnType.argument,
-          cur.stack
-        );
+      const checker = istate.typeChecker;
+      let argTypes: ExactOrUnion[] | null = null;
+      let returnType: ExactOrUnion | null = null;
+      let effects = true;
+      if (node.callee.type === "MemberExpression") {
+        const object = istate.typeMap?.get(node.callee.object) || {
+          type: TypeTag.Any,
+        };
+        const info = sysCallInfo(cur);
+        if (info) {
+          const result = info(cur, object, () => args);
+          if (result.argTypes) argTypes = result.argTypes;
+          if (result.returnType) returnType = result.returnType;
+          if (result.effectFree) effects = false;
+        }
+      }
+      if (checker) {
+        if (args.length !== cur.node.params.length) {
+          diagnostic(
+            istate.state,
+            node,
+            `${cur.fullName} expects ${cur.node.params.length} arguments, but got ${args.length}`,
+            istate.checkTypes
+          );
+        }
+        args.forEach((arg, i) => {
+          let paramType;
+          if (argTypes) {
+            paramType = argTypes[i];
+          } else {
+            const param = cur.node.params[i];
+            if (param?.type !== "BinaryExpression") return;
+            paramType = typeFromTypespec(istate.state, param.right, cur.stack);
+          }
+          if (checker(arg, paramType)) return;
+          diagnostic(
+            istate.state,
+            node.arguments[i],
+            `Argument ${i + 1} to ${cur.fullName} expected to be ${display(
+              paramType
+            )} but got ${display(arg)}`,
+            istate.checkTypes
+          );
+        });
+      }
+      if (!returnType) {
+        if (cur.node.returnType) {
+          returnType = typeFromTypespec(
+            istate.state,
+            cur.node.returnType.argument,
+            cur.stack
+          );
+        }
+      }
+      if (returnType) {
         unionInto(result.value, returnType);
       } else {
         result.value.type = TypeTag.Any;
         delete result.value.value;
       }
+      if (effects) result.embeddedEffects = true;
       return result;
     },
     {
       value: { type: TypeTag.Never },
       node,
-      embeddedEffects: true,
+      embeddedEffects: false,
     } as InterpStackElem
   );
 }
