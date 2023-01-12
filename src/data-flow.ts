@@ -85,6 +85,10 @@ export interface ModEvent extends BaseEvent {
   // list of callees (assuming this was a call/new)
   // so we can determine whether it affects id
   callees?: FunctionStateNode[] | null;
+  // For typeflow, the callee's decl, so we can be
+  // more precise about callees.
+  calleeDecl?: EventDecl | undefined;
+  calleeObj?: EventDecl | undefined;
 }
 
 export enum FlowKind {
@@ -482,6 +486,30 @@ export function buildDataFlowGraph(
           }
           case "CallExpression": {
             liveDef(null, stmt);
+            if (wantsAllRefs) {
+              const calleeDecl = findDecl(node.callee);
+              if (calleeDecl) {
+                const mod: ModEvent = {
+                  type: "mod",
+                  node,
+                  mayThrow,
+                  calleeDecl,
+                };
+                if (
+                  !Array.isArray(calleeDecl) &&
+                  calleeDecl.type === "MemberDecl"
+                ) {
+                  if (calleeDecl.path.length > 1) {
+                    const calleeObj = { ...calleeDecl };
+                    calleeObj.path = calleeObj.path.slice(0, -1);
+                    mod.calleeObj = calleeObj;
+                  } else {
+                    mod.calleeObj = calleeDecl.base;
+                  }
+                }
+                return mod;
+              }
+            }
             const [, results] = state.lookupNonlocal(node.callee);
             const callees = results
               ? findCallees(results)

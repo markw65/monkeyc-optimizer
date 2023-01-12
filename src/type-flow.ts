@@ -17,16 +17,21 @@ import {
   EventDecl,
   FlowEvent,
   FlowKind,
-  ModEvent,
 } from "./data-flow";
-import { functionMayModify } from "./function-info";
+import { findCalleesByNode, functionMayModify } from "./function-info";
 import {
   ClassStateNode,
   FunctionStateNode,
   ProgramStateAnalysis,
   StateNode,
 } from "./optimizer-types";
-import { evaluate, InterpState, TypeMap } from "./type-flow/interp";
+import {
+  evaluate,
+  evaluateExpr,
+  InterpState,
+  TypeMap,
+} from "./type-flow/interp";
+import { sysCallInfo } from "./type-flow/interp-call";
 import {
   intersection,
   restrictByEquality,
@@ -39,6 +44,7 @@ import {
   getObjectValue,
   getStateNodeDeclsFromType,
   getUnionComponent,
+  hasValue,
   isExact,
   ObjectLikeTagsConst,
   setUnionComponent,
@@ -477,7 +483,10 @@ function propagateTypes(
     stack: [],
   };
 
-  const modifiableDecl = (decls: TypeStateKey, callees?: ModEvent["callees"]) =>
+  const modifiableDecl = (
+    decls: TypeStateKey,
+    callees?: FunctionStateNode | FunctionStateNode[] | null
+  ) =>
     some(
       decls,
       (decl) =>
@@ -485,7 +494,7 @@ function propagateTypes(
         decl.node.kind === "var" &&
         !isLocal(decl) &&
         (!callees ||
-          callees.some((callee) => functionMayModify(state, callee, decl)))
+          some(callees, (callee) => functionMayModify(state, callee, decl)))
     );
 
   const mergeSuccState = (top: TypeFlowBlock, curState: TypeState) => {
@@ -498,6 +507,26 @@ function propagateTypes(
       }
     });
   };
+
+  function handleMod(
+    curState: TypeState,
+    calleeObjDecl: EventDecl,
+    callees: FunctionStateNode | FunctionStateNode[] | undefined | null,
+    node: mctree.CallExpression
+  ) {
+    const calleeObj = getStateEvent(curState, calleeObjDecl);
+    return every(callees, (callee) => {
+      const info = sysCallInfo(callee);
+      if (!info) return false;
+      const result = info(callee, calleeObj, () =>
+        node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
+      );
+      if (result.calleeObj) {
+        setStateEvent(curState, calleeObjDecl, result.calleeObj);
+      }
+      return true;
+    });
+  }
 
   function handleFlowEvent(
     event: FlowEvent,
@@ -788,15 +817,46 @@ function propagateTypes(
             if (logThisRun) {
               console.log(`  ${describeEvent(event)}`);
             }
-            curState.forEach((type, decl) => {
+            let callees:
+              | FunctionStateNode
+              | FunctionStateNode[]
+              | undefined
+              | null = undefined;
+            if (event.calleeDecl) {
+              const calleeType = getStateEvent(curState, event.calleeDecl);
               if (
-                event.callees === undefined ||
-                modifiableDecl(decl, event.callees)
+                hasValue(calleeType) &&
+                calleeType.type === TypeTag.Function
               ) {
+                callees = calleeType.value;
+              } else {
+                callees = findCalleesByNode(
+                  state,
+                  event.node as mctree.Expression
+                );
+              }
+            }
+            if (callees === undefined && event.callees !== undefined) {
+              callees = event.callees;
+            }
+            if (event.calleeObj) {
+              if (
+                handleMod(
+                  curState,
+                  event.calleeObj,
+                  callees,
+                  event.node as mctree.CallExpression
+                )
+              ) {
+                break;
+              }
+            }
+            curState.forEach((type, decl) => {
+              if (callees === undefined || modifiableDecl(decl, callees)) {
                 curState.set(decl, typeConstraint(decl));
               } else if (
                 type.value != null &&
-                !every(event.callees, (callee) => callee.info === false)
+                !every(callees, (callee) => callee.info === false)
               ) {
                 if (type.type & (TypeTag.Array | TypeTag.Dictionary)) {
                   // Arrays and dictionaries are reference types, so until
