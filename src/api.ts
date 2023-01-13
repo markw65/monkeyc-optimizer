@@ -11,6 +11,9 @@ import { JungleResourceMap } from "./jungles";
 import { negativeFixups } from "./negative-fixups";
 import {
   ClassStateNode,
+  Diagnostic,
+  DiagnosticInfo,
+  DiagnosticType,
   EnumStateNode,
   FunctionInfo,
   FunctionStateNode,
@@ -1183,9 +1186,7 @@ export function diagnostic(
   state: ProgramState,
   node: mctree.Node,
   message: string | null,
-  type: NonNullable<
-    ProgramStateAnalysis["diagnostics"]
-  >[string][number]["type"] = "INFO"
+  type: DiagnosticType = "INFO"
 ) {
   const loc = node.loc;
   if (!loc || !loc.source) return;
@@ -1196,10 +1197,40 @@ export function diagnostic(
     state.diagnostics[source] = [];
   }
   const diags = state.diagnostics[source];
-  let index = diags.findIndex((item) => item.loc === loc);
+  let index = diags.findIndex(
+    (item) =>
+      item.loc.start.offset === loc.start.offset &&
+      item.loc.end.offset === loc.end.offset &&
+      (!item.related
+        ? !node.origins
+        : item.related.length === node.origins?.length &&
+          item.related.every(
+            (r, i) =>
+              r.loc.start.offset === node.origins![i].loc.start.offset &&
+              r.loc.end.offset === node.origins![i].loc.end.offset &&
+              r.loc.source === node.origins![i].loc.source
+          ))
+  );
   if (message) {
     if (index < 0) index = diags.length;
-    diags[index] = { type, loc, message };
+    const diag: Diagnostic = {
+      type,
+      loc,
+      message,
+    };
+    if (node.origins) {
+      diag.related = [];
+      const related = diag.related;
+      node.origins.forEach((origin) => {
+        if (origin.loc.source) {
+          related.push({
+            loc: origin.loc as DiagnosticInfo["loc"],
+            message: `inlined from ${origin.func}`,
+          });
+        }
+      });
+    }
+    diags[index] = diag;
   } else if (index >= 0) {
     diags.splice(index, 1);
   }

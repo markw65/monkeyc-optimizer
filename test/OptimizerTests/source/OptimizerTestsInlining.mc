@@ -622,3 +622,39 @@ function testInlineMultipleReturns(logger as Logger) as Boolean {
     var y = getConfigIf("foo") as String;
     return x == y;
 }
+
+(:inline)
+function warningFromInlineC(z as Array<Number>?) as Boolean {
+    if (z != null) {
+        z[0]++;
+    }
+    return z != null;
+}
+
+(:inline)
+function warningFromInlineB(y as Array<Number>?) as Boolean {
+    if (y != null) {
+        y[0]++;
+    }
+    return warningFromInlineC(y);
+}
+
+(:inline)
+function warningFromInlineA(x as Array<Number>?) as Boolean {
+    if (x != null) {
+        x[0]++;
+    }
+    return warningFromInlineB(x);
+}
+
+(:test)
+function testWarningsFromInline(logger as Logger) as Boolean {
+    var a = null;
+    if (logger != gLogger) {
+        a = [1] as Array<Number>;
+    }
+    var x = warningFromInlineA(a);
+    a = [1, 2, 3] as Array<Number>;
+    var y = warningFromInlineA(a);
+    return x && y;
+}

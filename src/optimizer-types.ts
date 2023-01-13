@@ -148,6 +148,19 @@ export interface EnumStateNode extends BaseStateNode {
   stack: ProgramStateStack;
 }
 
+interface DiagnosticBase {
+  loc: mctree.SourceLocation;
+  message: string;
+}
+
+export interface DiagnosticInfo extends DiagnosticBase {
+  loc: Finalized<mctree.SourceLocation, "source">;
+}
+export interface Diagnostic extends DiagnosticBase {
+  type: DiagnosticType;
+  related?: DiagnosticInfo[];
+}
+
 export type StateNode =
   | ProgramStateNode
   | FunctionStateNode
@@ -226,17 +239,7 @@ export type ProgramState = {
   }[];
   index?: { [key: string]: unknown[] };
   constants?: { [key: string]: mctree.Literal };
-  diagnostics?: Record<
-    string,
-    {
-      type: DiagnosticType;
-      loc: {
-        start: mctree.Position;
-        end: mctree.Position;
-      };
-      message: string;
-    }[]
-  >;
+  diagnostics?: Record<string, Diagnostic[]>;
   enumMap?: Map<EnumStringMember, EnumStateNode>;
 };
 export type Finalized<T, Keys extends keyof T> = T & {

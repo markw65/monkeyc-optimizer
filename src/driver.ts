@@ -12,7 +12,7 @@ import {
 import { BuildConfig, DiagnosticType, ProgramState } from "./optimizer-types";
 import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
 import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
-import { globa, promiseAll, spawnByLine } from "./util";
+import { forEach, globa, promiseAll, spawnByLine } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
 type JungleInfo = {
@@ -607,6 +607,11 @@ function reportDiagnostics(
           logger(
             `${diag.type}: ${diag.message} at ${file}:${diag.loc.start.line}`
           );
+          forEach(diag.related, (rel) => {
+            logger(
+              `        - ${rel.message} at ${rel.loc.source}:${rel.loc.start.line}`
+            );
+          });
         });
       });
   if (hasErrors && !extraArgs.includes("--Eno-invalid-symbol")) {

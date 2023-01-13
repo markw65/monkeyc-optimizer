@@ -282,6 +282,9 @@ export function withLocDeep<T extends mctree.Node>(
   inplace?: boolean
 ): T {
   node = withLoc(inplace ? node : { ...node }, start, end);
+  if (!inplace && node.origins) {
+    node.origins = [...node.origins];
+  }
   for (const key of mctreeTypeInfo[node.type].keys) {
     const value = (node as mctree.NodeAll)[key as keyof mctree.NodeAll];
     if (!value) continue;
