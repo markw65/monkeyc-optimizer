@@ -680,7 +680,7 @@ function inlineWithArgs(
   };
   let retStmtCount = 0;
   if (context.type === "ReturnStatement") {
-    const last = func.node.body.body.slice(-1)[0];
+    const [last] = lastStmt(func.node.body);
     if (!last || last.type !== "ReturnStatement") {
       inlineDiagnostic(
         state,
