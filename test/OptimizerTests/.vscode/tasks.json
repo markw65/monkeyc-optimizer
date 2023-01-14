@@ -6,12 +6,9 @@
       "device": "approachs60",
       "simulatorBuild": true,
       "testBuild": true,
-      "problemMatcher": [
-        "$monkeyc.error",
-        "$monkeyc.fileWarning",
-        "$monkeyc.genericWarning"
-      ],
-      "label": "Optimized Test Build"
+      "problemMatcher": [],
+      "label": "Optimized Test Build",
+      "group": "build"
     }
   ]
 }
