@@ -43,6 +43,10 @@ export type EventDecl =
       node: mctree.MemberExpression;
       base: StateNodeDecl | StateNodeDecl[];
       path: mctree.MemberExpression[];
+    }
+  | {
+      type: "Unknown";
+      node: mctree.MemberExpression | mctree.Identifier | mctree.ThisExpression;
     };
 
 /*
@@ -180,6 +184,8 @@ export function declFullName(decl: EventDecl): string {
         : decl.id.name;
     case "MemberDecl":
       return `${declFullName(decl.base)}->${decl.path.join(".")}`;
+    case "Unknown":
+      return `Unknown:${formatAst(decl.node)}`;
     default:
       unhandledType(decl);
   }
@@ -278,7 +284,9 @@ export function buildDataFlowGraph(
       return null;
     }
     let [, results] = state.lookup(node);
-    if (!results) return null;
+    if (!results) {
+      return wantsAllRefs ? { type: "Unknown", node: path.pop()! } : null;
+    }
     while (true) {
       const next = path[0];
       if (!next || next.computed) {

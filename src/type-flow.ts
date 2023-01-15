@@ -75,7 +75,7 @@ export function buildTypeInfo(
   return propagateTypes(state, func, graph);
 }
 
-type TypeStateKey = Exclude<EventDecl, { type: "MemberDecl" }>;
+type TypeStateKey = Exclude<EventDecl, { type: "MemberDecl" | "Unknown" }>;
 type TypeState = Map<TypeStateKey, ExactOrUnion>;
 
 function mergeTypeState(
@@ -137,7 +137,8 @@ function describeEvent(event: Event) {
   return `${event.type}: ${
     event.type === "flw" ||
     event.type === "mod" ||
-    (!Array.isArray(event.decl) && event.decl.type === "MemberDecl")
+    (!Array.isArray(event.decl) &&
+      (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
       ? formatAst(event.node)
       : event.decl
       ? declFullName(event.decl)
@@ -453,21 +454,34 @@ function propagateTypes(
     decl: EventDecl,
     value: ExactOrUnion
   ) {
-    if (Array.isArray(decl) || decl.type !== "MemberDecl") {
+    if (
+      Array.isArray(decl) ||
+      (decl.type !== "MemberDecl" && decl.type !== "Unknown")
+    ) {
       blockState.set(decl, value);
+      return;
+    }
+    if (decl.type === "Unknown") {
       return;
     }
     return memberDeclInfo(blockState, decl, value)?.[1];
   }
 
   function getStateEvent(blockState: TypeState, decl: EventDecl): ExactOrUnion {
-    if (Array.isArray(decl) || decl.type !== "MemberDecl") {
+    if (
+      Array.isArray(decl) ||
+      (decl.type !== "MemberDecl" && decl.type !== "Unknown")
+    ) {
       let type = blockState.get(decl);
       if (!type) {
         type = typeConstraint(decl);
         blockState.set(decl, type);
       }
       return type;
+    }
+
+    if (decl.type === "Unknown") {
+      return { type: TypeTag.Never };
     }
 
     const info = memberDeclInfo(blockState, decl);

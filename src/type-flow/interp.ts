@@ -675,7 +675,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             if (!istate.typeChecker(value.value, returnType)) {
               diagnostic(
                 istate.state,
-                node.argument!,
+                node,
                 `Expected ${istate.func.fullName} to return ${display(
                   returnType
                 )} but got ${display(value.value)}`,
