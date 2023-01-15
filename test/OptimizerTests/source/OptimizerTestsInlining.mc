@@ -615,7 +615,7 @@ function getConfigIf(
 }
 
 (:test)
-function testPREWIthInterference(logger as Logger) as Boolean {
+function testInlineMultipleReturns(logger as Logger) as Boolean {
     // @expect "Function had more than one return statement"
     var x = getConfigTry("foo") as String;
     // @expect "Function had more than one return statement"
