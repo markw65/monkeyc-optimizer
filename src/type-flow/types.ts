@@ -16,30 +16,83 @@ import { forEach, map } from "../util";
 import { evaluateExpr, roundToFloat } from "./interp";
 import { clearValuesUnder, unionInto } from "./union-type";
 
-export enum TypeTag {
-  Never = 0,
-  Null = 0b00000000000000001,
-  False = 0b00000000000000010,
-  True = 0b00000000000000100,
-  Boolean = 0b00000000000000110,
-  Number = 0b00000000000001000,
-  Long = 0b00000000000010000,
-  Float = 0b00000000000100000,
-  Double = 0b00000000001000000,
-  Decimal = 0b00000000001100000,
-  Numeric = 0b00000000001111000,
-  Char = 0b00000000010000000,
-  String = 0b00000000100000000,
-  Array = 0b00000001000000000,
-  Dictionary = 0b00000010000000000,
-  Module = 0b00000100000000000,
-  Function = 0b00001000000000000,
-  Class = 0b00010000000000000,
-  Object = 0b00100000000000000,
-  Enum = 0b01000000000000000,
-  Symbol = 0b10000000000000000,
-  Typedef = 0b100000000000000000,
-  Any = 0b111111111111111111,
+// prettier-ignore
+export const enum TypeTag {
+  Never =       0b000000000000000000,
+  Null =        0b000000000000000001,
+  False =       0b000000000000000010,
+  True =        0b000000000000000100,
+  Boolean =     0b000000000000000110,
+  Number =      0b000000000000001000,
+  Long =        0b000000000000010000,
+  Float =       0b000000000000100000,
+  Double =      0b000000000001000000,
+  Decimal =     0b000000000001100000,
+  Numeric =     0b000000000001111000,
+  Char =        0b000000000010000000,
+  String =      0b000000000100000000,
+  Array =       0b000000001000000000,
+  Dictionary =  0b000000010000000000,
+  Module =      0b000000100000000000,
+  Function =    0b000001000000000000,
+  Class =       0b000010000000000000,
+  Object =      0b000100000000000000,
+  Enum =        0b001000000000000000,
+  Symbol =      0b010000000000000000,
+  Typedef =     0b100000000000000000,
+  Any =         0b111111111111111111,
+}
+
+export function typeTagName(tag: TypeTag) {
+  switch (tag) {
+    case TypeTag.Never:
+      return "Never";
+    case TypeTag.Null:
+      return "Null";
+    case TypeTag.False:
+      return "False";
+    case TypeTag.True:
+      return "True";
+    case TypeTag.Boolean:
+      return "Boolean";
+    case TypeTag.Number:
+      return "Number";
+    case TypeTag.Long:
+      return "Long";
+    case TypeTag.Float:
+      return "Float";
+    case TypeTag.Double:
+      return "Double";
+    case TypeTag.Decimal:
+      return "Decimal";
+    case TypeTag.Numeric:
+      return "Numeric";
+    case TypeTag.Char:
+      return "Char";
+    case TypeTag.String:
+      return "String";
+    case TypeTag.Array:
+      return "Array";
+    case TypeTag.Dictionary:
+      return "Dictionary";
+    case TypeTag.Module:
+      return "Module";
+    case TypeTag.Function:
+      return "Function";
+    case TypeTag.Class:
+      return "Class";
+    case TypeTag.Object:
+      return "Object";
+    case TypeTag.Enum:
+      return "Enum";
+    case TypeTag.Symbol:
+      return "Symbol";
+    case TypeTag.Typedef:
+      return "Typedef";
+    case TypeTag.Any:
+      return "Any";
+  }
+  return null;
 }
 
 export const LastTypeTag = TypeTag.Typedef;
@@ -858,7 +911,7 @@ export function display(type: ExactOrUnion): string {
       bits = next - TypeTag.True;
       continue;
     }
-    const name = TypeTag[bit];
+    const name = typeTagName(bit)!;
     const value = getUnionComponent(type, bit);
     const valueStr = value != null && displayOne(bit, value);
     if (!valueStr) {
@@ -1015,7 +1068,7 @@ export function getStateNodeDeclsFromType(
         bit = TypeTag.Boolean;
         next &= ~TypeTag.Boolean;
       }
-      const name = `Toybox.Lang.${TypeTag[bit]}`;
+      const name = `Toybox.Lang.${typeTagName(bit)}`;
       const sns = lookupByFullName(state, name);
       sns.forEach((sn) => isStateNode(sn) && decls.push(sn));
       bits = next;

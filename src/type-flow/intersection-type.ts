@@ -33,6 +33,7 @@ import {
   SingleValue,
   StateDeclValueType,
   TypeTag,
+  typeTagName,
 } from "./types";
 import { clearValuesUnder, unionInto } from "./union-type";
 
@@ -191,7 +192,7 @@ function intersectionValue(
     case TypeTag.False:
     case TypeTag.True:
     case TypeTag.Typedef:
-      throw new Error(`Unexpected TypeTag '${TypeTag[bit]}'`);
+      throw new Error(`Unexpected TypeTag '${typeTagName(bit)}'`);
     case TypeTag.Number:
     case TypeTag.Long:
     case TypeTag.Float:
