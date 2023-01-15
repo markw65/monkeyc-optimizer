@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { resolveDottedMember } from "../type-flow";
-import { isLookupCandidate } from "../api";
+import { diagnostic, formatAst, isLookupCandidate } from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
@@ -14,6 +14,7 @@ import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { evaluateCall } from "./interp-call";
 import {
   cloneType,
+  display,
   EnumTagsConst,
   ExactOrUnion,
   hasNoData,
@@ -31,6 +32,7 @@ import {
   ValueTypeTagsConst,
 } from "./types";
 import { unionInto } from "./union-type";
+import { couldBe } from "./could-be";
 
 export type TypeMap = Map<mctree.Node, ExactOrUnion>;
 
@@ -273,6 +275,16 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           });
           return;
         }
+        if (istate.checkTypes && !couldBe(left.value, right.value)) {
+          diagnostic(
+            istate.state,
+            node,
+            `The type ${display(left.value)} cannot be converted to ${display(
+              right.value
+            )} because they have nothing in common`,
+            istate.checkTypes
+          );
+        }
         if (hasValue(right.value) && right.value.type === TypeTag.Enum) {
           if (
             (left.value.type & (TypeTag.Numeric | TypeTag.String)) ==
@@ -293,6 +305,28 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           node,
         });
       } else {
+        if (
+          istate.checkTypes &&
+          (node.operator === "==" || node.operator == "!=") &&
+          ((left.value.type === TypeTag.Null &&
+            !(right.value.type & TypeTag.Null)) ||
+            (right.value.type === TypeTag.Null &&
+              !(left.value.type & TypeTag.Null))) &&
+          (left.value.type | right.value.type) &
+            (TypeTag.Object |
+              TypeTag.Array |
+              TypeTag.Dictionary |
+              TypeTag.String)
+        ) {
+          diagnostic(
+            istate.state,
+            node,
+            `This comparison seems redundant because ${formatAst(
+              left.value.type === TypeTag.Null ? node.right : node.left
+            )} should never be null`,
+            istate.checkTypes
+          );
+        }
         push({
           value: evaluateBinaryTypes(
             node.operator,

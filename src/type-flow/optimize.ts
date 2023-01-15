@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { diagnostic, formatAst } from "../api";
 import {
   getLiteralNode,
   hasProperty,
@@ -14,16 +13,13 @@ import {
 } from "../optimizer-types";
 import { buildTypeInfo } from "../type-flow";
 import { every } from "../util";
-import { couldBe } from "./could-be";
 import { evaluate, InterpStackElem, InterpState, popIstate } from "./interp";
 import { evaluateBinaryTypes } from "./interp-binary";
 import {
-  display,
   hasValue,
   mcExprFromType,
   mustBeFalse,
   mustBeTrue,
-  typeFromTypespec,
   TypeTag,
 } from "./types";
 
@@ -207,42 +203,6 @@ export function beforeEvaluate(
       } else {
         const rep = tryCommuteAndAssociate(istate, node);
         if (rep) return rep;
-        const level =
-          istate.state.config?.checkTypes === "OFF"
-            ? null
-            : istate.state.config?.checkTypes || "WARNING";
-        if (!level) break;
-        if (node.operator === "==" || node.operator === "!=") {
-          const [{ value: left }, { value: right }] = istate.stack.slice(-2);
-          if (
-            ((left.type === TypeTag.Null && !(right.type & TypeTag.Null)) ||
-              (right.type === TypeTag.Null && !(left.type & TypeTag.Null))) &&
-            (left.type | right.type) &
-              (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary)
-          ) {
-            diagnostic(
-              istate.state,
-              node,
-              `This comparison seems redundant because ${formatAst(
-                left.type === TypeTag.Null ? node.right : node.left
-              )} should never be null`,
-              level
-            );
-          }
-        } else if (node.operator === "as") {
-          const [{ value: left }] = istate.stack.slice(-1);
-          const right = typeFromTypespec(istate.state, node.right);
-          if (!couldBe(left, right)) {
-            diagnostic(
-              istate.state,
-              node,
-              `The type ${display(left)} cannot be converted to ${display(
-                right
-              )} because they have nothing in common`,
-              level
-            );
-          }
-        }
       }
       break;
 
