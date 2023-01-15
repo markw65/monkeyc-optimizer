@@ -466,3 +466,32 @@ function constantsWithCasts(logger as Logger) as Boolean {
     }
     return true;
 }
+
+typedef RecursiveArray as Number or Array<RecursiveArray>;
+(:test)
+function recursiveArray(logger as Logger) as Boolean {
+    var x = [1] as RecursiveArray;
+    for (var i = 0; i < 10; i++) {
+        if (i & 1) {
+            x.add(i);
+        } else {
+            x = [x] as RecursiveArray;
+        }
+    }
+
+    return x[1] == 9;
+}
+
+(:test,:typecheck(false))
+function recursiveArrayInferred(logger as Logger) as Boolean {
+    var x = [1];
+    for (var i = 0; i < 10; i++) {
+        if (i & 1) {
+            x.add(i);
+        } else {
+            x = [x];
+        }
+    }
+
+    return x[1] == 9;
+}

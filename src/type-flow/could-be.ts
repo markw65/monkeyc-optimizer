@@ -17,6 +17,8 @@ import {
   StateDeclValueType,
   TypedefValueType,
   TypeTag,
+  UnionDataTypeTagsConst,
+  ValueTypeTagsConst,
 } from "./types";
 import { getSuperClasses, hasProperty } from "../api";
 
@@ -30,8 +32,14 @@ import { getSuperClasses, hasProperty } from "../api";
 export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
   const common = a.type & b.type & ~TypeTag.Typedef;
   if (common) {
-    if (a.value == null) return true;
-    if (b.value == null) return true;
+    if (a.value == null || b.value == null || a.value === b.value) {
+      return true;
+    }
+    if (common & ValueTypeTagsConst && common & UnionDataTypeTagsConst) {
+      // if we have both ValueTypeTags and UnionDataTypeTags, then the
+      // ValueTypeTags have no associated data, so couldBe is true.
+      return true;
+    }
     let result = false;
     forEachUnionComponent(a, common, (bit, avalue) => {
       if (avalue == null) {
@@ -39,7 +47,11 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
         return false;
       }
       const bvalue = getUnionComponent(b, bit);
-      if (bvalue == null || couldBeValue(bit, avalue, bvalue)) {
+      if (
+        bvalue == null ||
+        avalue === bvalue ||
+        couldBeValue(bit, avalue, bvalue)
+      ) {
         result = true;
         return false;
       }

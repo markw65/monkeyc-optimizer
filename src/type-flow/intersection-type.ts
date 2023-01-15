@@ -155,7 +155,7 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
       mask |= bit;
       return;
     }
-    if (bvalue === null) {
+    if (bvalue === null || avalue === bvalue) {
       result[bit] = avalue;
       mask |= bit;
       return;

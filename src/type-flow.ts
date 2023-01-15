@@ -49,7 +49,7 @@ import {
   typeFromTypeStateNodes,
   TypeTag,
 } from "./type-flow/types";
-import { clearValuesUnder, unionInto } from "./type-flow/union-type";
+import { clearValuesUnder, unionInto, widenType } from "./type-flow/union-type";
 import { every, forEach, map, pushUnique, reduce, some } from "./util";
 
 const logging = true;
@@ -74,14 +74,18 @@ type TypeState = Map<TypeStateKey, ExactOrUnion>;
 
 function mergeTypeState(
   blockStates: TypeState[],
+  blockVisits: number[],
   index: number,
   from: TypeState
 ) {
   const to = blockStates[index];
   if (!to) {
     blockStates[index] = new Map(from);
+    blockVisits[index] = 1;
     return true;
   }
+  const widen = ++blockVisits[index] > 10;
+
   let changes = false;
   to.forEach((tov, k) => {
     const fromv = from.get(k);
@@ -90,8 +94,20 @@ function mergeTypeState(
       to.delete(k);
       return;
     }
-    const result = cloneType(tov);
+    if (widen) {
+      if (subtypeOf(fromv, tov)) return;
+      if (subtypeOf(tov, fromv)) {
+        to.set(k, fromv);
+        changes = true;
+        return;
+      }
+    }
+    let result = cloneType(tov);
     if (!unionInto(result, fromv)) return;
+    if (widen) {
+      const wide = widenType(result);
+      if (wide) result = wide;
+    }
     to.set(k, result);
     changes = true;
   });
@@ -453,7 +469,7 @@ function propagateTypes(
   }
 
   const blockStates: TypeState[] = [];
-
+  const blockVisits: number[] = [];
   const typeMap = new Map<mctree.Node, ExactOrUnion>();
   const istate: InterpState = {
     state,
@@ -477,7 +493,7 @@ function propagateTypes(
       if (succ.order == null) {
         throw new Error("Unreachable block was visited");
       }
-      if (mergeTypeState(blockStates, succ.order, curState)) {
+      if (mergeTypeState(blockStates, blockVisits, succ.order, curState)) {
         queue.enqueue(succ);
       }
     });
@@ -682,7 +698,14 @@ function propagateTypes(
         printBlockState(top, sTrue || curState);
         console.log(`  merge to: ${trueSucc.order || -1}`);
       }
-      if (mergeTypeState(blockStates, trueSucc.order!, sTrue || curState)) {
+      if (
+        mergeTypeState(
+          blockStates,
+          blockVisits,
+          trueSucc.order!,
+          sTrue || curState
+        )
+      ) {
         queue.enqueue(trueSucc);
       }
     }
@@ -692,7 +715,14 @@ function propagateTypes(
         printBlockState(top, sFalse || curState);
         console.log(`  merge to: ${falseSucc.order || -1}`);
       }
-      if (mergeTypeState(blockStates, falseSucc.order!, sFalse || curState)) {
+      if (
+        mergeTypeState(
+          blockStates,
+          blockVisits,
+          falseSucc.order!,
+          sFalse || curState
+        )
+      ) {
         queue.enqueue(falseSucc);
       }
     }
@@ -733,6 +763,7 @@ function propagateTypes(
           if (
             mergeTypeState(
               blockStates,
+              blockVisits,
               (top.exsucc as TypeFlowBlock).order!,
               curState
             )

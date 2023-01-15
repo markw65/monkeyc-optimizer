@@ -12,6 +12,7 @@ import {
   getUnionComponent,
   hasUnionData,
   ObjectValueType,
+  setUnionComponent,
   SingleTonTypeTagsConst,
   SingleValue,
   StateDeclValueType,
@@ -362,4 +363,51 @@ export function clearValuesUnder(
   } else {
     v.value = newData;
   }
+}
+
+function widenTypeHelper(t: ExactOrUnion, depth: number) {
+  let result: ExactOrUnion | null = null;
+  forEachUnionComponent(
+    t,
+    t.type & (TypeTag.Array | TypeTag.Dictionary),
+    (tag, value) => {
+      if (!value) return;
+      switch (tag) {
+        case TypeTag.Array:
+          if (depth > 4) {
+            if (!result) result = cloneType(t);
+            clearValuesUnder(result, tag);
+          } else {
+            const v = widenTypeHelper(value as ArrayValueType, depth + 1);
+            if (v) {
+              if (!result) result = cloneType(t);
+              setUnionComponent(result, tag, v);
+            }
+          }
+          return;
+        case TypeTag.Dictionary:
+          if (depth > 4) {
+            if (!result) result = cloneType(t);
+            clearValuesUnder(result, tag);
+          } else {
+            const ddata = value as DictionaryValueType;
+            const key = widenTypeHelper(ddata.key, depth + 1);
+            const data = widenTypeHelper(ddata.value, depth + 1);
+            if (key || data) {
+              if (!result) result = cloneType(t);
+              const newDData = { ...ddata };
+              if (key) newDData.key = key;
+              if (data) newDData.value = data;
+              setUnionComponent(result, tag, newDData);
+            }
+          }
+          return;
+      }
+    }
+  );
+  return result;
+}
+
+export function widenType(t: ExactOrUnion) {
+  return widenTypeHelper(t, 0);
 }
