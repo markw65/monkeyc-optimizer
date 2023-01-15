@@ -859,11 +859,14 @@ function propagateTypes(
                 type.value != null &&
                 !every(callees, (callee) => callee.info === false)
               ) {
-                if (type.type & (TypeTag.Array | TypeTag.Dictionary)) {
-                  // Arrays and dictionaries are reference types, so until
-                  // we try to track side effects, just drop any type knowledge
-                  // about their contents, that doesn't come from the type
-                  // constraint.
+                if (false && type.type & (TypeTag.Array | TypeTag.Dictionary)) {
+                  // Arrays and dictionaries are reference types, so in theory,
+                  // we should give up here and return them to their declared
+                  // types. But instead, Garmin's compiler assumes the array keeps
+                  // its current type. This is partly enforced by checking that all
+                  // writes to the array match the current type; but eg there's
+                  // nothing to stop you passing Array<Number> to a function taking
+                  // Array, which could write anything to it.
                   type = cloneType(type);
                   const constraint = typeConstraint(decl);
                   const adtype = {

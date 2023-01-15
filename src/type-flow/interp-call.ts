@@ -55,6 +55,7 @@ export function evaluateCall(
       let argTypes: ExactOrUnion[] | null = null;
       let returnType: ExactOrUnion | null = null;
       let effects = true;
+      let argEffects = true;
       if (node.callee.type === "MemberExpression") {
         const object = istate.typeMap?.get(node.callee.object) || {
           type: TypeTag.Any,
@@ -65,6 +66,7 @@ export function evaluateCall(
           if (result.argTypes) argTypes = result.argTypes;
           if (result.returnType) returnType = result.returnType;
           if (result.effectFree) effects = false;
+          if (!result.argEffects) argEffects = false;
         }
       }
       if (checker) {
@@ -85,7 +87,58 @@ export function evaluateCall(
             if (param?.type !== "BinaryExpression") return;
             paramType = typeFromTypespec(istate.state, param.right, cur.stack);
           }
-          if (checker(arg, paramType)) return;
+          if (checker(arg, paramType)) {
+            if (effects && argEffects) {
+              if (arg.type & TypeTag.Array) {
+                const atype = getUnionComponent(arg, TypeTag.Array);
+                if (atype) {
+                  const ptype = getUnionComponent(paramType, TypeTag.Array);
+                  if (!ptype || !subtypeOf(ptype, atype)) {
+                    diagnostic(
+                      istate.state,
+                      node.arguments[i],
+                      `Argument ${i + 1} to ${
+                        cur.fullName
+                      }: passing Array<${display(atype)}> to parameter Array${
+                        ptype ? `<${display(ptype)}>` : ""
+                      } is not type safe`,
+                      istate.checkTypes
+                    );
+                  }
+                }
+              }
+              if (arg.type & TypeTag.Dictionary) {
+                const adata = getUnionComponent(arg, TypeTag.Dictionary);
+                if (adata) {
+                  const pdata = getUnionComponent(
+                    paramType,
+                    TypeTag.Dictionary
+                  );
+                  if (
+                    !pdata ||
+                    !subtypeOf(pdata.key, adata.key) ||
+                    !subtypeOf(pdata.value, adata.value)
+                  ) {
+                    diagnostic(
+                      istate.state,
+                      node.arguments[i],
+                      `Argument ${i + 1} to ${
+                        cur.fullName
+                      }: passing Dictionary<${display(adata.key)}, ${display(
+                        adata.value
+                      )}> to parameter Dictionary${
+                        pdata
+                          ? `<${display(pdata.key)}, ${display(pdata.value)}>`
+                          : ""
+                      } is not type safe`,
+                      istate.checkTypes
+                    );
+                  }
+                }
+              }
+            }
+            return;
+          }
           diagnostic(
             istate.state,
             node.arguments[i],
@@ -127,6 +180,7 @@ type SysCallHelperResult = {
   returnType?: ExactOrUnion;
   argTypes?: ExactOrUnion[];
   effectFree?: true;
+  argEffects?: true;
 };
 
 type SysCallHelper = (
