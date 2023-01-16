@@ -69,6 +69,9 @@ export function evaluateCall(
           if (!result.argEffects) argEffects = false;
         }
       }
+      if (cur.info === false) {
+        argEffects = false;
+      }
       if (checker) {
         if (args.length !== cur.node.params.length) {
           diagnostic(
