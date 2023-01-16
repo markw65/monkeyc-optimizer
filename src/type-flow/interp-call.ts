@@ -1,7 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { FunctionStateNode } from "src/optimizer-types";
-import { diagnostic, formatAst, hasProperty } from "../api";
-import { reduce } from "../util";
+import { diagnostic, formatAst, getSuperClasses, hasProperty } from "../api";
+import { reduce, some } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
 import { subtypeOf } from "./sub-type";
 import {
@@ -48,8 +48,9 @@ export function evaluateCall(
       );
     return { value: { type: TypeTag.Any }, node, embeddedEffects: true };
   }
+  const callees = callee.value;
   return reduce(
-    callee.value,
+    callees,
     (result, cur) => {
       const checker = istate.typeChecker;
       let argTypes: ExactOrUnion[] | null = null;
@@ -72,7 +73,7 @@ export function evaluateCall(
       if (cur.info === false) {
         argEffects = false;
       }
-      if (checker) {
+      if (checker && (cur === callee.value || !isOverride(cur, callees))) {
         const expectedArgs = (argTypes || cur.node.params).length;
         if (args.length !== expectedArgs) {
           diagnostic(
@@ -178,6 +179,27 @@ export function evaluateCall(
       embeddedEffects: false,
     } as InterpStackElem
   );
+}
+
+function isOverride(
+  cur: FunctionStateNode,
+  funcs: FunctionStateNode | FunctionStateNode[]
+) {
+  const cls = cur.stack?.[cur.stack.length - 1];
+  if (cls?.type === "ClassDeclaration" && cls.superClasses) {
+    const supers = getSuperClasses(cls);
+    if (
+      supers &&
+      some(funcs, (func) => {
+        if (func === cur) return false;
+        const fcls = func.stack?.[func.stack.length - 1];
+        return fcls && supers.has(fcls);
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 type SysCallHelperResult = {

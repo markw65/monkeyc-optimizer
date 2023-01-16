@@ -303,7 +303,6 @@ export async function analyze(
             if (markApi) {
               node.body = null;
               scope.info = getApiFunctionInfo(state, scope);
-              delete scope.stack;
             }
             const allFuncs = state.allFunctions!;
             if (!hasProperty(allFuncs, scope.name)) {
