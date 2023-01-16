@@ -1,15 +1,16 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { resolveDottedMember } from "../type-flow";
 import { diagnostic, formatAst, isLookupCandidate } from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
-  DiagnosticType,
   ClassStateNode,
+  DiagnosticType,
   FunctionStateNode,
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
+import { resolveDottedMember } from "../type-flow";
+import { couldBe } from "./could-be";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { evaluateCall } from "./interp-call";
 import { subtypeOf } from "./sub-type";
@@ -18,6 +19,7 @@ import {
   display,
   EnumTagsConst,
   ExactOrUnion,
+  getUnionComponent,
   hasNoData,
   hasValue,
   isExact,
@@ -32,8 +34,7 @@ import {
   TypeTag,
   ValueTypeTagsConst,
 } from "./types";
-import { unionInto } from "./union-type";
-import { couldBe } from "./could-be";
+import { clearValuesUnder, unionInto } from "./union-type";
 
 export type TypeMap = Map<mctree.Node, ExactOrUnion>;
 
@@ -176,13 +177,16 @@ function evaluateUnaryTypes(
  * to its underlying type.
  */
 function deEnumerate(t: ExactOrUnion) {
-  if (hasValue(t) && t.type === TypeTag.Enum && t.value.value) {
-    return t.value.value;
-  }
   if (t.type & TypeTag.Enum) {
-    return {
-      type: (t.type & ~TypeTag.Enum) | EnumTagsConst,
-    };
+    const data = getUnionComponent(t, TypeTag.Enum);
+    t = cloneType(t);
+    clearValuesUnder(t, TypeTag.Enum, true);
+    unionInto(
+      t,
+      (data && (data.value || data.enum?.resolvedType)) || {
+        type: EnumTagsConst,
+      }
+    );
   }
   return t;
 }
