@@ -294,13 +294,11 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           );
         }
         if (hasValue(right.value) && right.value.type === TypeTag.Enum) {
-          if (
-            (left.value.type & (TypeTag.Numeric | TypeTag.String)) ==
-            left.value.type
-          ) {
-            right.value.value.value = left.value;
+          if ((left.value.type & EnumTagsConst) == left.value.type) {
+            const result = cloneType(right.value);
+            result.value = { ...result.value, value: left.value };
             stack.push({
-              value: right.value,
+              value: result,
               embeddedEffects: left.embeddedEffects,
               node,
             });
