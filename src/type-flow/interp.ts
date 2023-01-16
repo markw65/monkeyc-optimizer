@@ -176,7 +176,7 @@ function evaluateUnaryTypes(
  * enum type is used in an arithmetic context, its converted
  * to its underlying type.
  */
-function deEnumerate(t: ExactOrUnion) {
+export function deEnumerate(t: ExactOrUnion) {
   if (t.type & TypeTag.Enum) {
     const data = getUnionComponent(t, TypeTag.Enum);
     t = cloneType(t);

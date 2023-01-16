@@ -13,7 +13,13 @@ import {
 } from "../optimizer-types";
 import { buildTypeInfo } from "../type-flow";
 import { every } from "../util";
-import { evaluate, InterpStackElem, InterpState, popIstate } from "./interp";
+import {
+  deEnumerate,
+  evaluate,
+  InterpStackElem,
+  InterpState,
+  popIstate,
+} from "./interp";
 import { evaluateBinaryTypes } from "./interp-binary";
 import {
   hasValue,
@@ -201,6 +207,12 @@ export function beforeEvaluate(
           return rep;
         }
       } else {
+        if (node.operator !== "as") {
+          const left = tryDeEnumerate(istate, node.left, -2);
+          if (left) node.left = left;
+          const right = tryDeEnumerate(istate, node.right, -1);
+          if (right) node.right = right;
+        }
         const rep = tryCommuteAndAssociate(istate, node);
         if (rep) return rep;
       }
@@ -647,4 +659,27 @@ function tryReAssociate(
   node.right = leftRight.node;
   istate.stack.splice(-1, 1, leftRight);
   return true;
+}
+
+export function tryDeEnumerate(
+  istate: InterpState,
+  node: mctree.Expression,
+  elem: number
+): mctree.Expression | null {
+  if (
+    node.type === "BinaryExpression" &&
+    node.operator === "as" &&
+    node.right.ts.length === 1 &&
+    typeof node.right.ts[0] === "string"
+  ) {
+    elem += istate.stack.length;
+    const item = istate.stack[elem];
+    istate.stack[elem] = {
+      value: deEnumerate(item.value),
+      embeddedEffects: item.embeddedEffects,
+      node: node.left,
+    };
+    return node.left;
+  }
+  return null;
 }
