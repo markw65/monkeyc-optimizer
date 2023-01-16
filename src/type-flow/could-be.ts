@@ -11,6 +11,7 @@ import {
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
+  MethodValueType,
   ObjectLikeTagsConst,
   ObjectValueType,
   SingleValue,
@@ -138,6 +139,15 @@ function couldBeValue(
       const adict = avalue as DictionaryValueType;
       const bdict = bvalue as DictionaryValueType;
       return couldBe(adict.key, bdict.key) && couldBe(adict.value, bdict.value);
+    }
+    case TypeTag.Method: {
+      const ameth = avalue as MethodValueType;
+      const bmeth = bvalue as MethodValueType;
+      return (
+        ameth.args.length === bmeth.args.length &&
+        couldBe(ameth.result, bmeth.result) &&
+        ameth.args.every((arg, i) => couldBe(arg, bmeth.args[i]))
+      );
     }
     case TypeTag.Module:
     case TypeTag.Function: {

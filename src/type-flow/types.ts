@@ -1,4 +1,5 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
+import { unhandledType } from "../data-flow";
 import { diagnostic, formatAst, isStateNode } from "../api";
 import { getNodeValue, makeScopedName } from "../ast";
 import {
@@ -18,29 +19,30 @@ import { clearValuesUnder, unionInto } from "./union-type";
 
 // prettier-ignore
 export const enum TypeTag {
-  Never =       0b000000000000000000,
-  Null =        0b000000000000000001,
-  False =       0b000000000000000010,
-  True =        0b000000000000000100,
-  Boolean =     0b000000000000000110,
-  Number =      0b000000000000001000,
-  Long =        0b000000000000010000,
-  Float =       0b000000000000100000,
-  Double =      0b000000000001000000,
-  Decimal =     0b000000000001100000,
-  Numeric =     0b000000000001111000,
-  Char =        0b000000000010000000,
-  String =      0b000000000100000000,
-  Array =       0b000000001000000000,
-  Dictionary =  0b000000010000000000,
-  Module =      0b000000100000000000,
-  Function =    0b000001000000000000,
-  Class =       0b000010000000000000,
-  Object =      0b000100000000000000,
-  Enum =        0b001000000000000000,
-  Symbol =      0b010000000000000000,
-  Typedef =     0b100000000000000000,
-  Any =         0b111111111111111111,
+  Never =       0b0000000000000000000,
+  Null =        0b0000000000000000001,
+  False =       0b0000000000000000010,
+  True =        0b0000000000000000100,
+  Boolean =     0b0000000000000000110,
+  Number =      0b0000000000000001000,
+  Long =        0b0000000000000010000,
+  Float =       0b0000000000000100000,
+  Double =      0b0000000000001000000,
+  Decimal =     0b0000000000001100000,
+  Numeric =     0b0000000000001111000,
+  Char =        0b0000000000010000000,
+  String =      0b0000000000100000000,
+  Array =       0b0000000001000000000,
+  Dictionary =  0b0000000010000000000,
+  Method     =  0b0000000100000000000,
+  Module =      0b0000001000000000000,
+  Function =    0b0000010000000000000,
+  Class =       0b0000100000000000000,
+  Object =      0b0001000000000000000,
+  Enum =        0b0010000000000000000,
+  Symbol =      0b0100000000000000000,
+  Typedef =     0b1000000000000000000,
+  Any =         0b1111111111111111111,
 }
 
 export function typeTagName(tag: TypeTag) {
@@ -75,6 +77,8 @@ export function typeTagName(tag: TypeTag) {
       return "Array";
     case TypeTag.Dictionary:
       return "Dictionary";
+    case TypeTag.Method:
+      return "Method";
     case TypeTag.Module:
       return "Module";
     case TypeTag.Function:
@@ -91,8 +95,9 @@ export function typeTagName(tag: TypeTag) {
       return "Typedef";
     case TypeTag.Any:
       return "Any";
+    default:
+      unhandledType(tag);
   }
-  return null;
 }
 
 export const LastTypeTag = TypeTag.Typedef;
@@ -102,6 +107,7 @@ export const SingleTonTypeTagsConst =
 export const UnionDataTypeTagsConst =
   TypeTag.Array |
   TypeTag.Dictionary |
+  TypeTag.Method |
   TypeTag.Module |
   TypeTag.Function |
   TypeTag.Class |
@@ -122,6 +128,7 @@ export const ObjectLikeTagsConst =
   ValueTypeTagsConst |
   TypeTag.Array |
   TypeTag.Dictionary |
+  TypeTag.Method |
   TypeTag.Enum;
 
 export const EnumTagsConst =
@@ -139,6 +146,7 @@ type ExactTypeTags =
   | TypeTag.String
   | TypeTag.Array
   | TypeTag.Dictionary
+  | TypeTag.Method
   | TypeTag.Module
   | TypeTag.Function
   | TypeTag.Class
@@ -168,6 +176,7 @@ export type ExactTypes =
   | StringType
   | ArrayType
   | DictionaryType
+  | MethodType
   | ModuleType
   | FunctionType
   | ClassType
@@ -235,6 +244,10 @@ export interface DictionaryType extends AbstractValue {
   type: TypeTag.Dictionary;
   value?: { key: ExactOrUnion; value: ExactOrUnion } | undefined;
 }
+export interface MethodType extends AbstractValue {
+  type: TypeTag.Method;
+  value?: { args: ExactOrUnion[]; result: ExactOrUnion } | undefined;
+}
 export interface ModuleType extends AbstractValue {
   type: TypeTag.Module;
   value?: ModuleStateNode | ModuleStateNode[] | undefined;
@@ -273,7 +286,7 @@ export interface SymbolType extends AbstractValue {
   value?: string | undefined;
 }
 export interface AnyType extends AbstractValue {
-  type: -1;
+  type: TypeTag.Any;
   value?: undefined;
 }
 
@@ -286,6 +299,7 @@ export type UnionData = {
   mask: TypeTag;
   [TypeTag.Array]?: NonNullable<ArrayType["value"]>;
   [TypeTag.Dictionary]?: NonNullable<DictionaryType["value"]>;
+  [TypeTag.Method]?: NonNullable<MethodType["value"]>;
   [TypeTag.Module]?: NonNullable<ModuleType["value"]>;
   [TypeTag.Function]?: NonNullable<FunctionType["value"]>;
   [TypeTag.Class]?: NonNullable<ClassType["value"]>;
@@ -304,6 +318,7 @@ export type SingleValue = NonNullable<ValueTypes["value"]>;
 type TagValue<TAG> = Extract<ValueTypes, { type: TAG }>["value"];
 export type ArrayValueType = TagValue<TypeTag.Array>;
 export type DictionaryValueType = TagValue<TypeTag.Dictionary>;
+export type MethodValueType = TagValue<TypeTag.Method>;
 export type ObjectValueType = TagValue<TypeTag.Object>;
 export type EnumValueType = TagValue<TypeTag.Enum>;
 export type TypedefValueType = TagValue<TypeTag.Typedef>;
@@ -359,17 +374,6 @@ export function lookupByFullName(
   );
 }
 
-function getMethod(state: ProgramStateAnalysis) {
-  const results = lookupByFullName(state, "Toybox.Lang.Method");
-  if (results.length !== 1) {
-    throw new Error("Internal error: Didn't find Toybox.Lang.Method");
-  }
-  if (results[0].type !== "ClassDeclaration") {
-    throw new Error("Internal error: Toybox.Lang.Method was not a Class");
-  }
-  return results[0];
-}
-
 export function cloneType<T extends ExactOrUnion>(t: T): T {
   return { ...t };
 }
@@ -416,6 +420,8 @@ export function typeFromTypeStateNode(
           return { type: TypeTag.Array };
         case "$.Toybox.Lang.Dictionary":
           return { type: TypeTag.Dictionary };
+        case "$.Toybox.Lang.Method":
+          return { type: TypeTag.Method };
         case "$.Toybox.Lang.Symbol":
           return { type: TypeTag.Symbol };
         case "$.Toybox.Lang.Object":
@@ -545,9 +551,19 @@ export function typeFromSingleTypeSpec(
       if (type.callspec) {
         // only legal thing here is Method(<args>) as <result>
         // For now, make it an instance of an unknown class.
+        const result = typeFromTypespec(
+          state,
+          type.callspec.returnType.argument,
+          stack
+        );
+        const args = type.callspec.params.map((param) =>
+          param.type === "BinaryExpression"
+            ? typeFromTypespec(state, param.right, stack)
+            : { type: TypeTag.Any }
+        );
         return {
-          type: TypeTag.Object,
-          value: { klass: { type: TypeTag.Class, value: getMethod(state) } },
+          type: TypeTag.Method,
+          value: { result, args },
         };
       }
       const id: mctree.ScopedName =
@@ -841,7 +857,10 @@ export function display(type: ExactOrUnion): string {
 
   const parts: string[] = [];
 
-  const displayOne = (bit: number, value: SingleValue): string | undefined => {
+  const displayOne = (
+    bit: ExactTypes["type"],
+    value: SingleValue
+  ): string | undefined => {
     switch (bit) {
       case TypeTag.Null:
       case TypeTag.False:
@@ -862,6 +881,10 @@ export function display(type: ExactOrUnion): string {
         return `${display((value as DictionaryValueType).key)}, ${display(
           (value as DictionaryValueType).value
         )}`;
+      case TypeTag.Method:
+        return `(${(value as MethodValueType).args
+          .map((arg) => display(arg))
+          .join(", ")}) as ${display((value as MethodValueType).result)}`;
       case TypeTag.Module:
       case TypeTag.Function:
       case TypeTag.Class:
@@ -895,7 +918,7 @@ export function display(type: ExactOrUnion): string {
       case TypeTag.Symbol:
         return `:${value}`;
       default:
-        throw new Error(`Unexpected type tag '${bit}'`);
+        unhandledType(bit);
     }
   };
   let bits = type.type;

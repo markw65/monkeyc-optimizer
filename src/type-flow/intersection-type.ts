@@ -26,6 +26,7 @@ import {
   hasUnionData,
   isExact,
   LongType,
+  MethodValueType,
   NeverType,
   NumberType,
   ObjectLikeTagsConst,
@@ -216,6 +217,20 @@ function intersectionValue(
       return dkey.type !== TypeTag.Never && dvalue.type !== TypeTag.Never
         ? { key: dkey, value: dvalue }
         : null;
+    }
+    case TypeTag.Method: {
+      const ameth = avalue as MethodValueType;
+      const bmeth = bvalue as MethodValueType;
+      if (ameth.args.length != bmeth.args.length) return null;
+      const mresult = intersection(ameth.result, bmeth.result);
+      if (mresult.type === TypeTag.Never) return null;
+      const margs = ameth.args.map((aarg, i) => {
+        aarg = cloneType(aarg);
+        unionInto(aarg, bmeth.args[i]);
+        return aarg;
+      });
+      if (margs.some((arg) => arg.type === TypeTag.Never)) return null;
+      return { result: mresult, args: margs };
     }
     case TypeTag.Module:
     case TypeTag.Function: {
@@ -484,6 +499,7 @@ function restrictExactTypesByEquality(
     case TypeTag.String:
     case TypeTag.Array:
     case TypeTag.Dictionary:
+    case TypeTag.Method:
     case TypeTag.Module:
     case TypeTag.Function:
     case TypeTag.Class:

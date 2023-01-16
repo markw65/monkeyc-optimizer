@@ -1,6 +1,9 @@
 import { hasProperty } from "../ast";
+import { unhandledType } from "../data-flow";
 import { StateNode } from "../optimizer-types";
 import { forEach, some } from "../util";
+import { intersection } from "./intersection-type";
+import { subtypeOf } from "./sub-type";
 import {
   ArrayValueType,
   ClassType,
@@ -8,9 +11,11 @@ import {
   DictionaryValueType,
   EnumValueType,
   ExactOrUnion,
+  ExactTypes,
   forEachUnionComponent,
   getUnionComponent,
   hasUnionData,
+  MethodValueType,
   ObjectValueType,
   setUnionComponent,
   SingleTonTypeTagsConst,
@@ -136,11 +141,15 @@ function tryUnion(to: ExactOrUnion, from: ExactOrUnion): ExactOrUnion | null {
 }
 
 function mergeSingle(
-  type: TypeTag,
+  type: ExactTypes["type"],
   to: SingleValue,
   from: SingleValue
 ): [SingleValue | null, boolean] {
   switch (type) {
+    case TypeTag.Null:
+    case TypeTag.False:
+    case TypeTag.True:
+      throw new Error("Unexpected typetag in mergeSingle");
     case TypeTag.Number:
     case TypeTag.Long:
     case TypeTag.Float:
@@ -163,6 +172,21 @@ function mergeSingle(
       const valueChange = tryUnion(value, (from as DictionaryValueType).value);
       if (keyChange || valueChange) {
         return [{ key: keyChange || key, value: valueChange || value }, true];
+      }
+      return [to, false];
+    }
+    case TypeTag.Method: {
+      const ameth = to as MethodValueType;
+      const bmeth = from as MethodValueType;
+      if (ameth.args.length != bmeth.args.length) return [null, true];
+      const resultChange = tryUnion(ameth.result, bmeth.result);
+      const args = ameth.args.map((arg, i) => intersection(arg, bmeth.args[i]));
+      if (args.some((arg) => arg.type === TypeTag.Never)) {
+        return [null, true];
+      }
+      const argsChanged = args.some((arg, i) => !subtypeOf(ameth.args[i], arg));
+      if (resultChange || argsChanged) {
+        return [{ result: resultChange || ameth.result, args }, true];
       }
       return [to, false];
     }
@@ -210,6 +234,8 @@ function mergeSingle(
       }
       return [toE, false];
     }
+    default:
+      unhandledType(type);
   }
   throw new Error(`Unexpected type ${type}`);
 }

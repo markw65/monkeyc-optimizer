@@ -200,13 +200,14 @@ function pushScopedNameType(
 
   let result;
   if (istate.typeMap) {
-    result = istate.typeMap?.get(node);
+    result = istate.typeMap.get(node);
     if (
       !result &&
       object &&
       node.type === "MemberExpression" &&
       !node.computed
     ) {
+      istate.typeMap.set(node.object, object.value);
       const resolved = resolveDottedMember(istate, object.value, node);
       if (resolved) {
         result = resolved.property;

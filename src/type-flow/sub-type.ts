@@ -14,6 +14,7 @@ import {
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
+  MethodValueType,
   ObjectLikeTagsConst,
   ObjectValueType,
   SingleValue,
@@ -103,6 +104,15 @@ function subtypeOfValue(
       const bdict = bvalue as DictionaryValueType;
       return (
         subtypeOf(adict.key, bdict.key) && subtypeOf(adict.value, bdict.value)
+      );
+    }
+    case TypeTag.Method: {
+      const ameth = avalue as MethodValueType;
+      const bmeth = bvalue as MethodValueType;
+      return (
+        ameth.args.length === bmeth.args.length &&
+        subtypeOf(ameth.result, bmeth.result) &&
+        ameth.args.every((arg, i) => subtypeOf(bmeth.args[i], arg))
       );
     }
     case TypeTag.Module:

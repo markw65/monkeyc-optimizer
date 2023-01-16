@@ -73,11 +73,12 @@ export function evaluateCall(
         argEffects = false;
       }
       if (checker) {
-        if (args.length !== cur.node.params.length) {
+        const expectedArgs = (argTypes || cur.node.params).length;
+        if (args.length !== expectedArgs) {
           diagnostic(
             istate.state,
             node,
-            `${cur.fullName} expects ${cur.node.params.length} arguments, but got ${args.length}`,
+            `${cur.fullName} expects ${expectedArgs} arguments, but got ${args.length}`,
             istate.checkTypes
           );
         }
@@ -85,6 +86,7 @@ export function evaluateCall(
           let paramType;
           if (argTypes) {
             paramType = argTypes[i];
+            if (!paramType) return;
           } else {
             const param = cur.node.params[i];
             if (param?.type !== "BinaryExpression") return;
@@ -334,6 +336,23 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     }
     return ret;
   };
+  const methodInvoke: SysCallHelper = (
+    callee: FunctionStateNode,
+    calleeObj: ExactOrUnion,
+    getArgs: () => Array<ExactOrUnion>
+  ) => {
+    const ret: SysCallHelperResult = { argEffects: true };
+    if (calleeObj.type & TypeTag.Method) {
+      const data = getUnionComponent(calleeObj, TypeTag.Method);
+      if (data) {
+        ret.returnType = data.result;
+        ret.argTypes = data.args;
+        return ret;
+      }
+    }
+    ret.argTypes = getArgs();
+    return ret;
+  };
   const nop: SysCallHelper = () => ({ effectFree: true });
   const mod: SysCallHelper = () => ({});
 
@@ -430,6 +449,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     "$.Toybox.Lang.Dictionary.size": nop,
     "$.Toybox.Lang.Dictionary.toString": nop,
     "$.Toybox.Lang.Dictionary.values": dictionaryValues,
+    "$.Toybox.Lang.Method.invoke": methodInvoke,
 
     "$.Toybox.Math.acos": mathHelper,
     "$.Toybox.Math.asin": mathHelper,
