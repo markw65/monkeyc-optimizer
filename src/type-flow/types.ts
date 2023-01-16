@@ -857,11 +857,8 @@ export function display(type: ExactOrUnion): string {
 
   const parts: string[] = [];
 
-  const displayOne = (
-    bit: ExactTypes["type"],
-    value: SingleValue
-  ): string | undefined => {
-    switch (bit) {
+  const displayOne = (tv: ValueTypes): string | undefined => {
+    switch (tv.type) {
       case TypeTag.Null:
       case TypeTag.False:
       case TypeTag.True:
@@ -870,34 +867,29 @@ export function display(type: ExactOrUnion): string {
       case TypeTag.Long:
       case TypeTag.Float:
       case TypeTag.Double:
-        return value.toString();
+        return tv.value.toString();
       case TypeTag.Char:
-        return `'${JSON.stringify(value).slice(1, -1)}'`;
+        return `'${JSON.stringify(tv.value).slice(1, -1)}'`;
       case TypeTag.String:
-        return JSON.stringify(type.value);
+        return JSON.stringify(tv.value);
       case TypeTag.Array:
-        return display(value as ExactOrUnion);
+        return display(tv.value);
       case TypeTag.Dictionary:
-        return `${display((value as DictionaryValueType).key)}, ${display(
-          (value as DictionaryValueType).value
-        )}`;
+        return `${display(tv.value.key)}, ${display(tv.value.value)}`;
       case TypeTag.Method:
-        return `(${(value as MethodValueType).args
+        return `(${tv.value.args
           .map((arg) => display(arg))
-          .join(", ")}) as ${display((value as MethodValueType).result)}`;
+          .join(", ")}) as ${display(tv.value.result)}`;
       case TypeTag.Module:
       case TypeTag.Function:
       case TypeTag.Class:
       case TypeTag.Typedef:
-        return names(
-          value as FunctionStateNode | FunctionStateNode[] | null,
-          (v) => v.fullName.slice(2)
-        );
+        return names(tv.value, (v) => v.fullName.slice(2));
       case TypeTag.Object: {
-        const klass = (value as ObjectValueType).klass;
+        const klass = tv.value.klass;
         if (!klass.value) return undefined;
-        const obj = (value as ObjectValueType).obj;
-        const ret = displayOne(TypeTag.Class, klass.value);
+        const obj = tv.value.obj;
+        const ret = displayOne({ type: TypeTag.Class, value: klass.value });
         return obj
           ? `${ret}<{${Object.entries(obj)
               .map(([key, value]) => `${key}: ${display(value)}`)
@@ -905,8 +897,7 @@ export function display(type: ExactOrUnion): string {
           : ret;
       }
       case TypeTag.Enum: {
-        const v = value as EnumValueType;
-
+        const v = tv.value;
         return v.enum != null
           ? v.value != null
             ? `${display(v.value)} as ${v.enum.fullName.slice(2)}`
@@ -916,9 +907,9 @@ export function display(type: ExactOrUnion): string {
           : `enum`;
       }
       case TypeTag.Symbol:
-        return `:${value}`;
+        return `:${tv.value}`;
       default:
-        unhandledType(bit);
+        unhandledType(tv);
     }
   };
   let bits = type.type;
@@ -936,7 +927,8 @@ export function display(type: ExactOrUnion): string {
     }
     const name = typeTagName(bit)!;
     const value = getUnionComponent(type, bit);
-    const valueStr = value != null && displayOne(bit, value);
+    const valueStr =
+      value != null && displayOne({ type: bit, value } as ValueTypes);
     if (!valueStr) {
       parts.push(name);
     } else if (
