@@ -12,6 +12,7 @@ import {
 } from "../optimizer-types";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { evaluateCall } from "./interp-call";
+import { subtypeOf } from "./sub-type";
 import {
   cloneType,
   display,
@@ -24,7 +25,6 @@ import {
   mustBeFalse,
   mustBeTrue,
   ObjectType,
-  SingleTonTypeTagsConst,
   typeFromLiteral,
   typeFromSingleTypeSpec,
   typeFromTypespec,
@@ -263,11 +263,14 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       const right = popIstate(istate, node.right);
       const left = popIstate(istate, node.left);
       if (node.operator === "as") {
+        // Drop widening casts, but keep "Object?" as a special case
+        // so we can do (x as Object?) as Whatever without a warning.
+        // Also keep enum -> non-enum casts, because of issues with
+        // garmin's type checker.
         if (
-          (left.value.type & (ValueTypeTagsConst | SingleTonTypeTagsConst)) ==
-            left.value.type &&
-          (right.value.type & left.value.type) === left.value.type &&
-          hasNoData(right.value, left.value.type)
+          subtypeOf(left.value, right.value) &&
+          !subtypeOf({ type: TypeTag.Null | TypeTag.Object }, right.value) &&
+          (!(left.value.type & TypeTag.Enum) || right.value.type & TypeTag.Enum)
         ) {
           push({
             value: left.value,
