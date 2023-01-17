@@ -112,6 +112,13 @@ export function beforeEvaluate(
       break;
     }
     case "IfStatement": {
+      if (
+        node.alternate &&
+        node.alternate.type === "BlockStatement" &&
+        !node.alternate.body.length
+      ) {
+        delete node.alternate;
+      }
       const test = popIstate(istate, node.test);
       const result = mustBeTrue(test.value)
         ? true
@@ -290,17 +297,6 @@ export function afterEvaluate(
   istate: InterpState,
   node: mctree.Node
 ): mctree.Node | null | false {
-  switch (node.type) {
-    case "IfStatement":
-      if (
-        node.alternate &&
-        node.alternate.type === "BlockStatement" &&
-        !node.alternate.body.length
-      ) {
-        delete node.alternate;
-      }
-      break;
-  }
   if (isExpression(node) && node.type !== "Literal") {
     const top = istate.stack[istate.stack.length - 1];
     if (!top.embeddedEffects && hasValue(top.value)) {
