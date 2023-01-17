@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { diagnostic, formatAst, isLookupCandidate } from "../api";
+import { diagnostic, formatAst, isLookupCandidate, lookupNext } from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
@@ -12,7 +12,7 @@ import {
 import { resolveDottedMember } from "../type-flow";
 import { couldBe } from "./could-be";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
-import { evaluateCall } from "./interp-call";
+import { checkCallArgs, evaluateCall } from "./interp-call";
 import { subtypeOf } from "./sub-type";
 import {
   cloneType,
@@ -636,11 +636,39 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       break;
     }
     case "NewExpression": {
-      const [klass, ..._args] = stack.splice(-1 - node.arguments.length);
-      // we should check the arguments at some point...
+      const [klass, ...args] = stack.splice(-1 - node.arguments.length);
       const obj: ObjectType = { type: TypeTag.Object };
       if (isExact(klass.value) && klass.value.type === TypeTag.Class) {
         obj.value = { klass: klass.value };
+        if (istate.checkTypes && klass.value.value) {
+          const results = lookupNext(
+            istate.state,
+            [
+              {
+                parent: null,
+                results: Array.isArray(klass.value.value)
+                  ? klass.value.value
+                  : [klass.value.value],
+              },
+            ],
+            "decls",
+            { type: "Identifier", name: "initialize" }
+          );
+          if (results) {
+            const callees = results.flatMap((lookupDef) =>
+              lookupDef.results.filter(
+                (result): result is FunctionStateNode =>
+                  result.type === "FunctionDeclaration"
+              )
+            );
+            checkCallArgs(
+              istate,
+              node,
+              callees,
+              args.map(({ value }) => value)
+            );
+          }
+        }
       }
       push({ value: obj, embeddedEffects: true, node });
       break;

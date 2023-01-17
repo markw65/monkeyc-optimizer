@@ -48,7 +48,15 @@ export function evaluateCall(
       );
     return { value: { type: TypeTag.Any }, node, embeddedEffects: true };
   }
-  const callees = callee.value;
+  return checkCallArgs(istate, node, callee.value, args);
+}
+
+export function checkCallArgs(
+  istate: InterpState,
+  node: mctree.CallExpression,
+  callees: FunctionStateNode | FunctionStateNode[],
+  args: ExactOrUnion[]
+) {
   return reduce(
     callees,
     (result, cur) => {
@@ -73,7 +81,7 @@ export function evaluateCall(
       if (cur.info === false) {
         argEffects = false;
       }
-      if (checker && (cur === callee.value || !isOverride(cur, callees))) {
+      if (checker && (cur === callees || !isOverride(cur, callees))) {
         const expectedArgs = (argTypes || cur.node.params).length;
         if (args.length !== expectedArgs) {
           diagnostic(
