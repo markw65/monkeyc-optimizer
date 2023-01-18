@@ -222,7 +222,7 @@ function filterDecls(decls: StateNode[], possible: StateNode[] | false) {
   }, result);
 }
 
-function findObjectDeclsByProperty(
+export function findObjectDeclsByProperty(
   istate: InterpState,
   object: ExactOrUnion,
   next: mctree.DottedMemberExpression

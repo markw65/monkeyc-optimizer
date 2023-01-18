@@ -1,15 +1,22 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { diagnostic, formatAst, isLookupCandidate, lookupNext } from "../api";
+import {
+  diagnostic,
+  formatAst,
+  isLocal,
+  isLookupCandidate,
+  lookupNext,
+} from "../api";
 import { isExpression, traverseAst } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
   ClassStateNode,
   DiagnosticType,
   FunctionStateNode,
+  LookupDefinition,
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
-import { resolveDottedMember } from "../type-flow";
+import { findObjectDeclsByProperty, resolveDottedMember } from "../type-flow";
 import { couldBe } from "./could-be";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { checkCallArgs, evaluateCall } from "./interp-call";
@@ -31,6 +38,7 @@ import {
   typeFromSingleTypeSpec,
   typeFromTypespec,
   typeFromTypeStateNode,
+  typeFromTypeStateNodes,
   TypeTag,
   ValueTypeTagsConst,
 } from "./types";
@@ -189,6 +197,47 @@ export function deEnumerate(t: ExactOrUnion) {
     );
   }
   return t;
+}
+
+function getLhsConstraint(
+  istate: InterpState,
+  node: mctree.MemberExpression | mctree.Identifier
+) {
+  let lookupDefs: LookupDefinition[] | null | false = null;
+  if (node.type === "MemberExpression") {
+    if (!istate.typeMap) {
+      throw new Error("Checking types without a typeMap");
+    }
+    const object = istate.typeMap.get(node.object);
+    if (object && !node.computed) {
+      const objDecls = findObjectDeclsByProperty(istate, object, node);
+      if (objDecls) {
+        lookupDefs = lookupNext(
+          istate.state,
+          [{ parent: null, results: objDecls }],
+          "decls",
+          node.property
+        );
+      }
+    }
+  }
+  if (!lookupDefs) {
+    [, lookupDefs] = istate.state.lookup(node);
+  }
+  if (!lookupDefs) {
+    return null;
+  }
+  const trueDecls = lookupDefs.flatMap((lookupDef) =>
+    lookupDef.results.filter(
+      (decl) =>
+        decl.type === "VariableDeclarator" &&
+        decl.node.kind === "var" &&
+        !isLocal(decl)
+    )
+  );
+  return trueDecls.length === 0
+    ? null
+    : typeFromTypeStateNodes(istate.state, trueDecls);
 }
 
 function pushScopedNameType(
@@ -618,6 +667,20 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           embeddedEffects: true,
           node,
         });
+      }
+      if (istate.typeChecker) {
+        const constraint = getLhsConstraint(istate, node.left);
+        const actual = istate.stack[istate.stack.length - 1].value;
+        if (constraint && !istate.typeChecker(actual, constraint)) {
+          diagnostic(
+            istate.state,
+            node,
+            `Invalid assignment to ${formatAst(node.left)}. Expected ${display(
+              constraint
+            )} but got ${display(actual)}`,
+            istate.checkTypes
+          );
+        }
       }
       break;
     }
