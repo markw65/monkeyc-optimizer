@@ -24,6 +24,7 @@ import {
   FunctionStateNode,
   ProgramStateAnalysis,
   StateNode,
+  VariableStateNode,
 } from "./optimizer-types";
 import {
   evaluate,
@@ -75,8 +76,139 @@ export function buildTypeInfo(
   return propagateTypes(state, func, graph);
 }
 
+function declIsLocal(
+  decl: EventDecl
+): decl is VariableStateNode | VariableStateNode[] | mctree.TypedIdentifier {
+  return some(
+    decl,
+    (d) =>
+      d.type === "BinaryExpression" ||
+      d.type === "Identifier" ||
+      (d.type === "VariableDeclarator" && isLocal(d))
+  );
+}
+
 type TypeStateKey = Exclude<EventDecl, { type: "MemberDecl" | "Unknown" }>;
-type TypeState = Map<TypeStateKey, ExactOrUnion>;
+type TypeStateValue = {
+  curType: ExactOrUnion;
+  equivSet?: { next: TypeStateKey };
+};
+type TypeState = Map<TypeStateKey, TypeStateValue>;
+
+function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
+  if (key === equiv) return;
+  let keyVal = ts.get(key);
+  let equivVal = ts.get(equiv);
+  if (!keyVal || !equivVal) return;
+  if (equivVal.equivSet) {
+    if (keyVal.equivSet) {
+      // key is already a member of a set, see if
+      // equiv is part of it.
+      let s = keyVal.equivSet.next;
+      do {
+        if (s === equiv) {
+          // these two are already equivalent
+          return;
+        }
+        const next = ts.get(s);
+        if (!next || !next.equivSet) {
+          throw new Error(
+            `Inconsistent equivSet for ${tsKey(key)}: missing value for ${tsKey(
+              s
+            )}`
+          );
+        }
+        s = next.equivSet.next;
+      } while (s !== key);
+    }
+    // equiv is already a member of a set. remove it
+    removeEquiv(ts, equiv);
+  }
+  // equiv is not (or no longer) part of an equivSet
+  keyVal = { ...keyVal };
+  if (!keyVal.equivSet) {
+    keyVal.equivSet = { next: key };
+  }
+  equivVal = { ...equivVal, equivSet: keyVal.equivSet };
+  keyVal.equivSet = { next: equiv };
+  ts.set(key, keyVal);
+  ts.set(equiv, equivVal);
+}
+
+function removeEquiv(ts: TypeState, equiv: TypeStateKey) {
+  const equivVal = ts.get(equiv);
+  if (!equivVal?.equivSet) return;
+  let s = equivVal.equivSet.next;
+  do {
+    const next = ts.get(s);
+    if (!next || !next.equivSet) {
+      throw new Error(
+        `Inconsistent equivSet for ${tsKey(equiv)}: missing value for ${tsKey(
+          s
+        )}`
+      );
+    }
+    if (next.equivSet.next === equiv) {
+      const { equivSet: _e, ...rest } = next;
+      if (equivVal.equivSet.next === s) {
+        // this is a pair. just kill both
+        ts.set(s, rest);
+      } else {
+        ts.set(s, { ...rest, equivSet: equivVal.equivSet });
+      }
+      break;
+    }
+    s = next.equivSet.next;
+  } while (true);
+  const newVal = { ...equivVal };
+  delete newVal.equivSet;
+  ts.set(equiv, newVal);
+}
+
+function getEquivSet(ts: TypeState, k: TypeStateKey) {
+  const keys = new Set<TypeStateKey>();
+  let s = k;
+  do {
+    const next = ts.get(s);
+    if (!next || !next.equivSet) {
+      throw new Error(
+        `Inconsistent equivSet for ${tsKey(k)}: missing value for ${tsKey(s)}`
+      );
+    }
+    keys.add(s);
+    s = next.equivSet.next;
+  } while (s != k);
+  return keys;
+}
+
+function intersectEquiv(ts1: TypeState, ts2: TypeState, k: TypeStateKey) {
+  const eq1 = ts1.get(k);
+  const eq2 = ts2.get(k);
+
+  if (!eq1?.equivSet) return false;
+  if (!eq2?.equivSet) {
+    removeEquiv(ts1, k);
+    return true;
+  }
+
+  const keys = getEquivSet(ts2, k);
+  let ret = false;
+  let s = eq1.equivSet.next;
+  do {
+    const next = ts1.get(s);
+    if (!next || !next.equivSet) {
+      throw new Error(
+        `Inconsistent equivSet for ${tsKey(k)}: missing value for ${tsKey(s)}`
+      );
+    }
+    if (!keys.has(s)) {
+      ret = true;
+      removeEquiv(ts1, s);
+    }
+    s = next.equivSet.next;
+  } while (s != k);
+  return ret;
+}
 
 function mergeTypeState(
   blockStates: TypeState[],
@@ -97,27 +229,42 @@ function mergeTypeState(
     const fromv = from.get(k);
     if (!fromv) {
       changes = true;
+      if (tov.equivSet) {
+        removeEquiv(to, k);
+      }
       to.delete(k);
       return;
     }
+    if (tov.equivSet) {
+      if (intersectEquiv(to, from, k)) {
+        changes = true;
+        tov = to.get(k)!;
+      }
+    }
     if (widen) {
-      if (subtypeOf(fromv, tov)) return;
-      if (subtypeOf(tov, fromv)) {
-        to.set(k, fromv);
+      if (subtypeOf(fromv.curType, tov.curType)) return;
+      if (subtypeOf(tov.curType, fromv.curType)) {
+        to.set(k, { ...tov, curType: fromv.curType });
         changes = true;
         return;
       }
     }
-    let result = cloneType(tov);
-    if (!unionInto(result, fromv)) return;
+    let result = cloneType(tov.curType);
+    if (!unionInto(result, fromv.curType)) return;
     if (widen) {
       const wide = widenType(result);
       if (wide) result = wide;
     }
-    to.set(k, result);
+    to.set(k, { ...tov, curType: result });
     changes = true;
   });
   return changes;
+}
+
+function sourceLocation(loc: mctree.SourceLocation | null | undefined) {
+  return loc
+    ? `${loc.source || "??"}:${loc.start.line}:${loc.start.column}`
+    : "??";
 }
 
 function printBlockHeader(block: TypeFlowBlock) {
@@ -169,7 +316,7 @@ function printBlockTrailer(block: TypeFlowBlock) {
   );
 }
 
-function typeStateEntry(value: ExactOrUnion, key: TypeStateKey) {
+function tsKey(key: TypeStateKey) {
   return `${map(key, (k) => {
     if (k.type === "Literal") {
       return k.raw;
@@ -183,7 +330,27 @@ function typeStateEntry(value: ExactOrUnion, key: TypeStateKey) {
       return k.id.name;
     }
     return "<unknown>";
-  }).join("|")} = ${display(value)}`;
+  }).join("|")}`;
+}
+
+function tsEquivs(state: TypeState, key: TypeStateKey) {
+  const result: string[] = [];
+  let s = key;
+  do {
+    result.push(tsKey(s));
+    const next = state.get(s);
+    if (!next || !next.equivSet) {
+      throw new Error(
+        `Inconsistent equivSet for ${tsKey(key)}: missing value for ${tsKey(s)}`
+      );
+    }
+    s = next.equivSet.next;
+  } while (s != key);
+  return `[(${result.join(", ")})]`;
+}
+
+function typeStateEntry(value: TypeStateValue, key: TypeStateKey) {
+  return `${tsKey(key)} = ${display(value.curType)}`;
 }
 
 function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
@@ -193,7 +360,11 @@ function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
     return;
   }
   state.forEach((value, key) => {
-    console.log(`${indent} - ${typeStateEntry(value, key)}`);
+    console.log(
+      `${indent} - ${typeStateEntry(value, key)}${
+        value.equivSet ? " " + tsEquivs(state, key) : ""
+      }`
+    );
   });
 }
 
@@ -307,9 +478,10 @@ function propagateTypes(
   function memberDeclInfo(
     blockState: TypeState,
     decl: Extract<EventDecl, { type: "MemberDecl" }>,
+    clearEquiv: boolean,
     newValue?: ExactOrUnion | undefined
   ): [ExactOrUnion, boolean] | null {
-    const baseType = getStateEvent(blockState, decl.base);
+    const baseType = getStateType(blockState, decl.base);
     const typePath: ExactOrUnion[] = [baseType];
     let next: ExactOrUnion | null;
     let updateAny = false;
@@ -423,7 +595,7 @@ function propagateTypes(
       }
       typePath.push(object);
     }
-    setStateEvent(blockState, decl.base, typePath[0]);
+    setStateEvent(blockState, decl.base, typePath[0], false);
     return [next!, updateAny];
   }
 
@@ -452,40 +624,57 @@ function propagateTypes(
   function setStateEvent(
     blockState: TypeState,
     decl: EventDecl,
-    value: ExactOrUnion
+    value: ExactOrUnion,
+    clearEquiv: boolean
   ) {
     if (
       Array.isArray(decl) ||
       (decl.type !== "MemberDecl" && decl.type !== "Unknown")
     ) {
-      blockState.set(decl, value);
+      if (!clearEquiv) {
+        const v = blockState.get(decl);
+        if (v?.equivSet) {
+          blockState.set(decl, { ...v, curType: value });
+          return;
+        }
+      } else {
+        removeEquiv(blockState, decl);
+      }
+      blockState.set(decl, { curType: value });
       return;
     }
     if (decl.type === "Unknown") {
       return;
     }
-    return memberDeclInfo(blockState, decl, value)?.[1];
+    return memberDeclInfo(blockState, decl, clearEquiv, value)?.[1];
   }
 
-  function getStateEvent(blockState: TypeState, decl: EventDecl): ExactOrUnion {
+  function getStateType(blockState: TypeState, decl: EventDecl): ExactOrUnion {
+    return getStateEntry(blockState, decl).curType;
+  }
+
+  function getStateEntry(
+    blockState: TypeState,
+    decl: EventDecl
+  ): TypeStateValue {
     if (
       Array.isArray(decl) ||
       (decl.type !== "MemberDecl" && decl.type !== "Unknown")
     ) {
-      let type = blockState.get(decl);
-      if (!type) {
-        type = typeConstraint(decl);
-        blockState.set(decl, type);
+      let tsVal = blockState.get(decl);
+      if (!tsVal) {
+        tsVal = { curType: typeConstraint(decl) };
+        blockState.set(decl, tsVal);
       }
-      return type;
+      return tsVal;
     }
 
     if (decl.type === "Unknown") {
-      return { type: TypeTag.Never };
+      return { curType: { type: TypeTag.Never } };
     }
 
-    const info = memberDeclInfo(blockState, decl);
-    return info ? info[0] : { type: TypeTag.Any };
+    const info = memberDeclInfo(blockState, decl, false);
+    return { curType: info ? info[0] : { type: TypeTag.Any } };
   }
 
   const blockStates: TypeState[] = [];
@@ -529,7 +718,7 @@ function propagateTypes(
     callees: FunctionStateNode | FunctionStateNode[] | undefined | null,
     node: mctree.CallExpression
   ) {
-    const calleeObj = getStateEvent(curState, calleeObjDecl);
+    const calleeObj = getStateType(curState, calleeObjDecl);
     return every(callees, (callee) => {
       const info = sysCallInfo(callee);
       if (!info) return false;
@@ -537,7 +726,7 @@ function propagateTypes(
         node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
       );
       if (result.calleeObj) {
-        setStateEvent(curState, calleeObjDecl, result.calleeObj);
+        setStateEvent(curState, calleeObjDecl, result.calleeObj, false);
       }
       return true;
     });
@@ -569,7 +758,7 @@ function propagateTypes(
           }
         }
         const tmpState = new Map(curState);
-        setStateEvent(tmpState, leftDecl, leftr);
+        setStateEvent(tmpState, leftDecl, leftr, false);
         if (rightDecl) {
           let rightr = restrictByEquality(left, right);
           if (rightr.type === TypeTag.Never) {
@@ -580,7 +769,7 @@ function propagateTypes(
               return false;
             }
           }
-          setStateEvent(tmpState, rightDecl, rightr);
+          setStateEvent(tmpState, rightDecl, rightr, false);
         }
         return tmpState;
       }
@@ -595,7 +784,7 @@ function propagateTypes(
         singletonRemoved.type -= right.type;
         if (singletonRemoved.type === TypeTag.Never) return false;
         const tmpState = new Map(curState);
-        setStateEvent(tmpState, leftDecl, singletonRemoved);
+        setStateEvent(tmpState, leftDecl, singletonRemoved, false);
         return tmpState;
       }
       return null;
@@ -604,8 +793,8 @@ function propagateTypes(
       switch (event.kind) {
         case FlowKind.LEFT_EQ_RIGHT_DECL:
         case FlowKind.LEFT_NE_RIGHT_DECL: {
-          const left = getStateEvent(curState, event.left);
-          const right = getStateEvent(curState, event.right_decl);
+          const left = getStateType(curState, event.left);
+          const right = getStateType(curState, event.right_decl);
           return fixTypes(
             truthy === (event.kind === FlowKind.LEFT_EQ_RIGHT_DECL),
             left,
@@ -616,7 +805,7 @@ function propagateTypes(
         }
         case FlowKind.LEFT_EQ_RIGHT_NODE:
         case FlowKind.LEFT_NE_RIGHT_NODE: {
-          const left = getStateEvent(curState, event.left);
+          const left = getStateType(curState, event.left);
           const right = evaluate(istate, event.right_node).value;
           return fixTypes(
             truthy === (event.kind === FlowKind.LEFT_EQ_RIGHT_NODE),
@@ -628,7 +817,7 @@ function propagateTypes(
         }
         case FlowKind.LEFT_TRUTHY:
         case FlowKind.LEFT_FALSEY: {
-          const left = getStateEvent(curState, event.left);
+          const left = getStateType(curState, event.left);
           if (!left) return null;
           if (truthy === (event.kind === FlowKind.LEFT_TRUTHY)) {
             if (left.type & (TypeTag.Null | TypeTag.False)) {
@@ -637,7 +826,7 @@ function propagateTypes(
               singletonRemoved.type &= ~(TypeTag.Null | TypeTag.False);
               if (singletonRemoved.type === TypeTag.Never) return false;
               const tmpState = new Map(curState);
-              setStateEvent(tmpState, event.left, singletonRemoved);
+              setStateEvent(tmpState, event.left, singletonRemoved, false);
               return tmpState;
             }
           } else {
@@ -651,15 +840,15 @@ function propagateTypes(
             });
             if (nonNullRemoved.type === TypeTag.Never) return false;
             const tmpState = new Map(curState);
-            setStateEvent(tmpState, event.left, nonNullRemoved);
+            setStateEvent(tmpState, event.left, nonNullRemoved, false);
             return tmpState;
           }
           break;
         }
         case FlowKind.INSTANCEOF:
         case FlowKind.NOTINSTANCE: {
-          const left = getStateEvent(curState, event.left);
-          let right = getStateEvent(curState, event.right_decl);
+          const left = getStateType(curState, event.left);
+          let right = getStateType(curState, event.right_decl);
           if (!left || !right) break;
           if (isExact(right) && right.type === TypeTag.Class) {
             right = { type: TypeTag.Object, value: { klass: right } };
@@ -720,7 +909,7 @@ function propagateTypes(
           }
           if (result) {
             const tmpState = new Map(curState);
-            setStateEvent(tmpState, event.left, result);
+            setStateEvent(tmpState, event.left, result, false);
             return tmpState;
           }
         }
@@ -781,6 +970,201 @@ function propagateTypes(
     return true;
   }
 
+  const nodeEquivs = new Map<
+    mctree.Node,
+    { decl: EventDecl; equiv: Array<EventDecl> }
+  >();
+
+  const processEvent = (
+    top: TypeFlowBlock,
+    curState: TypeState,
+    event: Event,
+    skipMerge: boolean
+  ) => {
+    if (!skipMerge && event.mayThrow && top.exsucc) {
+      if (
+        mergeTypeState(
+          blockStates,
+          blockVisits,
+          (top.exsucc as TypeFlowBlock).order!,
+          curState
+        )
+      ) {
+        queue.enqueue(top.exsucc);
+      }
+    }
+    switch (event.type) {
+      case "kil": {
+        const curEntry = getStateEntry(curState, event.decl);
+        if (curEntry.equivSet) {
+          removeEquiv(curState, event.decl);
+        }
+        curState.delete(event.decl);
+        break;
+      }
+      case "ref": {
+        const curEntry = getStateEntry(curState, event.decl);
+        typeMap.set(event.node, curEntry.curType);
+        nodeEquivs.delete(event.node);
+        if (curEntry.equivSet) {
+          const equiv = Array.from(
+            getEquivSet(curState, event.decl as TypeStateKey)
+          ).filter((decl) => decl !== event.decl && declIsLocal(decl));
+          if (equiv.length) {
+            nodeEquivs.set(event.node, {
+              decl: event.decl,
+              equiv,
+            });
+          }
+        }
+        if (logThisRun) {
+          console.log(
+            `  ${describeEvent(event)} == ${display(curEntry.curType)}`
+          );
+        }
+        break;
+      }
+      case "mod": {
+        if (logThisRun) {
+          console.log(`  ${describeEvent(event)}`);
+        }
+        let callees:
+          | FunctionStateNode
+          | FunctionStateNode[]
+          | undefined
+          | null = undefined;
+        if (event.calleeDecl) {
+          const calleeType = getStateType(curState, event.calleeDecl);
+          if (hasValue(calleeType) && calleeType.type === TypeTag.Function) {
+            callees = calleeType.value;
+          } else {
+            callees = findCalleesByNode(state, event.node as mctree.Expression);
+          }
+        }
+        if (callees === undefined && event.callees !== undefined) {
+          callees = event.callees;
+        }
+        if (event.calleeObj) {
+          if (
+            handleMod(
+              curState,
+              event.calleeObj,
+              callees,
+              event.node as mctree.CallExpression
+            )
+          ) {
+            break;
+          }
+        }
+        curState.forEach((tsv, decl) => {
+          let type = tsv.curType;
+          if (callees === undefined || modifiableDecl(decl, callees)) {
+            if (tsv.equivSet) {
+              removeEquiv(curState, decl);
+            }
+            curState.set(decl, { curType: typeConstraint(decl) });
+          } else if (
+            type.value != null &&
+            !every(callees, (callee) => callee.info === false)
+          ) {
+            if (type.type & TypeTag.Object) {
+              const odata = getObjectValue(tsv.curType);
+              if (odata?.obj) {
+                type = cloneType(type);
+                const newData = { klass: odata.klass };
+                setUnionComponent(type, TypeTag.Object, newData);
+                curState.set(decl, { ...tsv, curType: type });
+              }
+            }
+          }
+        });
+        break;
+      }
+      case "def": {
+        const lval =
+          event.node.type === "UpdateExpression"
+            ? event.node.argument
+            : event.node.type === "AssignmentExpression"
+            ? event.node.left
+            : null;
+        if (lval) {
+          const beforeType = getStateType(curState, event.decl);
+          if (beforeType) {
+            typeMap.set(lval, beforeType);
+          }
+        }
+        const expr: mctree.Expression | null =
+          event.node.type === "VariableDeclarator"
+            ? event.node.init || null
+            : event.node;
+        const type = expr
+          ? evaluate(istate, expr).value
+          : { type: TypeTag.Any };
+        if (setStateEvent(curState, event.decl, type, true)) {
+          // we wrote through a computed member expression
+          // which might have been a Class, Module or Object.
+          // That could have affected anything...
+          curState.forEach((value, decls) => {
+            if (
+              some(
+                decls,
+                (decl) =>
+                  decl.type === "VariableDeclarator" &&
+                  decl.node.kind === "var" &&
+                  !isLocal(decl)
+              )
+            ) {
+              if (value.equivSet) {
+                removeEquiv(curState, decls);
+              }
+              curState.set(decls, { curType: typeConstraint(decls) });
+            }
+          });
+        }
+        if (event.rhs) {
+          addEquiv(
+            curState,
+            event.rhs as TypeStateKey,
+            event.decl as TypeStateKey
+          );
+        }
+        if (logThisRun) {
+          console.log(`  ${describeEvent(event)} := ${display(type)}`);
+        }
+        break;
+      }
+      case "flw": {
+        if (event !== top.events?.[top.events.length - 1]) {
+          throw new Error("Flow event was not last in block");
+        }
+        if (top.succs?.length !== 2) {
+          throw new Error(
+            `Flow event had ${
+              top.succs?.length || 0
+            } successors (should have 2)`
+          );
+        }
+        if (logThisRun) {
+          console.log(
+            `  ${describeEvent(event)} : ${
+              !Array.isArray(event.left) && event.left.type === "MemberDecl"
+                ? `${display(
+                    curState.get(event.left.base)?.curType || {
+                      type: TypeTag.Any,
+                    }
+                  )} :: `
+                : ""
+            }${display(getStateType(curState, event.left))}`
+          );
+        }
+        if (!skipMerge && handleFlowEvent(event, top, curState)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   blockStates[0] = new Map();
   const head = blockStates[0];
   // set the parameters to their initial types
@@ -790,7 +1174,8 @@ function propagateTypes(
       param,
       param.type === "BinaryExpression"
         ? typeFromTypespec(state, param.right)
-        : { type: TypeTag.Any }
+        : { type: TypeTag.Any },
+      false
     );
   });
 
@@ -811,160 +1196,8 @@ function propagateTypes(
     if (top.events) {
       for (let i = 0; i < top.events.length; i++) {
         const event = top.events[i];
-        if (event.mayThrow && top.exsucc) {
-          if (
-            mergeTypeState(
-              blockStates,
-              blockVisits,
-              (top.exsucc as TypeFlowBlock).order!,
-              curState
-            )
-          ) {
-            queue.enqueue(top.exsucc);
-          }
-        }
-        switch (event.type) {
-          case "ref": {
-            const curType = getStateEvent(curState, event.decl);
-            if (!curType) {
-              typeMap.delete(event.node);
-              break;
-            }
-            if (logThisRun) {
-              console.log(`  ${describeEvent(event)} == ${display(curType)}`);
-            }
-            typeMap.set(event.node, curType);
-            break;
-          }
-          case "mod": {
-            if (logThisRun) {
-              console.log(`  ${describeEvent(event)}`);
-            }
-            let callees:
-              | FunctionStateNode
-              | FunctionStateNode[]
-              | undefined
-              | null = undefined;
-            if (event.calleeDecl) {
-              const calleeType = getStateEvent(curState, event.calleeDecl);
-              if (
-                hasValue(calleeType) &&
-                calleeType.type === TypeTag.Function
-              ) {
-                callees = calleeType.value;
-              } else {
-                callees = findCalleesByNode(
-                  state,
-                  event.node as mctree.Expression
-                );
-              }
-            }
-            if (callees === undefined && event.callees !== undefined) {
-              callees = event.callees;
-            }
-            if (event.calleeObj) {
-              if (
-                handleMod(
-                  curState,
-                  event.calleeObj,
-                  callees,
-                  event.node as mctree.CallExpression
-                )
-              ) {
-                break;
-              }
-            }
-            curState.forEach((type, decl) => {
-              if (callees === undefined || modifiableDecl(decl, callees)) {
-                curState.set(decl, typeConstraint(decl));
-              } else if (
-                type.value != null &&
-                !every(callees, (callee) => callee.info === false)
-              ) {
-                if (type.type & TypeTag.Object) {
-                  const odata = getObjectValue(type);
-                  if (odata?.obj) {
-                    type = cloneType(type);
-                    const newData = { klass: odata.klass };
-                    setUnionComponent(type, TypeTag.Object, newData);
-                    curState.set(decl, type);
-                  }
-                }
-              }
-            });
-            break;
-          }
-          case "def": {
-            const lval =
-              event.node.type === "UpdateExpression"
-                ? event.node.argument
-                : event.node.type === "AssignmentExpression"
-                ? event.node.left
-                : null;
-            if (lval) {
-              const beforeType = getStateEvent(curState, event.decl);
-              if (beforeType) {
-                typeMap.set(lval, beforeType);
-              }
-            }
-            const expr: mctree.Expression | null =
-              event.node.type === "VariableDeclarator"
-                ? event.node.init || null
-                : event.node;
-            const type = expr
-              ? evaluate(istate, expr).value
-              : { type: TypeTag.Any };
-            if (setStateEvent(curState, event.decl, type)) {
-              // we wrote through a computed member expression
-              // which might have been a Class, Module or Object.
-              // That could have affected anything...
-              curState.forEach((value, decls) => {
-                if (
-                  some(
-                    decls,
-                    (decl) =>
-                      decl.type === "VariableDeclarator" &&
-                      decl.node.kind === "var" &&
-                      !isLocal(decl)
-                  )
-                ) {
-                  curState.set(decls, typeConstraint(decls));
-                }
-              });
-            }
-            if (logThisRun) {
-              console.log(`  ${describeEvent(event)} := ${display(type)}`);
-            }
-            break;
-          }
-          case "flw": {
-            if (i !== top.events.length - 1) {
-              throw new Error("Flow event was not last in block");
-            }
-            if (top.succs?.length !== 2) {
-              throw new Error(
-                `Flow event had ${
-                  top.succs?.length || 0
-                } successors (should have 2)`
-              );
-            }
-            if (logThisRun) {
-              console.log(
-                `  ${describeEvent(event)} : ${
-                  !Array.isArray(event.left) && event.left.type === "MemberDecl"
-                    ? `${display(
-                        curState.get(event.left.base) || {
-                          type: TypeTag.Any,
-                        }
-                      )} :: `
-                    : ""
-                }${display(getStateEvent(curState, event.left))}`
-              );
-            }
-            if (handleFlowEvent(event, top, curState)) {
-              successorsHandled = true;
-            }
-          }
+        if (processEvent(top, curState, event, false)) {
+          successorsHandled = true;
         }
       }
     }
@@ -998,10 +1231,16 @@ function propagateTypes(
     typeMap.forEach((value, key) => {
       console.log(
         `${formatAst(key)} = ${display(value)} ${
-          key.loc && key.loc.source
-            ? ` (${key.loc.source}:${key.loc.start.line}:${key.loc.start.column})`
-            : ""
+          key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
         }`
+      );
+    });
+    console.log("====== EquivMap =====");
+    nodeEquivs.forEach((value, key) => {
+      console.log(
+        `${formatAst(key)} = [${value.equiv.map((equiv) =>
+          tsKey(equiv as TypeStateKey)
+        )}] ${key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""}`
       );
     });
   }

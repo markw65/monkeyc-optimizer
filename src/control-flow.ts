@@ -1,7 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { isExpression, isStatement, mayThrow } from "./ast";
 import { ProgramStateAnalysis, FunctionStateNode } from "./optimizer-types";
-import { pushUnique } from "./util";
+import { forEach, pushUnique } from "./util";
 
 const Terminals = {
   BreakStatement: "break",
@@ -125,7 +125,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     node: mctree.Node,
     stmt: mctree.Node,
     mayThrow: boolean | 1
-  ) => T | null
+  ) => T | T[] | null
 ) {
   const { stack, pre, post } = state;
   try {
@@ -500,17 +500,17 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
       const topTest = testStack[testStack.length - 1];
       if (!state.inType) {
         const throws = tryActive > 0 && mayThrow(node);
-        const event = notice(node, curStmt, throws);
+        const events = notice(node, curStmt, throws);
         if (throws) {
-          if (!event) {
+          if (!events) {
             throw new Error(
               "mayThrow expression in try/catch must generate an event"
             );
           }
-        } else if (event) {
-          event.mayThrow = false;
+        } else {
+          forEach(events, (e) => (e.mayThrow = false));
         }
-        if (event) {
+        forEach(events, (event) => {
           if (event.mayThrow) {
             for (let i = localState.stack.length; i--; ) {
               const target = localState.stack[i].throw;
@@ -532,7 +532,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             }
           }
           addEvent(localState.curBlock, event);
-        }
+        });
       }
       if (localState.top().node === node) {
         localState.pop();
@@ -548,6 +548,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             localState.addEdge(localState.curBlock, topTest.false);
             const event = notice(node, curStmt, 1);
             if (event) {
+              if (Array.isArray(event)) {
+                throw new Error(`Unexpected array of flw events`);
+              }
               event.mayThrow = false;
               addEvent(localState.curBlock, event);
               localState.unreachable = true;

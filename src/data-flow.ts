@@ -59,6 +59,15 @@ export interface RefEvent extends BaseEvent {
 }
 
 /*
+ * An indicator that a local went out of scope
+ */
+export interface KillEvent extends BaseEvent {
+  type: "kil";
+  node: mctree.Node;
+  decl: StateNodeDecl | StateNodeDecl[];
+}
+
+/*
  * An assignment to, or declaration of, a node of interest
  * to data flow
  */
@@ -69,6 +78,7 @@ export interface DefEvent extends BaseEvent {
     | mctree.UpdateExpression
     | mctree.VariableDeclarator;
   decl: EventDecl;
+  rhs?: EventDecl;
 }
 
 /*
@@ -159,7 +169,13 @@ export interface ExnEvent extends BaseEvent {
   node: mctree.Node;
 }
 
-export type Event = RefEvent | DefEvent | ModEvent | FlowEvent | ExnEvent;
+export type Event =
+  | RefEvent
+  | KillEvent
+  | DefEvent
+  | ModEvent
+  | FlowEvent
+  | ExnEvent;
 
 export interface DataFlowBlock extends Block<Event> {
   order?: number;
@@ -345,7 +361,7 @@ export function buildDataFlowGraph(
     graph: buildReducedGraph(
       state,
       func,
-      (node, stmt, mayThrow): Event | null => {
+      (node, stmt, mayThrow): Event | Event[] | null => {
         if (mayThrow === 1) {
           return wantsAllRefs ? getFlowEvent(node, stmt, findDecl) : null;
         }
@@ -368,6 +384,24 @@ export function buildDataFlowGraph(
               liveDefs.delete(def);
             }
           });
+        }
+        if (wantsAllRefs) {
+          const scope = state.stack[state.stack.length - 1];
+          if (
+            scope.node === node &&
+            scope.type === "BlockStatement" &&
+            scope.decls &&
+            state.stack.length - 2 !== func.stack?.length
+          ) {
+            return Object.values(scope.decls)
+              .map((value): KillEvent | null => {
+                const decl = lookupDefToDecl([
+                  { parent: null, results: value },
+                ]);
+                return decl && { type: "kil", decl, node, mayThrow: false };
+              })
+              .filter((e): e is KillEvent => e != null);
+          }
         }
         switch (node.type) {
           case "BinaryExpression":
@@ -447,12 +481,21 @@ export function buildDataFlowGraph(
             );
             if (decl) {
               liveDef(decl, stmt);
-              return {
+              const def: DefEvent = {
                 type: "def",
                 node,
                 decl,
                 mayThrow,
               };
+              if (
+                wantsAllRefs &&
+                (node.init?.type === "Identifier" ||
+                  node.init?.type === "MemberExpression")
+              ) {
+                const rhs = findDecl(node.init);
+                if (rhs) def.rhs = rhs;
+              }
+              return def;
             }
             break;
           }
@@ -460,12 +503,22 @@ export function buildDataFlowGraph(
             const decl = findDecl(node.left);
             if (decl) {
               liveDef(decl, stmt);
-              return {
+              const def: DefEvent = {
                 type: "def",
                 node,
                 decl,
                 mayThrow,
               };
+              if (
+                wantsAllRefs &&
+                node.operator === "=" &&
+                (node.right.type === "Identifier" ||
+                  node.right.type === "MemberExpression")
+              ) {
+                const rhs = findDecl(node.right);
+                if (rhs) def.rhs = rhs;
+              }
+              return def;
             } else if (wantsAllRefs) {
               return { type: "mod", node, mayThrow };
             }
