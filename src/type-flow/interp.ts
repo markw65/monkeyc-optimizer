@@ -750,6 +750,28 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     }
     // Statements, and other
     case "VariableDeclarator":
+      if (node.init) {
+        const init = popIstate(istate, node.init);
+        if (node.id.type === "BinaryExpression" && istate.typeChecker) {
+          const top = istate.state.stack[istate.state.stack.length - 1];
+          if (top.type !== "BlockStatement") {
+            const declType = typeFromTypespec(istate.state, node.id.right);
+            if (!istate.typeChecker(init.value, declType)) {
+              diagnostic(
+                istate.state,
+                node,
+                `Invalid initializer for ${formatAst(
+                  node.id.left
+                )}. Expected ${formatAst(node.id.right)} but got ${display(
+                  init.value
+                )}`,
+                istate.checkTypes
+              );
+            }
+          }
+        }
+      }
+      break;
     case "EnumStringMember":
       if (node.init) popIstate(istate, node.init);
       break;

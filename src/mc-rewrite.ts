@@ -756,6 +756,15 @@ export async function optimizeMonkeyC(
   // use this when optimizing initializer expressions,
   // outside of any function.
   const gistate: InterpState = { state, stack: [] };
+  if (
+    state.config?.checkTypes !== "OFF" &&
+    state.config?.trustDeclaredTypes &&
+    state.config?.propagateTypes
+  ) {
+    gistate.typeChecker = subtypeOf;
+    gistate.checkTypes = state.config?.checkTypes || "WARNING";
+  }
+
   // use this when type inference is enabled, and we're
   // inside a function.
   let istate: InterpState = gistate;
@@ -910,7 +919,10 @@ export async function optimizeMonkeyC(
            * of fields from state, and then pass that around.
            */
           is.state = state;
-          if (state.config?.checkTypes !== "OFF") {
+          if (
+            state.config?.checkTypes !== "OFF" &&
+            state.config?.trustDeclaredTypes
+          ) {
             is.typeChecker = subtypeOf;
             is.checkTypes = state.config?.checkTypes || "WARNING";
           }
