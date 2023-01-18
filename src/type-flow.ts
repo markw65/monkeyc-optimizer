@@ -873,29 +873,6 @@ function propagateTypes(
                 type.value != null &&
                 !every(callees, (callee) => callee.info === false)
               ) {
-                if (false && type.type & (TypeTag.Array | TypeTag.Dictionary)) {
-                  // Arrays and dictionaries are reference types, so in theory,
-                  // we should give up here and return them to their declared
-                  // types. But instead, Garmin's compiler assumes the array keeps
-                  // its current type. This is partly enforced by checking that all
-                  // writes to the array match the current type; but eg there's
-                  // nothing to stop you passing Array<Number> to a function taking
-                  // Array, which could write anything to it.
-                  type = cloneType(type);
-                  const constraint = typeConstraint(decl);
-                  const adtype = {
-                    type: type.type & (TypeTag.Array | TypeTag.Dictionary),
-                  } as const;
-                  const source =
-                    constraint.value != null &&
-                    constraint.type &
-                      type.type &
-                      (TypeTag.Array | TypeTag.Dictionary)
-                      ? intersection(adtype, constraint)
-                      : adtype;
-                  unionInto(type, source);
-                  curState.set(decl, type);
-                }
                 if (type.type & TypeTag.Object) {
                   const odata = getObjectValue(type);
                   if (odata?.obj) {
