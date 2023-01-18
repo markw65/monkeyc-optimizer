@@ -681,15 +681,37 @@ export function mcExprFromType(type: ValueTypes): mctree.Expression | null {
       if (LiteralIntegerRe.test(raw)) {
         raw += "f";
       } else {
-        const match = raw.match(/^(-)?(\d*)\.(\d+)(e\d+)?/);
-        if (match && match[2].length + match[3].length > 9) {
-          for (let l = 9 - match[2].length; l > 0; l--) {
-            const s = `${match[1] || ""}${match[2]}.${match[3].substring(
-              0,
-              l
-            )}${match[4] || ""}`;
-            if (type.value !== roundToFloat(parseFloat(s))) break;
-            raw = s;
+        // try to prettify the resulting number.
+        // "raw" typically has way more digits than it needs,
+        // so try to find a shorter representation of the same
+        // Float.
+        const match = raw.match(/^(-)?(\d*)\.(\d+)(e[-+]?\d+)?/i);
+        if (match) {
+          const lastSig = 9 + (match[2] + match[3]).search(/[^0]|$/);
+          if (match[2].length + match[3].length > lastSig) {
+            for (let l = lastSig - match[2].length; l > 0; l--) {
+              const fraction = match[3].substring(0, l);
+              // try truncating to l places after the decimal
+              const s1 = `${match[1] || ""}${match[2]}.${fraction}${
+                match[4] || ""
+              }`;
+              if (type.value === roundToFloat(parseFloat(s1))) {
+                raw = s1;
+                continue;
+              }
+              // try truncating to l places after the decimal,
+              // but round up. Note that there's an odd edge case
+              // here. 0.9999999999 won't get rounded to 1.0
+              // because we don't carry across the decimal point.
+              // That's ok; the result is still correct, it just
+              // looks uglier.
+              const s2 = `${match[1] || ""}${match[2]}.${(
+                "0000000000" +
+                (+fraction + 1)
+              ).slice(-l)}${match[4] || ""}`;
+              if (type.value !== roundToFloat(parseFloat(s2))) break;
+              raw = s2;
+            }
           }
         }
       }
