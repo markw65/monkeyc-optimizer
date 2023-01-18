@@ -472,7 +472,7 @@ export function typeFromTypeStateNodes(
   );
 }
 
-function typeFromSingleTypeSpec(
+export function typeFromSingleTypeSpec(
   state: ProgramStateAnalysis,
   type: mctree.TypeSpecPart | mctree.ObjectExpression,
   stack?: ProgramStateStack | undefined

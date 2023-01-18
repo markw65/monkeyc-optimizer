@@ -26,6 +26,7 @@ import {
   ObjectType,
   SingleTonTypeTagsConst,
   typeFromLiteral,
+  typeFromSingleTypeSpec,
   typeFromTypespec,
   typeFromTypeStateNode,
   TypeTag,
@@ -357,8 +358,15 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       break;
     case "SizedArrayExpression": {
       const arg = popIstate(istate, node.size);
+      let type: ExactOrUnion = { type: TypeTag.Array };
+      if (node.ts) {
+        type = typeFromSingleTypeSpec(istate.state, node.ts);
+        if (type.type !== TypeTag.Array) {
+          type = { type: TypeTag.Array, value: type };
+        }
+      }
       push({
-        value: { type: TypeTag.Array },
+        value: type,
         embeddedEffects: arg.embeddedEffects,
         node,
       });

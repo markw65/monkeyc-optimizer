@@ -335,3 +335,22 @@ module ImportWeirdness {
         }
     }
 }
+
+function arrayNumber(x as Array<Number>) as Number {
+    return x.size();
+}
+
+function arrayNumberOrArray(x as Array<Number or Array>) as Number {
+    return x.size();
+}
+
+typedef ArrayOrNumber as Array or Number;
+
+(:test)
+function testSizedArrayTypes(logger as Logger) as Boolean {
+    return (
+        arrayNumber(new Number [5]) == 5 &&
+        arrayNumber(new Array<Number>[5]) == 5 &&
+        arrayNumberOrArray(new ArrayOrNumber [5]) == 5
+    );
+}
