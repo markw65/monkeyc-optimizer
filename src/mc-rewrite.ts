@@ -1108,13 +1108,7 @@ export async function optimizeMonkeyC(
             }
           }
         } else {
-          const ret = unused(state, node.expression, true);
-          if (ret) {
-            return ret
-              .map((r) => replace(r, r))
-              .flat(1)
-              .filter((s): s is Exclude<typeof s, false | null> => !!s);
-          }
+          return unused(state, node.expression, true);
         }
         break;
       case "AssignmentExpression":
