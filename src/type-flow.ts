@@ -986,7 +986,7 @@ function propagateTypes(
     }
   }
 
-  if (logging && process.env["TYPEFLOW_FUNC"] === func.fullName) {
+  if (logThisRun) {
     order.forEach((block) => {
       printBlockHeader(block);
       printBlockState(block, blockStates[block.order!]);
@@ -996,7 +996,13 @@ function propagateTypes(
 
     console.log("====== TypeMap =====");
     typeMap.forEach((value, key) => {
-      console.log(`${formatAst(key)} = ${display(value)}`);
+      console.log(
+        `${formatAst(key)} = ${display(value)} ${
+          key.loc && key.loc.source
+            ? ` (${key.loc.source}:${key.loc.start.line}:${key.loc.start.column})`
+            : ""
+        }`
+      );
     });
   }
 
