@@ -74,12 +74,140 @@ export function popIstate(istate: InterpState, node: mctree.Node) {
   return item;
 }
 
+export function tryPop(
+  istate: InterpState,
+  node: InterpStackElem["node"]
+): InterpStackElem {
+  const item = istate.stack.pop();
+  if (!item) {
+    throw new Error("Unbalanced stack!");
+  }
+  if (item.node !== node) {
+    istate.stack.push(item);
+    return {
+      value: { type: TypeTag.False },
+      embeddedEffects: false,
+      node,
+    };
+  }
+  return item;
+}
+
 export function evaluateExpr(
   state: ProgramStateAnalysis,
   expr: mctree.Expression,
   typeMap?: TypeMap
 ) {
   return evaluate({ state, stack: [], typeMap }, expr);
+}
+
+function checkKnownDirection(
+  typeMap: TypeMap,
+  node: mctree.Expression
+): boolean | null {
+  const type = typeMap.get(node);
+  if (type) {
+    if (mustBeFalse(type)) {
+      return false;
+    }
+    if (mustBeTrue(type)) {
+      return true;
+    }
+  }
+  switch (node.type) {
+    case "LogicalExpression": {
+      const leftKnown = checkKnownDirection(typeMap, node.left);
+      if (leftKnown !== null) {
+        if (node.operator === "&&" || node.operator === "and") {
+          if (leftKnown === false) return false;
+        } else {
+          if (leftKnown === true) return true;
+        }
+        return checkKnownDirection(typeMap, node.right);
+      }
+      const rightKnown = checkKnownDirection(typeMap, node.right);
+      if (rightKnown !== null) {
+        if (node.operator === "&&" || node.operator === "and") {
+          if (rightKnown === false) return false;
+        } else {
+          if (rightKnown === true) return true;
+        }
+      }
+      return null;
+    }
+    case "ConditionalExpression": {
+      const testKnown = checkKnownDirection(typeMap, node.test);
+      if (testKnown !== null) {
+        return checkKnownDirection(
+          typeMap,
+          testKnown ? node.consequent : node.alternate
+        );
+      }
+      const trueKnown = checkKnownDirection(typeMap, node.consequent);
+      if (
+        trueKnown !== null &&
+        trueKnown === checkKnownDirection(typeMap, node.alternate)
+      ) {
+        return trueKnown;
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+export function preEvaluate(
+  istate: InterpState,
+  node: mctree.Node
+): null | (keyof mctree.NodeAll)[] {
+  switch (node.type) {
+    case "IfStatement":
+    case "ConditionalExpression":
+      if (istate.typeMap) {
+        const known = checkKnownDirection(istate.typeMap, node.test);
+        if (known === null) break;
+        return ["test", known ? "consequent" : "alternate"];
+      }
+      break;
+    case "LogicalExpression":
+      if (istate.typeMap) {
+        const known = checkKnownDirection(istate.typeMap, node.left);
+        if (known === null) break;
+        if (
+          node.operator === "&&" || node.operator === "and"
+            ? known === false
+            : known === true
+        ) {
+          return ["left"];
+        }
+      }
+      break;
+
+    case "MemberExpression":
+      if (isLookupCandidate(node)) {
+        return ["object"];
+      }
+      break;
+    case "BinaryExpression":
+      if (node.operator === "as") {
+        return ["left"];
+      }
+      break;
+    case "UnaryExpression":
+      if (node.operator === ":") {
+        return [];
+      }
+      break;
+    case "AttributeList":
+      return [];
+    case "SizedArrayExpression":
+      return ["size"];
+    case "VariableDeclarator":
+      return ["init"];
+    case "CatchClause":
+      return ["body"];
+  }
+  return null;
 }
 
 export function evaluate(
@@ -105,36 +233,15 @@ export function evaluate(istate: InterpState, node: mctree.Node) {
     return istate.post ? istate.post(node) : null;
   };
   const pre = (node: mctree.Node): null | (keyof mctree.NodeAll)[] => {
+    const ret = preEvaluate(istate, node);
+    if (ret) return ret;
     switch (node.type) {
-      case "MemberExpression":
-        if (isLookupCandidate(node)) {
-          return ["object"];
-        }
-        break;
-      case "BinaryExpression":
-        if (node.operator === "as") {
-          return ["left"];
-        }
-        break;
-      case "UnaryExpression":
-        if (node.operator === ":") {
-          return [];
-        }
-        break;
-      case "AttributeList":
-        return [];
       case "AssignmentExpression":
         skipNode = node.left;
         break;
       case "UpdateExpression":
         skipNode = node.argument;
         break;
-      case "SizedArrayExpression":
-        return ["size"];
-      case "VariableDeclarator":
-        return ["init"];
-      case "CatchClause":
-        return ["body"];
     }
     return null;
   };
@@ -524,7 +631,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     }
 
     case "LogicalExpression": {
-      const right = popIstate(istate, node.right);
+      const right = tryPop(istate, node.right);
       const left = popIstate(istate, node.left);
       push({
         value: evaluateLogicalTypes(
@@ -538,8 +645,8 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       break;
     }
     case "ConditionalExpression": {
-      const alternate = popIstate(istate, node.alternate);
-      const consequent = popIstate(istate, node.consequent);
+      const alternate = tryPop(istate, node.alternate);
+      const consequent = tryPop(istate, node.consequent);
       const test = popIstate(istate, node.test);
       const testType = deEnumerate(test.value);
       if (mustBeTrue(testType)) {

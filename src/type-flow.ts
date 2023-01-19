@@ -186,14 +186,14 @@ function typeStateEntry(value: ExactOrUnion, key: TypeStateKey) {
   }).join("|")} = ${display(value)}`;
 }
 
-function printBlockState(block: TypeFlowBlock, state: TypeState) {
-  console.log("State:");
+function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
+  console.log(indent + "State:");
   if (!state) {
-    console.log("Not visited!");
+    console.log(indent + "Not visited!");
     return;
   }
   state.forEach((value, key) => {
-    console.log(` - ${typeStateEntry(value, key)}`);
+    console.log(`${indent} - ${typeStateEntry(value, key)}`);
   });
 }
 
@@ -728,6 +728,12 @@ function propagateTypes(
       return null;
     };
 
+    const setTruthy =
+      event.kind !== FlowKind.LEFT_FALSEY &&
+      event.kind !== FlowKind.LEFT_TRUTHY;
+    if (setTruthy) {
+      typeMap.delete(event.node);
+    }
     const sTrue = apply(true);
     const sFalse = apply(false);
     if (sTrue == null && sFalse == null) {
@@ -736,11 +742,12 @@ function propagateTypes(
 
     const trueSucc = top.succs![0] as TypeFlowBlock;
     const falseSucc = top.succs![1] as TypeFlowBlock;
-    if (sTrue !== false) {
+    if (sTrue === false) {
+      setTruthy && typeMap.set(event.node, { type: TypeTag.False });
+    } else {
       if (logThisRun) {
-        console.log(`  Flow:`);
-        printBlockState(top, sTrue || curState);
-        console.log(`  merge to: ${trueSucc.order || -1}`);
+        console.log(`  Flow (true): merge to ${trueSucc.order || -1}`);
+        printBlockState(top, sTrue || curState, "    >true ");
       }
       if (
         mergeTypeState(
@@ -753,11 +760,12 @@ function propagateTypes(
         queue.enqueue(trueSucc);
       }
     }
-    if (sFalse !== false) {
+    if (sFalse === false) {
+      setTruthy && typeMap.set(event.node, { type: TypeTag.True });
+    } else {
       if (logThisRun) {
-        console.log(`  Flow:`);
-        printBlockState(top, sFalse || curState);
-        console.log(`  merge to: ${falseSucc.order || -1}`);
+        console.log(`  Flow (false): merge to: ${falseSucc.order || -1}`);
+        printBlockState(top, sFalse || curState, "    >false ");
       }
       if (
         mergeTypeState(

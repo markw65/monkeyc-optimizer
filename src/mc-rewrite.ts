@@ -61,6 +61,7 @@ import {
   evaluateNode,
   InterpState,
   popIstate,
+  preEvaluate,
 } from "./type-flow/interp";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
@@ -770,6 +771,7 @@ export async function optimizeMonkeyC(
   let istate: InterpState = gistate;
 
   state.pre = (node) => {
+    const ret = preEvaluate(istate, node);
     switch (node.type) {
       case "EnumDeclaration":
         return [];
@@ -782,34 +784,24 @@ export async function optimizeMonkeyC(
       }
       case "VariableDeclarator": {
         renamer(node.id);
-        return ["init"];
+        break;
       }
       case "CatchClause":
         if (node.param) {
           state.localsStack.push({ node, map: { ...(topLocals().map || {}) } });
           renamer(node.param);
-          return ["body"];
         }
         break;
       case "BinaryExpression":
         if (
-          node.operator === "has"
-            ? node.right.type === "UnaryExpression" &&
-              node.right.operator === ":"
-            : node.operator === "as"
+          node.operator === "has" &&
+          node.right.type === "UnaryExpression" &&
+          node.right.operator === ":"
         ) {
           // Using `expr has :symbol` doesn't "expose"
           // symbol, and the rhs of an "as" isn't an
           // expression. In both cases, skip the rhs
           return ["left"];
-        }
-
-        break;
-      case "UnaryExpression":
-        if (node.operator == ":") {
-          // node.argument is not a normal identifier.
-          // don't visit it.
-          return [];
         }
         break;
       case "Identifier": {
@@ -949,7 +941,7 @@ export async function optimizeMonkeyC(
         // id, or superClass
         return ["body"];
     }
-    return null;
+    return ret;
   };
   state.post = (node) => {
     const locals = topLocals();

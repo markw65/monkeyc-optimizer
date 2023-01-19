@@ -19,6 +19,7 @@ import {
   InterpStackElem,
   InterpState,
   popIstate,
+  tryPop,
 } from "./interp";
 import { evaluateBinaryTypes } from "./interp-binary";
 import {
@@ -56,8 +57,8 @@ export function beforeEvaluate(
 ): mctree.Node | null | false {
   switch (node.type) {
     case "ConditionalExpression": {
-      let alternate = popIstate(istate, node.alternate);
-      let consequent = popIstate(istate, node.consequent);
+      let alternate = tryPop(istate, node.alternate);
+      let consequent = tryPop(istate, node.consequent);
       const test = popIstate(istate, node.test);
       const result = mustBeTrue(test.value)
         ? true
@@ -226,10 +227,11 @@ export function beforeEvaluate(
       break;
 
     case "LogicalExpression": {
-      const [left, right] = istate.stack.slice(-2);
+      const right = tryPop(istate, node.right);
+      const left = popIstate(istate, node.left);
       const isAnd = node.operator === "&&" || node.operator === "and";
       if (isAnd ? mustBeFalse(left.value) : mustBeTrue(left.value)) {
-        popIstate(istate, node.right);
+        istate.stack.push(left);
         return node.left;
       }
       if (
@@ -247,6 +249,8 @@ export function beforeEvaluate(
             : TypeTag.Number | TypeTag.Long)) !==
           right.value.type
       ) {
+        istate.stack.push(left);
+        istate.stack.push(right);
         break;
       }
       if (
@@ -254,7 +258,7 @@ export function beforeEvaluate(
         !right.embeddedEffects &&
         (left.value.type & TypeTag.Boolean) === left.value.type
       ) {
-        popIstate(istate, node.right);
+        istate.stack.push(left);
         return node.left;
       }
       if (
@@ -262,12 +266,12 @@ export function beforeEvaluate(
         !left.embeddedEffects &&
         (left.value.type & TypeTag.Boolean) === left.value.type
       ) {
-        popIstate(istate, node.right);
-        popIstate(istate, node.left);
         istate.stack.push(right);
         return node.right;
       }
 
+      istate.stack.push(left);
+      istate.stack.push(right);
       if (isAnd ? !mustBeTrue(left.value) : !mustBeFalse(left.value)) {
         break;
       }
@@ -277,9 +281,7 @@ export function beforeEvaluate(
         // need to check that its side-effect
         // free. Just cheap checks for now.
         if (!left.embeddedEffects) {
-          popIstate(istate, node.right);
-          popIstate(istate, node.left);
-          istate.stack.push(right);
+          istate.stack.splice(-2, 2, right);
           return node.right;
         }
       }

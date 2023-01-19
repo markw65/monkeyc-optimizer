@@ -584,7 +584,7 @@ function stateFuncs() {
             switch (node.type) {
               case "MemberExpression": {
                 if (isLookupCandidate(node)) {
-                  return (this.pre && this.pre(node, this)) || ["object"];
+                  return (this.pre && this.pre(node, this)) ?? ["object"];
                 }
                 break;
               }

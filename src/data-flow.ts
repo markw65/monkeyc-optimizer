@@ -113,7 +113,7 @@ export enum FlowKind {
  */
 interface FlowEventDecl extends BaseEvent {
   type: "flw";
-  node: mctree.BinaryExpression;
+  node: mctree.BinaryExpression | mctree.UnaryExpression;
   decl?: undefined;
   kind: FlowKind.LEFT_EQ_RIGHT_DECL | FlowKind.LEFT_NE_RIGHT_DECL;
   left: EventDecl;
@@ -122,7 +122,7 @@ interface FlowEventDecl extends BaseEvent {
 }
 interface FlowEventNode extends BaseEvent {
   type: "flw";
-  node: mctree.BinaryExpression;
+  node: mctree.BinaryExpression | mctree.UnaryExpression;
   decl?: undefined;
   kind: FlowKind.LEFT_EQ_RIGHT_NODE | FlowKind.LEFT_NE_RIGHT_NODE;
   left: EventDecl;
@@ -140,7 +140,7 @@ interface FlowEventTruthy extends BaseEvent {
 }
 interface FlowEventInstanceof extends BaseEvent {
   type: "flw";
-  node: mctree.InstanceofExpression;
+  node: mctree.InstanceofExpression | mctree.UnaryExpression;
   decl?: undefined;
   kind: FlowKind.INSTANCEOF | FlowKind.NOTINSTANCE;
   left: EventDecl;
@@ -608,23 +608,27 @@ function getFlowEvent(
         switch (event.kind) {
           case FlowKind.LEFT_EQ_RIGHT_DECL:
             event.kind = FlowKind.LEFT_NE_RIGHT_DECL;
-            return event;
+            break;
           case FlowKind.LEFT_EQ_RIGHT_NODE:
             event.kind = FlowKind.LEFT_NE_RIGHT_NODE;
-            return event;
+            break;
           case FlowKind.LEFT_NE_RIGHT_DECL:
             event.kind = FlowKind.LEFT_EQ_RIGHT_DECL;
-            return event;
+            break;
           case FlowKind.LEFT_NE_RIGHT_NODE:
             event.kind = FlowKind.LEFT_EQ_RIGHT_NODE;
-            return event;
+            break;
           case FlowKind.INSTANCEOF:
             event.kind = FlowKind.NOTINSTANCE;
-            return event;
+            break;
           case FlowKind.NOTINSTANCE:
             event.kind = FlowKind.INSTANCEOF;
-            return event;
+            break;
+          default:
+            return null;
         }
+        event.node = node;
+        return event;
       }
       return null;
     case "Identifier":
