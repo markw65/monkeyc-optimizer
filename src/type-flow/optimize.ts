@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { unused } from "../inliner";
 import {
   getLiteralNode,
   hasProperty,
@@ -122,6 +123,18 @@ export function beforeEvaluate(
         delete node.alternate;
       }
       const test = popIstate(istate, node.test);
+      if (
+        !node.alternate &&
+        node.consequent.type === "BlockStatement" &&
+        !node.consequent.body.length
+      ) {
+        const ret = withLoc(node.consequent, node.test, node.test);
+        const u = test.embeddedEffects && unused(istate.state, node.test);
+        if (u) {
+          node.consequent.body = u;
+        }
+        return ret;
+      }
       const result = mustBeTrue(test.value)
         ? true
         : mustBeFalse(test.value)
