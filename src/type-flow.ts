@@ -6,7 +6,9 @@ import {
   isLocal,
   isStateNode,
   lookupNext,
+  traverseAst,
 } from "./api";
+import { withLoc } from "./ast";
 import { getPostOrder } from "./control-flow";
 import {
   buildDataFlowGraph,
@@ -68,12 +70,13 @@ export const missingNullWorkaround = true;
 
 export function buildTypeInfo(
   state: ProgramStateAnalysis,
-  func: FunctionStateNode
+  func: FunctionStateNode,
+  optimizeEquivalencies: boolean
 ) {
   if (!func.node.body || !func.stack) return;
   const { graph } = buildDataFlowGraph(state, func, () => false, false, true);
   state = { ...state, stack: func.stack };
-  return propagateTypes(state, func, graph);
+  return propagateTypes(state, func, graph, optimizeEquivalencies);
 }
 
 function declIsLocal(
@@ -454,7 +457,8 @@ export function resolveDottedMember(
 function propagateTypes(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
-  graph: TypeFlowBlock
+  graph: TypeFlowBlock,
+  optimizeEquivalencies: boolean
 ) {
   // We want to traverse the blocks in reverse post order, in
   // order to propagate the "availability" of the types.
@@ -1242,6 +1246,106 @@ function propagateTypes(
           tsKey(equiv as TypeStateKey)
         )}] ${key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""}`
       );
+    });
+  }
+
+  if (optimizeEquivalencies && nodeEquivs.size) {
+    const nodeEquivDeclInfo = new Map<
+      EventDecl,
+      { decl: EventDecl; cost: number; numAssign: number; numEquiv: number }
+    >();
+    nodeEquivs.forEach(
+      (value) =>
+        nodeEquivDeclInfo.has(value.decl) ||
+        nodeEquivDeclInfo.set(value.decl, {
+          decl: value.decl,
+          cost: declIsLocal(value.decl)
+            ? Array.isArray(value.decl) ||
+              value.decl.type === "VariableDeclarator"
+              ? 3
+              : 1
+            : 4,
+          numAssign: 0,
+          numEquiv: 0,
+        })
+    );
+    nodeEquivs.forEach((value) =>
+      value.equiv.forEach((equiv) => {
+        const info = nodeEquivDeclInfo.get(equiv);
+        if (info) info.numEquiv++;
+      })
+    );
+
+    order.forEach(
+      (block, i) =>
+        blockStates[i] &&
+        block.events?.forEach((event) => {
+          if (event.type === "def" && event.rhs) {
+            const rhs = nodeEquivDeclInfo.get(event.rhs);
+            if (rhs) {
+              rhs.numAssign++;
+            }
+            const def = nodeEquivDeclInfo.get(event.decl);
+            if (def) {
+              def.numAssign--;
+            }
+          }
+        })
+    );
+    traverseAst(func.node.body!, null, (node) => {
+      const equiv = nodeEquivs.get(node);
+      if (!equiv) return null;
+      const curInfo = nodeEquivDeclInfo.get(equiv.decl);
+      if (!curInfo) {
+        throw new Error(
+          `Missing info for equiv ${formatAst(node)} = [${equiv.equiv
+            .map((decl) => tsKey(decl as TypeStateKey))
+            .join(", ")}]`
+        );
+      }
+      const rep = equiv.equiv.reduce((cur, decl) => {
+        let info = nodeEquivDeclInfo.get(decl);
+        if (!info) {
+          // this is a one way equivalency. There are
+          // no references to decl while equiv.decl
+          // is equivalent to it. eg
+          //
+          //   var b = a;
+          //   ... use b but not a ...
+          //
+          const cost =
+            Array.isArray(decl) || decl.type === "VariableDeclarator" ? 2 : 0;
+          info = { cost, numAssign: 0, decl, numEquiv: 0 };
+        }
+        if (info.cost > 3) {
+          throw new Error(`Replacement decl is not a local!`);
+        }
+        if (
+          info.cost < cur.cost ||
+          (info.cost === cur.cost &&
+            (info.numAssign > cur.numAssign ||
+              (info.numAssign === cur.numAssign &&
+                info.numEquiv > cur.numEquiv)))
+        ) {
+          return info;
+        }
+        return cur;
+      }, curInfo);
+      if (rep === curInfo) return null;
+      const name = reduce(
+        rep.decl,
+        (cur, decl) => (decl.type === "VariableDeclarator" ? decl.name : cur),
+        null as string | null
+      );
+      if (!name) return null;
+      if (logThisRun) {
+        console.log(
+          `Replacing ${formatAst(node)} with ${name} at ${sourceLocation(
+            node.loc
+          )}`
+        );
+      }
+      return withLoc({ type: "Identifier", name }, node, node);
     });
   }
 

@@ -900,7 +900,7 @@ export async function optimizeMonkeyC(
               attr.argument.name === "noConstProp"
           )
             ? null
-            : buildTypeInfo(state, state.currentFunction);
+            : buildTypeInfo(state, state.currentFunction, true);
         if (is) {
           /*
            * istate contains a copy of state, but we need the real

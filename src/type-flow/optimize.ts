@@ -34,7 +34,7 @@ export function optimizeFunction(
   state: ProgramStateAnalysis,
   func: FunctionStateNode
 ) {
-  const istate = buildTypeInfo(state, func);
+  const istate = buildTypeInfo(state, func, true);
   if (!istate) return;
 
   evaluate(

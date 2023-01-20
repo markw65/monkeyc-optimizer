@@ -6,10 +6,10 @@ var FONT as Graphics.FontDefinition = Graphics.FONT_XTINY;
 
 (:test)
 function testSubstitution(logger as Logger) as Boolean {
-    /* @match /var x = pre_/ */
-    var x = FONT;
-    var y = FONT;
-    var z = FONT;
+    /* @match /var x = wrapper\(pre_/ */
+    var x = wrapper(FONT);
+    var y = wrapper(FONT);
+    var z = wrapper(FONT);
     return x == y && y == z;
 }
 
@@ -101,9 +101,8 @@ function testPreFailure1(logger as Logger) as Boolean {
     result2++;
     mResult = result2;
 
-    /* @match "pre_mResult" */
+    /* @match /\bresult2\b.*\bresult2\b/ */
     if (mResult != null) {
-        /* @match "pre_mResult" */
         extHr += " " + mResult;
     }
     return extHr.equals("x 43");
