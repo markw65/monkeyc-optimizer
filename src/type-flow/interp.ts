@@ -985,3 +985,27 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
 export function roundToFloat(value: number) {
   return new Float32Array([value as number])[0];
 }
+
+export function mustBeIdentical(a: ExactOrUnion, b: ExactOrUnion) {
+  if (a.type & TypeTag.Enum) a = deEnumerate(a);
+  if (b.type & TypeTag.Enum) b = deEnumerate(b);
+  if (a.type === b.type && hasValue(a) && hasValue(b)) {
+    switch (a.type) {
+      case TypeTag.Null:
+      case TypeTag.False:
+      case TypeTag.True:
+        return true;
+      case TypeTag.Number:
+      case TypeTag.Float:
+      case TypeTag.Long:
+      case TypeTag.Double:
+      case TypeTag.Char:
+      case TypeTag.Symbol:
+        return a.value === b.value;
+      case TypeTag.String:
+        // maybe cheating?
+        return a.value === b.value;
+    }
+  }
+  return false;
+}

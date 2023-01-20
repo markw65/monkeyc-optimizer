@@ -60,7 +60,6 @@ import {
   evaluate,
   evaluateNode,
   InterpState,
-  popIstate,
   preEvaluate,
 } from "./type-flow/interp";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
@@ -603,28 +602,6 @@ export async function optimizeMonkeyC(
   state.calledFunctions = {};
   state.usedByName = {};
 
-  const replace = (
-    node: mctree.Node | false | null,
-    old: mctree.Node
-  ): mctree.Node | mctree.Node[] | false | null => {
-    if (node === false || node === null) return node;
-    if (isExpression(node)) {
-      popIstate(istate, old);
-    }
-    const rep = state.traverse(node);
-    if (rep === false || Array.isArray(rep)) return rep;
-    const result = {
-      ...(rep || node),
-      loc: old.loc,
-      start: old.start,
-      end: old.end,
-    };
-    if (isExpression(result)) {
-      istate.stack[istate.stack.length - 1].node = result;
-    }
-    return result;
-  };
-
   let again = false;
   const optimizeCallHelper = (
     istate: InterpState,
@@ -1112,15 +1089,6 @@ export async function optimizeMonkeyC(
         }
         break;
       case "AssignmentExpression":
-        if (
-          node.operator === "=" &&
-          node.left.type === "Identifier" &&
-          node.right.type === "Identifier" &&
-          node.left.name === node.right.name
-        ) {
-          return replace({ type: "Literal", value: null, raw: "null" }, node);
-        }
-      // fall through;
       case "UpdateExpression":
         if (state.currentFunction) {
           const lhs =

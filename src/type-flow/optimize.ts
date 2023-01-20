@@ -18,6 +18,7 @@ import {
   evaluate,
   InterpStackElem,
   InterpState,
+  mustBeIdentical,
   popIstate,
   tryPop,
 } from "./interp";
@@ -289,6 +290,61 @@ export function beforeEvaluate(
       const rep = node as unknown as mctree.BinaryExpression;
       rep.type = "BinaryExpression";
       rep.operator = isAnd ? "&" : "|";
+      break;
+    }
+    case "ForStatement": {
+      if (node.init?.type === "Literal") {
+        delete node.init;
+        const depth = -1 - (node.update ? 1 : 0) - (node.test ? 1 : 0);
+        istate.stack.splice(depth, 1);
+      }
+      break;
+    }
+    case "SequenceExpression": {
+      for (let i = node.expressions.length; i--; ) {
+        const expr = node.expressions[i];
+        if (expr.type === "Literal") {
+          istate.stack.splice(i - node.expressions.length);
+          node.expressions.splice(i, 1);
+        }
+      }
+      break;
+    }
+    case "AssignmentExpression": {
+      if (node.operator === "=") {
+        let selfAssign = false;
+        if (
+          node.left.type === "Identifier" &&
+          node.right.type === "Identifier" &&
+          node.left.name === node.right.name
+        ) {
+          selfAssign = true;
+        } else {
+          const [left, right] = istate.stack.slice(-2);
+          if (
+            !left.embeddedEffects &&
+            !right.embeddedEffects &&
+            mustBeIdentical(left.value, right.value)
+          ) {
+            selfAssign = true;
+          }
+        }
+        if (selfAssign) {
+          popIstate(istate, node.right);
+          popIstate(istate, node.left);
+          const rep = withLoc(
+            { type: "Literal", value: null, raw: "null" },
+            node,
+            node
+          );
+          istate.stack.push({
+            value: { type: TypeTag.Null },
+            embeddedEffects: false,
+            node: rep,
+          });
+          return rep;
+        }
+      }
       break;
     }
   }

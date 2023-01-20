@@ -113,10 +113,10 @@ type TypeStateValue = {
 type TypeState = Map<TypeStateKey, TypeStateValue>;
 
 function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
-  if (key === equiv) return;
+  if (key === equiv) return true;
   let keyVal = ts.get(key);
   let equivVal = ts.get(equiv);
-  if (!keyVal || !equivVal) return;
+  if (!keyVal || !equivVal) return false;
   if (equivVal.equivSet) {
     if (keyVal.equivSet) {
       // key is already a member of a set, see if
@@ -125,7 +125,7 @@ function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
       do {
         if (s === equiv) {
           // these two are already equivalent
-          return;
+          return true;
         }
         const next = ts.get(s);
         if (!next || !next.equivSet) {
@@ -150,6 +150,7 @@ function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
   keyVal.equivSet = { next: equiv };
   ts.set(key, keyVal);
   ts.set(equiv, equivVal);
+  return false;
 }
 
 function removeEquiv(ts: TypeState, equiv: TypeStateKey) {
@@ -994,6 +995,7 @@ function propagateTypes(
   >();
   const localDecls = new Map<string, Set<EventDecl>>();
   const localConflicts = new Set<EventDecl>();
+  const selfAssignments = new Set<mctree.Node>();
 
   const processEvent = (
     top: TypeFlowBlock,
@@ -1142,11 +1144,19 @@ function propagateTypes(
           });
         }
         if (event.rhs) {
-          addEquiv(
+          const selfAssign = addEquiv(
             curState,
             event.rhs as TypeStateKey,
             event.decl as TypeStateKey
           );
+          if (event.node.type === "AssignmentExpression") {
+            if (selfAssign) {
+              // rhs and lhs are identical
+              selfAssignments.add(event.node);
+            } else {
+              selfAssignments.delete(event.node);
+            }
+          }
         }
         if (declIsLocal(event.decl)) {
           const name = localDeclName(event.decl);
@@ -1279,7 +1289,7 @@ function propagateTypes(
     });
   }
 
-  if (optimizeEquivalencies && nodeEquivs.size) {
+  if (optimizeEquivalencies && (nodeEquivs.size || selfAssignments.size)) {
     const nodeEquivDeclInfo = new Map<
       EventDecl,
       { decl: EventDecl; cost: number; numAssign: number; numEquiv: number }
@@ -1326,6 +1336,13 @@ function propagateTypes(
         })
     );
     traverseAst(func.node.body!, null, (node) => {
+      if (selfAssignments.has(node)) {
+        return withLoc(
+          { type: "Literal", value: null, raw: "null" },
+          node,
+          node
+        );
+      }
       const equiv = nodeEquivs.get(node);
       if (!equiv || localConflicts.has(equiv.decl)) return null;
       const curInfo = nodeEquivDeclInfo.get(equiv.decl);
@@ -1379,7 +1396,10 @@ function propagateTypes(
           )}`
         );
       }
-      return withLoc({ type: "Identifier", name }, node, node);
+      const replacement = withLoc({ type: "Identifier", name }, node, node);
+      const tm = typeMap.get(node);
+      if (tm) typeMap.set(replacement, tm);
+      return replacement;
     });
   }
 
