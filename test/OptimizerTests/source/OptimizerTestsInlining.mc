@@ -199,9 +199,9 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
 
     A.B.x = 4;
     // h can be inlined unless its argument has side effects.
-    x = /* @match 2 */ A.B.h(1);
+    x = /* @match /check\(@2/ */ A.B.h(1);
     check(x, 2, logger);
-    x = /* @match /^@8$/ */ A.B.h(A.B.x);
+    x = /* @match /check\(@8/ */ A.B.h(A.B.x);
     check(x, 8, logger);
     x = /* @match A.B.h */ A.B.h(A.B.a()) + 1;
     check(x, 11, logger);
@@ -436,10 +436,10 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = 3;
     var arr = [1, 2, 3] as Array<Number>;
 
-    /* @match /x = @6;/ */
+    /* @match /^check\(@6/ */
     x = assignContext(1);
     check(x, 6, logger);
-    /* @match /x = @-42;/ */
+    /* @match /^check\(@-42/ */
     x = -(assignContext(z) + 1 == 13 ? 42 : 0);
     check(x, -42, logger);
     /* @match /\b(\w+x\w+) = (\1|arr)\.slice/ */

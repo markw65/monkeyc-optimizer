@@ -157,8 +157,10 @@ export function traverseAst(
     | null
     | ((node: mctree.Node) => void | null | false | (keyof mctree.NodeAll)[]),
   post?: (
-    node: mctree.Node
-  ) => void | null | false | mctree.Node | mctree.Node[]
+    node: mctree.Node,
+    parent: mctree.Node | undefined
+  ) => void | null | false | mctree.Node | mctree.Node[],
+  parent?: mctree.Node | undefined
 ): false | void | null | mctree.Node | mctree.Node[] {
   const nodes = pre && pre(node);
   if (nodes === false) return;
@@ -173,7 +175,7 @@ export function traverseAst(
       const deletions = values.reduce<null | { [key: number]: true }>(
         (state, obj, i) => {
           if (isMCTreeNode(obj)) {
-            const repl = traverseAst(obj, pre, post);
+            const repl = traverseAst(obj, pre, post, node);
             if (repl === false) {
               if (!state) state = {};
               state[i] = true;
@@ -194,7 +196,7 @@ export function traverseAst(
         );
       }
     } else if (isMCTreeNode(value)) {
-      let repl = traverseAst(value, pre, post);
+      let repl = traverseAst(value, pre, post, node);
       if (repl === false) {
         delete node[key as keyof mctree.Node];
       } else if (repl != null) {
@@ -216,7 +218,7 @@ export function traverseAst(
       }
     }
   }
-  return post && post(node);
+  return post && post(node, parent);
 }
 
 export function isStatement(node: mctree.Node): node is mctree.Statement {

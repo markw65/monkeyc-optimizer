@@ -4,18 +4,14 @@ import {
   getSuperClasses,
   hasProperty,
   isLocal,
-  isStateNode,
   lookupNext,
   traverseAst,
-  variableDeclarationName,
 } from "./api";
 import { withLoc } from "./ast";
 import { getPostOrder } from "./control-flow";
 import {
   buildDataFlowGraph,
-  DataFlowBlock as TypeFlowBlock,
   DataflowQueue,
-  declFullName,
   Event,
   EventDecl,
   FlowEvent,
@@ -27,20 +23,27 @@ import {
   FunctionStateNode,
   ProgramStateAnalysis,
   StateNode,
-  VariableStateNode,
 } from "./optimizer-types";
-import {
-  evaluate,
-  evaluateExpr,
-  InterpState,
-  TypeMap,
-} from "./type-flow/interp";
+import { eliminateDeadStores } from "./type-flow/dead-store";
+import { evaluate, evaluateExpr, InterpState } from "./type-flow/interp";
 import { sysCallInfo } from "./type-flow/interp-call";
 import {
   intersection,
   restrictByEquality,
 } from "./type-flow/intersection-type";
 import { subtypeOf } from "./type-flow/sub-type";
+import {
+  declIsLocal,
+  describeEvent,
+  localDeclName,
+  printBlockEvents,
+  printBlockHeader,
+  printBlockTrailer,
+  sourceLocation,
+  tsKey,
+  TypeFlowBlock,
+  TypeStateKey,
+} from "./type-flow/type-flow-util";
 import {
   cloneType,
   display,
@@ -60,7 +63,7 @@ import {
   TypeTag,
 } from "./type-flow/types";
 import { clearValuesUnder, unionInto, widenType } from "./type-flow/union-type";
-import { every, forEach, map, pushUnique, reduce, some } from "./util";
+import { every, map, pushUnique, reduce, some } from "./util";
 
 const logging = true;
 
@@ -75,41 +78,34 @@ export function buildTypeInfo(
   optimizeEquivalencies: boolean
 ) {
   if (!func.node.body || !func.stack) return;
-  const { graph } = buildDataFlowGraph(state, func, () => false, false, true);
-  state = { ...state, stack: func.stack };
-  return propagateTypes(state, func, graph, optimizeEquivalencies);
-}
-
-function declIsLocal(
-  decl: EventDecl
-): decl is VariableStateNode | VariableStateNode[] | mctree.TypedIdentifier {
-  return some(
-    decl,
-    (d) =>
-      d.type === "BinaryExpression" ||
-      d.type === "Identifier" ||
-      (d.type === "VariableDeclarator" && isLocal(d))
-  );
-}
-
-function localDeclName(decl: EventDecl) {
-  if (Array.isArray(decl)) decl = decl[0];
-  switch (decl.type) {
-    case "Identifier":
-      return decl.name;
-    case "BinaryExpression":
-      return decl.left.name;
-    case "VariableDeclarator":
-      return variableDeclarationName(decl.node.id);
+  const logThisRun = logging && process.env["TYPEFLOW_FUNC"] === func.fullName;
+  while (true) {
+    const { graph } = buildDataFlowGraph(state, func, () => false, false, true);
+    if (
+      optimizeEquivalencies &&
+      eliminateDeadStores(state, func, graph, logThisRun)
+    ) {
+      /*
+       * eliminateDeadStores can change the control flow graph,
+       * so we need to recompute it if it did anything.
+       */
+      continue;
+    }
+    return propagateTypes(
+      { ...state, stack: func.stack },
+      func,
+      graph,
+      optimizeEquivalencies,
+      logThisRun
+    );
   }
-  throw new Error(`Invalid local decl: ${declFullName(decl)}`);
 }
 
-type TypeStateKey = Exclude<EventDecl, { type: "MemberDecl" | "Unknown" }>;
 type TypeStateValue = {
   curType: ExactOrUnion;
   equivSet?: { next: TypeStateKey };
 };
+
 type TypeState = Map<TypeStateKey, TypeStateValue>;
 
 function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
@@ -279,78 +275,6 @@ function mergeTypeState(
   return changes;
 }
 
-function sourceLocation(loc: mctree.SourceLocation | null | undefined) {
-  return loc
-    ? `${loc.source || "??"}:${loc.start.line}:${loc.start.column}`
-    : "??";
-}
-
-function printBlockHeader(block: TypeFlowBlock) {
-  console.log(
-    block.order,
-    `(${block.node?.loc?.source || "??"}:${
-      block.node?.loc?.start.line || "??"
-    })`,
-    `Preds: ${(block.preds || [])
-      .map((block) => (block as TypeFlowBlock).order)
-      .join(", ")}`
-  );
-}
-
-function describeEvent(event: Event) {
-  if (event.type === "exn") return "exn:";
-  return `${event.type}: ${
-    event.type === "flw" ||
-    event.type === "mod" ||
-    (!Array.isArray(event.decl) &&
-      (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
-      ? formatAst(event.node)
-      : event.decl
-      ? declFullName(event.decl)
-      : "??"
-  }`;
-}
-
-function printBlockEvents(block: TypeFlowBlock, typeMap?: TypeMap) {
-  console.log("Events:");
-  forEach(block.events, (event) =>
-    console.log(
-      `    ${describeEvent(event)} ${
-        event.type === "ref" && typeMap && typeMap.has(event.node)
-          ? display(typeMap.get(event.node)!)
-          : ""
-      }`
-    )
-  );
-}
-
-function printBlockTrailer(block: TypeFlowBlock) {
-  console.log(
-    `Succs: ${(block.succs || [])
-      .map((block) => (block as TypeFlowBlock).order)
-      .join(", ")} ExSucc: ${
-      block.exsucc ? (block.exsucc as TypeFlowBlock).order : ""
-    }`
-  );
-}
-
-function tsKey(key: TypeStateKey) {
-  return `${map(key, (k) => {
-    if (k.type === "Literal") {
-      return k.raw;
-    } else if (isStateNode(k)) {
-      return k.fullName;
-    } else if (k.type === "BinaryExpression") {
-      return k.left.name;
-    } else if (k.type === "Identifier") {
-      return k.name;
-    } else if (k.type === "EnumStringMember") {
-      return k.id.name;
-    }
-    return "<unknown>";
-  }).join("|")}`;
-}
-
 function tsEquivs(state: TypeState, key: TypeStateKey) {
   const result: string[] = [];
   let s = key;
@@ -473,7 +397,8 @@ function propagateTypes(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   graph: TypeFlowBlock,
-  optimizeEquivalencies: boolean
+  optimizeEquivalencies: boolean,
+  logThisRun: boolean
 ) {
   // We want to traverse the blocks in reverse post order, in
   // order to propagate the "availability" of the types.
@@ -483,8 +408,6 @@ function propagateTypes(
   order.forEach((block, i) => {
     block.order = i;
   });
-
-  const logThisRun = logging && process.env["TYPEFLOW_FUNC"] === func.fullName;
 
   if (logThisRun) {
     order.forEach((block) => {
@@ -1267,7 +1190,11 @@ function propagateTypes(
     order.forEach((block) => {
       printBlockHeader(block);
       printBlockState(block, blockStates[block.order!]);
-      printBlockEvents(block, typeMap);
+      printBlockEvents(block, (event) =>
+        event.type === "ref" && typeMap && typeMap.has(event.node)
+          ? display(typeMap.get(event.node)!)
+          : ""
+      );
       printBlockTrailer(block);
     });
 
@@ -1289,7 +1216,18 @@ function propagateTypes(
     });
   }
 
-  if (optimizeEquivalencies && (nodeEquivs.size || selfAssignments.size)) {
+  if (optimizeEquivalencies) {
+    if (!nodeEquivs.size && !selfAssignments.size) {
+      return istate;
+    }
+    if (logThisRun) {
+      if (selfAssignments.size) {
+        console.log("====== Self Assignments =====");
+        selfAssignments.forEach((self) =>
+          console.log(`${formatAst(self)} (${sourceLocation(self.loc)})`)
+        );
+      }
+    }
     const nodeEquivDeclInfo = new Map<
       EventDecl,
       { decl: EventDecl; cost: number; numAssign: number; numEquiv: number }
@@ -1335,8 +1273,16 @@ function propagateTypes(
           }
         })
     );
+
     traverseAst(func.node.body!, null, (node) => {
       if (selfAssignments.has(node)) {
+        if (logThisRun) {
+          console.log(
+            `Deleting self assignment: ${formatAst(node)} (${sourceLocation(
+              node.loc
+            )})`
+          );
+        }
         return withLoc(
           { type: "Literal", value: null, raw: "null" },
           node,

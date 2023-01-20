@@ -24,7 +24,6 @@ function testUnusedVars(logger as Logger) as Boolean {
 
 (:test)
 function testUnusedCaseVars(logger as Logger) as Boolean {
-
     switch (A.B.a()) {
         case 0:
             /* @match "A.B.a();" */
@@ -32,8 +31,42 @@ function testUnusedCaseVars(logger as Logger) as Boolean {
             break;
         case 1:
             /* @match "A.B.a();" */
-            var u = 0, v = 1, y = A.B.a(), w = 2;
+            var u = 0,
+                v = 1,
+                y = A.B.a(),
+                w = 2;
             break;
     }
     return true;
+}
+
+(:test)
+function testDeadVars(logger as Logger) as Boolean {
+    ok = true;
+    {
+        /* @match "var u = wrapper" /^A.B.a\(\);$/ "var v = wrapper" "check" */
+        var u = wrapper(1),
+            x = A.B.a(),
+            v = wrapper(2);
+
+        check(u + v, 3, logger);
+    }
+
+    {
+        /* @match "var u = wrapper" /^A.B.a\(\);$/ "check" */
+        var u = wrapper(1),
+            x = A.B.a();
+        check(u, 1, logger);
+    }
+
+    {
+        /* @match "var x" /^A.B.a\(\);$/ "var v = wrapper" "x = wrapper" */
+        var x = A.B.a(),
+            v = wrapper(2);
+
+        x = wrapper(1);
+        check(x + v, 3, logger);
+    }
+
+    return ok;
 }
