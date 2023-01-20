@@ -7,6 +7,7 @@ import {
   isStateNode,
   lookupNext,
   traverseAst,
+  variableDeclarationName,
 } from "./api";
 import { withLoc } from "./ast";
 import { getPostOrder } from "./control-flow";
@@ -89,6 +90,19 @@ function declIsLocal(
       d.type === "Identifier" ||
       (d.type === "VariableDeclarator" && isLocal(d))
   );
+}
+
+function localDeclName(decl: EventDecl) {
+  if (Array.isArray(decl)) decl = decl[0];
+  switch (decl.type) {
+    case "Identifier":
+      return decl.name;
+    case "BinaryExpression":
+      return decl.left.name;
+    case "VariableDeclarator":
+      return variableDeclarationName(decl.node.id);
+  }
+  throw new Error(`Invalid local decl: ${declFullName(decl)}`);
 }
 
 type TypeStateKey = Exclude<EventDecl, { type: "MemberDecl" | "Unknown" }>;
@@ -978,6 +992,8 @@ function propagateTypes(
     mctree.Node,
     { decl: EventDecl; equiv: Array<EventDecl> }
   >();
+  const localDecls = new Map<string, Set<EventDecl>>();
+  const localConflicts = new Set<EventDecl>();
 
   const processEvent = (
     top: TypeFlowBlock,
@@ -1132,6 +1148,20 @@ function propagateTypes(
             event.decl as TypeStateKey
           );
         }
+        if (declIsLocal(event.decl)) {
+          const name = localDeclName(event.decl);
+          const locals = localDecls.get(name);
+          if (!locals) {
+            localDecls.set(name, new Set([event.decl]));
+          } else {
+            locals.forEach((local) => {
+              if (local !== event.decl && curState.has(local as TypeStateKey)) {
+                localConflicts.add(local);
+              }
+            });
+            locals.add(event.decl);
+          }
+        }
         if (logThisRun) {
           console.log(`  ${describeEvent(event)} := ${display(type)}`);
         }
@@ -1256,6 +1286,7 @@ function propagateTypes(
     >();
     nodeEquivs.forEach(
       (value) =>
+        localConflicts.has(value.decl) ||
         nodeEquivDeclInfo.has(value.decl) ||
         nodeEquivDeclInfo.set(value.decl, {
           decl: value.decl,
@@ -1271,8 +1302,10 @@ function propagateTypes(
     );
     nodeEquivs.forEach((value) =>
       value.equiv.forEach((equiv) => {
-        const info = nodeEquivDeclInfo.get(equiv);
-        if (info) info.numEquiv++;
+        if (!localConflicts.has(equiv)) {
+          const info = nodeEquivDeclInfo.get(equiv);
+          if (info) info.numEquiv++;
+        }
       })
     );
 
@@ -1294,7 +1327,7 @@ function propagateTypes(
     );
     traverseAst(func.node.body!, null, (node) => {
       const equiv = nodeEquivs.get(node);
-      if (!equiv) return null;
+      if (!equiv || localConflicts.has(equiv.decl)) return null;
       const curInfo = nodeEquivDeclInfo.get(equiv.decl);
       if (!curInfo) {
         throw new Error(
@@ -1304,6 +1337,7 @@ function propagateTypes(
         );
       }
       const rep = equiv.equiv.reduce((cur, decl) => {
+        if (localConflicts.has(decl)) return cur;
         let info = nodeEquivDeclInfo.get(decl);
         if (!info) {
           // this is a one way equivalency. There are
