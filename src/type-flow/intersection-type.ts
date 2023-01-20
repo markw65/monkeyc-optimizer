@@ -254,7 +254,7 @@ function intersectionValue(
       const common: Array<ClassStateNode> = [];
       forEach(asd, (sna) => {
         const superA = getSuperClasses(sna);
-        return some(bsd, (snb) => {
+        forEach(bsd, (snb) => {
           if (sna === snb || (superA && superA.has(snb))) {
             common.push(sna);
           }

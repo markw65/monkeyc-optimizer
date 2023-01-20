@@ -68,7 +68,10 @@ export function map<T, U>(val: T | T[] | null | undefined, fn: (v: T) => U) {
   }
 }
 
-export function every<T>(val: T | T[] | null | undefined, fn: (v: T) => void) {
+export function every<T>(
+  val: T | T[] | null | undefined,
+  fn: (v: T) => boolean
+) {
   if (!val) return true;
   if (Array.isArray(val)) {
     return val.every(fn);
@@ -77,7 +80,10 @@ export function every<T>(val: T | T[] | null | undefined, fn: (v: T) => void) {
   }
 }
 
-export function some<T>(val: T | T[] | null | undefined, fn: (v: T) => void) {
+export function some<T>(
+  val: T | T[] | null | undefined,
+  fn: (v: T) => boolean
+) {
   if (!val) return false;
   if (Array.isArray(val)) {
     return val.some(fn);

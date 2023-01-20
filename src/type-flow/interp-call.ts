@@ -201,7 +201,7 @@ function isOverride(
       some(funcs, (func) => {
         if (func === cur) return false;
         const fcls = func.stack?.[func.stack.length - 1];
-        return fcls && supers.has(fcls);
+        return fcls ? supers.has(fcls) : false;
       })
     ) {
       return true;

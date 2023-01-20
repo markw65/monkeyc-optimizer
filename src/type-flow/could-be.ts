@@ -166,7 +166,7 @@ function couldBeValue(
             return true;
           }
           const superB = getSuperClasses(snb);
-          return superB && superB.has(sna);
+          return superB ? superB.has(sna) : false;
         });
       });
     }
