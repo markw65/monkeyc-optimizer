@@ -57,9 +57,11 @@ export function checkCallArgs(
   callees: FunctionStateNode | FunctionStateNode[],
   args: ExactOrUnion[]
 ) {
-  return reduce(
+  const allDiags: Array<Array<[mctree.Node, string]>> = [];
+  const resultType = reduce(
     callees,
     (result, cur) => {
+      const curDiags: Array<[mctree.Node, string]> = [];
       const checker = istate.typeChecker;
       let argTypes: ExactOrUnion[] | null = null;
       let returnType: ExactOrUnion | null = null;
@@ -81,16 +83,20 @@ export function checkCallArgs(
       if (cur.info === false) {
         argEffects = false;
       }
-      if (checker && (cur === callees || !isOverride(cur, callees))) {
-        const expectedArgs = (argTypes || cur.node.params).length;
-        if (args.length !== expectedArgs) {
-          diagnostic(
-            istate.state,
+      const needsCheck =
+        checker && (cur === callees || !isOverride(cur, callees));
+      const expectedArgs = (argTypes || cur.node.params).length;
+      if (args.length !== expectedArgs) {
+        if (needsCheck) {
+          curDiags.push([
             node,
             `${cur.fullName} expects ${expectedArgs} arguments, but got ${args.length}`,
-            istate.checkTypes
-          );
+          ]);
         }
+        allDiags.push(curDiags);
+        return result;
+      }
+      if (needsCheck) {
         args.forEach((arg, i) => {
           let paramType;
           if (argTypes) {
@@ -112,16 +118,14 @@ export function checkCallArgs(
                 if (atype) {
                   const ptype = getUnionComponent(paramType, TypeTag.Array);
                   if (!ptype || !subtypeOf(ptype, atype)) {
-                    diagnostic(
-                      istate.state,
+                    curDiags.push([
                       node.arguments[i],
                       `Argument ${i + 1} to ${
                         cur.fullName
                       }: passing Array<${display(atype)}> to parameter Array${
                         ptype ? `<${display(ptype)}>` : ""
                       } is not type safe`,
-                      istate.checkTypes
-                    );
+                    ]);
                   }
                 }
               }
@@ -137,8 +141,7 @@ export function checkCallArgs(
                     !subtypeOf(pdata.key, adata.key) ||
                     !subtypeOf(pdata.value, adata.value)
                   ) {
-                    diagnostic(
-                      istate.state,
+                    curDiags.push([
                       node.arguments[i],
                       `Argument ${i + 1} to ${
                         cur.fullName
@@ -149,24 +152,22 @@ export function checkCallArgs(
                           ? `<${display(pdata.key)}, ${display(pdata.value)}>`
                           : ""
                       } is not type safe`,
-                      istate.checkTypes
-                    );
+                    ]);
                   }
                 }
               }
             }
             return;
           }
-          diagnostic(
-            istate.state,
+          curDiags.push([
             node.arguments[i],
             `Argument ${i + 1} to ${cur.fullName} expected to be ${display(
               paramType
             )} but got ${display(arg)}`,
-            istate.checkTypes
-          );
+          ]);
         });
       }
+      allDiags.push(curDiags);
       if (!returnType) {
         if (cur.node.returnType) {
           returnType = typeFromTypespec(
@@ -191,6 +192,19 @@ export function checkCallArgs(
       embeddedEffects: false,
     } as InterpStackElem
   );
+  if (istate.typeChecker) {
+    if (
+      istate.typeChecker === subtypeOf ||
+      allDiags.every((diags) => diags.length > 0)
+    ) {
+      allDiags
+        .flat()
+        .forEach((diag) =>
+          diagnostic(istate.state, diag[0], diag[1], istate.checkTypes)
+        );
+    }
+  }
+  return resultType;
 }
 
 function isOverride(

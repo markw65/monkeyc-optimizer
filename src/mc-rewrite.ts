@@ -56,6 +56,7 @@ import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
 import { xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
+import { couldBeWeak } from "./type-flow/could-be";
 import {
   evaluate,
   evaluateNode,
@@ -737,9 +738,12 @@ export async function optimizeMonkeyC(
   if (
     state.config?.checkTypes !== "OFF" &&
     state.config?.trustDeclaredTypes &&
-    state.config?.propagateTypes
+    state.config.propagateTypes
   ) {
-    gistate.typeChecker = subtypeOf;
+    gistate.typeChecker =
+      state.config.typeCheckLevel?.toLowerCase() === "strict"
+        ? subtypeOf
+        : couldBeWeak;
     gistate.checkTypes = state.config?.checkTypes || "WARNING";
   }
 
@@ -892,7 +896,7 @@ export async function optimizeMonkeyC(
             state.config?.checkTypes !== "OFF" &&
             state.config?.trustDeclaredTypes
           ) {
-            is.typeChecker = subtypeOf;
+            is.typeChecker = gistate.typeChecker;
             is.checkTypes = state.config?.checkTypes || "WARNING";
           }
           istate = is;

@@ -114,6 +114,11 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
   return false;
 }
 
+export function couldBeWeak(a: ExactOrUnion, b: ExactOrUnion) {
+  if (a.type === TypeTag.Never || b.type === TypeTag.Never) return true;
+  return couldBe(a, b);
+}
+
 function couldBeValue(
   bit: ExactTypes["type"],
   avalue: SingleValue,

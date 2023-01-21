@@ -679,6 +679,7 @@ const configOptionsToCheck = [
   "trustDeclaredTypes",
   "propagateTypes",
   "extensionVersion",
+  "typeCheckLevel",
   "covarianceWarnings",
 ] as const;
 
