@@ -630,6 +630,8 @@ export function unused(
         break;
       }
       return unused(state, expression.object);
+    case "SizedArrayExpression":
+      return unused(state, expression.size);
     case "ArrayExpression":
       return expression.elements.map((e) => unused(state, e)).flat(1);
     case "ObjectExpression":
