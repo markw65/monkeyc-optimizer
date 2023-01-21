@@ -295,18 +295,18 @@ function inlineAsStatementTests(logger as Logger) as Boolean {
         A.B.s1(A.B.a());
         check(A.B.x, 13, logger);
     }
-    /* @match /^\{ z \+= @5; \}$/ */
+    /* @match /^z \+= @5;$/ */
     A.B.s2(5);
     check(z, 5, logger);
     {
         var z = 2;
-        /* @match /^\{ self.z \+= @3; \}$/ */
+        /* @match /^self.z \+= @3;$/ */
         A.B.s2(3);
         check($.z, 8, logger);
-        /* @match /^\{ self.z \+= A\.B\.x; \}$/ */
+        /* @match /^self.z \+= A\.B\.x;$/ */
         A.B.s3(A.B.x);
         check($.z, 21, logger);
-        /* @match /^\{ self.z \+= @2; A.B.a\(\); \}$/ */
+        /* @match /^self.z \+= @2;$/ /^A.B.a\(\);$/ */
         A.B.s4(z);
         check($.z, 23, logger);
     }
@@ -415,7 +415,7 @@ module Wrapper {
         check(x, 42, logger);
         {
             var z = 2;
-            /* @match /^\{ \$.z \+= 3; \}$/ */
+            /* @match /^\$.z \+= 3;$/ */
             A.B.s2(3);
             check($.z, 3, logger);
         }
@@ -459,11 +459,11 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = A.B.s3(2);
     check(z, 10, logger);
 
-    /* @match "var a;" /z \+= @2; a = z;/ */
+    /* @match "var a;" /z \+= @2;/ /a = z;/ */
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match /var c;/ /z \+= @3/ "var d;" /\s+d =/ /^check/ */
+    /* @match /var c;/ /z \+= @3/ "c = z;" "var d;" /\s+d =/ /^check/ */
     var b = 42,
         c = A.B.s3(3),
         d = -assignContext(1) + 1,

@@ -956,13 +956,9 @@ export async function optimizeMonkeyC(
         }
         break;
       case "BlockStatement":
-        if (node.body.length === 1 && node.body[0].type === "BlockStatement") {
-          node.body.splice(0, 1, ...node.body[0].body);
-        }
-      // fall through
       case "ForStatement":
-        if (locals.map) {
-          cleanupUnusedVars(state, node);
+        if (locals.map && cleanupUnusedVars(state, node)) {
+          again = true;
         }
         break;
 

@@ -313,6 +313,20 @@ export function beforeEvaluate(
       }
       break;
     }
+    case "BlockStatement": {
+      for (let i = node.body.length; i--; ) {
+        const stmt = node.body[i];
+        if (stmt.type === "VariableDeclaration" && !stmt.declarations.length) {
+          node.body.splice(i, 1);
+        } else if (
+          stmt.type === "BlockStatement" &&
+          stmt.body.every((s) => s.type !== "VariableDeclaration")
+        ) {
+          node.body.splice(i, 1, ...stmt.body);
+        }
+      }
+      break;
+    }
     case "SequenceExpression": {
       for (let i = node.expressions.length; i--; ) {
         const expr = node.expressions[i];
