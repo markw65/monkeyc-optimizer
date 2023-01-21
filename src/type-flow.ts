@@ -63,7 +63,7 @@ import {
   TypeTag,
 } from "./type-flow/types";
 import { clearValuesUnder, unionInto, widenType } from "./type-flow/union-type";
-import { every, map, pushUnique, reduce, some } from "./util";
+import { every, map, reduce, some } from "./util";
 
 const logging = true;
 
@@ -312,27 +312,33 @@ function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
 
 function filterDecls(decls: StateNode[], possible: StateNode[] | false) {
   if (!possible) return null;
-  const result = possible.reduce<StateNode[] | null>((cur, decl) => {
-    const sup = decl.type === "ClassDeclaration" && getSuperClasses(decl);
-    if (decls.some((d) => d === decl || (sup && sup.has(d)))) {
-      if (!cur) {
-        return [decl];
+
+  return decls.reduce<StateNode[] | null>((cur, decl) => {
+    const found = possible.reduce((flag, poss) => {
+      if (
+        decl === poss ||
+        (poss.type === "ClassDeclaration" &&
+          getSuperClasses(poss)?.has(decl)) ||
+        (decl.type === "ClassDeclaration" && getSuperClasses(decl)?.has(poss))
+      ) {
+        if (!cur) cur = [poss];
+        else cur.push(poss);
+        return true;
       }
-      cur.push(decl);
+      return flag;
+    }, false);
+    if (!found) {
+      possible.some((poss) => {
+        if (decl.stack?.some((sn) => sn.decls === poss.decls)) {
+          if (!cur) cur = [poss];
+          else cur.push(poss);
+          return true;
+        }
+        return false;
+      });
     }
     return cur;
   }, null);
-
-  return decls.reduce((cur, decl) => {
-    if (decl.type === "ClassDeclaration") {
-      const sup = getSuperClasses(decl);
-      if (sup && possible.some((d) => sup.has(d))) {
-        if (!cur) return [decl];
-        pushUnique(cur, decl);
-      }
-    }
-    return cur;
-  }, result);
 }
 
 export function findObjectDeclsByProperty(
