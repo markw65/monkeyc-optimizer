@@ -39,6 +39,7 @@ export type BuildConfig = {
   useLocalOptimizer?: boolean;
   propagateTypes?: boolean;
   trustDeclaredTypes?: boolean;
+  covarianceWarnings?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
 };
 export type StateNodeDecl =

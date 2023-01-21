@@ -102,7 +102,11 @@ export function checkCallArgs(
             paramType = typeFromTypespec(istate.state, param.right, cur.stack);
           }
           if (checker(arg, paramType)) {
-            if (effects && argEffects) {
+            if (
+              istate.state.config?.covarianceWarnings &&
+              effects &&
+              argEffects
+            ) {
               if (arg.type & TypeTag.Array) {
                 const atype = getUnionComponent(arg, TypeTag.Array);
                 if (atype) {

@@ -56,6 +56,7 @@ export async function driver() {
   let trustDeclaredTypes = true;
   let checkTypes: DiagnosticType | "OFF" = "WARNING";
   let skipRemote = false;
+  let covarianceWarnings: boolean | undefined;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -230,7 +231,9 @@ export async function driver() {
       case "skipRemote":
         skipRemote = !value || /^true|1$/i.test(value);
         break;
-
+      case "covarianceWarnings":
+        covarianceWarnings = !value || /^true|1$/i.test(value);
+        break;
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -316,6 +319,7 @@ export async function driver() {
       returnCommand: true,
       checkManifest: true,
       checkBuildPragmas,
+      covarianceWarnings,
     };
     let extraArgs = extraMonkeycArgs;
     if (jungleInfo.garminOptLevel != null && supportsCompiler2) {
