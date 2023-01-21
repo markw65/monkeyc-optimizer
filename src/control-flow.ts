@@ -42,6 +42,14 @@ export type Block<T extends EventConstraint<T>> = {
   succs?: Block<T>[];
   expreds?: Block<T>[];
   exsucc?: Block<T>;
+  // Garmin's uninitialized variable checker sometimes
+  // includes bogus edges in the control flow graph.
+  // In particular, a switch with a default still has
+  // an edge as if you could avoid all the cases and the
+  // default. We need to mimic this in order to avoid
+  // killing dead stores and ending up with code that
+  // garmin won't compile.
+  bogopred?: Block<T>;
   events?: T[];
 };
 
@@ -192,6 +200,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           });
           localState.newBlock(top.break);
           localState.unreachable = !top.break.preds;
+          if (!localState.unreachable && defaultSeen) {
+            top.break.bogopred = endOfTests;
+          }
           return [];
         }
         case "DoWhileStatement":
