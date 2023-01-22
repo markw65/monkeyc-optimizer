@@ -69,7 +69,7 @@ function testRelationalFolding1(logger as Logger) as Boolean {
 }
 
 (:test)
-function testSymbolComparisonsExpectedFail4_1_6_4_1_7U(
+function testSymbolComparisonsExpectedFail4_1_6_4_2_0U(
     logger as Logger
 ) as Boolean {
     ok = true;
