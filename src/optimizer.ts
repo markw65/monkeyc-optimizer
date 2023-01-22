@@ -3,7 +3,13 @@ import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as Prettier from "prettier";
-import { formatAst, getApiMapping, hasProperty, isStateNode } from "./api";
+import {
+  collectNamespaces,
+  formatAst,
+  getApiMapping,
+  hasProperty,
+  isStateNode,
+} from "./api";
 import { build_project } from "./build";
 import {
   get_jungle,
@@ -33,11 +39,16 @@ import {
   BuildConfig,
   ExcludeAnnotationsMap,
   FilesToOptimizeMap,
+  FunctionStateNode,
   ProgramState,
   ProgramStateAnalysis,
   StateNode,
 } from "./optimizer-types";
 import { appSupport, xmlUtil } from "./sdk-util";
+import { buildTypeInfo } from "./type-flow";
+import { couldBeWeak } from "./type-flow/could-be";
+import { evaluate, InterpState } from "./type-flow/interp";
+import { subtypeOf } from "./type-flow/sub-type";
 import {
   copyRecursiveAsNeeded,
   first_modified,
@@ -904,6 +915,42 @@ export async function getProjectAnalysis(
   });
   const state = await analyze(fnMap, resourcesMap, manifestXML, options);
   reportMissingSymbols(state, options);
+  if (
+    state.config?.propagateTypes &&
+    state.config.trustDeclaredTypes &&
+    state.config.checkTypes !== "OFF" &&
+    Object.values(state.fnMap).every((ast) => ast != null)
+  ) {
+    const gistate: InterpState = {
+      state,
+      stack: [],
+      typeChecker:
+        state.config.typeCheckLevel?.toLowerCase() === "strict"
+          ? subtypeOf
+          : couldBeWeak,
+      checkTypes: state.config?.checkTypes || "WARNING",
+    };
+
+    state.pre = (node) => {
+      switch (node.type) {
+        case "FunctionDeclaration": {
+          const self = state.stack.slice(-1).pop() as FunctionStateNode;
+          const istate = buildTypeInfo(state, self, false);
+          if (istate) {
+            istate.state = state;
+            istate.typeChecker = gistate.typeChecker;
+            istate.checkTypes = gistate.checkTypes;
+            evaluate(istate, node.body!);
+          }
+          return [];
+        }
+      }
+      return null;
+    };
+    Object.values(state.fnMap).forEach((f) => {
+      collectNamespaces(f.ast!, state);
+    });
+  }
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state };
 }
