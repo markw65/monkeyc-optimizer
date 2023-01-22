@@ -1,0 +1,25 @@
+From 326400a1b7834108be02ff079c86af1955fe31e4 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 22 Jan 2023 10:15:56 -0800
+Subject: [PATCH] Fix typo
+
+---
+ ShowAllInfos/source/AllInfosClass.mc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ShowAllInfos/source/AllInfosClass.mc b/ShowAllInfos/source/AllInfosClass.mc
+index 4c1f082..0c9d919 100644
+--- a/ShowAllInfos/source/AllInfosClass.mc
++++ b/ShowAllInfos/source/AllInfosClass.mc
+@@ -389,7 +389,7 @@ class AllInfos {
+       return "Backstroke";
+     } else if (Activity.SWIM_STROKE_BREASTSTROKE == swimstroketype) {
+       return "Breaststroke";
+-    } else if (Activity.SWIM_STORKE_BUTTERFLY == swimstroketype) {
++    } else if (Activity.SWIM_STROKE_BUTTERFLY == swimstroketype) {
+       return "Butterfly stroke";
+     } else if (Activity.SWIM_STROKE_DRILL == swimstroketype) {
+       return "Drill mode";
+-- 
+2.34.1
+

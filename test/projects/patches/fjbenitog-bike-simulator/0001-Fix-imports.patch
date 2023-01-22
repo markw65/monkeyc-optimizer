@@ -1,0 +1,50 @@
+From 053fd27fef43fcb0ca9fcd6d3c681fc41ee816f2 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 22 Jan 2023 10:09:22 -0800
+Subject: [PATCH] Fix imports
+
+---
+ source/screens/ScreenDelegate.mc   | 4 ++--
+ source/sounds/SoundAndVibration.mc | 3 ++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/source/screens/ScreenDelegate.mc b/source/screens/ScreenDelegate.mc
+index f780c2f..b7ba2bc 100644
+--- a/source/screens/ScreenDelegate.mc
++++ b/source/screens/ScreenDelegate.mc
+@@ -1,7 +1,7 @@
+ using Toybox.WatchUi;
+ using SoundAndVibration as SV;
+ using Activity;
+-
++import Toybox.Lang;
+ 
+ class ScreenDelegate extends WatchUi.BehaviorDelegate {
+ 	
+@@ -199,4 +199,4 @@ class ScreenDelegate extends WatchUi.BehaviorDelegate {
+     
+     
+     
+-}
+\ No newline at end of file
++}
+diff --git a/source/sounds/SoundAndVibration.mc b/source/sounds/SoundAndVibration.mc
+index 42c202c..349fb59 100644
+--- a/source/sounds/SoundAndVibration.mc
++++ b/source/sounds/SoundAndVibration.mc
+@@ -1,4 +1,5 @@
+ using Toybox.Attention;
++import Toybox.Lang;
+ 
+ module SoundAndVibration{
+ 
+@@ -71,4 +72,4 @@ module SoundAndVibration{
+ 		}
+ 	}
+ 	
+-}
+\ No newline at end of file
++}
+-- 
+2.34.1
+

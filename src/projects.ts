@@ -121,23 +121,20 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/darrencroton/SnapshotRHR",
   "https://github.com/darrencroton/SnapshotWatch",
   "https://github.com/davedoesdemos/ConnectIQ-Watch-IoT",
-  {
-    root: "https://github.com/dazey77/Horizontal-speedo-rep",
-    garminOptLevel: 0,
-  },
+  "https://github.com/dazey77/Horizontal-speedo-rep",
   {
     root: "https://github.com/dbcm/KISSFace",
     options: { checkInvalidSymbols: "WARNING" },
   },
   {
     root: "https://github.com/desyat/OpenWeatherMapWidget",
-    garminOptLevel: 0,
     options: { checkInvalidSymbols: "WARNING" },
   },
   {
     root: "https://github.com/dkappler/kraken",
     options: { compilerOptions: "--Eno-invalid-symbol" },
-    garminOptLevel: 0,
+    build: false,
+    comment: "Missing classes",
   },
   "https://github.com/dmuino/HMFields",
   "https://github.com/douglasr/connectiq-logo-analog",
@@ -147,7 +144,6 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/fjbenitog/bike-simulator",
     options: { checkInvalidSymbols: "WARNING" },
-    garminOptLevel: 0,
     test: true,
   },
   "https://github.com/fjbenitog/digital-watch-cas10",
@@ -168,18 +164,15 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/hakonrossebo/FootballFixtures",
     options: { compilerOptions: "--Eno-invalid-symbol" },
-    garminOptLevel: 0,
   },
   {
     root: "https://github.com/hansiglaser/ConnectIQ",
     options: { checkInvalidSymbols: "WARNING" },
-    garminOptLevel: 0,
   },
   { root: "https://github.com/haraldh/SunCalc", test: true },
   {
     root: "https://github.com/imgrant/AuxHR",
     options: { compilerOptions: "--Eno-invalid-symbol" },
-    garminOptLevel: 0,
   },
   "https://github.com/imgrant/EnergyExpenditureField",
   "https://github.com/imgrant/FlexiRunner",
@@ -209,7 +202,6 @@ export const githubProjects: RemoteProject[] = [
   { root: "https://github.com/lukasz-duda/NormalizedPoolDistance", test: true },
   {
     root: "https://github.com/matco/badminton",
-    garminOptLevel: 0,
     test: true,
   },
   {
@@ -261,7 +253,6 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/rexMingla/low-battery-mode",
     options: { checkInvalidSymbols: "WARNING" },
-    garminOptLevel: 0,
   },
   "https://github.com/rgergely/polesteps",
   "https://github.com/rgrellmann/connectiq-bergsteigen-app",
@@ -319,10 +310,7 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/toomasr/8-min-abs",
   "https://github.com/toskaw/ImageNotify",
   "https://github.com/travisvitek/connectiq_laps_datafield",
-  {
-    root: "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
-    garminOptLevel: 0,
-  },
+  "https://github.com/urbandroid-team/Sleep-as-Android-Garmin-Addon",
   "https://github.com/victornottat/garmin-trimp-perhour",
   "https://github.com/victornottat/garmin-trimp",
   "https://github.com/vmaywood/Garmin-Watch-Faces",

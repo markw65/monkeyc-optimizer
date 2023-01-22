@@ -1,0 +1,34 @@
+From 042fb80786e47c23aa7b0ae354bdf959f2362ed3 Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 22 Jan 2023 09:38:52 -0800
+Subject: [PATCH] Remove bogus type declarations
+
+---
+ source/mathspeedoMenuDelegate.mc | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/source/mathspeedoMenuDelegate.mc b/source/mathspeedoMenuDelegate.mc
+index fad0ecc..7488f45 100644
+--- a/source/mathspeedoMenuDelegate.mc
++++ b/source/mathspeedoMenuDelegate.mc
+@@ -7,8 +7,8 @@ import Toybox.Graphics;
+ 
+ 
+ class mathspeedoMenuDelegate extends WatchUi.MenuInputDelegate {
+- private var _view as RecordSampleView;
+-     private var _session as Session?;
++ private var _view;
++     private var _session;
+  
+  
+     function initialize() {
+@@ -33,4 +33,4 @@ class mathspeedoMenuDelegate extends WatchUi.MenuInputDelegate {
+         }
+     }
+ 
+-}
+\ No newline at end of file
++}
+-- 
+2.34.1
+

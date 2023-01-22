@@ -1,0 +1,25 @@
+From 9a52e074aff039e0b11bd793e1595e6d8d0f554b Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Sun, 22 Jan 2023 09:42:41 -0800
+Subject: [PATCH] Remove bogus 'hidden'
+
+---
+ source/Utils/Log4MonkeyC.mc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/Utils/Log4MonkeyC.mc b/source/Utils/Log4MonkeyC.mc
+index 3891390..b2a10d9 100644
+--- a/source/Utils/Log4MonkeyC.mc
++++ b/source/Utils/Log4MonkeyC.mc
+@@ -13,7 +13,7 @@ module Log4MonkeyC {
+ 	const LOG_LEVEL_KEY = "logLevel";
+ 	const DATE_FORMAT_KEY = "dateFormat";
+ 
+-	hidden var config;
++	var config;
+ 
+ 	//! Build a new [Logger]
+ 	//!
+-- 
+2.34.1
+
