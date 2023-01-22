@@ -165,6 +165,7 @@ export interface DiagnosticInfo extends DiagnosticBase {
 export interface Diagnostic extends DiagnosticBase {
   type: DiagnosticType;
   related?: DiagnosticInfo[];
+  extra?: { uri: string; message: string };
 }
 
 export type StateNode =

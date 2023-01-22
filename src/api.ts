@@ -499,7 +499,11 @@ function lookup(
                 `${formatAst(
                   node
                 )} will only be found when compiled with compiler2 at -O1 or above`,
-                state.config?.checkCompilerLookupRules || "WARNING"
+                state.config?.checkCompilerLookupRules || "WARNING",
+                {
+                  uri: "https://github.com/markw65/monkeyc-optimizer/wiki/Compiler1-vs-Compiler2-lookup-rules",
+                  message: "more info",
+                }
               );
             } else if (state.lookupRules === "COMPILER1") {
               return [null, null];
@@ -1191,7 +1195,8 @@ export function diagnostic(
   state: ProgramState,
   node: mctree.Node,
   message: string | null,
-  type: DiagnosticType = "INFO"
+  type: DiagnosticType = "INFO",
+  extra?: Diagnostic["extra"]
 ) {
   const loc = node.loc;
   if (!loc || !loc.source) return;
@@ -1223,6 +1228,9 @@ export function diagnostic(
       loc,
       message,
     };
+    if (extra) {
+      diag.extra = extra;
+    }
     if (node.origins) {
       diag.related = [];
       const related = diag.related;
