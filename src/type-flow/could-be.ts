@@ -1,28 +1,19 @@
+import { getSuperClasses, hasProperty } from "../api";
 import { unhandledType } from "../data-flow";
 import { some } from "../util";
 import {
-  ArrayValueType,
-  ClassType,
-  DictionaryValueType,
   EnumTagsConst,
-  EnumValueType,
   ExactOrUnion,
-  ExactTypes,
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
-  MethodValueType,
   ObjectLikeTagsConst,
-  ObjectValueType,
-  SingleValue,
-  StateDeclValueType,
-  TypedefValueType,
   TypeTag,
   typeTagName,
   UnionDataTypeTagsConst,
+  ValuePairs,
   ValueTypeTagsConst,
 } from "./types";
-import { getSuperClasses, hasProperty } from "../api";
 
 /*
  * Determine whether a value conforming to a's type could also
@@ -43,16 +34,16 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
       return true;
     }
     let result = false;
-    forEachUnionComponent(a, common, (bit, avalue) => {
-      if (avalue == null) {
+    forEachUnionComponent(a, common, (ac) => {
+      if (ac.value == null) {
         result = true;
         return false;
       }
-      const bvalue = getUnionComponent(b, bit);
+      const bvalue = getUnionComponent(b, ac.type);
       if (
         bvalue == null ||
-        avalue === bvalue ||
-        couldBeValue(bit, avalue, bvalue)
+        ac.value === bvalue ||
+        couldBeValue({ type: ac.type, avalue: ac.value, bvalue } as ValuePairs)
       ) {
         result = true;
         return false;
@@ -92,9 +83,7 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
   }
 
   const checkTypdef = (t: ExactOrUnion, other: ExactOrUnion) => {
-    const typedef = getUnionComponent(t, TypeTag.Typedef) as
-      | TypedefValueType
-      | undefined;
+    const typedef = getUnionComponent(t, TypeTag.Typedef);
     return (
       typedef &&
       some(typedef, (td) => {
@@ -119,17 +108,13 @@ export function couldBeWeak(a: ExactOrUnion, b: ExactOrUnion) {
   return couldBe(a, b);
 }
 
-function couldBeValue(
-  bit: ExactTypes["type"],
-  avalue: SingleValue,
-  bvalue: SingleValue
-) {
-  switch (bit) {
+function couldBeValue(pair: ValuePairs) {
+  switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
     case TypeTag.True:
     case TypeTag.Typedef:
-      throw new Error(`Unexpected TypeTag '${typeTagName(bit)}'`);
+      throw new Error(`Unexpected TypeTag '${typeTagName(pair.type)}'`);
     case TypeTag.Number:
     case TypeTag.Long:
     case TypeTag.Float:
@@ -137,36 +122,33 @@ function couldBeValue(
     case TypeTag.String:
     case TypeTag.Char:
     case TypeTag.Symbol:
-      return avalue === bvalue;
+      return pair.avalue === pair.bvalue;
     case TypeTag.Array:
-      return couldBe(avalue as ArrayValueType, bvalue as ArrayValueType);
+      return couldBe(pair.avalue, pair.bvalue);
     case TypeTag.Dictionary: {
-      const adict = avalue as DictionaryValueType;
-      const bdict = bvalue as DictionaryValueType;
-      return couldBe(adict.key, bdict.key) && couldBe(adict.value, bdict.value);
+      return (
+        couldBe(pair.avalue.key, pair.bvalue.key) &&
+        couldBe(pair.avalue.value, pair.bvalue.value)
+      );
     }
     case TypeTag.Method: {
-      const ameth = avalue as MethodValueType;
-      const bmeth = bvalue as MethodValueType;
       return (
-        ameth.args.length === bmeth.args.length &&
-        couldBe(ameth.result, bmeth.result) &&
-        ameth.args.every((arg, i) => couldBe(arg, bmeth.args[i]))
+        pair.avalue.args.length === pair.bvalue.args.length &&
+        couldBe(pair.avalue.result, pair.bvalue.result) &&
+        pair.avalue.args.every((arg, i) => couldBe(arg, pair.bvalue.args[i]))
       );
     }
     case TypeTag.Module:
     case TypeTag.Function: {
-      const asd = avalue as StateDeclValueType;
-      const bsd = bvalue as StateDeclValueType;
       // quadratic :-(
-      return some(asd, (sna) => some(bsd, (snb) => sna === snb));
+      return some(pair.avalue, (sna) =>
+        some(pair.bvalue, (snb) => sna === snb)
+      );
     }
     case TypeTag.Class: {
-      const asd = avalue as NonNullable<ClassType["value"]>;
-      const bsd = bvalue as NonNullable<ClassType["value"]>;
-      return some(asd, (sna) => {
+      return some(pair.avalue, (sna) => {
         const superA = getSuperClasses(sna);
-        return some(bsd, (snb) => {
+        return some(pair.bvalue, (snb) => {
           if (sna === snb || (superA && superA.has(snb))) {
             return true;
           }
@@ -177,21 +159,22 @@ function couldBeValue(
     }
 
     case TypeTag.Object: {
-      const aobj = avalue as ObjectValueType;
-      const bobj = bvalue as ObjectValueType;
-      return couldBe(aobj.klass, bobj.klass) && couldBeObj(aobj.obj, bobj.obj);
+      return (
+        couldBe(pair.avalue.klass, pair.bvalue.klass) &&
+        couldBeObj(pair.avalue.obj, pair.bvalue.obj)
+      );
     }
 
     case TypeTag.Enum: {
-      const aenum = avalue as EnumValueType;
-      const benum = bvalue as EnumValueType;
       return (
-        aenum.enum === benum.enum &&
-        (!aenum.value || !benum.value || couldBe(aenum.value, benum.value))
+        pair.avalue.enum === pair.bvalue.enum &&
+        (!pair.avalue.value ||
+          !pair.bvalue.value ||
+          couldBe(pair.avalue.value, pair.bvalue.value))
       );
     }
     default:
-      unhandledType(bit);
+      unhandledType(pair);
   }
 }
 

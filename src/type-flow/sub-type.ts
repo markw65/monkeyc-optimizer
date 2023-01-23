@@ -3,24 +3,16 @@ import { unhandledType } from "../data-flow";
 import { every, some } from "../util";
 import { expandTypedef } from "./intersection-type";
 import {
-  ArrayValueType,
-  ClassType,
   cloneType,
-  DictionaryValueType,
   EnumTagsConst,
-  EnumValueType,
   ExactOrUnion,
-  ExactTypes,
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
-  MethodValueType,
   ObjectLikeTagsConst,
-  ObjectValueType,
-  SingleValue,
-  StateDeclValueType,
   TypeTag,
   typeTagName,
+  ValuePairs,
 } from "./types";
 import { clearValuesUnder } from "./union-type";
 
@@ -66,10 +58,13 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
   }
   if (b.value == null) return true;
   let result = true;
-  forEachUnionComponent(b, common, (bit, bvalue) => {
-    const avalue = getUnionComponent(a, bit);
-    if (bvalue == null || avalue === bvalue) return true;
-    if (avalue == null || !subtypeOfValue(bit, avalue, bvalue)) {
+  forEachUnionComponent(b, common, (bc) => {
+    const avalue = getUnionComponent(a, bc.type);
+    if (bc.value == null || avalue === bc.value) return true;
+    if (
+      avalue == null ||
+      !subtypeOfValue({ type: bc.type, avalue, bvalue: bc.value } as ValuePairs)
+    ) {
       result = false;
       return false;
     }
@@ -78,17 +73,13 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
   return result;
 }
 
-function subtypeOfValue(
-  bit: ExactTypes["type"],
-  avalue: SingleValue,
-  bvalue: SingleValue
-) {
-  switch (bit) {
+function subtypeOfValue(pair: ValuePairs) {
+  switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
     case TypeTag.True:
     case TypeTag.Typedef:
-      throw new Error(`Unexpected TypeTag '${typeTagName(bit)}'`);
+      throw new Error(`Unexpected TypeTag '${typeTagName(pair.type)}'`);
     case TypeTag.Number:
     case TypeTag.Long:
     case TypeTag.Float:
@@ -96,35 +87,33 @@ function subtypeOfValue(
     case TypeTag.String:
     case TypeTag.Char:
     case TypeTag.Symbol:
-      return avalue === bvalue;
+      return pair.avalue === pair.bvalue;
     case TypeTag.Array:
-      return subtypeOf(avalue as ArrayValueType, bvalue as ArrayValueType);
+      return subtypeOf(pair.avalue, pair.bvalue);
     case TypeTag.Dictionary: {
-      const adict = avalue as DictionaryValueType;
-      const bdict = bvalue as DictionaryValueType;
+      const adict = pair.avalue;
+      const bdict = pair.bvalue;
       return (
         subtypeOf(adict.key, bdict.key) && subtypeOf(adict.value, bdict.value)
       );
     }
     case TypeTag.Method: {
-      const ameth = avalue as MethodValueType;
-      const bmeth = bvalue as MethodValueType;
       return (
-        ameth.args.length === bmeth.args.length &&
-        subtypeOf(ameth.result, bmeth.result) &&
-        ameth.args.every((arg, i) => subtypeOf(bmeth.args[i], arg))
+        pair.avalue.args.length === pair.bvalue.args.length &&
+        subtypeOf(pair.avalue.result, pair.bvalue.result) &&
+        pair.avalue.args.every((arg, i) => subtypeOf(pair.bvalue.args[i], arg))
       );
     }
     case TypeTag.Module:
     case TypeTag.Function: {
-      const asd = avalue as StateDeclValueType;
-      const bsd = bvalue as StateDeclValueType;
+      const asd = pair.avalue;
+      const bsd = pair.bvalue;
       // quadratic :-(
       return some(asd, (sna) => some(bsd, (snb) => sna === snb));
     }
     case TypeTag.Class: {
-      const asd = avalue as NonNullable<ClassType["value"]>;
-      const bsd = bvalue as NonNullable<ClassType["value"]>;
+      const asd = pair.avalue;
+      const bsd = pair.bvalue;
       return every(asd, (sna) => {
         const superA = getSuperClasses(sna);
         return some(bsd, (snb) => {
@@ -137,23 +126,23 @@ function subtypeOfValue(
     }
 
     case TypeTag.Object: {
-      const aobj = avalue as ObjectValueType;
-      const bobj = bvalue as ObjectValueType;
+      const aobj = pair.avalue;
+      const bobj = pair.bvalue;
       return (
         subtypeOf(aobj.klass, bobj.klass) && subtypeOfObj(aobj.obj, bobj.obj)
       );
     }
 
     case TypeTag.Enum: {
-      const aenum = avalue as EnumValueType;
-      const benum = bvalue as EnumValueType;
+      const aenum = pair.avalue;
+      const benum = pair.bvalue;
       return (
         aenum.enum === benum.enum &&
         (!aenum.value || !benum.value || subtypeOf(aenum.value, benum.value))
       );
     }
     default:
-      unhandledType(bit);
+      unhandledType(pair);
   }
 }
 

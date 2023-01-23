@@ -185,10 +185,17 @@ export type ExactTypes =
   | SymbolType
   | TypedefType;
 
+type ExactPairHelper<T> = T extends ExactTypes
+  ? { type: T["type"]; avalue: T["value"]; bvalue: T["value"] }
+  : never;
+
+export type ExactPairs = ExactPairHelper<ExactTypes>;
+export type ValuePairs = ExactPairHelper<ValueTypes>;
+
 type WithValue<T> = T extends ExactTypes
   ? T extends SingletonType
     ? T
-    : T & { value: NonNullable<T["value"]> }
+    : { type: T["type"]; value: NonNullable<T["value"]> }
   : never;
 
 export type ExactData<T extends ExactTypeTags> = T extends SingletonType
@@ -316,16 +323,7 @@ export type ExactOrUnion = UnionType | ExactTypes;
 
 export type SingleValue = NonNullable<ValueTypes["value"]>;
 type TagValue<TAG> = Extract<ValueTypes, { type: TAG }>["value"];
-export type ArrayValueType = TagValue<TypeTag.Array>;
-export type DictionaryValueType = TagValue<TypeTag.Dictionary>;
-export type MethodValueType = TagValue<TypeTag.Method>;
-export type ObjectValueType = TagValue<TypeTag.Object>;
 export type EnumValueType = TagValue<TypeTag.Enum>;
-export type TypedefValueType = TagValue<TypeTag.Typedef>;
-export type StateDeclValueType =
-  | TagValue<TypeTag.Module>
-  | TagValue<TypeTag.Function>
-  | TagValue<TypeTag.Class>;
 
 export function isExact(v: AbstractValue): v is ExactTypes {
   // check that there is exactly one bit set
@@ -987,10 +985,7 @@ export function getObjectValue(t: ExactOrUnion): ObjectType["value"] | null {
 export function forEachUnionComponent(
   v: ExactOrUnion,
   bits: TypeTag,
-  fn: (
-    tag: ExactTypeTags,
-    value: SingleValue | null | undefined
-  ) => boolean | void
+  fn: (type: ExactTypes) => boolean | void
 ) {
   // never iterate the singleton bits, because they don't have data
   bits &= ~SingleTonTypeTagsConst;
@@ -1015,7 +1010,7 @@ export function forEachUnionComponent(
       ? v.value
       : null;
 
-    if (fn(bit, data as SingleValue | null | undefined) === false) break;
+    if (fn({ type: bit, value: data } as ExactTypes) === false) break;
     bits = next;
   } while (bits);
 }
@@ -1072,23 +1067,29 @@ export function getStateNodeDeclsFromType(
     forEachUnionComponent(
       object,
       object.type & (TypeTag.Module | TypeTag.Class | TypeTag.Object),
-      (tag, value) => {
-        if (!value) return;
-        if (tag === TypeTag.Object) {
-          const ovalue = value as ObjectValueType;
-          if (ovalue.klass.type === TypeTag.Class && ovalue.klass.value) {
-            if (Array.isArray(ovalue.klass.value)) {
-              decls.push(...(ovalue.klass.value as StateNode[]));
-            } else {
-              decls.push(ovalue.klass.value as StateNode);
+      (type: ExactTypes) => {
+        if (type.value == null) return;
+        switch (type.type) {
+          case TypeTag.Object:
+            if (
+              type.value.klass.type === TypeTag.Class &&
+              type.value.klass.value
+            ) {
+              if (Array.isArray(type.value.klass.value)) {
+                decls.push(...type.value.klass.value);
+              } else {
+                decls.push(type.value.klass.value);
+              }
             }
-          }
-        } else {
-          if (Array.isArray(value)) {
-            decls.push(...(value as StateNode[]));
-          } else {
-            decls.push(value as StateNode);
-          }
+            break;
+          case TypeTag.Module:
+          case TypeTag.Class:
+            if (Array.isArray(type.value)) {
+              decls.push(...type.value);
+            } else {
+              decls.push(type.value);
+            }
+            break;
         }
       }
     );

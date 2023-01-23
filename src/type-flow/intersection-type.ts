@@ -5,14 +5,12 @@ import {
   FunctionStateNode,
   ModuleStateNode,
 } from "../optimizer-types";
-import { some, forEach, reduce } from "../util";
+import { forEach, reduce, some } from "../util";
 import { couldBe } from "./could-be";
 import { roundToFloat } from "./interp";
 import {
-  ArrayValueType,
   ClassType,
   cloneType,
-  DictionaryValueType,
   DoubleType,
   EnumTagsConst,
   EnumType,
@@ -26,15 +24,13 @@ import {
   hasUnionData,
   isExact,
   LongType,
-  MethodValueType,
   NeverType,
   NumberType,
   ObjectLikeTagsConst,
-  ObjectValueType,
   SingleValue,
-  StateDeclValueType,
   TypeTag,
   typeTagName,
+  ValuePairs,
 } from "./types";
 import { clearValuesUnder, unionInto } from "./union-type";
 
@@ -149,26 +145,30 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
 
   let mask = 0;
   const result: Record<number, SingleValue> = {};
-  forEachUnionComponent(a, common, (bit, avalue) => {
-    const bvalue = getUnionComponent(b, bit);
-    if (avalue == null) {
+  forEachUnionComponent(a, common, (ac) => {
+    const bvalue = getUnionComponent(b, ac.type);
+    if (ac.value == null) {
       if (!bvalue) return;
-      result[bit] = bvalue;
-      mask |= bit;
+      result[ac.type] = bvalue;
+      mask |= ac.type;
       return;
     }
-    if (bvalue === null || avalue === bvalue) {
-      result[bit] = avalue;
-      mask |= bit;
+    if (bvalue === null || ac.value === bvalue) {
+      result[ac.type] = ac.value;
+      mask |= ac.type;
       return;
     }
-    const ivalue = intersectionValue(bit, avalue, bvalue);
+    const ivalue = intersectionValue({
+      type: ac.type,
+      avalue: ac.value,
+      bvalue,
+    } as ValuePairs);
     if (ivalue != null) {
-      result[bit] = ivalue;
-      mask |= bit;
+      result[ac.type] = ivalue;
+      mask |= ac.type;
       return;
     } else {
-      common -= bit;
+      common -= ac.type;
     }
   });
   if (!mask) return { type: common };
@@ -183,17 +183,13 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
   return { type: common, value: result[mask] } as ExactOrUnion;
 }
 
-function intersectionValue(
-  bit: ExactTypes["type"],
-  avalue: SingleValue,
-  bvalue: SingleValue
-): SingleValue | null {
-  switch (bit) {
+function intersectionValue(pair: ValuePairs): SingleValue | null {
+  switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
     case TypeTag.True:
     case TypeTag.Typedef:
-      throw new Error(`Unexpected TypeTag '${typeTagName(bit)}'`);
+      throw new Error(`Unexpected TypeTag '${typeTagName(pair.type)}'`);
     case TypeTag.Number:
     case TypeTag.Long:
     case TypeTag.Float:
@@ -201,32 +197,25 @@ function intersectionValue(
     case TypeTag.String:
     case TypeTag.Char:
     case TypeTag.Symbol:
-      return avalue === bvalue ? avalue : null;
+      return pair.avalue === pair.bvalue ? pair.avalue : null;
     case TypeTag.Array: {
-      const atype = intersection(
-        avalue as ArrayValueType,
-        bvalue as ArrayValueType
-      );
+      const atype = intersection(pair.avalue, pair.bvalue);
       return atype.type === TypeTag.Never ? null : atype;
     }
     case TypeTag.Dictionary: {
-      const adict = avalue as DictionaryValueType;
-      const bdict = bvalue as DictionaryValueType;
-      const dkey = intersection(adict.key, bdict.key);
-      const dvalue = intersection(adict.value, bdict.value);
+      const dkey = intersection(pair.avalue.key, pair.bvalue.key);
+      const dvalue = intersection(pair.avalue.value, pair.bvalue.value);
       return dkey.type !== TypeTag.Never && dvalue.type !== TypeTag.Never
         ? { key: dkey, value: dvalue }
         : null;
     }
     case TypeTag.Method: {
-      const ameth = avalue as MethodValueType;
-      const bmeth = bvalue as MethodValueType;
-      if (ameth.args.length != bmeth.args.length) return null;
-      const mresult = intersection(ameth.result, bmeth.result);
+      if (pair.avalue.args.length != pair.bvalue.args.length) return null;
+      const mresult = intersection(pair.avalue.result, pair.bvalue.result);
       if (mresult.type === TypeTag.Never) return null;
-      const margs = ameth.args.map((aarg, i) => {
+      const margs = pair.avalue.args.map((aarg, i) => {
         aarg = cloneType(aarg);
-        unionInto(aarg, bmeth.args[i]);
+        unionInto(aarg, pair.bvalue.args[i]);
         return aarg;
       });
       if (margs.some((arg) => arg.type === TypeTag.Never)) return null;
@@ -234,14 +223,12 @@ function intersectionValue(
     }
     case TypeTag.Module:
     case TypeTag.Function: {
-      const asd = avalue as StateDeclValueType;
-      const bsd = bvalue as StateDeclValueType;
       // quadratic :-(
       const common: Array<ModuleStateNode | FunctionStateNode> = [];
       forEach(
-        asd,
+        pair.avalue,
         (sna) =>
-          some(bsd, (snb) => sna === snb) &&
+          some(pair.bvalue, (snb) => sna === snb) &&
           common.push(sna as ModuleStateNode | FunctionStateNode)
       );
       if (!common.length) return null;
@@ -249,12 +236,10 @@ function intersectionValue(
     }
 
     case TypeTag.Class: {
-      const asd = avalue as NonNullable<ClassType["value"]>;
-      const bsd = bvalue as NonNullable<ClassType["value"]>;
       const common: Array<ClassStateNode> = [];
-      forEach(asd, (sna) => {
+      forEach(pair.avalue, (sna) => {
         const superA = getSuperClasses(sna);
-        forEach(bsd, (snb) => {
+        forEach(pair.bvalue, (snb) => {
           if (sna === snb || (superA && superA.has(snb))) {
             common.push(sna);
           }
@@ -269,10 +254,8 @@ function intersectionValue(
     }
 
     case TypeTag.Object: {
-      const aobj = avalue as ObjectValueType;
-      const bobj = bvalue as ObjectValueType;
-      const klass = intersection(aobj.klass, bobj.klass);
-      const obj = intersectObj(aobj.obj, bobj.obj);
+      const klass = intersection(pair.avalue.klass, pair.bvalue.klass);
+      const obj = intersectObj(pair.avalue.obj, pair.bvalue.obj);
       return klass.type !== TypeTag.Class || klass.value == null
         ? null
         : obj
@@ -281,24 +264,26 @@ function intersectionValue(
     }
 
     case TypeTag.Enum: {
-      const aenum = avalue as EnumValueType;
-      const benum = bvalue as EnumValueType;
-      if (aenum.enum !== benum.enum && aenum.enum && benum.enum) {
+      if (
+        pair.avalue.enum !== pair.bvalue.enum &&
+        pair.avalue.enum &&
+        pair.bvalue.enum
+      ) {
         return null;
       }
-      const enumDecl = aenum.enum || benum.enum;
-      if (aenum.value != null) {
-        if (benum.value != null) {
-          const value = intersection(aenum.value, benum.value);
+      const enumDecl = pair.avalue.enum || pair.bvalue.enum;
+      if (pair.avalue.value != null) {
+        if (pair.bvalue.value != null) {
+          const value = intersection(pair.avalue.value, pair.bvalue.value);
           const e: EnumValueType = { enum: enumDecl, value };
           return e;
         }
-        return aenum.value;
+        return pair.avalue.value;
       }
-      return benum;
+      return pair.bvalue;
     }
     default:
-      unhandledType(bit);
+      unhandledType(pair);
   }
 }
 

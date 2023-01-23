@@ -1,35 +1,38 @@
 import { hasProperty } from "../ast";
 import { unhandledType } from "../data-flow";
-import { StateNode } from "../optimizer-types";
+import {
+  ClassStateNode,
+  FunctionStateNode,
+  ModuleStateNode,
+  TypedefStateNode,
+} from "../optimizer-types";
 import { forEach, some } from "../util";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
-  ArrayValueType,
   ClassType,
   cloneType,
-  DictionaryValueType,
   EnumValueType,
   ExactOrUnion,
-  ExactTypes,
   forEachUnionComponent,
   getUnionComponent,
   hasUnionData,
-  MethodValueType,
-  ObjectValueType,
   setUnionComponent,
   SingleTonTypeTagsConst,
   SingleValue,
-  StateDeclValueType,
   TypeTag,
   UnionData,
   UnionDataKey,
   UnionDataTypeTagsConst,
   UnionType,
+  ValuePairs,
   ValueTypeTagsConst,
 } from "./types";
 
 export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
+  if (to == null || from == null) {
+    throw new Error("Null");
+  }
   if (from.type === 0 || to === from) return false;
   if (to.type === 0) {
     to.type = from.type;
@@ -86,33 +89,37 @@ function mergeMultiple(to: ExactOrUnion, from: ExactOrUnion) {
   let anyChanged = newTags !== to.type;
   let mask = 0;
   const result: Record<number, SingleValue> = {};
-  forEachUnionComponent(to, newTags, (tag, tov) => {
-    const fromv = getUnionComponent(from, tag);
-    if (tov != null) {
+  forEachUnionComponent(to, newTags, (ac) => {
+    const fromv = getUnionComponent(from, ac.type);
+    if (ac.value != null) {
       if (fromv != null) {
-        const [value, changed] = mergeSingle(tag, tov, fromv);
+        const [value, changed] = mergeSingle({
+          type: ac.type,
+          avalue: ac.value,
+          bvalue: fromv,
+        } as ValuePairs);
         if (changed) anyChanged = true;
         if (value) {
-          mask |= tag;
-          result[tag] = value;
+          mask |= ac.type;
+          result[ac.type] = value;
         }
-      } else if (!(from.type & tag)) {
+      } else if (!(from.type & ac.type)) {
         // from doesn't contribute to this tag,
         // so just keep it. No change.
-        mask |= tag;
-        result[tag] = tov;
+        mask |= ac.type;
+        result[ac.type] = ac.value;
       } else {
         // We dropped the data for this tag, so
         // things changed.
         anyChanged = true;
       }
-    } else if (fromv && !(to.type & tag)) {
+    } else if (fromv && !(to.type & ac.type)) {
       // to doesn't contribute to this tag,
       // so just keep from's component.
       // this is new, so it changed.
       anyChanged = true;
-      mask |= tag;
-      result[tag] = fromv;
+      mask |= ac.type;
+      result[ac.type] = fromv;
     }
   });
 
@@ -140,12 +147,8 @@ function tryUnion(to: ExactOrUnion, from: ExactOrUnion): ExactOrUnion | null {
   return null;
 }
 
-function mergeSingle(
-  type: ExactTypes["type"],
-  to: SingleValue,
-  from: SingleValue
-): [SingleValue | null, boolean] {
-  switch (type) {
+function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
+  switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
     case TypeTag.True:
@@ -157,54 +160,57 @@ function mergeSingle(
     case TypeTag.Char:
     case TypeTag.String:
     case TypeTag.Symbol:
-      if (to === from) {
-        return [to, false];
+      if (pair.avalue === pair.bvalue) {
+        return [pair.avalue, false];
       }
       return [null, true];
     case TypeTag.Array: {
-      const merged = tryUnion(to as ArrayValueType, from as ArrayValueType);
-      return [merged || to, merged != null];
+      const merged = tryUnion(pair.avalue, pair.bvalue);
+      return [merged || pair.avalue, merged != null];
     }
 
     case TypeTag.Dictionary: {
-      const { key, value } = to as DictionaryValueType;
-      const keyChange = tryUnion(key, (from as DictionaryValueType).key);
-      const valueChange = tryUnion(value, (from as DictionaryValueType).value);
+      const { key, value } = pair.avalue;
+      const keyChange = tryUnion(key, pair.bvalue.key);
+      const valueChange = tryUnion(value, pair.bvalue.value);
       if (keyChange || valueChange) {
         return [{ key: keyChange || key, value: valueChange || value }, true];
       }
-      return [to, false];
+      return [pair.avalue, false];
     }
     case TypeTag.Method: {
-      const ameth = to as MethodValueType;
-      const bmeth = from as MethodValueType;
-      if (ameth.args.length != bmeth.args.length) return [null, true];
-      const resultChange = tryUnion(ameth.result, bmeth.result);
-      const args = ameth.args.map((arg, i) => intersection(arg, bmeth.args[i]));
+      if (pair.avalue.args.length != pair.bvalue.args.length)
+        return [null, true];
+      const resultChange = tryUnion(pair.avalue.result, pair.bvalue.result);
+      const args = pair.avalue.args.map((arg, i) =>
+        intersection(arg, pair.bvalue.args[i])
+      );
       if (args.some((arg) => arg.type === TypeTag.Never)) {
         return [null, true];
       }
-      const argsChanged = args.some((arg, i) => !subtypeOf(ameth.args[i], arg));
+      const argsChanged = args.some(
+        (arg, i) => !subtypeOf(pair.avalue.args[i], arg)
+      );
       if (resultChange || argsChanged) {
-        return [{ result: resultChange || ameth.result, args }, true];
+        return [{ result: resultChange || pair.avalue.result, args }, true];
       }
-      return [to, false];
+      return [pair.avalue, false];
     }
     case TypeTag.Module:
+      return mergeStateDecls(pair.avalue, pair.bvalue);
     case TypeTag.Function:
+      return mergeStateDecls(pair.avalue, pair.bvalue);
     case TypeTag.Class:
+      return mergeStateDecls(pair.avalue, pair.bvalue);
     case TypeTag.Typedef:
-      return mergeStateDecls(
-        to as StateDeclValueType,
-        from as StateDeclValueType
-      );
+      return mergeStateDecls(pair.avalue, pair.bvalue);
     case TypeTag.Object: {
-      let klass = (to as ObjectValueType).klass;
+      let klass = pair.avalue.klass;
       const [obj, objChanged] = mergeObjectValues(
-        (to as ObjectValueType).obj,
-        (from as ObjectValueType).obj
+        pair.avalue.obj,
+        pair.bvalue.obj
       );
-      const klassChanged = tryUnion(klass, (from as ObjectValueType).klass);
+      const klassChanged = tryUnion(klass, pair.bvalue.klass);
       if (klassChanged || objChanged) {
         klass = (klassChanged || klass) as ClassType;
         if (obj) {
@@ -212,11 +218,11 @@ function mergeSingle(
         }
         return [{ klass } as SingleValue, true];
       }
-      return [to, false];
+      return [pair.avalue, false];
     }
     case TypeTag.Enum: {
-      const toE = to as EnumValueType;
-      const fromE = from as EnumValueType;
+      const toE = pair.avalue;
+      const fromE = pair.bvalue;
       if (toE.enum !== fromE.enum) {
         return [null, true];
       }
@@ -235,9 +241,8 @@ function mergeSingle(
       return [toE, false];
     }
     default:
-      unhandledType(type);
+      unhandledType(pair);
   }
-  throw new Error(`Unexpected type ${type}`);
 }
 
 function mergeObjectValues(
@@ -271,24 +276,27 @@ function mergeObjectValues(
   return [result, result !== to];
 }
 
-function mergeStateDecls(
-  to: StateDeclValueType,
-  from: StateDeclValueType
-): [StateDeclValueType, boolean] {
+function mergeStateDecls<
+  T extends
+    | ModuleStateNode
+    | ClassStateNode
+    | FunctionStateNode
+    | TypedefStateNode
+>(to: T | T[], from: T | T[]): [T | T[], boolean] {
   let changed = false;
-  let result: StateDeclValueType = to;
-  forEach(from, (v) => {
-    if (some(to, (t) => t === v)) {
+  let result: T | T[] = to;
+  forEach<T>(from, (v) => {
+    if (some<T>(to, (t) => t === v)) {
       return;
     }
     if (Array.isArray(result)) {
       if (result === to) {
-        result = [...result, v] as StateDeclValueType;
+        result = [...result, v as T];
       } else {
-        (result as StateNode[]).push(v);
+        result.push(v);
       }
     } else {
-      result = [to, v] as StateDeclValueType;
+      result = [to as T, v];
     }
     changed = true;
   });
@@ -396,27 +404,27 @@ function widenTypeHelper(t: ExactOrUnion, depth: number) {
   forEachUnionComponent(
     t,
     t.type & (TypeTag.Array | TypeTag.Dictionary),
-    (tag, value) => {
-      if (!value) return;
-      switch (tag) {
+    (ac) => {
+      if (ac.value == null) return;
+      switch (ac.type) {
         case TypeTag.Array:
           if (depth > 4) {
             if (!result) result = cloneType(t);
-            clearValuesUnder(result, tag);
+            clearValuesUnder(result, ac.type);
           } else {
-            const v = widenTypeHelper(value as ArrayValueType, depth + 1);
+            const v = widenTypeHelper(ac.value, depth + 1);
             if (v) {
               if (!result) result = cloneType(t);
-              setUnionComponent(result, tag, v);
+              setUnionComponent(result, ac.type, v);
             }
           }
           return;
         case TypeTag.Dictionary:
           if (depth > 4) {
             if (!result) result = cloneType(t);
-            clearValuesUnder(result, tag);
+            clearValuesUnder(result, ac.type);
           } else {
-            const ddata = value as DictionaryValueType;
+            const ddata = ac.value;
             const key = widenTypeHelper(ddata.key, depth + 1);
             const data = widenTypeHelper(ddata.value, depth + 1);
             if (key || data) {
@@ -424,7 +432,7 @@ function widenTypeHelper(t: ExactOrUnion, depth: number) {
               const newDData = { ...ddata };
               if (key) newDData.key = key;
               if (data) newDData.value = data;
-              setUnionComponent(result, tag, newDData);
+              setUnionComponent(result, ac.type, newDData);
             }
           }
           return;
