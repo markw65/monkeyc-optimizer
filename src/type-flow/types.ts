@@ -350,7 +350,7 @@ export function hasNoData(v: AbstractValue, t: TypeTag) {
   return (
     (hasUnionData(v.type)
       ? (v.value as UnionData).mask & t
-      : v.type & t & ~SingleTonTypeTagsConst) == 0
+      : v.type & t & ~SingleTonTypeTagsConst) === 0
   );
 }
 
@@ -831,7 +831,7 @@ export function castType(type: ExactOrUnion, target: UnionTypeTags) {
       // Number or Long operands to '&', '|', and '^' are coerced
       // to boolean if the other argument is boolean.
       if (type.type & (TypeTag.Number | TypeTag.Long)) {
-        result.type = type.value == 0 ? TypeTag.False : TypeTag.True;
+        result.type = Number(type.value) === 0 ? TypeTag.False : TypeTag.True;
         return result;
       }
     }
@@ -853,8 +853,8 @@ export function mustBeTrue(arg: ExactOrUnion) {
   return (
     ((arg.type === TypeTag.Number || arg.type === TypeTag.Long) &&
       arg.value != null &&
-      arg.value != 0) ||
-    ((arg.type & TruthyTypes) != 0 && (arg.type & ~TruthyTypes) == 0)
+      Number(arg.value) !== 0) ||
+    ((arg.type & TruthyTypes) !== 0 && (arg.type & ~TruthyTypes) === 0)
   );
 }
 
@@ -864,7 +864,7 @@ export function mustBeFalse(arg: ExactOrUnion) {
     arg.type === TypeTag.False ||
     ((arg.type === TypeTag.Number || arg.type === TypeTag.Long) &&
       arg.value != null &&
-      arg.value == 0)
+      Number(arg.value) === 0)
   );
 }
 
@@ -971,7 +971,7 @@ export function display(type: ExactOrUnion): string {
 
 export function hasUnionData(tag: TypeTag) {
   tag &= UnionDataTypeTagsConst;
-  return (tag & (tag - 1)) != 0;
+  return (tag & (tag - 1)) !== 0;
 }
 
 export function getObjectValue(t: ExactOrUnion): ObjectType["value"] | null {

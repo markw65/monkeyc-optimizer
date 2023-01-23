@@ -278,7 +278,7 @@ export function buildDataFlowGraph(
       return decls;
     }
     if (
-      canon.length != decls.length ||
+      canon.length !== decls.length ||
       !canon.every((v, i) => v === decls[i])
     ) {
       throw new Error(

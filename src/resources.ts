@@ -48,7 +48,7 @@ export function visit_resources(
     if (visitor.pre ? visitor.pre(e) === false : e.type !== "element") {
       return;
     }
-    if (e.type == "element") {
+    if (e.type === "element") {
       switch (e.name) {
         // <resources> can contain any of the resource lists (except
         // another resources), and any of their contents
@@ -170,7 +170,7 @@ export function visit_resources(
           visit(e, "FitFields");
           break;
         case "jsonData":
-          if (pname && pname != "jsonDataResources" && pname !== "resources") {
+          if (pname && pname !== "jsonDataResources" && pname !== "resources") {
             error(e);
             break;
           }

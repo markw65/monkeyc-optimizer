@@ -132,16 +132,17 @@ function equalsCheck(left: ValueTypes, right: ValueTypes): boolean | undefined {
 
   const lrBits = left.type | right.type;
   return left.type & TypeTag.Numeric && right.type & TypeTag.Numeric
-    ? left.value == right.value
-    : lrBits == (TypeTag.Number | TypeTag.Char)
+    ? // eslint-disable-next-line eqeqeq
+      left.value == right.value
+    : lrBits === (TypeTag.Number | TypeTag.Char)
     ? // Char vs Number is true iff the number is the char-code of the char
       left.type === TypeTag.Char
       ? left.value.charCodeAt(0) === right.value
       : left.value === (right.value as string).charCodeAt(0)
-    : left.type == TypeTag.Number && right.type & TypeTag.Boolean
-    ? left.value == (right.value ? 1 : 0)
-    : right.type == TypeTag.Number && left.type & TypeTag.Boolean
-    ? right.value == (left.value ? 1 : 0)
+    : left.type === TypeTag.Number && right.type & TypeTag.Boolean
+    ? left.value === (right.value ? 1 : 0)
+    : right.type === TypeTag.Number && left.type & TypeTag.Boolean
+    ? right.value === (left.value ? 1 : 0)
     : left.type !== right.type
     ? lrBits & TypeTag.Null
       ? lrBits & (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary)
@@ -226,7 +227,7 @@ export function evaluateBinaryTypes(
         allowed: TypeTag.Number | TypeTag.Long | TypeTag.Float | TypeTag.Double,
         typeFn: common_types,
         valueFn: (left, right) =>
-          right.value == 0 // "==" because it could be a bigint
+          Number(right.value) === 0
             ? { type: left.type }
             : left.type === TypeTag.Number
             ? ({
@@ -244,7 +245,7 @@ export function evaluateBinaryTypes(
         allowed: TypeTag.Number | TypeTag.Long,
         typeFn: common_types,
         valueFn: (left, right) =>
-          right.value == 0 // "==" because it could be a bigint
+          Number(right.value) === 0
             ? { type: left.type }
             : ({
                 type: left.type,

@@ -21,7 +21,8 @@
     "no-unreachable": "error",
     "constructor-super": "error",
     "valid-typeof": "error",
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "eqeqeq": ["error", "always", { "null": "ignore" }]
   },
   "ignorePatterns": "build/",
   "overrides": [

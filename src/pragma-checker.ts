@@ -61,7 +61,7 @@ export function pragmaChecker(
     }
   };
   const matcher = (quote: string, needle: string, haystack: string) => {
-    if (quote == '"') {
+    if (quote === '"') {
       return haystack.includes(needle);
     }
     const re = new RegExp(

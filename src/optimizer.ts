@@ -281,7 +281,7 @@ async function createLocalBarrels(targets: Target[], options: BuildConfig) {
         if (
           optBarrels[barrel].manifest !== manifest ||
           optBarrels[barrel].optBarrelDir !== optBarrelDir ||
-          optBarrels[barrel].rawBarrelDir != rawBarrelDir
+          optBarrels[barrel].rawBarrelDir !== rawBarrelDir
         ) {
           throw new Error(
             `For device ${
@@ -790,11 +790,11 @@ async function generateOneConfig(
     configOptionsToCheck.every(
       (option) => prevOptions[option] === config[option]
     ) &&
-    actualOptimizedFiles.length == Object.values(fnMap).length &&
+    actualOptimizedFiles.length === Object.values(fnMap).length &&
     Object.values(fnMap)
       .map((v) => v.output)
       .sort()
-      .every((f, i) => f == actualOptimizedFiles[i])
+      .every((f, i) => f === actualOptimizedFiles[i])
   ) {
     // now if the newest source file is older than
     // the oldest optimized file, we don't need to regenerate
@@ -971,7 +971,7 @@ export async function generateApiMirTests(options: BuildConfig) {
     node.decls &&
       Object.entries(node.decls).forEach(([key, decl]) => {
         if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
-        if (decl.length != 1) return;
+        if (decl.length !== 1) return;
         const d = decl[0];
         if (
           d.type === "EnumStringMember" ||

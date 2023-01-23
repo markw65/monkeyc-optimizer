@@ -277,12 +277,12 @@ export async function analyze(
         if (excludeAnnotations) {
           return node.attrs.attributes.elements.reduce(
             (drop: boolean, attr) => {
-              if (attr.type != "UnaryExpression") return drop;
-              if (attr.argument.type != "Identifier") return drop;
+              if (attr.type !== "UnaryExpression") return drop;
+              if (attr.argument.type !== "Identifier") return drop;
               if (hasProperty(excludeAnnotations, attr.argument.name)) {
                 return true;
               }
-              if (attr.argument.name == "test") {
+              if (attr.argument.name === "test") {
                 hasTests = true;
               }
               return drop;
@@ -300,7 +300,7 @@ export async function analyze(
         case "ClassDeclaration": {
           const [scope] = state.stack.slice(-1);
           scope.stack = state.stackClone().slice(0, -1);
-          if (scope.type == "FunctionDeclaration") {
+          if (scope.type === "FunctionDeclaration") {
             if (markApi) {
               node.body = null;
               scope.info = getApiFunctionInfo(state, scope);
@@ -510,7 +510,7 @@ function evaluateFunction(
   if (
     !func.body ||
     istate.state.inlining ||
-    (args && args.length != func.params.length)
+    (args && args.length !== func.params.length)
   ) {
     return false;
   }
@@ -634,9 +634,9 @@ export async function optimizeMonkeyC(
       func.attrs &&
       func.attrs.attributes &&
       func.attrs.attributes.elements.some((attr) => {
-        if (attr.type != "UnaryExpression") return false;
-        if (attr.argument.type != "Identifier") return false;
-        return attr.argument.name == "test";
+        if (attr.type !== "UnaryExpression") return false;
+        if (attr.argument.type !== "Identifier") return false;
+        return attr.argument.name === "test";
       })
     ) {
       return true;
@@ -663,7 +663,7 @@ export async function optimizeMonkeyC(
             sc.decls[name].some(
               (f) =>
                 isStateNode(f) &&
-                f.type == "FunctionDeclaration" &&
+                f.type === "FunctionDeclaration" &&
                 maybeCalled(f.node)
             )) ||
           (sc.superClass && checkInherited(sc, name))
@@ -877,7 +877,7 @@ export async function optimizeMonkeyC(
           !state.config?.propagateTypes ||
           node.attrs?.attributes?.elements.find(
             (attr) =>
-              attr.type == "UnaryExpression" &&
+              attr.type === "UnaryExpression" &&
               attr.argument.name === "noConstProp"
           )
             ? null
@@ -901,9 +901,9 @@ export async function optimizeMonkeyC(
           }
           istate = is;
         }
-        if (parent.type == "ClassDeclaration" && !maybeCalled(node)) {
+        if (parent.type === "ClassDeclaration" && !maybeCalled(node)) {
           let used = false;
-          if (node.id.name == "initialize") {
+          if (node.id.name === "initialize") {
             used = true;
           } else if (parent.superClass) {
             used = checkInherited(parent, node.id.name);
@@ -1030,7 +1030,7 @@ export async function optimizeMonkeyC(
             if (call) {
               const inlined = optimizeCallHelper(istate, call, decl);
               if (!inlined) continue;
-              if (Array.isArray(inlined) || inlined.type != "BlockStatement") {
+              if (Array.isArray(inlined) || inlined.type !== "BlockStatement") {
                 throw new Error("Unexpected inlined result");
               }
               if (!results) {
@@ -1076,7 +1076,7 @@ export async function optimizeMonkeyC(
                 ok = true;
               }
             }
-            if (!ok && node.expression.operator == "=") {
+            if (!ok && node.expression.operator === "=") {
               const [, result] = state.lookup(node.expression.left);
               ok = !!result;
             }
@@ -1288,7 +1288,7 @@ function optimizeCall(
   if (state.currentFunction) {
     recordCalledFuncs(state.currentFunction, callees);
   }
-  if (callees.length == 1 && callees[0].type === "FunctionDeclaration") {
+  if (callees.length === 1 && callees[0].type === "FunctionDeclaration") {
     const callee = callees[0].node;
     if (
       !context &&

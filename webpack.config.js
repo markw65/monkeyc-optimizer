@@ -20,7 +20,7 @@ export default async (env, argv) => {
         libraryTarget: "commonjs",
         devtoolModuleFilenameTemplate: "webpack://[resource-path]",
       },
-      devtool: argv.mode != "production" ? "source-map" : false,
+      devtool: argv.mode !== "production" ? "source-map" : false,
       resolve: {
         enforceExtension: false,
         extensions: [".ts", ".js"],

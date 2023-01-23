@@ -332,18 +332,18 @@ export function getNodeValue(node: mctree.Literal): LiteralValues;
 export function getNodeValue(node: mctree.Node): LiteralValues | [null, null];
 export function getNodeValue(node: mctree.Node): LiteralValues | [null, null] {
   if (
-    node.type == "BinaryExpression" &&
-    node.operator == "as" &&
-    node.right.type == "TypeSpecList" &&
-    node.right.ts.length == 1 &&
-    typeof node.right.ts[0] == "string"
+    node.type === "BinaryExpression" &&
+    node.operator === "as" &&
+    node.right.type === "TypeSpecList" &&
+    node.right.ts.length === 1 &&
+    typeof node.right.ts[0] === "string"
   ) {
     // this is a cast we inserted to retain the type of an enum
     // any arithmetic on it will revert to "Number", or "Long",
     // so just ignore it.
     return getNodeValue(node.left);
   }
-  if (node.type != "Literal") {
+  if (node.type !== "Literal") {
     return [null, null];
   }
   if (node.value === null) {
@@ -463,12 +463,12 @@ export function getLiteralNode(
   node: mctree.Node | null | undefined
 ): null | mctree.Literal | mctree.AsExpression {
   if (node == null) return null;
-  if (node.type == "Literal") return node;
-  if (node.type == "BinaryExpression" && node.operator == "as") {
+  if (node.type === "Literal") return node;
+  if (node.type === "BinaryExpression" && node.operator === "as") {
     return getLiteralNode(node.left) && node;
   }
-  if (node.type == "UnaryExpression") {
-    if (node.argument.type != "Literal") return null;
+  if (node.type === "UnaryExpression") {
+    if (node.argument.type !== "Literal") return null;
     switch (node.operator) {
       case "-": {
         const [arg, type] = getNodeValue(node.argument);

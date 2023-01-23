@@ -6,16 +6,16 @@ import { parseXml } from "./xml-util";
 export { readPrg, SectionKinds } from "./readprg";
 export * as xmlUtil from "./xml-util";
 
-export const isWin = process.platform == "win32";
+export const isWin = process.platform === "win32";
 
 export const appSupport = isWin
   ? `${process.env.APPDATA}`.replace(/\\/g, "/")
-  : process.platform == "linux"
+  : process.platform === "linux"
   ? `${process.env.HOME}/.config`
   : `${process.env.HOME}/Library/Application Support`;
 
 export const connectiq =
-  process.platform == "linux"
+  process.platform === "linux"
     ? `${process.env.HOME}/.Garmin/ConnectIQ`
     : `${appSupport}/Garmin/ConnectIQ`;
 

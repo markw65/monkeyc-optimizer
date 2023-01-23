@@ -126,7 +126,7 @@ export function visitReferences(
         }
         if (node.params) {
           node.params.forEach((param) => {
-            if (param.type == "BinaryExpression") {
+            if (param.type === "BinaryExpression") {
               state.traverse(param.right);
             }
           });

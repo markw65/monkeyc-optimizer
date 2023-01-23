@@ -183,7 +183,8 @@ function getArgSafety(
       switch (node.type) {
         case "AssignmentExpression":
         case "UpdateExpression": {
-          const v = node.type == "UpdateExpression" ? node.argument : node.left;
+          const v =
+            node.type === "UpdateExpression" ? node.argument : node.left;
           if (v.type === "Identifier" && hasProperty(params, v.name)) {
             // If a parameter is modified, we can't just substitute the
             // argument wherever the parameter is used.
@@ -566,7 +567,7 @@ export function unused(
         expression.right
       );
       let alternate;
-      if (expression.operator == "||" || expression.operator == "or") {
+      if (expression.operator === "||" || expression.operator === "or") {
         alternate = { ...consequent };
         consequent.body = [];
       }
@@ -760,7 +761,7 @@ function inlineWithArgs(
   diagnostic(state, call, null);
   if (context.type !== "ReturnStatement" && retStmtCount) {
     const [last, block] = lastStmt(body);
-    if (last.type != "ReturnStatement") {
+    if (last.type !== "ReturnStatement") {
       throw new Error("ReturnStatement got lost!");
     }
     if (last.argument) {

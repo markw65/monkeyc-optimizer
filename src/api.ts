@@ -131,7 +131,7 @@ export async function getApiMapping(
     negativeFixups.forEach((fixup) => {
       const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
         const decls = isStateNode(state) && state.decls?.[part];
-        if (!Array.isArray(decls) || decls.length != 1 || !decls[0]) {
+        if (!Array.isArray(decls) || decls.length !== 1 || !decls[0]) {
           throw `Failed to find and fix negative constant ${fixup}`;
         }
         return decls[0];
@@ -140,7 +140,7 @@ export async function getApiMapping(
       if (
         !value ||
         (value.type !== "EnumStringMember" &&
-          (value.type !== "VariableDeclarator" || value.kind != "const"))
+          (value.type !== "VariableDeclarator" || value.kind !== "const"))
       ) {
         throw `Negative constant ${fixup} did not refer to a constant`;
       }
@@ -389,8 +389,8 @@ function lookup(
       for (let i = stack.length; ; ) {
         const si = stack[--i];
         if (
-          si.type == "ModuleDeclaration" ||
-          si.type == "ClassDeclaration" ||
+          si.type === "ModuleDeclaration" ||
+          si.type === "ClassDeclaration" ||
           !i
         ) {
           return [
@@ -401,7 +401,7 @@ function lookup(
       }
     }
     case "Identifier": {
-      if (node.name == "$") {
+      if (node.name === "$") {
         return [name || node.name, [{ parent: null, results: [stack[0]] }]];
       }
       let inStatic = false;
@@ -411,7 +411,7 @@ function lookup(
         const si = stack[i];
         switch (si.type) {
           case "ClassDeclaration":
-            if (inStatic && state.config?.enforceStatic != "NO") {
+            if (inStatic && state.config?.enforceStatic !== "NO") {
               inStatic = false;
               if (hasProperty(si.decls, node.name)) {
                 const r = si.decls[node.name].filter((s) => {
@@ -490,7 +490,7 @@ function lookup(
           }
           return [name || node.name, imports.map((d) => d.decls)];
         }
-        if (imports.length == 1) {
+        if (imports.length === 1) {
           if (decls !== "type_decls") {
             if (state.config?.checkCompilerLookupRules !== "OFF") {
               diagnostic(
@@ -600,7 +600,7 @@ function stateFuncs() {
               case "AttributeList":
                 return [];
               case "Program":
-                if (this.stack.length != 1) {
+                if (this.stack.length !== 1) {
                   throw new Error("Unexpected stack length for Program node");
                 }
                 this.stack[0].node = node;
@@ -622,7 +622,7 @@ function stateFuncs() {
                     : node.id.property.name);
                 const using = { node };
                 parent.usings[name] = using;
-                if (node.type == "ImportModule") {
+                if (node.type === "ImportModule") {
                   if (!parent.imports) {
                     parent.imports = [using];
                   } else {
@@ -671,8 +671,8 @@ function stateFuncs() {
                 const [parent] = this.stack.slice(-1);
                 if (
                   parent.node === node ||
-                  (parent.type != "FunctionDeclaration" &&
-                    parent.type != "BlockStatement")
+                  (parent.type !== "FunctionDeclaration" &&
+                    parent.type !== "BlockStatement")
                 ) {
                   break;
                 }
@@ -703,10 +703,10 @@ function stateFuncs() {
                   if (!parent.decls) parent.decls = {};
                   if (hasProperty(parent.decls, name)) {
                     const what =
-                      node.type == "ModuleDeclaration" ? "type" : "node";
+                      node.type === "ModuleDeclaration" ? "type" : "node";
                     const e = parent.decls[name].find(
                       (d): d is StateNode =>
-                        isStateNode(d) && d[what] == elm[what]
+                        isStateNode(d) && d[what] === elm[what]
                     );
                     if (e != null) {
                       e.node = node;
@@ -728,8 +728,8 @@ function stateFuncs() {
                   }
                   parent.decls[name].push(elm);
                   if (
-                    node.type == "ModuleDeclaration" ||
-                    node.type == "ClassDeclaration"
+                    node.type === "ModuleDeclaration" ||
+                    node.type === "ClassDeclaration"
                   ) {
                     if (!parent.type_decls) parent.type_decls = {};
                     if (!hasProperty(parent.type_decls, name)) {
@@ -797,7 +797,7 @@ function stateFuncs() {
                     decls[name] = [];
                   } else if (
                     decls[name].find(
-                      (n) => (isStateNode(n) ? n.node : n) == decl
+                      (n) => (isStateNode(n) ? n.node : n) === decl
                     )
                   ) {
                     return;
@@ -811,7 +811,7 @@ function stateFuncs() {
                     stack,
                     attributes: stateNodeAttrs(node.attrs),
                   });
-                  if (node.kind == "const") {
+                  if (node.kind === "const") {
                     if (!hasProperty(this.index, name)) {
                       this.index[name] = [];
                     }
@@ -831,7 +831,7 @@ function stateFuncs() {
                 const values = parent.decls || (parent.decls = {});
                 let prev: number | bigint = -1;
                 node.members.forEach((m, i) => {
-                  if (m.type == "Identifier") {
+                  if (m.type === "Identifier") {
                     if (typeof prev === "bigint") {
                       prev += 1n;
                     } else {
@@ -861,14 +861,14 @@ function stateFuncs() {
                   if (!init) {
                     throw new Error("Unexpected enum initializer");
                   }
-                  if (init != m.init) {
+                  if (init !== m.init) {
                     if (m.init.enumType) {
                       init.enumType = m.init.enumType;
                     }
                     m.init = init;
                   }
                   if (
-                    init.type == "Literal" &&
+                    init.type === "Literal" &&
                     init.raw &&
                     LiteralIntegerRe.test(init.raw)
                   ) {
@@ -928,7 +928,7 @@ function stateFuncs() {
               ) {
                 delete parent.usings;
                 delete parent.imports;
-                if (node.type != "Program") {
+                if (node.type !== "Program") {
                   this.stack.pop();
                 }
               }
@@ -985,10 +985,10 @@ export function collectNamespaces(
   if (state.inType) {
     throw new Error(`inType was non-zero on exit: ${state.inType}`);
   }
-  if (state.stack.length != 1) {
+  if (state.stack.length !== 1) {
     throw new Error("Invalid AST!");
   }
-  if (state.stack[0].type != "Program") {
+  if (state.stack[0].type !== "Program") {
     throw new Error("Bottom of stack was not a Program!");
   }
   return state.stack[0];
@@ -1079,7 +1079,7 @@ function findUsing(
   let module = stack[0];
   const find = (node: mctree.ScopedName) => {
     let name;
-    if (node.type == "Identifier") {
+    if (node.type === "Identifier") {
       name = node.name;
     } else {
       find(node.object);

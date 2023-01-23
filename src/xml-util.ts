@@ -518,7 +518,7 @@ export function visit_xml(contents: Content[], visitor: Visitor) {
     if (visitor.pre && visitor.pre(c) === false) {
       return;
     }
-    if (c.type == "element" && c.children) {
+    if (c.type === "element" && c.children) {
       visit_xml(c.children, visitor);
     }
     if (visitor.post) visitor.post(c);

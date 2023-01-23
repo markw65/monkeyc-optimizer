@@ -12,7 +12,7 @@ export function cleanupUnusedVars(
   if (parent.node !== node) {
     return false;
   }
-  if (parent.type != "BlockStatement") {
+  if (parent.type !== "BlockStatement") {
     throw new Error(
       `Unexpected parent type '${parent.type}' for local declaration`
     );

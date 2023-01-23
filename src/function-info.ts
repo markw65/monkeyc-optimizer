@@ -34,7 +34,7 @@ export function recordModifiedDecls(
 ) {
   lookupDefs.forEach((lookupDef) =>
     lookupDef.results.forEach((result) => {
-      if (result.type == "VariableDeclarator" && result.node.kind === "var") {
+      if (result.type === "VariableDeclarator" && result.node.kind === "var") {
         recordModifiedDecl(func, result);
       }
     })

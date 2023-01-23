@@ -22,11 +22,11 @@ export function couldBeTests(statefn: () => ProgramStateAnalysis | null) {
       const recurse_type = find_type_by_name(state, "Recurse");
       const recurse2_type = find_type_by_name(state, "Recurse2");
       assert.isTrue(
-        (recurse_type.type & TypeTag.Typedef) == 0,
+        (recurse_type.type & TypeTag.Typedef) === 0,
         `Typedef bit should not be set in ${recurse_type.type.toString(16)}`
       );
       assert.isTrue(
-        (recurse2_type.type & TypeTag.Typedef) == 0,
+        (recurse2_type.type & TypeTag.Typedef) === 0,
         `Typedef bit should not be set in ${recurse2_type.type.toString(16)}`
       );
       assert.strictEqual(

@@ -139,7 +139,7 @@ function process_assignments(assignments: Assignment[], current: RawJungle) {
       for (let i = values.length; i--; ) {
         const v = values[i];
         if (
-          v.type == "QualifiedName" &&
+          v.type === "QualifiedName" &&
           v.names.every((n, i) => n === a.names[i])
         ) {
           values.splice(
@@ -147,13 +147,13 @@ function process_assignments(assignments: Assignment[], current: RawJungle) {
             1,
             ...(dot
               ? (dot as JNode[]).map((v) =>
-                  v.type == "QualifiedName"
+                  v.type === "QualifiedName"
                     ? { ...v, names: v.names.concat(dotnames) }
                     : v
                 )
               : [])
           );
-        } else if (v.type == "SubList") {
+        } else if (v.type === "SubList") {
           process_list(v.values);
         }
       }
@@ -190,7 +190,10 @@ function evaluate_locals(assignments: Assignment[]) {
   const locals: Record<string, JNode[]> = {};
   while (true) {
     assignments = assignments.filter((a) => {
-      if (a.names.length == 1 && a.values.every((v) => typeof v === "string")) {
+      if (
+        a.names.length === 1 &&
+        a.values.every((v) => typeof v === "string")
+      ) {
         locals[a.names[0]] = a.values;
         return false;
       }
@@ -201,12 +204,12 @@ function evaluate_locals(assignments: Assignment[]) {
       for (let i = values.length; i--; ) {
         const v = values[i];
         if (
-          v.type == "QualifiedName" &&
-          v.names.length == 1 &&
+          v.type === "QualifiedName" &&
+          v.names.length === 1 &&
           hasProperty(locals, v.names[0])
         ) {
           values.splice(i, 1, ...locals[v.names[0]]);
-        } else if (v.type == "SubList") {
+        } else if (v.type === "SubList") {
           process_list(v.values);
         }
       }
@@ -293,7 +296,7 @@ function resolve_node_by_path(
       const resolved = resolve_node_list(state, sdot);
       if (!resolved.length) return undefined;
       const r = (resolved[0] as RawJungle)[n];
-      if (!r && (sdot as JNode[]).every((e) => e.type == "Literal")) {
+      if (!r && (sdot as JNode[]).every((e) => e.type === "Literal")) {
         /*
          * We had something like:
          *
@@ -384,10 +387,10 @@ async function resolve_literals(
           if (!isJNode(v)) {
             return v;
           }
-          if (v.type == "QualifiedName") {
+          if (v.type === "QualifiedName") {
             throw new Error("Unexpected QualifiedName found!");
           }
-          if (v.type == "SubList") {
+          if (v.type === "SubList") {
             return resolve_file_list(v.values);
           }
           // Jungle files can contain "./**.mc" which is supposed to match

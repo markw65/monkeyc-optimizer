@@ -179,7 +179,7 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
       return [pair.avalue, false];
     }
     case TypeTag.Method: {
-      if (pair.avalue.args.length != pair.bvalue.args.length)
+      if (pair.avalue.args.length !== pair.bvalue.args.length)
         return [null, true];
       const resultChange = tryUnion(pair.avalue.result, pair.bvalue.result);
       const args = pair.avalue.args.map((arg, i) =>

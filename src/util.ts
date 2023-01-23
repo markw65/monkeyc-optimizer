@@ -167,7 +167,7 @@ export function spawnByLine(
     rle.on("line", errHandler);
     rl.on("line", lineHandler);
     proc.on("close", (code) => {
-      if (code == 0) resolve();
+      if (code === 0) resolve();
       reject(code);
     });
   });

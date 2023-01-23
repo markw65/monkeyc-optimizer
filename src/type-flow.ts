@@ -191,7 +191,7 @@ function getEquivSet(ts: TypeState, k: TypeStateKey) {
     }
     keys.add(s);
     s = next.equivSet.next;
-  } while (s != k);
+  } while (s !== k);
   return keys;
 }
 
@@ -220,7 +220,7 @@ function intersectEquiv(ts1: TypeState, ts2: TypeState, k: TypeStateKey) {
       removeEquiv(ts1, s);
     }
     s = next.equivSet.next;
-  } while (s != k);
+  } while (s !== k);
   return ret;
 }
 
@@ -287,7 +287,7 @@ function tsEquivs(state: TypeState, key: TypeStateKey) {
       );
     }
     s = next.equivSet.next;
-  } while (s != key);
+  } while (s !== key);
   return `[(${result.join(", ")})]`;
 }
 
@@ -828,12 +828,12 @@ function propagateTypes(
                     (ldec) =>
                       !rightDecls.every(
                         (rdec) =>
-                          ldec == rdec ||
+                          ldec === rdec ||
                           (ldec.type === "ClassDeclaration" &&
                             getSuperClasses(ldec)?.has(rdec))
                       )
                   );
-                  if (leftReduced.length != leftDecls.length) {
+                  if (leftReduced.length !== leftDecls.length) {
                     result = cloneType(left);
                     clearValuesUnder(result, TypeTag.Object, true);
                     if (leftReduced.length) {

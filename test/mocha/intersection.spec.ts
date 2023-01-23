@@ -33,7 +33,7 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
           ) {
             assert.deepEqual(intersect, ti.type === TypeTag.Enum ? tj : ti);
           } else {
-            if (i == j) {
+            if (i === j) {
               assert.deepEqual(intersect, ti);
             } else {
               if (

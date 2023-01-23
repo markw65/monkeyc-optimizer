@@ -257,14 +257,14 @@ function anticipatedDecls() {
 }
 
 function equalSet<T>(a: Set<T>, b: Set<T>) {
-  if (a.size != b.size) return false;
+  if (a.size !== b.size) return false;
   for (const item of a) {
     if (!b.has(item)) return false;
   }
   return true;
 }
 function equalMap<T, U>(a: Map<T, U>, b: Map<T, U>) {
-  if (a.size != b.size) return false;
+  if (a.size !== b.size) return false;
   for (const [item, value] of a) {
     if (b.get(item) !== value) return false;
   }
@@ -321,8 +321,8 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
     const be = b.get(k);
     if (
       !be ||
-      be.live != ae.live ||
-      be.isIsolated != ae.isIsolated ||
+      be.live !== ae.live ||
+      be.isIsolated !== ae.isIsolated ||
       !equalSet(ae.ant, be.ant) ||
       !equalMap(ae.members, be.members)
     ) {
@@ -356,8 +356,8 @@ function refCost(node: RefNode) {
   if (node.type === "Identifier") return cost;
   while (true) {
     const next: mctree.Expression = node.object;
-    if (next.type != "MemberExpression") {
-      if (next.type != "ThisExpression") {
+    if (next.type !== "MemberExpression") {
+      if (next.type !== "ThisExpression") {
         cost += next.type === "Identifier" && next.name === "$" ? 4 : 6;
       }
       return cost;
@@ -653,7 +653,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
           if (existing && existing.isIsolated) {
             delete existing.isIsolated;
             mergeAnticipatedState(events, existing);
-          } else if (candidateCost(events) != cost) {
+          } else if (candidateCost(events) !== cost) {
             throw new Error(`cost of block ${i} changed`);
           }
           candidateDecls.set(decl, events);

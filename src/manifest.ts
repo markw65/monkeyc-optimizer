@@ -154,7 +154,7 @@ export async function checkManifest(
       })
   );
   if (
-    JSON.stringify(allowedProducts) !=
+    JSON.stringify(allowedProducts) !==
     JSON.stringify(manifestProducts(manifest))
   ) {
     ok = false;

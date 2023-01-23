@@ -210,7 +210,7 @@ function intersectionValue(pair: ValuePairs): SingleValue | null {
         : null;
     }
     case TypeTag.Method: {
-      if (pair.avalue.args.length != pair.bvalue.args.length) return null;
+      if (pair.avalue.args.length !== pair.bvalue.args.length) return null;
       const mresult = intersection(pair.avalue.result, pair.bvalue.result);
       if (mresult.type === TypeTag.Never) return null;
       const margs = pair.avalue.args.map((aarg, i) => {
@@ -362,10 +362,12 @@ function restrictExactTypesByEquality(
         extra_bits |= TypeTag.True;
       }
       let value_bits = b.type & (TypeTag.Numeric | TypeTag.Char);
+      // Some Numbers don't fit exactly in a Float
+      // We can eliminate Float from b's type in those cases.
       if (
         a.value != null &&
         value_bits & TypeTag.Float &&
-        roundToFloat(Number(a.value)) != a.value
+        roundToFloat(Number(a.value)) !== a.value
       ) {
         value_bits -= TypeTag.Float;
       }
@@ -397,17 +399,20 @@ function restrictExactTypesByEquality(
       if (a.value != null) {
         if (
           value_bits & TypeTag.Number &&
-          BigInt.asIntN(32, a.value) != a.value
+          BigInt.asIntN(32, a.value) !== a.value
         ) {
           value_bits -= TypeTag.Number;
         }
         if (
           value_bits & TypeTag.Float &&
-          BigInt(roundToFloat(Number(a.value))) != a.value
+          BigInt(roundToFloat(Number(a.value))) !== a.value
         ) {
           value_bits -= TypeTag.Float;
         }
-        if (value_bits & TypeTag.Double && BigInt(Number(a.value)) != a.value) {
+        if (
+          value_bits & TypeTag.Double &&
+          BigInt(Number(a.value)) !== a.value
+        ) {
           value_bits -= TypeTag.Double;
         }
       }
@@ -522,7 +527,7 @@ function restrictByEqualityByComponent(
   b: ExactOrUnion
 ): ExactOrUnion {
   let bits = a.type;
-  if (a.value == null && (b.type & bits) == b.type) {
+  if (a.value == null && (b.type & bits) === b.type) {
     // shortcut:
     // if b.type is contained in a.type, and a has no
     // specialization, the result is just b.
@@ -570,7 +575,7 @@ export function restrictByEquality(
   a: ExactOrUnion,
   b: ExactOrUnion
 ): ExactOrUnion {
-  if (a.type == TypeTag.Never) return a;
+  if (a.type === TypeTag.Never) return a;
   if (isExact(a)) {
     return restrictExactTypesByEquality(a, b);
   }

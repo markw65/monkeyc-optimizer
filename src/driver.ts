@@ -280,7 +280,7 @@ export async function driver() {
   const usesCompiler2 = (() => {
     if (!supportsCompiler2) return false;
     const opt = extraMonkeycArgs.reverse().find((arg) => arg.startsWith("-O"));
-    return !opt || opt != "-O0";
+    return !opt || opt !== "-O0";
   })();
   const failures: [string, unknown][] = [];
   const runOne = (
