@@ -92,20 +92,21 @@ export function findDeadStores(graph: TypeFlowBlock, logThisRun: boolean) {
             }
             break;
           case "def":
-            if (
-              isTypeStateKey(event.decl) &&
-              ((event.node.type === "AssignmentExpression" &&
-                event.node.operator === "=") ||
-                (event.node.type === "VariableDeclarator" && event.node.init))
-            ) {
+            if (isTypeStateKey(event.decl)) {
               if (curState.has(event.decl)) {
                 deadStores.add(event.node);
               } else {
                 deadStores.delete(event.node);
               }
-              curState.add(event.decl);
-              if (logThisRun) {
-                console.log(`  anticipated => ${tsKey(event.decl)}`);
+              if (
+                (event.node.type === "AssignmentExpression" &&
+                  event.node.operator === "=") ||
+                (event.node.type === "VariableDeclarator" && event.node.init)
+              ) {
+                curState.add(event.decl);
+                if (logThisRun) {
+                  console.log(`  anticipated => ${tsKey(event.decl)}`);
+                }
               }
             }
             break;
@@ -171,11 +172,26 @@ export function eliminateDeadStores(
       const body = unused(state, node.expression.left).concat(
         unused(state, node.expression.right)
       );
+      changes = true;
       if (body.length) {
         return withLoc({ type: "BlockStatement", body }, node, node);
       }
-      changes = true;
       return false;
+    }
+
+    if (node.type === "UpdateExpression" && deadStores.has(node)) {
+      changes = true;
+      return { type: "Literal", value: null, raw: "null" };
+    }
+
+    if (
+      node.type === "AssignmentExpression" &&
+      deadStores.has(node) &&
+      unused(state, node.right, true)?.length === 0 &&
+      unused(state, node.left, true)?.length === 0
+    ) {
+      changes = true;
+      return { type: "Literal", value: null, raw: "null" };
     }
 
     if (node.type === "VariableDeclaration") {

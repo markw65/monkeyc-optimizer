@@ -752,6 +752,12 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           embeddedEffects: right.embeddedEffects,
           node,
         });
+      } else {
+        push({
+          value: { type: TypeTag.Null },
+          embeddedEffects: false,
+          node,
+        });
       }
       break;
     }

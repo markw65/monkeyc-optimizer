@@ -306,7 +306,19 @@ export function beforeEvaluate(
       break;
     }
     case "ForStatement": {
-      if (node.init?.type === "Literal") {
+      if (
+        node.update?.type === "Literal" ||
+        (node.update?.type === "SequenceExpression" &&
+          node.update.expressions.length === 0)
+      ) {
+        popIstate(istate, node.update);
+        delete node.update;
+      }
+      if (
+        node.init?.type === "Literal" ||
+        (node.init?.type === "SequenceExpression" &&
+          node.init.expressions.length === 0)
+      ) {
         delete node.init;
         const depth = -1 - (node.update ? 1 : 0) - (node.test ? 1 : 0);
         istate.stack.splice(depth, 1);
@@ -331,7 +343,7 @@ export function beforeEvaluate(
       for (let i = node.expressions.length; i--; ) {
         const expr = node.expressions[i];
         if (expr.type === "Literal") {
-          istate.stack.splice(i - node.expressions.length);
+          istate.stack.splice(i - node.expressions.length, 1);
           node.expressions.splice(i, 1);
         }
       }

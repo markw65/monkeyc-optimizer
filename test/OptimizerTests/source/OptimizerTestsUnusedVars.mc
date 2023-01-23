@@ -68,5 +68,13 @@ function testDeadVars(logger as Logger) as Boolean {
         check(x + v, 3, logger);
     }
 
+    {
+        /* @match "for (var x = 0, i; x < 10; x++)" */
+        for (var x = 0, i = 0; x < 10; x++, i += 2) {
+            i = x + 1;
+            logger.debug(i);
+        }
+    }
+
     return ok;
 }
