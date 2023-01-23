@@ -317,7 +317,7 @@ function getLhsConstraint(
     }
     const object = istate.typeMap.get(node.object);
     if (object && !node.computed) {
-      const objDecls = findObjectDeclsByProperty(istate, object, node);
+      const objDecls = findObjectDeclsByProperty(istate.state, object, node);
       if (objDecls) {
         lookupDefs = lookupNext(
           istate.state,

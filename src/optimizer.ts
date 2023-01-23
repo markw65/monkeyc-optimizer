@@ -47,7 +47,7 @@ import {
 import { appSupport, xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
-import { evaluate, InterpState } from "./type-flow/interp";
+import { evaluate, InterpState, TypeMap } from "./type-flow/interp";
 import { subtypeOf } from "./type-flow/sub-type";
 import {
   copyRecursiveAsNeeded,
@@ -599,6 +599,7 @@ export type Analysis = {
   fnMap: RequiredNonNull<FilesToOptimizeMap>;
   paths: string[];
   state: ProgramStateAnalysis;
+  typeMap?: TypeMap | null | undefined;
 };
 
 async function fileInfoFromConfig(
@@ -915,6 +916,7 @@ export async function getProjectAnalysis(
   });
   const state = await analyze(fnMap, resourcesMap, manifestXML, options);
   reportMissingSymbols(state, options);
+  let typeMap: TypeMap | null = null;
   if (
     state.config?.propagateTypes &&
     state.config.trustDeclaredTypes &&
@@ -941,6 +943,15 @@ export async function getProjectAnalysis(
             istate.typeChecker = gistate.typeChecker;
             istate.checkTypes = gistate.checkTypes;
             evaluate(istate, node.body!);
+            if (istate.typeMap) {
+              if (typeMap == null) {
+                typeMap = istate.typeMap;
+              } else {
+                istate.typeMap.forEach((value, key) =>
+                  typeMap!.set(key, value)
+                );
+              }
+            }
           }
           return [];
         }
@@ -950,9 +961,10 @@ export async function getProjectAnalysis(
     Object.values(state.fnMap).forEach((f) => {
       collectNamespaces(f.ast!, state);
     });
+    delete state.pre;
   }
 
-  return { fnMap: fnMap as Analysis["fnMap"], paths, state };
+  return { fnMap: fnMap as Analysis["fnMap"], paths, state, typeMap };
 }
 
 /**

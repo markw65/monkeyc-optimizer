@@ -1,6 +1,17 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { collectNamespaces, isLookupCandidate, sameLookupResult } from "./api";
-import { LookupDefinition, ProgramStateAnalysis } from "./optimizer-types";
+import {
+  collectNamespaces,
+  isLookupCandidate,
+  lookupNext,
+  sameLookupResult,
+} from "./api";
+import {
+  LookupDefinition,
+  LookupResult,
+  ProgramStateAnalysis,
+} from "./optimizer-types";
+import { findObjectDeclsByProperty } from "./type-flow";
+import { TypeMap } from "./type-flow/interp";
 
 export function visitorNode(node: mctree.Node): mctree.Node {
   if (node.type === "Identifier") {
@@ -37,8 +48,31 @@ export function visitReferences(
     error: boolean
   ) => undefined | false,
   includeDefs = false,
-  filter: ((node: mctree.Node) => boolean) | null = null
+  filter: ((node: mctree.Node) => boolean) | null = null,
+  typeMap: TypeMap | null = null
 ) {
+  const lookup = (node: mctree.Node, nonLocal = false): LookupResult => {
+    const results = nonLocal ? state.lookupNonlocal(node) : state.lookup(node);
+    if (results[1] || !typeMap) return results;
+    if (node.type === "MemberExpression" && !node.computed) {
+      const objectType = typeMap.get(node.object);
+      if (!objectType) return results;
+      const decls = findObjectDeclsByProperty(state, objectType, node);
+      if (decls) {
+        const next = lookupNext(
+          state,
+          [{ parent: null, results: decls }],
+          "decls",
+          node.property
+        );
+        if (next) {
+          return [node.property.name, next];
+        }
+      }
+    }
+    return results;
+  };
+
   const checkResults = (
     [name, results]: ReturnType<ProgramStateAnalysis["lookup"]>,
     node: mctree.Node
@@ -77,7 +111,7 @@ export function visitReferences(
           ) {
             if (!name || node.right.argument.name === name) {
               return checkResults(
-                state.lookup({
+                lookup({
                   type: "MemberExpression",
                   object: node.left,
                   property: node.right.argument,
@@ -98,7 +132,7 @@ export function visitReferences(
         if (node.callee.type === "Identifier") {
           if (!name || node.callee.name === name) {
             /* ignore return value */
-            checkResults(state.lookupNonlocal(node.callee), node.callee);
+            checkResults(lookup(node.callee, true), node.callee);
           }
           return ["arguments"];
         }
@@ -106,7 +140,7 @@ export function visitReferences(
 
       case "Identifier":
         if (!name || node.name === name) {
-          return checkResults(state.lookup(node), node);
+          return checkResults(lookup(node), node);
         }
         break;
 
@@ -114,7 +148,7 @@ export function visitReferences(
         const property = isLookupCandidate(node);
         if (property) {
           if (!name || property.name === name) {
-            return checkResults(state.lookup(node), node) || ["object"];
+            return checkResults(lookup(node), node) || ["object"];
           }
           return ["object"];
         }

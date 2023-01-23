@@ -342,15 +342,15 @@ function filterDecls(decls: StateNode[], possible: StateNode[] | false) {
 }
 
 export function findObjectDeclsByProperty(
-  istate: InterpState,
+  state: ProgramStateAnalysis,
   object: ExactOrUnion,
   next: mctree.DottedMemberExpression
 ) {
-  const decls = getStateNodeDeclsFromType(istate.state, object);
+  const decls = getStateNodeDeclsFromType(state, object);
   if (!decls) return null;
   const possibleDecls =
-    hasProperty(istate.state.allDeclarations, next.property.name) &&
-    istate.state.allDeclarations[next.property.name];
+    hasProperty(state.allDeclarations, next.property.name) &&
+    state.allDeclarations[next.property.name];
 
   return filterDecls(decls, possibleDecls);
 }
@@ -390,7 +390,7 @@ export function resolveDottedMember(
   object: ExactOrUnion,
   next: mctree.DottedMemberExpression
 ) {
-  const decls = findObjectDeclsByProperty(istate, object, next);
+  const decls = findObjectDeclsByProperty(istate.state, object, next);
   if (!decls) return null;
   const property = findNextObjectType(istate, decls, next);
   if (!property) return null;
@@ -444,7 +444,7 @@ function propagateTypes(
         } else if (value && hasProperty(value.obj, me.property.name)) {
           next = value.obj[me.property.name];
         } else {
-          const trueDecls = findObjectDeclsByProperty(istate, cur, me);
+          const trueDecls = findObjectDeclsByProperty(istate.state, cur, me);
           if (
             !trueDecls ||
             some(trueDecls, (decl) => decl.type !== "ClassDeclaration")
