@@ -587,3 +587,28 @@ Bug Fixes
 - Analyze constants with casts to help with constant propagation
 - Ignore widening casts (eg a cast that is given a `Number` and converts it to `Number or String`)
 - More accurate deletion of unused constants. Sometimes a constant that was unused after the optimization phase ended, was still considered used because of references that were eventually deleted.
+
+### 1.1.3
+
+- Tweaks and fixes
+
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.42](https://github.com/markw65/prettier-plugin-monkeyc#1042)
+  - Fixed an issue that cause inlining in return context to be too conservative
+  - Update inliner to keep a stack of locations, so that error messages can show exactly where an error occurred, even in the presence of inlining.
+  - Update diagnostic api to optionally include a uri to more detailing information.
+
+- Type Analysis
+
+  - Track type info through branch conditions, so that in `if (x != null) { A } else { B }`, the type checker knows that x is not null in A, and it is null in B.
+  - Added checkers for return types, call arguments, assignments and variable declarations.
+  - Automatically infer Array and Dictionary types
+  - Track equivalencies, and use them for various optimizations.
+  - Add support for "strong" and "weak" type checking.
+  - Add type analysis to getProgramAnalysis.
+
+- Optimizations
+  - Eliminate self-assignments (eg `x = x;`, but also `x = a; y = a; ... y = x;`).
+  - Eliminate dead stores.
+  - Replace more expensive accesses by less expensive ones.
+  - Delete empty else blocks.
+  - Delete if statements with empty body and no else.
