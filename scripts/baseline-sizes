@@ -1,0 +1,922 @@
+[
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/30Wedge-SwagginNumerals/30Wedge-SwagginNumerals.prg",
+    "code": 1932,
+    "data": 1900
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/DeCaPa-MyBigDate/DeCaPa-MyBigDate.prg",
+    "code": 3085,
+    "data": 1817
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/mike_polatoglou-moonphase/mike_polatoglou-moonphase.prg",
+    "code": 2007,
+    "data": 1398
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/villagehymn-marklaying/villagehymn-marklaying.prg",
+    "code": 8450,
+    "data": 4581
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/4ch1m-HueCIQ/ciq/ciq.prg",
+    "code": 9823,
+    "data": 6287
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/HerrRiebmann-Stretch/HerrRiebmann-Stretch.prg",
+    "code": 13453,
+    "data": 4804
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/obagot-connectiq-hict/obagot-connectiq-hict.prg",
+    "code": 10994,
+    "data": 6070
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/HanSolo-digital/HanSolo-digital.prg",
+    "code": 9493,
+    "data": 2726
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/HookyQR-TidyField/HookyQR-TidyField.prg",
+    "code": 5156,
+    "data": 2102
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Peterdedecker-connectiq/guestposts/guestpost-01/01-other-screen-size/01-other-screen-size.prg",
+    "code": 584,
+    "data": 1551
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/HookyQR-TidyWatch/HookyQR-TidyWatch.prg",
+    "code": 20925,
+    "data": 6843
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Peterdedecker-connectiq/guestposts/guestpost-01/03-ciq1-vs-ciq2/03-ciq1-vs-ciq2.prg",
+    "code": 640,
+    "data": 1789
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Laverlin-Yet-Another-Sailing-App/Laverlin-Yet-Another-Sailing-App.prg",
+    "code": 26494,
+    "data": 11217
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Laverlin-Yet-Another-WatchFace/Laverlin-Yet-Another-WatchFace.prg",
+    "code": 22226,
+    "data": 9475
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/OliverHannover-Formula_1/OliverHannover-Formula_1.prg",
+    "code": 15985,
+    "data": 2490
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Peterdedecker-connectiq/samples/CalculatedField/CalculatedField/CalculatedField.prg",
+    "code": 5058,
+    "data": 3628
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/OliverHannover-Aviatorlike/OliverHannover-Aviatorlike.prg",
+    "code": 28055,
+    "data": 5692
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Peterdedecker-connectiq/samples/StepsCarousel/StepsCarousel/StepsCarousel.prg",
+    "code": 2384,
+    "data": 2459
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Tkadla-GSG-garmin/Arkanoid/Arkanoid.prg",
+    "code": 2555,
+    "data": 2022
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Tkadla-GSG-garmin/2048-ish/2048-ish.prg",
+    "code": 7919,
+    "data": 3707
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Tkadla-GSG-garmin/FlappyBird/FlappyBird.prg",
+    "code": 3050,
+    "data": 2433
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ToryStark-connect-iq/watchfaces/BinaryEleganceHR/BinaryEleganceHR.prg",
+    "code": 4424,
+    "data": 2579
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/YoungChulDK-GarminCryptoPrices/CryptoWidget/CryptoWidget.prg",
+    "code": 2906,
+    "data": 2563
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/TrainAsONE-trainasone-connectiq/TrainAsONE-trainasone-connectiq.prg",
+    "code": 15599,
+    "data": 9716
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/adamml-tempo-trainer/adamml-tempo-trainer.prg",
+    "code": 2533,
+    "data": 2014
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/admsteck-ConnectIQ/simple-battery/simple-battery.prg",
+    "code": 1952,
+    "data": 2154
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/andriijas-connectiq-apps/MFFWatch/MFFWatch.prg",
+    "code": 835,
+    "data": 1280
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/andriijas-connectiq-apps/HBGM/HBGM.prg",
+    "code": 3907,
+    "data": 2044
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/alanfischer-hassiq/alanfischer-hassiq.prg",
+    "code": 8711,
+    "data": 3912
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Antvirf-spectrefenix/Antvirf-spectrefenix.prg",
+    "code": 4259,
+    "data": 1872
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/Antvirf-garmin-watch-face-guide/Antvirf-garmin-watch-face-guide.prg",
+    "code": 5310,
+    "data": 2123
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/antirez-iqmeteo/antirez-iqmeteo.prg",
+    "code": 6055,
+    "data": 2432
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/antonioasaro-GARMIN-AMD_Watchface/antonioasaro-GARMIN-AMD_Watchface.prg",
+    "code": 1861,
+    "data": 1419
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/alexphredorg-ConnectIqSailingApp/alexphredorg-ConnectIqSailingApp.prg",
+    "code": 35662,
+    "data": 10422
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/antonioasaro-Garmin-Antonio_SMS/antonioasaro-Garmin-Antonio_SMS.prg",
+    "code": 3167,
+    "data": 2100
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/aronsommer-WebRequestGlance-Widget/WebRequestGlance/WebRequestGlance.prg",
+    "code": 1264,
+    "data": 2046
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/aronsommer-WebRequestMultiple-Widget/WebRequestMultiple/WebRequestMultiple.prg",
+    "code": 1301,
+    "data": 1909
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/bombsimon-garmin-seaside/bombsimon-garmin-seaside.prg",
+    "code": 2010,
+    "data": 1810
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/axl13-PowerAdjuster/axl13-PowerAdjuster.prg",
+    "code": 4727,
+    "data": 1962
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/breber-nest-iq/iq/iq.prg",
+    "code": 2755,
+    "data": 2179
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/blaskovicz-garmin-nest-camera-control/blaskovicz-garmin-nest-camera-control.prg",
+    "code": 17235,
+    "data": 11075
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/chanezgr-IQwprimebal/chanezgr-IQwprimebal.prg",
+    "code": 2052,
+    "data": 1550
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/chris220688-garmin-myBus-app/MyBus/MyBus.prg",
+    "code": 7535,
+    "data": 5571
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/clementbarthes-GarminCogDisplay/clementbarthes-GarminCogDisplay.prg",
+    "code": 4052,
+    "data": 1964
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/creacominc-connectiq-PowerField/creacominc-connectiq-PowerField.prg",
+    "code": 16338,
+    "data": 5178
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/danielsiwiec-fitnessTimer/danielsiwiec-fitnessTimer.prg",
+    "code": 4220,
+    "data": 3409
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/danielsiwiec-tabataTimer/danielsiwiec-tabataTimer.prg",
+    "code": 2528,
+    "data": 2214
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/creacominc-connectiq-PowerFieldTests/creacominc-connectiq-PowerFieldTests.prg",
+    "code": 18563,
+    "data": 7916
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/danielsiwiec-waypoints-app/danielsiwiec-waypoints-app.prg",
+    "code": 2343,
+    "data": 3059
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/danipindado-Lap-average-vertical-speed/Lap average vertical speed/Lap average vertical speed.prg",
+    "code": 950,
+    "data": 1287
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/markw65-connectiq-app-towplanesk/markw65-connectiq-app-towplanesk.prg",
+    "code": 99593,
+    "data": 25262
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/darrencroton-Snapshot/darrencroton-Snapshot.prg",
+    "code": 5395,
+    "data": 2046
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/darrencroton-SnapshotHR/darrencroton-SnapshotHR.prg",
+    "code": 3865,
+    "data": 1754
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/markw65-connectiq-app-glidersk/markw65-connectiq-app-glidersk.prg",
+    "code": 102490,
+    "data": 24719
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/darrencroton-SnapshotRHR/darrencroton-SnapshotRHR.prg",
+    "code": 5538,
+    "data": 1988
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/darrencroton-SnapshotWatch/darrencroton-SnapshotWatch.prg",
+    "code": 8599,
+    "data": 2462
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/davedoesdemos-ConnectIQ-Watch-IoT/IoTWatch/IoTWatch.prg",
+    "code": 894,
+    "data": 1403
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/davedoesdemos-ConnectIQ-Watch-IoT/IoTWatch2/IoTWatch2.prg",
+    "code": 1712,
+    "data": 1559
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/davedoesdemos-ConnectIQ-Watch-IoT/IoTWatchEH/IoTWatchEH.prg",
+    "code": 4185,
+    "data": 2401
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/dbcm-KISSFace/dbcm-KISSFace.prg",
+    "code": 6921,
+    "data": 3851
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/dazey77-Horizontal-speedo-rep/dazey77-Horizontal-speedo-rep.prg",
+    "code": 8196,
+    "data": 2811
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/desyat-OpenWeatherMapWidget/Open Weather Widget/Open Weather Widget.prg",
+    "code": 11250,
+    "data": 5059
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/dmuino-HMFields/dmuino-HMFields.prg",
+    "code": 3489,
+    "data": 1837
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/douglasr-connectiq-logo-analog/douglasr-connectiq-logo-analog.prg",
+    "code": 6813,
+    "data": 2539
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/douglasr-connectiq-samples/watchfaces/simple-analog/simple-analog.prg",
+    "code": 2657,
+    "data": 1648
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/douglasr-connectiq-samples/watchfaces/big-digital/big-digital.prg",
+    "code": 5627,
+    "data": 2597
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/douglasr-connectiq-samples/watchfaces/simple-digital/simple-digital.prg",
+    "code": 1433,
+    "data": 1406
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ebolefeysot-CIQ_PcvVo2max/ebolefeysot-CIQ_PcvVo2max.prg",
+    "code": 565,
+    "data": 1257
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/douglasr-connectiq-samples/watchfaces/zen-digital/zen-digital.prg",
+    "code": 4865,
+    "data": 2380
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/fhdeutschmann-ZuluTime/fhdeutschmann-ZuluTime.prg",
+    "code": 5543,
+    "data": 2868
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/fmercado-telemeter/fmercado-telemeter.prg",
+    "code": 1036,
+    "data": 1519
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/fjbenitog-digital-watch-cas10/fjbenitog-digital-watch-cas10.prg",
+    "code": 7459,
+    "data": 4993
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/audio-provider/monkeymusic/monkeymusic.prg",
+    "code": 7511,
+    "data": 5430
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/datafields/GenericAntPlusHeartRateField/GenericAntPlusHeartRateField.prg",
+    "code": 6401,
+    "data": 5471
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/fjbenitog-bike-simulator/fjbenitog-bike-simulator.prg",
+    "code": 28001,
+    "data": 13530
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/device-apps/lidar-theremin/lidar-theremin.prg",
+    "code": 2620,
+    "data": 2719
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/watchfaces/DanceDanceGarmin/DanceDanceGarmin.prg",
+    "code": 1777,
+    "data": 2290
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/watchfaces/TypedFace/TypedFace.prg",
+    "code": 3797,
+    "data": 3959
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/widgets/strava-api/strava-api.prg",
+    "code": 6192,
+    "data": 4404
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/garmin-connectiq-apps/device-apps/bluetooth-mesh-sample/bluetooth-mesh-sample.prg",
+    "code": 36417,
+    "data": 21102
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/grafstrom-ORun/grafstrom-ORun.prg",
+    "code": 6343,
+    "data": 2123
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/gimportexportdevs-gimporter/gimportexportdevs-gimporter.prg",
+    "code": 6216,
+    "data": 2546
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/hakonrossebo-FootballFixtures/hakonrossebo-FootballFixtures.prg",
+    "code": 12505,
+    "data": 9754
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/gcormier9-GRun/gcormier9-GRun.prg",
+    "code": 15309,
+    "data": 4193
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/hansiglaser-ConnectIQ/SensorViz/SensorViz.prg",
+    "code": 7430,
+    "data": 3235
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/hansiglaser-ConnectIQ/SimpleWaF/SimpleWaF.prg",
+    "code": 619,
+    "data": 1193
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/hansiglaser-ConnectIQ/ShowAllInfos/ShowAllInfos.prg",
+    "code": 9473,
+    "data": 5809
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/imgrant-AuxHR/imgrant-AuxHR.prg",
+    "code": 2751,
+    "data": 2301
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/imgrant-EnergyExpenditureField/imgrant-EnergyExpenditureField.prg",
+    "code": 901,
+    "data": 1349
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/haraldh-SunCalc/haraldh-SunCalc.prg",
+    "code": 10667,
+    "data": 3873
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/imgrant-FlexiRunner/imgrant-FlexiRunner.prg",
+    "code": 5957,
+    "data": 2043
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/imgrant-RunningEconomyField/imgrant-RunningEconomyField.prg",
+    "code": 2012,
+    "data": 1545
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/jensws80-JSClock/jensws80-JSClock.prg",
+    "code": 7466,
+    "data": 2725
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/joakim-ribier-ftw-garmin/joakim-ribier-ftw-garmin.prg",
+    "code": 9372,
+    "data": 5257
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/joergsteinkamp-Simplog/joergsteinkamp-Simplog.prg",
+    "code": 8002,
+    "data": 3064
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Data Fields/15MinTimeDF/15MinTimeDF.prg",
+    "code": 656,
+    "data": 1221
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Data Fields/HalfKMDistDF/HalfKMDistDF.prg",
+    "code": 269,
+    "data": 1199
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Applications/Flashlight/Flashlight.prg",
+    "code": 1027,
+    "data": 1896
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Watchfaces/LeftHand Watchface/LeftHand Watchface.prg",
+    "code": 4804,
+    "data": 2154
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Watchfaces/DayShift/DayShift.prg",
+    "code": 7120,
+    "data": 1920
+  },
+  {
+    "file": "Forerunner/LeftHand Watchface - Forerunner.prg",
+    "code": 4226,
+    "data": 2149
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Widgets/Flashlight Widget/Flashlight Widget.prg",
+    "code": 695,
+    "data": 1337
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/johnnyw3-connectiq-watchapps/Data Fields/15MinTimeDF/15 Minute View Data Field.OLD/15 Minute View Data Field.OLD.prg",
+    "code": 475,
+    "data": 1285
+  },
+  {
+    "file": "Round/LeftHand Watchface - Round.prg",
+    "code": 4226,
+    "data": 2129
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/kolyuchii-TravelCalc/kolyuchii-TravelCalc.prg",
+    "code": 435,
+    "data": 1120
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/jonasbcdk-CleanSteps/jonasbcdk-CleanSteps.prg",
+    "code": 4473,
+    "data": 2205
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/kopa-BikersField/kopa-BikersField.prg",
+    "code": 3834,
+    "data": 1578
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/kopa-RunnersField/kopa-RunnersField.prg",
+    "code": 4465,
+    "data": 1696
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/lcj2-ciq_monkeyfuel/lcj2-ciq_monkeyfuel.prg",
+    "code": 2197,
+    "data": 1600
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/landnavapp-LandNavApp/landnavapp-LandNavApp.prg",
+    "code": 7631,
+    "data": 1932
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/lcj2-ciq_binarywatch/lcj2-ciq_binarywatch.prg",
+    "code": 2289,
+    "data": 1961
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/kromar-garmin_fenix3/watch_faces/BinarySystem/BinarySystem.prg",
+    "code": 16853,
+    "data": 6546
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/lukasz-duda-NormalizedPoolDistance/lukasz-duda-NormalizedPoolDistance.prg",
+    "code": 1327,
+    "data": 2784
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/lucamrod-TriathlonDuathlonAquathlon/TriathlonDuathlonAquathlon/TriathlonDuathlonAquathlon.prg",
+    "code": 17233,
+    "data": 6855
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/matthiasmullie-connect-iq-datafield-calories-equivalent/matthiasmullie-connect-iq-datafield-calories-equivalent.prg",
+    "code": 2494,
+    "data": 2915
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/matco-badminton/matco-badminton.prg",
+    "code": 21498,
+    "data": 10526
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/matthiasmullie-connect-iq-datafield-accurate-pace/matthiasmullie-connect-iq-datafield-accurate-pace.prg",
+    "code": 6841,
+    "data": 2270
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/mettyw-activity_view/activity_view/activity_view.prg",
+    "code": 9930,
+    "data": 5198
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/matmuc-SportMonitor/matmuc-SportMonitor.prg",
+    "code": 29979,
+    "data": 7139
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/miss-architect-garmin-squash/miss-architect-garmin-squash.prg",
+    "code": 9090,
+    "data": 5249
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/mrfoto-ForecastLine/mrfoto-ForecastLine.prg",
+    "code": 6387,
+    "data": 3016
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/myneur-HeartRateRunner/myneur-HeartRateRunner.prg",
+    "code": 6606,
+    "data": 1945
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/psjo-arcsin/psjo-arcsin.prg",
+    "code": 6782,
+    "data": 1541
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/pedlarstudios-WordOfTheDay/pedlarstudios-WordOfTheDay.prg",
+    "code": 8661,
+    "data": 4989
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/psjo-darktimes/psjo-darktimes.prg",
+    "code": 3799,
+    "data": 2230
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/okdar-smartarcs/okdar-smartarcs.prg",
+    "code": 14264,
+    "data": 4823
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/psjo-felt/psjo-felt.prg",
+    "code": 5328,
+    "data": 1579
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/psjo-dotter/psjo-dotter.prg",
+    "code": 10360,
+    "data": 1728
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/rain-dl-DayRound/rain-dl-DayRound.prg",
+    "code": 9836,
+    "data": 3826
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/myneur-late/myneur-late.prg",
+    "code": 29991,
+    "data": 6558
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ravenfeld-Connect-IQ-DataField-GPS/ravenfeld-Connect-IQ-DataField-GPS.prg",
+    "code": 1343,
+    "data": 1322
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ravenfeld-Connect-IQ-DataField-Speed/ravenfeld-Connect-IQ-DataField-Speed.prg",
+    "code": 1862,
+    "data": 1335
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ravenfeld-Connect-IQ-DataField-BackToHome/ravenfeld-Connect-IQ-DataField-BackToHome.prg",
+    "code": 5838,
+    "data": 2433
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ravenfeld-Connect-IQ-Widget-Compass/ravenfeld-Connect-IQ-Widget-Compass.prg",
+    "code": 2904,
+    "data": 1878
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/rgergely-polesteps/rgergely-polesteps.prg",
+    "code": 1960,
+    "data": 1953
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/rexMingla-low-battery-mode/rexMingla-low-battery-mode.prg",
+    "code": 8142,
+    "data": 7617
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/rgrellmann-connectiq-bergsteigen-app/rgrellmann-connectiq-bergsteigen-app.prg",
+    "code": 15745,
+    "data": 7127
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/roelofk-HeartRateRunner/roelofk-HeartRateRunner.prg",
+    "code": 5230,
+    "data": 1691
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/seajay-ColourHR/seajay-ColourHR.prg",
+    "code": 2843,
+    "data": 1473
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonl-ciq-RollingAverage/simonl-ciq-RollingAverage.prg",
+    "code": 4776,
+    "data": 1900
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-activity-widget/simonmacmullen-activity-widget.prg",
+    "code": 1771,
+    "data": 1255
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-chart-datafields/modes/cadence/cadence.prg",
+    "code": 4836,
+    "data": 2867
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-chart-datafields/modes/pace/pace.prg",
+    "code": 5002,
+    "data": 2879
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-chart-datafields/modes/power/power.prg",
+    "code": 4836,
+    "data": 2857
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-chart-datafields/modes/hr/hr.prg",
+    "code": 4836,
+    "data": 2836
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-chart-datafields/modes/speed/speed.prg",
+    "code": 4980,
+    "data": 2881
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-instrument-panel/simonmacmullen-instrument-panel.prg",
+    "code": 3580,
+    "data": 1654
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/simonmacmullen-chart-datafields/modes/elevation/elevation.prg",
+    "code": 4930,
+    "data": 2896
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sixtop-Watch-Face-Garmin/sixtop-Watch-Face-Garmin.prg",
+    "code": 3268,
+    "data": 2023
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/samuelmr-garmin-abouttime/samuelmr-garmin-abouttime.prg",
+    "code": 8027,
+    "data": 2752
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/smeyac-connect-iq/watchfaces/BinaryElegance/BinaryElegance.prg",
+    "code": 2916,
+    "data": 2015
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/spikyjt-SailingTimer/spikyjt-SailingTimer.prg",
+    "code": 6773,
+    "data": 2959
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-ciqsummit17/sunpazed-garmin-ciqsummit17.prg",
+    "code": 2686,
+    "data": 1735
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-drawaa/sunpazed-garmin-drawaa.prg",
+    "code": 3692,
+    "data": 1819
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/srwalter-garmin-tesla/srwalter-garmin-tesla.prg",
+    "code": 16625,
+    "data": 7250
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-oz/sunpazed-garmin-oz.prg",
+    "code": 2121,
+    "data": 1460
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-mickey/sunpazed-garmin-mickey.prg",
+    "code": 12310,
+    "data": 1570
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-polybug/sunpazed-garmin-polybug.prg",
+    "code": 2050,
+    "data": 1439
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-nyan-cat/sunpazed-garmin-nyan-cat.prg",
+    "code": 9409,
+    "data": 2472
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-flags/sunpazed-garmin-flags.prg",
+    "code": 5625,
+    "data": 2141
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-vangogh/sunpazed-garmin-vangogh.prg",
+    "code": 2242,
+    "data": 1475
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/sunpazed-garmin-waketest/sunpazed-garmin-waketest.prg",
+    "code": 2565,
+    "data": 1592
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/thekr1s-garmin_wordclock/thekr1s-garmin_wordclock.prg",
+    "code": 12598,
+    "data": 4012
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/toomasr-8-min-abs/toomasr-8-min-abs.prg",
+    "code": 6459,
+    "data": 4871
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/tobiaslj-TrendPace/tobiaslj-TrendPace.prg",
+    "code": 3163,
+    "data": 2292
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/toskaw-ImageNotify/toskaw-ImageNotify.prg",
+    "code": 2771,
+    "data": 1765
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/travisvitek-connectiq_laps_datafield/travisvitek-connectiq_laps_datafield.prg",
+    "code": 4755,
+    "data": 2861
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/urbandroid-team-Sleep-as-Android-Garmin-Addon/SleepGarmin-watch/SleepGarmin-watch.prg",
+    "code": 10476,
+    "data": 5622
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/victornottat-garmin-trimp-perhour/victornottat-garmin-trimp-perhour.prg",
+    "code": 1714,
+    "data": 1945
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/urbandroid-team-Sleep-as-Android-Garmin-Addon/SleepGarmin-watch2/SleepGarmin-watch2.prg",
+    "code": 12869,
+    "data": 10471
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/victornottat-garmin-trimp/Trimp/Trimp.prg",
+    "code": 1761,
+    "data": 1593
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/vmaywood-Garmin-Watch-Faces/MotorcycleFBSide/MotorcycleFBSide.prg",
+    "code": 6458,
+    "data": 2400
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/voseldop-timeless/voseldop-timeless.prg",
+    "code": 23792,
+    "data": 7389
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/HankG-GarminConnectIQ/DailyStatsWithTimeFace/DailyStatsWithTimeFace.prg",
+    "code": 4768,
+    "data": 2217
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/zbraniecki-ultitimer/zbraniecki-ultitimer.prg",
+    "code": 12706,
+    "data": 5078
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/werkkrew-ciq-orange-theory/werkkrew-ciq-orange-theory.prg",
+    "code": 25055,
+    "data": 9250
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/harryonline-fortune-quote/harryonline-fortune-quote.prg",
+    "code": 6515,
+    "data": 5104
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/harryonline-emergencyinfo/harryonline-emergencyinfo.prg",
+    "code": 5933,
+    "data": 3291
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/warmsound-crystal-face/warmsound-crystal-face.prg",
+    "code": 22776,
+    "data": 7915
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/harryonline-timerwidget/harryonline-timerwidget.prg",
+    "code": 6712,
+    "data": 4634
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/vtrifonov-esfiddle-Meditate/Meditate/Meditate.prg",
+    "code": 49525,
+    "data": 38338
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/nz_brian-HiVisRunField/nz_brian-HiVisRunField.prg",
+    "code": 10993,
+    "data": 3470
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/nz_brian-garmin.watch.analogplus/nz_brian-garmin.watch.analogplus.prg",
+    "code": 4436,
+    "data": 2083
+  },
+  {
+    "file": "/Users/mwilliams/www/git/monkeyc-optimizer/build/test/projects/ravenfeld-Connect-IQ-App-Timer/ravenfeld-Connect-IQ-App-Timer.prg",
+    "code": 15354,
+    "data": 8363
+  }
+]
