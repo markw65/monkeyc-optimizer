@@ -108,7 +108,7 @@ export function printBlockEvents(
 ) {
   console.log("Events:");
   forEach(block.events, (event) =>
-    console.log(`    ${describeEvent(event)} ${extra?.(event)}`)
+    console.log(`    ${describeEvent(event)} ${extra ? extra(event) : ""}`)
   );
 }
 

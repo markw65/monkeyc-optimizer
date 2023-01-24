@@ -648,7 +648,7 @@ function stateFuncs() {
                       : node.param.left;
                   this.stack.push({
                     type: "BlockStatement",
-                    fullName: undefined,
+                    fullName: parent.fullName,
                     name: undefined,
                     node: node.body,
                     decls: { [id.name]: [id] },
@@ -660,7 +660,7 @@ function stateFuncs() {
                 if (node.init && node.init.type === "VariableDeclaration") {
                   this.stack.push({
                     type: "BlockStatement",
-                    fullName: undefined,
+                    fullName: this.stack.slice(-1).pop()!.fullName,
                     name: undefined,
                     node: node,
                     attributes: 0,
