@@ -445,10 +445,7 @@ function propagateTypes(
           next = value.obj[me.property.name];
         } else {
           const trueDecls = findObjectDeclsByProperty(istate.state, cur, me);
-          if (
-            !trueDecls ||
-            some(trueDecls, (decl) => decl.type !== "ClassDeclaration")
-          ) {
+          if (!trueDecls) {
             return null;
           }
           cur = refineObjectTypeByDecls(istate, cur, trueDecls);

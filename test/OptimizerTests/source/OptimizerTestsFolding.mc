@@ -620,7 +620,7 @@ function constantsWithCasts(logger as Logger) as Boolean {
     return true;
 }
 
-typedef RecursiveArray as Number or Array<RecursiveArray>;
+typedef RecursiveArray as Array<Number or RecursiveArray>;
 (:test)
 function recursiveArray(logger as Logger) as Boolean {
     var x = [1] as RecursiveArray;
