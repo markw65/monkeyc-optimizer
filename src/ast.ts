@@ -264,6 +264,9 @@ export function withLoc<T extends mctree.Node>(
     node.start = start.start;
     if (!node.end) node.end = start.end;
     node.loc = { ...(node.loc || start.loc), start: start.loc.start };
+    if (end === start && start.origins) {
+      node.origins = start.origins;
+    }
   }
   if (end === false) {
     if (node.loc) {

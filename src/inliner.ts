@@ -459,6 +459,12 @@ function processInlineBody<T extends InlineBody>(
         const ix = params[node.name];
         if (ix >= 0) {
           const replacement = { ...call.arguments[ix] };
+          if (node.loc) {
+            if (!replacement.origins) {
+              replacement.origins = [];
+            }
+            replacement.origins.unshift({ loc: node.loc, func: func.fullName });
+          }
           replacements.add(replacement);
           return replacement;
         }
