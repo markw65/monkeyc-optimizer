@@ -431,7 +431,9 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         if (
           subtypeOf(left.value, right.value) &&
           !subtypeOf({ type: TypeTag.Null | TypeTag.Object }, right.value) &&
-          (!(left.value.type & TypeTag.Enum) || right.value.type & TypeTag.Enum)
+          (!(left.value.type & TypeTag.Enum) ||
+            right.value.type & TypeTag.Enum) &&
+          !couldBe({ type: TypeTag.Array | TypeTag.Dictionary }, left.value)
         ) {
           push({
             value: left.value,
