@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
-  diagnostic,
+  diagnosticHelper,
   hasProperty,
   isLookupCandidate,
   isStateNode,
@@ -656,10 +656,16 @@ function inlineDiagnostic(
   message: string | null
 ) {
   if (inlineRequested(state, func)) {
-    diagnostic(
-      state,
+    if (!state.inlineDiagnostics) {
+      state.inlineDiagnostics = {};
+    }
+    diagnosticHelper(
+      state.inlineDiagnostics,
       call,
-      message && `While inlining ${func.node.id.name}: ${message}`
+      message && `While inlining ${func.node.id.name}: ${message}`,
+      "INFO",
+      undefined,
+      true
     );
   }
 }
@@ -764,7 +770,7 @@ function inlineWithArgs(
   if (!processInlineBody(state, func, call, body, params)) {
     return null;
   }
-  diagnostic(state, call, null);
+  inlineDiagnostic(state, func, call, null);
   if (context.type !== "ReturnStatement" && retStmtCount) {
     const [last, block] = lastStmt(body);
     if (last.type !== "ReturnStatement") {

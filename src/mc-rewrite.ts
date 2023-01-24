@@ -1243,6 +1243,20 @@ export async function optimizeMonkeyC(
 
   reportMissingSymbols(state, config);
 
+  if (state.inlineDiagnostics) {
+    if (!state.diagnostics) {
+      state.diagnostics = state.inlineDiagnostics;
+    } else {
+      Object.entries(state.inlineDiagnostics).forEach(([key, diags]) => {
+        if (!hasProperty(state.diagnostics, key)) {
+          state.diagnostics![key] = diags;
+        } else {
+          state.diagnostics[key].push(...diags);
+        }
+      });
+    }
+    delete state.inlineDiagnostics;
+  }
   Object.entries(fnMap).forEach(([name, f]) => {
     if (state.config && state.config.checkBuildPragmas) {
       pragmaChecker(state, f.ast!, state.diagnostics?.[name]);

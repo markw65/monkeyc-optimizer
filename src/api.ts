@@ -1198,15 +1198,26 @@ export function diagnostic(
   type: DiagnosticType = "INFO",
   extra?: Diagnostic["extra"]
 ) {
+  if (!state.diagnostics) state.diagnostics = {};
+  diagnosticHelper(state.diagnostics, node, message, type, extra, false);
+}
+
+export function diagnosticHelper(
+  diagnostics: Record<string, Diagnostic[]>,
+  node: mctree.Node,
+  message: string | null,
+  type: DiagnosticType = "INFO",
+  extra: Diagnostic["extra"] | undefined,
+  uniqueLocs: boolean
+) {
   const loc = node.loc;
   if (!loc || !loc.source) return;
   const source = loc.source;
-  if (!state.diagnostics) state.diagnostics = {};
-  if (!hasProperty(state.diagnostics, source)) {
+  if (!hasProperty(diagnostics, source)) {
     if (!message) return;
-    state.diagnostics[source] = [];
+    diagnostics[source] = [];
   }
-  const diags = state.diagnostics[source];
+  const diags = diagnostics[source];
   let index = diags.findIndex(
     (item) =>
       item.loc.start.offset === loc.start.offset &&
@@ -1219,7 +1230,8 @@ export function diagnostic(
               r.loc.start.offset === node.origins![i].loc.start.offset &&
               r.loc.end.offset === node.origins![i].loc.end.offset &&
               r.loc.source === node.origins![i].loc.source
-          ))
+          )) &&
+      (uniqueLocs || message === item.message)
   );
   if (message) {
     if (index < 0) index = diags.length;

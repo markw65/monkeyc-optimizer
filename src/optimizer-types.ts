@@ -253,6 +253,7 @@ export type ProgramState = {
   index?: { [key: string]: unknown[] };
   constants?: { [key: string]: mctree.Literal };
   diagnostics?: Record<string, Diagnostic[]>;
+  inlineDiagnostics?: Record<string, Diagnostic[]>;
   enumMap?: Map<EnumStringMember, EnumStateNode>;
 };
 export type Finalized<T, Keys extends keyof T> = T & {
