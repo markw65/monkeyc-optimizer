@@ -403,6 +403,20 @@ function pushScopedNameType(
   });
 }
 
+function byteArrayType(state: ProgramStateAnalysis): ObjectType {
+  return {
+    type: TypeTag.Object,
+    value: {
+      klass: {
+        type: TypeTag.Class,
+        value: lookupByFullName(
+          state,
+          "Toybox.Lang.ByteArray"
+        ) as ClassStateNode[],
+      },
+    },
+  };
+}
 export function evaluateNode(istate: InterpState, node: mctree.Node) {
   const { state, stack } = istate;
 
@@ -523,7 +537,9 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     case "SizedArrayExpression": {
       const arg = popIstate(istate, node.size);
       let type: ExactOrUnion = { type: TypeTag.Array };
-      if (node.ts) {
+      if (node.byte) {
+        type = byteArrayType(state);
+      } else if (node.ts) {
         type = typeFromSingleTypeSpec(istate.state, node.ts);
         if (type.type !== TypeTag.Array) {
           type = { type: TypeTag.Array, value: type };
@@ -543,18 +559,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       const embeddedEffects = args.some((arg) => arg.embeddedEffects);
       if (node.byte) {
         push({
-          value: {
-            type: TypeTag.Object,
-            value: {
-              klass: {
-                type: TypeTag.Class,
-                value: lookupByFullName(
-                  state,
-                  "Toybox.Lang.ByteArray"
-                ) as ClassStateNode[],
-              },
-            },
-          },
+          value: byteArrayType(state),
           embeddedEffects,
           node,
         });
