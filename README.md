@@ -636,3 +636,9 @@ Bug Fixes
 - Code cleanup
   - refactor some of the type code for better type safety
   - turn on the eslint rule eqeqeq and fix all the issues
+
+### 1.1.5
+
+- Bug fixes
+  - Always evaluate a constant's initializer to determine its type
+  - Fix a bug refining the object type based on the properties it accesses that could lose the type of the object.
