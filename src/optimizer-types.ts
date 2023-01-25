@@ -144,6 +144,7 @@ export interface VariableStateNode extends BaseStateNode {
   fullName: string;
   stack: ProgramStateStack;
   used?: true;
+  resolvedType?: ExactOrUnion | undefined;
 }
 export interface EnumStateNode extends BaseStateNode {
   type: "EnumDeclaration";

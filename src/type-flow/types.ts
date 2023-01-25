@@ -1,7 +1,7 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
 import { unhandledType } from "../data-flow";
 import { diagnostic, formatAst, isStateNode } from "../api";
-import { getNodeValue, makeScopedName } from "../ast";
+import { getNodeValue, hasProperty, makeScopedName } from "../ast";
 import {
   ClassStateNode,
   EnumStateNode,
@@ -16,6 +16,7 @@ import {
 import { forEach, map } from "../util";
 import { evaluateExpr, roundToFloat } from "./interp";
 import { clearValuesUnder, unionInto } from "./union-type";
+import { intersection } from "./intersection-type";
 
 // prettier-ignore
 export const enum TypeTag {
@@ -491,26 +492,45 @@ export function typeFromTypeStateNode(
       return result;
     }
 
-    case "VariableDeclarator":
+    case "VariableDeclarator": {
+      if (sn.resolvedType) return sn.resolvedType;
+      let declared = null;
+      if (sn.node.id.type === "BinaryExpression") {
+        declared = typeFromTypespec(state, sn.node.id.right, sn.stack);
+      }
       if (sn.node.kind === "const" && sn.node.init) {
-        let node = sn.node.init;
-        if (node.type === "Literal") {
-          return typeFromLiteral(node);
+        if (hasProperty(sn, "resolvedType")) {
+          // The constant is defined recursively
+          return declared ?? { type: TypeTag.Any };
         }
-        while (node.type === "BinaryExpression" && node.operator === "as") {
-          node = node.left;
+        // set the marker in case the constant appears in its
+        // own initializer.
+        sn.resolvedType = undefined;
+        const stack = state.stack;
+        let resolved;
+        try {
+          state.stack = sn.stack;
+          resolved = evaluateExpr(state, sn.node.init).value;
+        } finally {
+          state.stack = stack;
         }
-        if (
-          node.type === "Literal" ||
-          (node.type === "UnaryExpression" && node.operator === ":")
-        ) {
-          return evaluateExpr(state, sn.node.init).value;
+        if (resolved.type === TypeTag.Never) {
+          resolved = declared ?? { type: TypeTag.Any };
+        } else if (declared) {
+          resolved = intersection(resolved, declared);
+          if (resolved.type === TypeTag.Never) {
+            resolved = declared;
+          }
         }
+
+        sn.resolvedType = resolved;
+        return resolved;
       }
       if (sn.node.id.type === "BinaryExpression") {
         return typeFromTypespec(state, sn.node.id.right, sn.stack);
       }
       return { type: TypeTag.Any };
+    }
   }
   throw new Error(`Internal error: Unexpected StateNodeDecl.type: ${sn.type}`);
 }
