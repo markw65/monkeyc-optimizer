@@ -612,3 +612,27 @@ Bug Fixes
   - Replace more expensive accesses by less expensive ones.
   - Delete empty else blocks.
   - Delete if statements with empty body and no else.
+
+### 1.1.4
+
+- Optimizations
+
+  - Minor tweaks to dead store elimination
+  - Better type resolution for untyped code
+
+- Enhancements
+
+  - Retain the type map in the analysis pass, so that it can be used to improve
+    the results in visitReferences
+
+- Bug fixes
+
+  - When multiple diagnostics were reported for a single location, all but the last was lost
+  - Sometimes when evaluating MemberExpressions type-flow would give up too easily, resulting
+    in unknown types for the object, which then resulted in unexpected error messages from
+    the type checker, often involving seemingly unrelated classes.
+  - Inlining history was sometimes lost when further optimizations were performed.
+
+- Code cleanup
+  - refactor some of the type code for better type safety
+  - turn on the eslint rule eqeqeq and fix all the issues
