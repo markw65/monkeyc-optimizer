@@ -57,7 +57,7 @@ export function visitReferences(
     if (node.type === "MemberExpression" && !node.computed) {
       const objectType = typeMap.get(node.object);
       if (!objectType) return results;
-      const decls = findObjectDeclsByProperty(state, objectType, node);
+      const [, decls] = findObjectDeclsByProperty(state, objectType, node);
       if (decls) {
         const next = lookupNext(
           state,

@@ -310,35 +310,118 @@ function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
   });
 }
 
-function filterDecls(decls: StateNode[], possible: StateNode[] | false) {
-  if (!possible) return null;
+/*
+ * We have an object, and a MemberExpression object.<name>
+ *  - decls are the StateNodes associated with the known type
+ *    of object.
+ *  - possible are all the StateNodes that declare <name>
+ *
+ * We want to find all the elements of possible which are
+ * "compatible" with decls, which tells us the set of things
+ * that object.<name> could correspond to, and also what that
+ * tells us about object.
+ *
+ * The return value is two arrays of StateNode. The first
+ * gives the refined type of object, and the second is the
+ * array of StateNodes that could declare <name>
+ */
+function filterDecls(
+  decls: StateNode[],
+  possible: StateNode[] | false,
+  name: string
+): [StateNode[], StateNode[]] | [null, null] {
+  if (!possible) return [null, null];
 
-  return decls.reduce<StateNode[] | null>((cur, decl) => {
-    const found = possible.reduce((flag, poss) => {
-      if (
-        decl === poss ||
-        (poss.type === "ClassDeclaration" &&
-          getSuperClasses(poss)?.has(decl)) ||
-        (decl.type === "ClassDeclaration" && getSuperClasses(decl)?.has(poss))
-      ) {
-        if (!cur) cur = [poss];
-        else cur.push(poss);
-        return true;
-      }
-      return flag;
-    }, false);
-    if (!found) {
-      possible.some((poss) => {
-        if (decl.stack?.some((sn) => sn.decls === poss.decls)) {
-          if (!cur) cur = [poss];
-          else cur.push(poss);
+  const result = decls.reduce<[Set<StateNode>, Set<StateNode>] | [null, null]>(
+    (cur, decl) => {
+      const found = possible.reduce((flag, poss) => {
+        if (
+          decl === poss ||
+          (poss.type === "ClassDeclaration" && getSuperClasses(poss)?.has(decl))
+        ) {
+          // poss extends decl, so decl must actually be a poss
+          // eg we know obj is an Object, and we call obj.toNumber
+          // so possible includes all the classes that declare toNumber
+          // so we can refine obj's type to the union of those types
+          if (!cur[0]) {
+            cur = [new Set(), new Set()];
+          }
+          cur[0].add(poss);
+          cur[1].add(poss);
+          return true;
+        } else if (
+          decl.type === "ClassDeclaration" &&
+          getSuperClasses(decl)?.has(poss)
+        ) {
+          // decl extends poss, so decl remains unchanged
+          // eg we know obj is Menu2, we call obj.toString
+          // Menu2 doesn't define toString, but Object does
+          // so poss is Object. But we still know that
+          // obj is Menu2
+          if (!cur[0]) {
+            cur = [new Set(), new Set()];
+          }
+          cur[0].add(decl);
+          cur[1].add(poss);
           return true;
         }
-        return false;
-      });
-    }
-    return cur;
-  }, null);
+        return flag;
+      }, false);
+      if (!found) {
+        // If we didn't find the property in any of the
+        // standard places, the runtime might still find
+        // it by searching up the Module stack (and up
+        // the module stack from any super classes)
+        //
+        // eg
+        //
+        //  obj = Application.getApp();
+        //  obj.Properties.whatever
+        //
+        // Properties doesn't exist on AppBase, but AppBase
+        // is declared in Application, and Application
+        // does declare Properties. So Application.Properties
+        // is (one of) the declarations we should find; but we
+        // must not refine obj's type to include Application.
+        let d = [decl];
+        do {
+          d.forEach((d) => {
+            const stack = d.stack!;
+            possible.forEach((poss) => {
+              for (let i = stack.length; i--; ) {
+                const sn = stack[i];
+                if (sn.decls === poss.decls) {
+                  if (!cur[0]) {
+                    cur = [new Set(), new Set()];
+                  }
+                  cur[0].add(decl);
+                  cur[1].add(poss);
+                  break;
+                }
+                if (hasProperty(sn.decls, name)) {
+                  break;
+                }
+              }
+            });
+          });
+          d = d.flatMap((d) => {
+            if (
+              d.type !== "ClassDeclaration" ||
+              !d.superClass ||
+              d.superClass === true
+            ) {
+              return [];
+            }
+            return d.superClass;
+          });
+        } while (d.length);
+      }
+      return cur;
+    },
+    [null, null]
+  );
+  if (!result[0]) return [null, null];
+  return [Array.from(result[0]), Array.from(result[1])];
 }
 
 export function findObjectDeclsByProperty(
@@ -347,12 +430,12 @@ export function findObjectDeclsByProperty(
   next: mctree.DottedMemberExpression
 ) {
   const decls = getStateNodeDeclsFromType(state, object);
-  if (!decls) return null;
+  if (!decls) return [null, null] as const;
   const possibleDecls =
     hasProperty(state.allDeclarations, next.property.name) &&
     state.allDeclarations[next.property.name];
 
-  return filterDecls(decls, possibleDecls);
+  return filterDecls(decls, possibleDecls, next.property.name);
 }
 
 function refineObjectTypeByDecls(
@@ -390,11 +473,15 @@ export function resolveDottedMember(
   object: ExactOrUnion,
   next: mctree.DottedMemberExpression
 ) {
-  const decls = findObjectDeclsByProperty(istate.state, object, next);
-  if (!decls) return null;
-  const property = findNextObjectType(istate, decls, next);
+  const [objDecls, trueDecls] = findObjectDeclsByProperty(
+    istate.state,
+    object,
+    next
+  );
+  if (!objDecls) return null;
+  const property = findNextObjectType(istate, trueDecls, next);
   if (!property) return null;
-  const type = refineObjectTypeByDecls(istate, object, decls);
+  const type = refineObjectTypeByDecls(istate, object, objDecls);
   const mayThrow = !subtypeOf(object, type);
   return { mayThrow, object: type, property };
 }
@@ -444,11 +531,15 @@ function propagateTypes(
         } else if (value && hasProperty(value.obj, me.property.name)) {
           next = value.obj[me.property.name];
         } else {
-          const trueDecls = findObjectDeclsByProperty(istate.state, cur, me);
-          if (!trueDecls) {
+          const [objDecls, trueDecls] = findObjectDeclsByProperty(
+            istate.state,
+            cur,
+            me
+          );
+          if (!objDecls) {
             return null;
           }
-          cur = refineObjectTypeByDecls(istate, cur, trueDecls);
+          cur = refineObjectTypeByDecls(istate, cur, objDecls);
           next = findNextObjectType(istate, trueDecls, me);
         }
       } else {
