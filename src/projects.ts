@@ -92,6 +92,10 @@ export const githubProjects: RemoteProject[] = [
     comment: "missing launcher icon",
   },
   "https://github.com/breber/nest-iq",
+  {
+    root: "https://github.com/flocsy/BodyBatteryDF",
+    options: { typeCheckLevel: "Strict" },
+  },
   "https://github.com/markw65/connectiq-app-glidersk",
   "https://github.com/markw65/connectiq-app-towplanesk",
   "https://github.com/chanezgr/IQwprimebal",
