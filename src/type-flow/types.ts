@@ -917,8 +917,8 @@ export function display(type: ExactOrUnion): string {
       case TypeTag.Dictionary:
         return `${display(tv.value.key)}, ${display(tv.value.value)}`;
       case TypeTag.Method:
-        return `(${tv.value.args
-          .map((arg) => display(arg))
+        return `Method(${tv.value.args
+          .map((arg, i) => `a${i + 1} as ${display(arg)}`)
           .join(", ")}) as ${display(tv.value.result)}`;
       case TypeTag.Module:
       case TypeTag.Function:
@@ -977,6 +977,7 @@ export function display(type: ExactOrUnion): string {
         TypeTag.Enum |
         TypeTag.Typedef |
         TypeTag.Symbol |
+        TypeTag.Method |
         TypeTag.String)
     ) {
       parts.push(valueStr);
