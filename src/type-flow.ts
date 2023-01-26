@@ -758,7 +758,7 @@ function propagateTypes(
     return every(callees, (callee) => {
       const info = sysCallInfo(callee);
       if (!info) return false;
-      const result = info(callee, calleeObj, () =>
+      const result = info(istate.state, callee, calleeObj, () =>
         node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
       );
       if (result.calleeObj) {

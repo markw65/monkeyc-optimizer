@@ -1,5 +1,10 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { FunctionStateNode } from "src/optimizer-types";
+import {
+  FunctionStateNode,
+  ProgramStateAnalysis,
+  StateNodeAttributes,
+} from "../optimizer-types";
+import { findObjectDeclsByProperty } from "../type-flow";
 import { diagnostic, formatAst, getSuperClasses, hasProperty } from "../api";
 import { reduce, some } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
@@ -13,6 +18,7 @@ import {
   isExact,
   setUnionComponent,
   typeFromTypespec,
+  typeFromTypeStateNode,
   typeFromTypeStateNodes,
   TypeTag,
 } from "./types";
@@ -51,6 +57,27 @@ export function evaluateCall(
   return checkCallArgs(istate, node, callee.value, args);
 }
 
+function calleeObjectType(istate: InterpState, callee: mctree.Expression) {
+  if (callee.type === "MemberExpression") {
+    return (
+      istate.typeMap?.get(callee.object) || {
+        type: TypeTag.Any,
+      }
+    );
+  }
+  if (callee.type === "Identifier" && istate.func) {
+    const func = istate.func;
+    const [self] = func.stack!.slice(-1);
+    return typeFromTypeStateNode(
+      istate.state,
+      self,
+      (func.attributes & StateNodeAttributes.STATIC) !== 0 ||
+        self.type !== "ClassDeclaration"
+    );
+  }
+  return null;
+}
+
 export function checkCallArgs(
   istate: InterpState,
   node: mctree.CallExpression,
@@ -67,13 +94,11 @@ export function checkCallArgs(
       let returnType: ExactOrUnion | null = null;
       let effects = true;
       let argEffects = true;
-      if (node.callee.type === "MemberExpression") {
-        const object = istate.typeMap?.get(node.callee.object) || {
-          type: TypeTag.Any,
-        };
+      const object = calleeObjectType(istate, node.callee);
+      if (object) {
         const info = sysCallInfo(cur);
         if (info) {
-          const result = info(cur, object, () => args);
+          const result = info(istate.state, cur, object, () => args);
           if (result.argTypes) argTypes = result.argTypes;
           if (result.returnType) returnType = result.returnType;
           if (result.effectFree) effects = false;
@@ -237,6 +262,7 @@ type SysCallHelperResult = {
 };
 
 type SysCallHelper = (
+  state: ProgramStateAnalysis,
   func: FunctionStateNode,
   calleeObj: ExactOrUnion,
   getArgs: () => Array<ExactOrUnion>
@@ -256,6 +282,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
   if (systemCallInfo) return systemCallInfo;
 
   const arrayAdd: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>
@@ -291,6 +318,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return ret;
   };
   const arrayRet: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     _getArgs: () => Array<ExactOrUnion>
@@ -306,6 +334,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
   };
 
   const dictionaryGet: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>
@@ -324,6 +353,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return ret;
   };
   const dictionaryValues: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion
   ) => {
@@ -337,6 +367,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return ret;
   };
   const dictionaryKeys: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion
   ) => {
@@ -350,6 +381,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return ret;
   };
   const dictionaryPut: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>
@@ -385,6 +417,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return ret;
   };
   const methodInvoke: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>
@@ -401,10 +434,69 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     ret.argTypes = getArgs();
     return ret;
   };
+  const method: SysCallHelper = (
+    state: ProgramStateAnalysis,
+    callee: FunctionStateNode,
+    calleeObj: ExactOrUnion,
+    getArgs: () => Array<ExactOrUnion>
+  ) => {
+    const ret: SysCallHelperResult = {};
+    const args = getArgs();
+    if (
+      args.length === 1 &&
+      hasValue(args[0]) &&
+      args[0].type === TypeTag.Symbol
+    ) {
+      const symbol: mctree.Identifier = {
+        type: "Identifier",
+        name: args[0].value,
+      };
+      const next: mctree.MemberExpression = {
+        type: "MemberExpression",
+        object: symbol,
+        property: symbol,
+        computed: false,
+      };
+      const [, trueDecls] = findObjectDeclsByProperty(state, calleeObj, next);
+      if (!trueDecls) return ret;
+      const callees = trueDecls
+        .flatMap((decl) => decl.decls?.[symbol.name])
+        .filter(
+          (decl): decl is FunctionStateNode =>
+            decl?.type === "FunctionDeclaration"
+        );
+      if (!callees.length) return ret;
+
+      ret.returnType = callees.reduce(
+        (type, callee) => {
+          const result = callee.node.returnType
+            ? typeFromTypespec(
+                state,
+                callee.node.returnType.argument,
+                callee.stack
+              )
+            : { type: TypeTag.Any };
+          const args = callee.node.params.map((param) =>
+            param.type === "BinaryExpression"
+              ? typeFromTypespec(state, param.right, callee.stack)
+              : { type: TypeTag.Any }
+          );
+          unionInto(type, {
+            type: TypeTag.Method,
+            value: { result, args },
+          });
+          return type;
+        },
+        { type: TypeTag.Never }
+      );
+    }
+    return ret;
+  };
   const nop: SysCallHelper = () => ({ effectFree: true });
   const mod: SysCallHelper = () => ({});
 
-  const rounder = (
+  const rounder: SysCallHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>
@@ -427,6 +519,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return results;
   };
   const mathHelper = (
+    state: ProgramStateAnalysis,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>,
@@ -498,6 +591,7 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     "$.Toybox.Lang.Dictionary.toString": nop,
     "$.Toybox.Lang.Dictionary.values": dictionaryValues,
     "$.Toybox.Lang.Method.invoke": methodInvoke,
+    "$.Toybox.Lang.Object.method": method,
 
     "$.Toybox.Math.acos": mathHelper,
     "$.Toybox.Math.asin": mathHelper,
@@ -506,10 +600,11 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     "$.Toybox.Math.ceil": rounder,
     "$.Toybox.Math.cos": mathHelper,
     "$.Toybox.Math.floor": rounder,
-    "$.Toybox.Math.ln": (callee, calleeObj, getArgs) =>
-      mathHelper(callee, calleeObj, getArgs, "log"),
-    "$.Toybox.Math.log": (callee, calleeObj, getArgs) =>
+    "$.Toybox.Math.ln": (state, callee, calleeObj, getArgs) =>
+      mathHelper(state, callee, calleeObj, getArgs, "log"),
+    "$.Toybox.Math.log": (state, callee, calleeObj, getArgs) =>
       mathHelper(
+        state,
         callee,
         calleeObj,
         getArgs,
@@ -521,10 +616,22 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     "$.Toybox.Math.sqrt": mathHelper,
     "$.Toybox.Math.tan": mathHelper,
 
-    "$.Toybox.Math.toDegrees": (callee, calleeObj, getArgs) =>
-      mathHelper(callee, calleeObj, getArgs, (arg) => (arg * 180) / Math.PI),
-    "$.Toybox.Math.toRadians": (callee, calleeObj, getArgs) =>
-      mathHelper(callee, calleeObj, getArgs, (arg) => (arg * Math.PI) / 180),
+    "$.Toybox.Math.toDegrees": (state, callee, calleeObj, getArgs) =>
+      mathHelper(
+        state,
+        callee,
+        calleeObj,
+        getArgs,
+        (arg) => (arg * 180) / Math.PI
+      ),
+    "$.Toybox.Math.toRadians": (state, callee, calleeObj, getArgs) =>
+      mathHelper(
+        state,
+        callee,
+        calleeObj,
+        getArgs,
+        (arg) => (arg * Math.PI) / 180
+      ),
     "$.Toybox.Math.mean": nop,
     "$.Toybox.Math.mode": nop,
     "$.Toybox.Math.stdev": nop,
