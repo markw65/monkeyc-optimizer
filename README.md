@@ -648,4 +648,9 @@ Bug Fixes
 - Bug fixes
   - Fix an issue in restrictByEquality when restricting a union including an Enum, to a specific value of the enum.
   - Fix the display of Method types to match the syntax used in MonkeyC.
-  - Infer the type of method(:symbol) by looking up symbol.
+  - Infer the type of `method(:symbol)` by looking up symbol.
+
+### 1.1.7
+
+- Bug fixes
+  - Fix a problem with inlining that could inadvertently make locals from the callee function appear to belong to the callee's class or module. This could sometimes block optimizations, and also cause confusion for the type checker.
