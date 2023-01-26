@@ -17,7 +17,6 @@ import {
   FunctionStateNode,
   ProgramStateAnalysis,
   ProgramStateStack,
-  StateNodeAttributes,
   StateNodeDecl,
   VariableStateNode,
 } from "./optimizer-types";
@@ -257,7 +256,7 @@ function getArgSafety(
       }
       return null;
     };
-    state.stack = func.stack!;
+    state.stack = func.stack!.concat(func);
     state.traverse(func.node.body!);
   } finally {
     state.pre = pre;
@@ -415,10 +414,7 @@ function processInlineBody<T extends InlineBody>(
   // lookup determines static-ness of the lookup context based on seeing
   // a static FunctionDeclaration, but the FunctionDeclaration's stack
   // doesn't include the FunctionDeclaration itself.
-  const stack =
-    func.attributes & StateNodeAttributes.STATIC
-      ? func.stack!.concat(func)
-      : func.stack!;
+  const lookupStack = func.stack!.concat(func);
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
@@ -470,7 +466,7 @@ function processInlineBody<T extends InlineBody>(
         }
         return null;
       }
-      const replacement = fixNodeScope(state, node, stack);
+      const replacement = fixNodeScope(state, node, lookupStack);
       if (!replacement) {
         failed = true;
         inlineDiagnostic(state, func, call, `Failed to resolve '${node.name}'`);
