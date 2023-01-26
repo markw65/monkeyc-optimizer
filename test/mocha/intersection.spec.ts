@@ -252,6 +252,29 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
       assertNonNull(number_enum.value?.enum);
       assertNonNull(number_enum.value.value);
 
+      check_restrict(
+        {
+          type: TypeTag.Enum,
+          value: {
+            enum: number_enum.value.enum,
+            value: { type: TypeTag.Number, value: 4 },
+          },
+        },
+        {
+          type: TypeTag.Number | TypeTag.Enum,
+          value: {
+            enum: number_enum.value.enum,
+            value: { type: TypeTag.Number },
+          },
+        },
+        {
+          type: TypeTag.Number | TypeTag.Enum,
+          value: {
+            enum: number_enum.value.enum,
+            value: { type: TypeTag.Number, value: 4 },
+          },
+        }
+      );
       check_restrict({ type: TypeTag.Float, value: 4.5 }, number_enum, {
         type: TypeTag.Never,
       });

@@ -1010,7 +1010,7 @@ export function forEachUnionComponent(
   // never iterate the singleton bits, because they don't have data
   bits &= ~SingleTonTypeTagsConst;
   if (!bits) return;
-  if (v.type & UnionDataTypeTagsConst) {
+  if ((v.type | bits) & UnionDataTypeTagsConst) {
     // Don't iterate the value type bits if any union bit is set
     bits &= ~ValueTypeTagsConst;
   } else if (bits & (bits - 1)) {
