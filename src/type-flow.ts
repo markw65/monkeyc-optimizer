@@ -668,9 +668,25 @@ function propagateTypes(
       (decl.type !== "MemberDecl" && decl.type !== "Unknown")
     ) {
       if (!clearEquiv) {
+        /*
+         * If we're not clearing the equivalencies then this update
+         * must be applied to every element of the set
+         */
         const v = blockState.get(decl);
         if (v?.equivSet) {
-          blockState.set(decl, { ...v, curType: value });
+          let s = decl;
+          do {
+            const next = blockState.get(s);
+            if (!next || !next.equivSet) {
+              throw new Error(
+                `Inconsistent equivSet for ${tsKey(
+                  decl
+                )}: missing value for ${tsKey(s)}`
+              );
+            }
+            blockState.set(s, { ...next, curType: value });
+            s = next.equivSet.next;
+          } while (s !== decl);
           return;
         }
       } else {
