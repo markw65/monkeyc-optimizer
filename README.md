@@ -642,3 +642,10 @@ Bug Fixes
 - Bug fixes
   - Always evaluate a constant's initializer to determine its type
   - Fix a bug refining the object type based on the properties it accesses that could lose the type of the object.
+
+### 1.1.6
+
+- Bug fixes
+  - Fix an issue in restrictByEquality when restricting a union including an Enum, to a specific value of the enum.
+  - Fix the display of Method types to match the syntax used in MonkeyC.
+  - Infer the type of method(:symbol) by looking up symbol.
