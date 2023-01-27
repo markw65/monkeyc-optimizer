@@ -50,7 +50,8 @@ export function visitReferences(
   ) => undefined | false,
   includeDefs = false,
   filter: ((node: mctree.Node) => boolean) | null = null,
-  typeMap: TypeMap | null = null
+  typeMap: TypeMap | null = null,
+  findSingleDefinition = false
 ) {
   const lookup = (node: mctree.Node, nonLocal = false): LookupResult => {
     const results = nonLocal ? state.lookupNonlocal(node) : state.lookup(node);
@@ -104,12 +105,15 @@ export function visitReferences(
         parent = scope;
       }
       results = parent.sn[decls]?.[id.name];
-      if (
-        !results?.find(
-          (decl: StateNodeDecl & { node?: unknown }) => decl.node === def
-        )
-      ) {
+      if (!results) return;
+      const thisDefn = results.find(
+        (decl: StateNodeDecl & { node?: unknown }) => decl.node === def
+      );
+      if (!thisDefn) {
         return;
+      }
+      if (findSingleDefinition) {
+        results = [thisDefn];
       }
     } else {
       if (!parent) {
