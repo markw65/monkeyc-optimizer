@@ -281,6 +281,23 @@ export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
   return sameArrays(a, b, sameLookupDefinition);
 }
 
+function declKey(decl: StateNodeDecl) {
+  return isStateNode(decl)
+    ? decl.type === "ModuleDeclaration"
+      ? decl.fullName
+      : decl.node
+    : decl;
+}
+
+export function lookupResultContains(
+  a: LookupDefinition[],
+  b: LookupDefinition[]
+) {
+  if (!b.length) return false;
+  const bs = new Set(b.flatMap((bdef) => bdef.results.map(declKey)));
+  return a.some((adef) => adef.results.some((adecl) => bs.has(declKey(adecl))));
+}
+
 export function isLookupCandidate(node: mctree.MemberExpression) {
   return node.computed
     ? node.property.type === "UnaryExpression" &&

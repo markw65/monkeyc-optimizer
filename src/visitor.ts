@@ -3,12 +3,13 @@ import {
   collectNamespaces,
   isLookupCandidate,
   lookupNext,
-  sameLookupResult,
+  lookupResultContains,
 } from "./api";
 import {
   LookupDefinition,
   LookupResult,
   ProgramStateAnalysis,
+  StateNodeDecl,
 } from "./optimizer-types";
 import { findObjectDeclsByProperty } from "./type-flow";
 import { TypeMap } from "./type-flow/interp";
@@ -72,13 +73,12 @@ export function visitReferences(
     }
     return results;
   };
-
   const checkResults = (
     [name, results]: ReturnType<ProgramStateAnalysis["lookup"]>,
     node: mctree.Node
   ) => {
     if (name && results) {
-      if (!defn || sameLookupResult(results, defn)) {
+      if (!defn || lookupResultContains(results, defn)) {
         if (callback(node, results, false) === false) {
           return [];
         }
@@ -89,6 +89,35 @@ export function visitReferences(
       }
     }
     return null;
+  };
+  const visitDef = (
+    node: mctree.TypedIdentifier,
+    def?: mctree.Node,
+    decls: "decls" | "type_decls" = "decls"
+  ) => {
+    const id = node.type === "BinaryExpression" ? node.left : node;
+    if (filter && !filter(id)) return;
+    let [scope, parent] = state.stack.slice(-2).reverse();
+    let results: StateNodeDecl[] | undefined;
+    if (def) {
+      if (scope.sn.node !== def) {
+        parent = scope;
+      }
+      results = parent.sn[decls]?.[id.name];
+      if (
+        !results?.find(
+          (decl: StateNodeDecl & { node?: unknown }) => decl.node === def
+        )
+      ) {
+        return;
+      }
+    } else {
+      if (!parent) {
+        return;
+      }
+      results = [scope.sn];
+    }
+    checkResults([id.name, [{ parent: parent.sn, results }]], id);
   };
   state.pre = (node) => {
     if (filter && !filter(node)) return [];
@@ -130,7 +159,10 @@ export function visitReferences(
         // it will be ignored, and the lookup will start as if the
         // call had been written self.foo() rather than foo().
         if (node.callee.type === "Identifier") {
-          if (!name || node.callee.name === name) {
+          if (
+            (!name || node.callee.name === name) &&
+            (!filter || filter(node.callee))
+          ) {
             /* ignore return value */
             checkResults(lookup(node.callee, true), node.callee);
           }
@@ -169,24 +201,51 @@ export function visitReferences(
       }
 
       case "ModuleDeclaration":
-        if (includeDefs) break;
+        if (includeDefs) {
+          visitDef(node.id);
+        }
         return ["body"];
       case "ClassDeclaration":
-        if (includeDefs) break;
+        if (includeDefs) {
+          visitDef(node.id, node);
+        }
         return ["body", "superClass"];
       case "FunctionDeclaration":
-        if (includeDefs) break;
+        if (includeDefs) {
+          visitDef(node.id, node);
+        }
         return ["params", "returnType", "body"];
       case "TypedefDeclaration":
-        if (includeDefs) break;
+        if (includeDefs) {
+          visitDef(node.id, node, "type_decls");
+        }
         return ["ts"];
 
       case "VariableDeclarator":
-        if (includeDefs) break;
+        if (includeDefs) {
+          visitDef(node.id, node);
+        }
+        if (node.id.type === "BinaryExpression") {
+          state.traverse(node.id.right);
+        }
         return ["init"];
       case "EnumDeclaration":
-        if (includeDefs) break;
+        if (includeDefs) {
+          if (node.id) {
+            visitDef(node.id, node, "type_decls");
+          }
+          break;
+        }
         return [];
+      case "EnumStringMember": {
+        if (!filter || filter(node.id)) {
+          checkResults(
+            [node.id.name, [{ parent: state.top().sn, results: [node] }]],
+            node
+          );
+        }
+        break;
+      }
       case "CatchClause":
         if (includeDefs) break;
         if (node.param && node.param.type !== "Identifier") {
