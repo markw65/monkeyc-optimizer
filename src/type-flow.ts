@@ -55,7 +55,7 @@ import {
   isExact,
   ObjectLikeTagsConst,
   setUnionComponent,
-  SingleTonTypeTagsConst,
+  SingletonTypeTagsConst,
   typeFromLiteral,
   typeFromTypespec,
   typeFromTypeStateNode,
@@ -827,7 +827,7 @@ function propagateTypes(
       }
       if (
         isExact(right) &&
-        right.type & SingleTonTypeTagsConst &&
+        right.type & SingletonTypeTagsConst &&
         left.type & right.type
       ) {
         // left is not equal to right, and right is one of the

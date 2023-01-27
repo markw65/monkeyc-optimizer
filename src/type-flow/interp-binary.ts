@@ -9,7 +9,7 @@ import {
   isSingleton,
   mustBeFalse,
   mustBeTrue,
-  SingleTonTypeTagsConst,
+  SingletonTypeTagsConst,
   TruthyTypes,
   TypeTag,
   UnionTypeTags,
@@ -60,7 +60,7 @@ function common_types(
   }
   if (lt & TypeTag.Number) {
     result |=
-      rt & TypeTag.Boolean ? TypeTag.Boolean : rt & ~SingleTonTypeTagsConst;
+      rt & TypeTag.Boolean ? TypeTag.Boolean : rt & ~SingletonTypeTagsConst;
   }
   if (lt & TypeTag.Long) {
     if (rt & TypeTag.Boolean) {

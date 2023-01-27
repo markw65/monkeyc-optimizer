@@ -103,7 +103,7 @@ export function typeTagName(tag: TypeTag) {
 
 export const LastTypeTag = TypeTag.Typedef;
 
-export const SingleTonTypeTagsConst =
+export const SingletonTypeTagsConst =
   TypeTag.Null | TypeTag.False | TypeTag.True;
 export const UnionDataTypeTagsConst =
   TypeTag.Array |
@@ -133,7 +133,7 @@ export const ObjectLikeTagsConst =
   TypeTag.Enum;
 
 export const EnumTagsConst =
-  SingleTonTypeTagsConst | (ValueTypeTagsConst & ~TypeTag.Symbol);
+  SingletonTypeTagsConst | (ValueTypeTagsConst & ~TypeTag.Symbol);
 
 type ExactTypeTags =
   | TypeTag.Null
@@ -336,13 +336,13 @@ export function isUnion(v: AbstractValue): v is UnionType {
 }
 
 export function isSingleton(v: AbstractValue): v is SingletonType {
-  return isExact(v) && (v.type & SingleTonTypeTagsConst) !== 0;
+  return isExact(v) && (v.type & SingletonTypeTagsConst) !== 0;
 }
 
 export function hasValue(v: AbstractValue): v is WithValue<ExactTypes> {
   return (
     isExact(v) &&
-    ((v.type & SingleTonTypeTagsConst) !== 0 || v.value !== undefined)
+    ((v.type & SingletonTypeTagsConst) !== 0 || v.value !== undefined)
   );
 }
 
@@ -351,7 +351,7 @@ export function hasNoData(v: AbstractValue, t: TypeTag) {
   return (
     (hasUnionData(v.type)
       ? (v.value as UnionData).mask & t
-      : v.type & t & ~SingleTonTypeTagsConst) === 0
+      : v.type & t & ~SingletonTypeTagsConst) === 0
   );
 }
 
@@ -1009,7 +1009,7 @@ export function forEachUnionComponent(
   fn: (type: ExactTypes) => boolean | void
 ) {
   // never iterate the singleton bits, because they don't have data
-  bits &= ~SingleTonTypeTagsConst;
+  bits &= ~SingletonTypeTagsConst;
   if (!bits) return;
   if ((v.type | bits) & UnionDataTypeTagsConst) {
     // Don't iterate the value type bits if any union bit is set
@@ -1041,7 +1041,7 @@ export function getUnionComponent<T extends ExactTypeTags>(
   tag: T
 ): ExactData<T> | null {
   if (v.value == null) return null;
-  let bits = v.type & ~SingleTonTypeTagsConst;
+  let bits = v.type & ~SingletonTypeTagsConst;
   if (!bits) return null;
   if (bits & (bits - 1)) {
     bits &= UnionDataTypeTagsConst;

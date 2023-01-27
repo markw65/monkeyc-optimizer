@@ -18,7 +18,7 @@ import {
   getUnionComponent,
   hasUnionData,
   setUnionComponent,
-  SingleTonTypeTagsConst,
+  SingletonTypeTagsConst,
   SingleValue,
   TypeTag,
   UnionData,
@@ -42,7 +42,7 @@ export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
 
   const newTags = to.type | from.type;
 
-  if (!(from.type & ~SingleTonTypeTagsConst)) {
+  if (!(from.type & ~SingletonTypeTagsConst)) {
     // - Adding singletons never affects the data.
     if (newTags === to.type) return false;
     to.type = newTags;
@@ -327,7 +327,7 @@ export function clearValuesUnder(
   const newTag = clearTag ? v.type & ~tag : v.type | tag;
   // If the incoming type consists of singletons,
   // we can always merge it without affecting our data.
-  tag &= ~SingleTonTypeTagsConst;
+  tag &= ~SingletonTypeTagsConst;
   if (!tag || v.value == null) {
     v.type = newTag;
     return;
