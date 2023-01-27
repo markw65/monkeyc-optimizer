@@ -67,7 +67,7 @@ function calleeObjectType(istate: InterpState, callee: mctree.Expression) {
   }
   if (callee.type === "Identifier" && istate.func) {
     const func = istate.func;
-    const [self] = func.stack!.slice(-1);
+    const [{ sn: self }] = func.stack!.slice(-1);
     return typeFromTypeStateNode(
       istate.state,
       self,
@@ -236,14 +236,14 @@ function isOverride(
   cur: FunctionStateNode,
   funcs: FunctionStateNode | FunctionStateNode[]
 ) {
-  const cls = cur.stack?.[cur.stack.length - 1];
+  const cls = cur.stack?.[cur.stack.length - 1]?.sn;
   if (cls?.type === "ClassDeclaration" && cls.superClasses) {
     const supers = getSuperClasses(cls);
     if (
       supers &&
       some(funcs, (func) => {
         if (func === cur) return false;
-        const fcls = func.stack?.[func.stack.length - 1];
+        const fcls = func.stack?.[func.stack.length - 1].sn;
         return fcls ? supers.has(fcls) : false;
       })
     ) {

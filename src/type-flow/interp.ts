@@ -622,7 +622,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     case "ThisExpression": {
       const self = (() => {
         for (let i = state.stack.length; i--; ) {
-          const si = state.stack[i];
+          const si = state.stack[i].sn;
           if (si.type === "ClassDeclaration") {
             const klass = { type: TypeTag.Class, value: si } as const;
             if ((istate.func?.attributes || 0) & StateNodeAttributes.STATIC) {
@@ -877,7 +877,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       if (node.init) {
         const init = popIstate(istate, node.init);
         if (node.id.type === "BinaryExpression" && istate.typeChecker) {
-          const top = istate.state.stack[istate.state.stack.length - 1];
+          const top = istate.state.top().sn;
           if (top.type !== "BlockStatement") {
             const declType = typeFromTypespec(istate.state, node.id.right);
             if (!istate.typeChecker(init.value, declType)) {

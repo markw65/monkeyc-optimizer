@@ -41,7 +41,7 @@ export function renameVariable(
       let ok = false;
       let i;
       for (i = state.stack.length; i--; ) {
-        const elm = state.stack[i];
+        const elm = state.stack[i].sn;
         if (ok) {
           if (hasProperty(elm.decls, name)) {
             break;

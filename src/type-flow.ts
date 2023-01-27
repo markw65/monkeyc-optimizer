@@ -389,7 +389,7 @@ function filterDecls(
             const stack = d.stack!;
             possible.forEach((poss) => {
               for (let i = stack.length; i--; ) {
-                const sn = stack[i];
+                const sn = stack[i].sn;
                 if (sn.decls === poss.decls) {
                   if (!cur[0]) {
                     cur = [new Set(), new Set()];

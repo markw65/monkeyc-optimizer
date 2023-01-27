@@ -100,8 +100,9 @@ function getArgSafety(
         // if decl is a local, it also can't be changed
         // by a call to another function.
         for (let i = 0; ; i++) {
-          if (!state.stack[i] || decl.stack[i] !== state.stack[i]) return false;
-          if (state.stack[i].type === "FunctionDeclaration") return true;
+          if (!state.stack[i] || decl.stack[i]?.sn !== state.stack[i].sn)
+            return false;
+          if (state.stack[i].sn.type === "FunctionDeclaration") return true;
         }
       }
       case "Identifier":
@@ -256,7 +257,7 @@ function getArgSafety(
       }
       return null;
     };
-    state.stack = func.stack!.concat(func);
+    state.stack = func.stack!.concat({ sn: func });
     state.traverse(func.node.body!);
   } finally {
     state.pre = pre;
@@ -414,7 +415,7 @@ function processInlineBody<T extends InlineBody>(
   // lookup determines static-ness of the lookup context based on seeing
   // a static FunctionDeclaration, but the FunctionDeclaration's stack
   // doesn't include the FunctionDeclaration itself.
-  const lookupStack = func.stack!.concat(func);
+  const lookupStack = func.stack!.concat({ sn: func });
   try {
     state.pre = (node: mctree.Node) => {
       if (failed) return [];
@@ -932,12 +933,13 @@ export function inlineFunction(
   if (!typecheckFalse) {
     return ret;
   }
-  const callerSn = state.stack.find(
-    (sn) => sn.type === "FunctionDeclaration"
-  ) as FunctionStateNode;
-  if (!callerSn) {
+  const callerElem = state.stack.find(
+    (elem) => elem.sn.type === "FunctionDeclaration"
+  );
+  if (!callerElem) {
     return ret;
   }
+  const callerSn = callerElem.sn as FunctionStateNode;
   const caller = callerSn.node;
   if (!caller.attrs) {
     caller.attrs = withLoc(

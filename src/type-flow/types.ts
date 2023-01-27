@@ -369,7 +369,7 @@ export function lookupByFullName(
         )
         .filter((sn): sn is StateNodeDecl => !!sn);
     },
-    [state.stack[0]]
+    [state.stack[0].sn]
   );
 }
 

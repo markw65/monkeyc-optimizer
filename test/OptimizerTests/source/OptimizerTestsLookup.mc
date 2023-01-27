@@ -469,8 +469,24 @@ module Compiler2 {
             }
         }
     }
+    module Oddity {
+        var V as Number = 42;
+    }
     import Compiler2.Nested.M;
+    (:inline)
+    function localImports() as Number {
+        return Oddity.V;
+    }
+    (:test)
+    function testImportScope1(logger as Logger) as Boolean {
+        ok = true;
+        check(localImports(), 42, logger);
+        return ok;
+    }
     module Lang {
+        module Oddity {
+            var V as Number = 24;
+        }
         const ENDIAN_LITTLE = 42;
         class Klass extends M.N {
             function foo() as Number {
@@ -576,6 +592,13 @@ module Compiler2 {
                 return Nested.test3(logger);
             }
         }
+    }
+    import Compiler2.Lang.Oddity;
+    (:test)
+    function testImportScope2(logger as Logger) as Boolean {
+        ok = true;
+        check(localImports(), 42, logger);
+        return ok;
     }
 }
 

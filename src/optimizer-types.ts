@@ -71,8 +71,6 @@ interface BaseStateNode {
   decls?: StateNodeDecls | undefined;
   type_decls?: StateNodeDecls | undefined;
   stack?: ProgramStateStack | undefined;
-  usings?: Record<string, ImportUsing>;
-  imports?: ImportUsing[];
   attributes: StateNodeAttributes;
 }
 export interface ProgramStateNode extends BaseStateNode {
@@ -169,6 +167,11 @@ export interface Diagnostic extends DiagnosticBase {
   extra?: { uri: string; message: string };
 }
 
+type ProgramStateStackElem = {
+  sn: StateNode;
+  usings?: Record<string, ImportUsing>;
+  imports?: ImportUsing[];
+};
 export type StateNode =
   | ProgramStateNode
   | FunctionStateNode
@@ -178,7 +181,7 @@ export type StateNode =
   | TypedefStateNode
   | VariableStateNode
   | EnumStateNode;
-export type ProgramStateStack = StateNode[];
+export type ProgramStateStack = ProgramStateStackElem[];
 export type LookupDefinition = {
   parent: StateNode | null;
   results: StateNodeDecl[];
@@ -201,6 +204,7 @@ export type ProgramState = {
   rezAst?: mctree.Program;
   manifestXML?: xmlUtil.Document;
   stack?: ProgramStateStack;
+  top?: () => ProgramStateStackElem;
   currentFunction?: FunctionStateNode;
   removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;
   shouldExclude?: (node: mctree.Node) => boolean;
@@ -263,6 +267,7 @@ export type Finalized<T, Keys extends keyof T> = T & {
 export type ProgramStateLive = Finalized<
   ProgramState,
   | "stack"
+  | "top"
   | "lookup"
   | "lookupValue"
   | "lookupType"

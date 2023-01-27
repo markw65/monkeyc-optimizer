@@ -936,7 +936,7 @@ export async function getProjectAnalysis(
     state.pre = (node) => {
       switch (node.type) {
         case "FunctionDeclaration": {
-          const self = state.stack.slice(-1).pop() as FunctionStateNode;
+          const self = state.top().sn as FunctionStateNode;
           const istate = buildTypeInfo(state, self, false);
           if (istate) {
             istate.state = state;

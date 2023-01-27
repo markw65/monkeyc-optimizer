@@ -39,7 +39,7 @@ export function find_by_name(state: ProgramStateAnalysis, name: string) {
           : []
       );
     },
-    [state.stack[0]]
+    [state.stack[0].sn]
   );
 }
 

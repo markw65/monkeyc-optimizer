@@ -8,7 +8,7 @@ export function cleanupUnusedVars(
   state: ProgramStateOptimizer,
   node: mctree.BlockStatement | mctree.ForStatement
 ) {
-  const [parent] = state.stack.slice(-1);
+  const parent = state.stack.slice(-1).pop()!.sn;
   if (parent.node !== node) {
     return false;
   }

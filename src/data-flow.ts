@@ -386,7 +386,7 @@ export function buildDataFlowGraph(
           });
         }
         if (wantsAllRefs) {
-          const scope = state.stack[state.stack.length - 1];
+          const scope = state.top().sn;
           if (
             scope.node === node &&
             scope.type === "BlockStatement" &&

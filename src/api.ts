@@ -387,7 +387,7 @@ function lookup(
     }
     case "ThisExpression": {
       for (let i = stack.length; ; ) {
-        const si = stack[--i];
+        const si = stack[--i].sn;
         if (
           si.type === "ModuleDeclaration" ||
           si.type === "ClassDeclaration" ||
@@ -395,20 +395,20 @@ function lookup(
         ) {
           return [
             name || (si.name as string),
-            [{ parent: i ? stack[i - 1] : null, results: [si] }],
+            [{ parent: i ? stack[i - 1].sn : null, results: [si] }],
           ];
         }
       }
     }
     case "Identifier": {
       if (node.name === "$") {
-        return [name || node.name, [{ parent: null, results: [stack[0]] }]];
+        return [name || node.name, [{ parent: null, results: [stack[0].sn] }]];
       }
       let inStatic = false;
       let checkedImports = ignoreImports;
       let imports = null;
       for (let i = stack.length; i--; ) {
-        const si = stack[i];
+        const si = stack[i].sn;
         switch (si.type) {
           case "ClassDeclaration":
             if (inStatic && state.config?.enforceStatic !== "NO") {
@@ -569,11 +569,11 @@ function stateFuncs() {
     },
 
     stackClone() {
-      return this.stack.map((elm) =>
-        elm.type === "ModuleDeclaration" || elm.type === "Program"
-          ? { ...elm }
-          : elm
-      );
+      return this.stack.slice();
+    },
+
+    top() {
+      return this.stack[this.stack.length - 1];
     },
 
     traverse(root) {
@@ -603,7 +603,7 @@ function stateFuncs() {
                 if (this.stack.length !== 1) {
                   throw new Error("Unexpected stack length for Program node");
                 }
-                this.stack[0].node = node;
+                this.stack[0].sn.node = node;
                 break;
               case "TypeSpecList":
               case "TypeSpecPart":
@@ -611,10 +611,9 @@ function stateFuncs() {
                 break;
               case "ImportModule":
               case "Using": {
-                const [parent] = this.stack.slice(-1);
-                if (!parent.usings) {
-                  parent.usings = {};
-                }
+                const parent = { ...this.stack.pop()! };
+                this.stack.push(parent);
+                parent.usings = parent.usings ? { ...parent.usings } : {};
                 const name =
                   (node.type === "Using" && node.as && node.as.name) ||
                   (node.id.type === "Identifier"
@@ -626,6 +625,7 @@ function stateFuncs() {
                   if (!parent.imports) {
                     parent.imports = [using];
                   } else {
+                    parent.imports = parent.imports.slice();
                     const index = parent.imports.findIndex(
                       (using) =>
                         (using.node.id.type === "Identifier"
@@ -640,35 +640,39 @@ function stateFuncs() {
               }
               case "CatchClause":
                 if (node.param) {
-                  const [parent] = this.stack.slice(-1);
+                  const parent = this.top().sn;
                   if (!parent.decls) parent.decls = {};
                   const id =
                     node.param.type === "Identifier"
                       ? node.param
                       : node.param.left;
                   this.stack.push({
-                    type: "BlockStatement",
-                    fullName: parent.fullName,
-                    name: undefined,
-                    node: node.body,
-                    decls: { [id.name]: [id] },
-                    attributes: 0,
+                    sn: {
+                      type: "BlockStatement",
+                      fullName: parent.fullName,
+                      name: undefined,
+                      node: node.body,
+                      decls: { [id.name]: [id] },
+                      attributes: 0,
+                    },
                   });
                 }
                 break;
               case "ForStatement":
                 if (node.init && node.init.type === "VariableDeclaration") {
                   this.stack.push({
-                    type: "BlockStatement",
-                    fullName: this.stack.slice(-1).pop()!.fullName,
-                    name: undefined,
-                    node: node,
-                    attributes: 0,
+                    sn: {
+                      type: "BlockStatement",
+                      fullName: this.top().sn.fullName,
+                      name: undefined,
+                      node: node,
+                      attributes: 0,
+                    },
                   });
                 }
                 break;
               case "BlockStatement": {
-                const [parent] = this.stack.slice(-1);
+                const parent = this.top().sn;
                 if (
                   parent.node === node ||
                   (parent.type !== "FunctionDeclaration" &&
@@ -681,10 +685,10 @@ function stateFuncs() {
               case "ClassDeclaration":
               case "FunctionDeclaration":
               case "ModuleDeclaration": {
-                const [parent] = this.stack.slice(-1);
+                const parent = this.top().sn;
                 const name = "id" in node ? node.id && node.id.name : undefined;
                 const fullName = this.stack
-                  .map((e) => e.name)
+                  .map((e) => e.sn.name)
                   .concat(name)
                   .filter((e) => e != null)
                   .join(".");
@@ -698,7 +702,7 @@ function stateFuncs() {
                       ? 0
                       : stateNodeAttrs(node.attrs),
                 } as StateNode;
-                this.stack.push(elm);
+                this.stack.push({ sn: elm });
                 if (name) {
                   if (!parent.decls) parent.decls = {};
                   if (hasProperty(parent.decls, name)) {
@@ -710,7 +714,7 @@ function stateFuncs() {
                     );
                     if (e != null) {
                       e.node = node;
-                      this.stack.splice(-1, 1, e);
+                      this.top().sn = e;
                       break;
                     }
                   } else {
@@ -748,7 +752,7 @@ function stateFuncs() {
                   this.inType++;
                   break;
                 }
-                const [parent] = this.stack.slice(-1);
+                const parent = this.top().sn;
                 const name = (parent.fullName + "." + node.id.name).replace(
                   /^\$\./,
                   ""
@@ -761,7 +765,7 @@ function stateFuncs() {
               case "TypedefDeclaration": {
                 this.inType++;
                 const name = node.id!.name;
-                const [parent] = this.stack.slice(-1);
+                const parent = this.top().sn;
                 if (!parent.type_decls) parent.type_decls = {};
                 if (!hasProperty(parent.type_decls, name)) {
                   parent.type_decls[name] = [];
@@ -787,7 +791,7 @@ function stateFuncs() {
                 break;
               }
               case "VariableDeclaration": {
-                const [parent] = this.stack.slice(-1);
+                const parent = this.top().sn;
                 if (!parent.decls) parent.decls = {};
                 const decls = parent.decls;
                 const stack = this.stackClone();
@@ -827,7 +831,7 @@ function stateFuncs() {
                   );
                 }
                 this.inType--;
-                const [parent] = this.stack.slice(-1);
+                const parent = this.top().sn;
                 const values = parent.decls || (parent.decls = {});
                 let prev: number | bigint = -1;
                 node.members.forEach((m, i) => {
@@ -917,19 +921,21 @@ function stateFuncs() {
                   this.inType++;
                   break;
               }
-              const [parent] = this.stack.slice(-1);
+              const parent = this.top();
               if (
-                parent.node === node ||
+                parent.sn.node === node ||
                 // The pre function might cause node.body to be skipped,
                 // so we need to check here, just in case.
                 // (this actually happens with prettier-extenison-monkeyc's
                 // findItemsByRange)
-                (node.type === "CatchClause" && parent.node === node.body)
+                (node.type === "CatchClause" && parent.sn.node === node.body)
               ) {
-                delete parent.usings;
-                delete parent.imports;
-                if (node.type !== "Program") {
-                  this.stack.pop();
+                let top = this.stack.pop()!;
+                if (node.type === "Program") {
+                  top = { ...top };
+                  delete top.usings;
+                  delete top.imports;
+                  this.stack.push(top);
                 }
               }
             }
@@ -957,11 +963,13 @@ export function collectNamespaces(
   if (!state.stack) {
     state.stack = [
       {
-        type: "Program",
-        name: "$",
-        fullName: "$",
-        node: undefined,
-        attributes: 0,
+        sn: {
+          type: "Program",
+          name: "$",
+          fullName: "$",
+          node: undefined,
+          attributes: 0,
+        },
       },
     ];
   }
@@ -988,10 +996,10 @@ export function collectNamespaces(
   if (state.stack.length !== 1) {
     throw new Error("Invalid AST!");
   }
-  if (state.stack[0].type !== "Program") {
+  if (state.stack[0].sn.type !== "Program") {
     throw new Error("Bottom of stack was not a Program!");
   }
-  return state.stack[0];
+  return state.stack[0].sn;
 }
 
 export function formatAst(
@@ -1042,7 +1050,7 @@ function handleException(
 ): never {
   try {
     const fullName = state.stack
-      .map((e) => e.name)
+      .map((e) => e.sn.name)
       .concat(
         "name" in node && typeof node.name === "string" ? node.name : undefined
       )
@@ -1076,7 +1084,7 @@ function findUsing(
   using: ImportUsing
 ) {
   if (using.module) return using.module;
-  let module = stack[0];
+  let module = stack[0].sn;
   const find = (node: mctree.ScopedName) => {
     let name;
     if (node.type === "Identifier") {
@@ -1137,7 +1145,7 @@ export function findUsingForNode(
             if (!imports) imports = [];
             imports.push({
               name: `${module.fullName}.${node.name}`,
-              decls: { parent: si, results: module.type_decls[node.name] },
+              decls: { parent: si.sn, results: module.type_decls[node.name] },
             });
           }
         }
@@ -1170,7 +1178,7 @@ export function getApiFunctionInfo(
       };
     }
     if (func.name === "initialize") {
-      const top = func.stack![func.stack!.length - 1];
+      const top = func.stack![func.stack!.length - 1].sn;
       if (top.type === "ClassDeclaration") {
         top.hasInvoke = true;
       }
@@ -1188,7 +1196,7 @@ export function markInvokeClassMethod(
 }
 
 export function isLocal(v: VariableStateNode) {
-  return v.stack[v.stack.length - 1]?.type === "BlockStatement";
+  return v.stack[v.stack.length - 1]?.sn.type === "BlockStatement";
 }
 
 export function diagnostic(

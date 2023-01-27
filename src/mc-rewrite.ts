@@ -108,15 +108,15 @@ function collectDeclarationsByName(state: ProgramStateLive) {
       }
     }
   };
-  helper(state.stack[0]);
+  helper(state.stack[0].sn);
 }
 
 function collectClassInfo(state: ProgramStateAnalysis) {
-  const toybox = state.stack[0].decls!["Toybox"][0] as ModuleStateNode;
+  const toybox = state.stack[0].sn.decls!["Toybox"][0] as ModuleStateNode;
   const lang = toybox.decls!["Lang"][0] as ModuleStateNode;
   const object = lang.decls!["Object"] as ClassStateNode[];
   state.allClasses.forEach((elm) => {
-    if (elm.stack![elm.stack!.length - 1].type === "ClassDeclaration") {
+    if (elm.stack![elm.stack!.length - 1].sn.type === "ClassDeclaration") {
       // nested classes don't get access to their contained
       // context. Put them in the global scope instead.
       elm.stack = elm.stack!.slice(0, 1);
@@ -298,7 +298,7 @@ export async function analyze(
         case "FunctionDeclaration":
         case "ModuleDeclaration":
         case "ClassDeclaration": {
-          const [scope] = state.stack.slice(-1);
+          const scope = state.top().sn;
           scope.stack = state.stackClone().slice(0, -1);
           if (scope.type === "FunctionDeclaration") {
             if (markApi) {
@@ -866,7 +866,7 @@ export async function optimizeMonkeyC(
         node.params &&
           node.params.forEach((p) => (map[variableDeclarationName(p)] = true));
         state.localsStack.push({ node, map });
-        const [parent, self] = state.stack.slice(-2);
+        const [{ sn: parent }, { sn: self }] = state.stack.slice(-2);
         if (state.currentFunction) {
           throw new Error(
             `Nested functions: ${self.fullName} was activated during processing of ${state.currentFunction.fullName}`
@@ -941,7 +941,7 @@ export async function optimizeMonkeyC(
         if (!state.currentFunction) {
           throw new Error(
             `Finished function ${
-              state.stack.slice(-1)[0].fullName
+              state.top().sn.fullName
             }, but it was not marked current`
           );
         }
