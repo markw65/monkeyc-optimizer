@@ -1060,6 +1060,10 @@ export function formatAst(
   });
 }
 
+export function formatAstLongLines(node: mctree.Node) {
+  return formatAst(node, null, { printWidth: 10000 });
+}
+
 function handleException(
   state: ProgramStateLive,
   node: mctree.Node,
