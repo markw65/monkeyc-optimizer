@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { globa } from "./util";
-import { parseXml } from "./xml-util";
+import { parseXml, Element } from "./xml-util";
 
 export { readPrg, SectionKinds } from "./readprg";
 export * as xmlUtil from "./xml-util";
@@ -103,4 +103,41 @@ export async function getLanguages() {
         }
     )
     .filter((s): s is NonNullable<typeof s> => s != null);
+}
+
+export async function getFunctionDocumentation() {
+  const file = path.join(await getSdkPath(), "bin", "api.debug.xml");
+  const data = await fs.readFile(file);
+  const xml = parseXml(data.toString(), file);
+  if (xml.body instanceof Error) {
+    return null;
+  }
+  const entries = xml.body
+    .children("functions")
+    .children("functionEntry")
+    .elements.map((e) => ({
+      name: e.attr.name?.value.value,
+      parent: e.attr.parent?.value.value,
+      doc:
+        e.children
+          ?.filter(
+            (child): child is Element =>
+              child.type === "element" &&
+              child.name === "documentation" &&
+              child.children != null
+          )
+          .map(
+            (doc) =>
+              doc.children?.map((c) =>
+                c.type === "chardata" || c.type === "cdata" ? c.value : ""
+              ) || ""
+          )
+          .join("") || "",
+    }))
+    .filter(
+      (x): x is { name: string; parent: string; doc: string } =>
+        x.name != null && x.parent != null && x.doc !== ""
+    );
+
+  return entries;
 }

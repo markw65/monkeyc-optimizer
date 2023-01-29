@@ -2,16 +2,14 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   collectNamespaces,
   isLookupCandidate,
-  lookupNext,
   lookupResultContains,
+  lookupWithType,
 } from "./api";
 import {
   LookupDefinition,
-  LookupResult,
   ProgramStateAnalysis,
   StateNodeDecl,
 } from "./optimizer-types";
-import { findObjectDeclsByProperty } from "./type-flow";
 import { TypeMap } from "./type-flow/interp";
 
 export function visitorNode(node: mctree.Node): mctree.Node {
@@ -53,27 +51,8 @@ export function visitReferences(
   typeMap: TypeMap | null = null,
   findSingleDefinition = false
 ) {
-  const lookup = (node: mctree.Node, nonLocal = false): LookupResult => {
-    const results = nonLocal ? state.lookupNonlocal(node) : state.lookup(node);
-    if (results[1] || !typeMap) return results;
-    if (node.type === "MemberExpression" && !node.computed) {
-      const objectType = typeMap.get(node.object);
-      if (!objectType) return results;
-      const [, decls] = findObjectDeclsByProperty(state, objectType, node);
-      if (decls) {
-        const next = lookupNext(
-          state,
-          [{ parent: null, results: decls }],
-          "decls",
-          node.property
-        );
-        if (next) {
-          return [node.property.name, next];
-        }
-      }
-    }
-    return results;
-  };
+  const lookup = (node: mctree.Node, nonLocal = false) =>
+    lookupWithType(state, node, typeMap, nonLocal);
   const checkResults = (
     [name, results]: ReturnType<ProgramStateAnalysis["lookup"]>,
     node: mctree.Node

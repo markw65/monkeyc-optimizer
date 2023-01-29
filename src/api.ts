@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 import * as Prettier from "prettier";
 import { getLiteralNode, hasProperty, traverseAst } from "./ast";
 import { JungleResourceMap } from "./jungles";
+import { analyze } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
 import {
   ClassStateNode,
@@ -35,6 +36,9 @@ import {
 } from "./optimizer-types";
 import { add_resources_to_ast, visit_resources } from "./resources";
 import { getSdkPath, xmlUtil } from "./sdk-util";
+import { findObjectDeclsByProperty } from "./type-flow";
+import { TypeMap } from "./type-flow/interp";
+import { getStateNodeDeclsFromType } from "./type-flow/types";
 import { pushUnique, sameArrays } from "./util";
 
 export { visitorNode, visitReferences } from "./visitor";
@@ -347,7 +351,7 @@ function lookup(
   decls: DeclKind,
   node: mctree.Node,
   name?: string | null | undefined,
-  maybeStack?: ProgramStateStack,
+  maybeStack?: ProgramStateStack | null,
   nonlocal?: boolean,
   ignoreImports?: boolean
 ): LookupResult {
@@ -533,6 +537,36 @@ function lookup(
     }
   }
   return [false, false];
+}
+
+export function lookupWithType(
+  state: ProgramStateAnalysis,
+  node: mctree.Node,
+  typeMap: TypeMap | undefined | null,
+  nonLocal = false,
+  stack: ProgramStateStack | null = null
+): LookupResult {
+  const results = nonLocal
+    ? state.lookupNonlocal(node, null, stack)
+    : state.lookup(node, null, stack);
+  if (results[1] || !typeMap) return results;
+  if (node.type === "MemberExpression" && !node.computed) {
+    const objectType = typeMap.get(node.object);
+    if (!objectType) return results;
+    const [, decls] = findObjectDeclsByProperty(state, objectType, node);
+    if (decls) {
+      const next = lookupNext(
+        state,
+        [{ parent: null, results: decls }],
+        "decls",
+        node.property
+      );
+      if (next) {
+        return [node.property.name, next];
+      }
+    }
+  }
+  return results;
 }
 
 function stateFuncs() {
@@ -1060,8 +1094,207 @@ export function formatAst(
   });
 }
 
+function findNamesInExactScope(decl: StateNode, regexp: RegExp) {
+  if (!decl.decls) return [];
+  return Object.entries(decl.decls).flatMap(([key, value]) =>
+    regexp.test(key) ? value : []
+  );
+}
+
+export function findNamesInScope(
+  declStack: StateNode[][],
+  pattern: string | RegExp
+) {
+  const regex =
+    typeof pattern === "string"
+      ? new RegExp(pattern.replace(/\W/g, "").split("").join(".*"), "i")
+      : pattern;
+  const results = new Map<
+    StateNodeDecl,
+    { parent: StateNode; depth: number }
+  >();
+  const helper = (decls: StateNode[], depth: number) => {
+    decls.forEach((parent) => {
+      if (parent.type === "ClassDeclaration") {
+        if (parent.superClass && parent.superClass !== true) {
+          helper(parent.superClass, depth + 1);
+        }
+      }
+      findNamesInExactScope(parent, regex).forEach((sn) => {
+        results.set(sn, { parent, depth });
+      });
+    });
+  };
+  let depth = 0;
+  while (depth < declStack.length) {
+    helper(declStack[declStack.length - 1 - depth], depth);
+    depth++;
+  }
+  return Array.from(results);
+}
+
+export function mapVarDeclsByType(
+  state: ProgramStateAnalysis,
+  decls: StateNodeDecl[],
+  node: mctree.Node,
+  typeMap: TypeMap | null | undefined
+) {
+  return decls.flatMap((decl): StateNodeDecl | StateNodeDecl[] => {
+    if (
+      decl.type === "VariableDeclarator" ||
+      decl.type === "Identifier" ||
+      decl.type === "BinaryExpression"
+    ) {
+      const type = typeMap?.get(node);
+      return type ? getStateNodeDeclsFromType(state, type) : [];
+    }
+    return decl;
+  });
+}
+
 export function formatAstLongLines(node: mctree.Node) {
   return formatAst(node, null, { printWidth: 10000 });
+}
+
+export async function createDocumentationMap(
+  functionDocumentation: { name: string; parent: string; doc: string }[]
+) {
+  const docMap = new Map<string, string>();
+  const state = await analyze({}, {}, undefined, {});
+  functionDocumentation.forEach((info) => {
+    state.allFunctions[info.name]?.forEach(
+      (decl) =>
+        decl.node?.loc?.source === "api.mir" &&
+        decl.fullName.endsWith(`.${info.parent}.${info.name}`) &&
+        docMap.set(
+          decl.fullName,
+          info.doc
+            .replace(/(\*.*?)\s*<br\/>\s*(?!\s*\*)/g, "$1\n\n")
+            .replace(
+              /@example(.*?)(@|$)/g,
+              (match, m1, m2) =>
+                `\n#### Example\n\`\`\`${m1.replace(
+                  /<br\/>/g,
+                  "\n"
+                )}\`\`\`${m2}`
+            )
+            .replace(/@note/g, "\n#### Note\n")
+            .replace(/@see/, "\n#### See Also:\n$&")
+            .replace(/@see\s+(.*?)(?=<br\/>)/g, "\n  * {$1}")
+            .replace(/@throws/, "\n#### Throws:\n$&")
+            .replace(/@throws\s+(.*?)(?=<br\/>)/g, "\n  * $1")
+            .replace(
+              /@since\s+(.*?)(?=<br\/>)/,
+              "\n#### Since:\nAPI Level $1\n"
+            )
+            .replace(/<div class="description">/, "### Description\n")
+            .replace(/<div class="param">/, "\n#### Parameters\n$&")
+            .replace(/<div class="param">/g, "  \n*")
+            .replace(/\s*<div[^>]*>/g, "  \n\n")
+            .replace(/\s*<br\/>\s*([@*])/g, "\n$1")
+            //.replace(/\s\s\s(\s)*(?!\/\/)/g, "  \n")
+            .replace(/<[^>]*>/g, "")
+            .replace(/@/g, "  \n\n@")
+            //.replace(/\s\*/g, "  \n*")
+            .replace(/\+(\w+)\+/g, "`$1`")
+            .trim()
+            .replace(
+              /\[((\s*(\w+::)+\w+\s*,)*(\s*(\w+::)+\w+\s*))\]/g,
+              (arg, a1: string) => {
+                return a1
+                  .split(",")
+                  .map((s) => {
+                    const name = s.trim().replace(/::/g, ".");
+                    const decl = lookupByFullName(state, name);
+                    if (decl && decl.length === 1) {
+                      const sn: StateNodeDecl & { name?: string } = decl[0];
+                      const link = makeToyboxLink(sn);
+                      return `[${sn.name || name}](${link})`;
+                    }
+                    return s;
+                  })
+                  .join(" or ");
+              }
+            )
+            .replace(
+              /\{(\s*(?:\w+::)+\w+(?:#\w+)?|https:\/\/\S+)\s*(\S.*?)?\s*\}/g,
+              (arg, a1: string, a2: string) => {
+                if (a1.startsWith("https://")) {
+                  return `[${a2 || a1}](${a1})`;
+                }
+                let name = a1.trim().replace(/::|#/g, ".");
+                if (!name.startsWith("Toybox")) {
+                  name = `Toybox.${name}`;
+                }
+                const decl = lookupByFullName(state, name);
+                if (decl && decl.length === 1) {
+                  const link = makeToyboxLink(decl[0]);
+                  return `[${a2 || a1}](${link})`;
+                }
+                return arg;
+              }
+            )
+        )
+    );
+  });
+  return docMap;
+}
+
+export function makeToyboxLink(result: StateNodeDecl) {
+  const make_link = (fullName: string, fragment?: string) => {
+    const path = fullName.split(".");
+    return (
+      `https://developer.garmin.com/connect-iq/api-docs/${path
+        .slice(1, fragment ? -1 : undefined)
+        .join("/")}.html` +
+      (fragment ? `#${path.slice(-1)[0]}-${fragment}` : "")
+    );
+  };
+  switch (result.type) {
+    case "ClassDeclaration":
+    case "ModuleDeclaration":
+      if (result.fullName.startsWith("$.Toybox")) {
+        return make_link(result.fullName);
+      }
+      break;
+
+    case "FunctionDeclaration":
+      return make_link(result.fullName, "instance_function");
+
+    case "EnumStringMember":
+      if (result.init.enumType && typeof result.init.enumType === "string") {
+        return make_link("$." + result.init.enumType, "module");
+      }
+      break;
+
+    case "EnumDeclaration":
+      return make_link(result.fullName, "module");
+
+    case "TypedefDeclaration":
+      return make_link(result.fullName, "named_type");
+
+    case "VariableDeclarator":
+      return make_link(result.fullName, "var");
+  }
+  return null;
+}
+
+export function lookupByFullName(
+  state: ProgramStateAnalysis,
+  fullName: string
+) {
+  return fullName.split(".").reduce(
+    (results: StateNodeDecl[], part) => {
+      return results
+        .flatMap((result) =>
+          isStateNode(result)
+            ? result.decls?.[part] || result.type_decls?.[part]
+            : null
+        )
+        .filter((sn): sn is StateNodeDecl => !!sn);
+    },
+    [state.stack[0].sn]
+  );
 }
 
 function handleException(

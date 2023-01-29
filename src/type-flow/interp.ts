@@ -4,6 +4,7 @@ import {
   formatAst,
   isLocal,
   isLookupCandidate,
+  lookupByFullName,
   lookupNext,
 } from "../api";
 import { isExpression, traverseAst } from "../ast";
@@ -30,7 +31,6 @@ import {
   hasNoData,
   hasValue,
   isExact,
-  lookupByFullName,
   mustBeFalse,
   mustBeTrue,
   ObjectType,

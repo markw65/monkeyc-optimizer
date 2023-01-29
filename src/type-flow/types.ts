@@ -1,6 +1,6 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
 import { unhandledType } from "../data-flow";
-import { diagnostic, formatAst, isStateNode } from "../api";
+import { diagnostic, formatAst, isStateNode, lookupByFullName } from "../api";
 import { getNodeValue, hasProperty, makeScopedName } from "../ast";
 import {
   ClassStateNode,
@@ -352,24 +352,6 @@ export function hasNoData(v: AbstractValue, t: TypeTag) {
     (hasUnionData(v.type)
       ? (v.value as UnionData).mask & t
       : v.type & t & ~SingletonTypeTagsConst) === 0
-  );
-}
-
-export function lookupByFullName(
-  state: ProgramStateAnalysis,
-  fullName: string
-) {
-  return fullName.split(".").reduce(
-    (results: StateNodeDecl[], part) => {
-      return results
-        .flatMap((result) =>
-          isStateNode(result)
-            ? result.decls?.[part] || result.type_decls?.[part]
-            : null
-        )
-        .filter((sn): sn is StateNodeDecl => !!sn);
-    },
-    [state.stack[0].sn]
   );
 }
 

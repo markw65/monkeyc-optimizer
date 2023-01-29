@@ -219,22 +219,22 @@ export type ProgramState = {
   lookup?: (
     node: mctree.Node,
     name?: string | null,
-    stack?: ProgramStateStack
+    stack?: ProgramStateStack | null
   ) => LookupResult;
   lookupValue?: (
     node: mctree.Node,
     name?: string | null,
-    stack?: ProgramStateStack
+    stack?: ProgramStateStack | null
   ) => LookupResult;
   lookupType?: (
     node: mctree.Node,
     name?: string | null,
-    stack?: ProgramStateStack
+    stack?: ProgramStateStack | null
   ) => LookupResult;
   lookupNonlocal?: (
     node: mctree.Node,
     name?: string | null,
-    stack?: ProgramStateStack
+    stack?: ProgramStateStack | null
   ) => LookupResult;
   stackClone?: () => ProgramStateStack;
   traverse?: (
