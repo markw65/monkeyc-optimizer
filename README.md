@@ -654,3 +654,15 @@ Bug Fixes
 
 - Bug fixes
   - Fix a problem with inlining that could inadvertently make locals from the callee function appear to belong to the callee's class or module. This could sometimes block optimizations, and also cause confusion for the type checker.
+
+### 1.1.8
+
+- Bug fixes
+
+  - After making a non-modifying change to a variable, update the types of all equivalent variables. eg in `var x = y; if (y != null) { whatever }` we know that x is not null in `whatever`, even though we didn't explicitly test it.
+  - Fix an issue with `import` and `using`. If an import happened after the definition of an inline function, inlined copies of the function might incorrectly use those imports resulting in finding the wrong symbols. This was rare - most imports happen at the top of the file, and generally an import will simply make something work that would have failed, rather than changing the behavior of something that already works. But I added a test case that exhibits the problem.
+
+- New features
+  - Add support for comletion style lookups - find all the names available in the current context that fuzzy match a given string
+  - Add helpers to read the function documentation from api.debug.xml
+  - Add an option to visitReferences to only find a specific definition, rather than all definitions for that name in the current scope.
