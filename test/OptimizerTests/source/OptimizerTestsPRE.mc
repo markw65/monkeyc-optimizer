@@ -97,10 +97,11 @@ var mResult as Number = 42;
 function testPreFailure1(logger as Logger) as Boolean {
     var extHr = "x";
 
-    var result2 = mResult;
-    result2++;
-    mResult = result2;
-
+    {
+        var result2 = mResult;
+        result2++;
+        mResult = result2;
+    }
     /* @match /\bresult2\b.*\bresult2\b/ */
     if (mResult != null) {
         extHr += " " + mResult;

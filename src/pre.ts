@@ -15,6 +15,7 @@ import {
 } from "./data-flow";
 import { cloneSet, functionMayModify, mergeSet } from "./function-info";
 import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
+import { minimizeLocals } from "./type-flow/minimize-locals";
 import { every, some } from "./util";
 
 /**
@@ -137,6 +138,7 @@ export function sizeBasedPRE(
     applyReplacements(func.node, nodeMap, declMap);
     func.node.body.body.unshift(variableDecl);
   }
+  minimizeLocals(state, func);
 }
 
 function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {

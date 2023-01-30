@@ -121,7 +121,7 @@ export enum FlowKind {
  * The truthiness of the condition determines
  * which successor to go to.
  */
-interface FlowEventDecl extends BaseEvent {
+export interface FlowEventDecl extends BaseEvent {
   type: "flw";
   node: mctree.BinaryExpression | mctree.UnaryExpression;
   decl?: undefined;
@@ -130,7 +130,7 @@ interface FlowEventDecl extends BaseEvent {
   right_decl: EventDecl;
   right_node?: undefined;
 }
-interface FlowEventNode extends BaseEvent {
+export interface FlowEventNode extends BaseEvent {
   type: "flw";
   node: mctree.BinaryExpression | mctree.UnaryExpression;
   decl?: undefined;
@@ -139,7 +139,7 @@ interface FlowEventNode extends BaseEvent {
   right_decl?: undefined;
   right_node: mctree.Expression;
 }
-interface FlowEventTruthy extends BaseEvent {
+export interface FlowEventTruthy extends BaseEvent {
   type: "flw";
   node: mctree.Node;
   decl?: undefined;
@@ -148,7 +148,7 @@ interface FlowEventTruthy extends BaseEvent {
   right_decl?: undefined;
   right_node?: undefined;
 }
-interface FlowEventInstanceof extends BaseEvent {
+export interface FlowEventInstanceof extends BaseEvent {
   type: "flw";
   node: mctree.InstanceofExpression | mctree.UnaryExpression;
   decl?: undefined;

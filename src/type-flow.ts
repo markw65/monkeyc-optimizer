@@ -24,7 +24,7 @@ import {
   ProgramStateAnalysis,
   StateNode,
 } from "./optimizer-types";
-import { eliminateDeadStores } from "./type-flow/dead-store";
+import { eliminateDeadStores, findDeadStores } from "./type-flow/dead-store";
 import { evaluate, evaluateExpr, InterpState } from "./type-flow/interp";
 import { sysCallInfo } from "./type-flow/interp-call";
 import {
@@ -72,13 +72,28 @@ const logging = true;
 // away any Null checks for now.
 export const missingNullWorkaround = true;
 
+export type NodeEquivMap = Map<
+  mctree.Node,
+  { decl: EventDecl; equiv: Array<EventDecl> }
+>;
+
+function loggingEnabledFor(env: string, func: FunctionStateNode) {
+  const pattern = process.env[env];
+  if (!pattern) return false;
+  const match = pattern.match(/^\/(.*)\/(i?)$/);
+  if (match) {
+    return new RegExp(match[1], match[2]).test(func.fullName);
+  }
+  return pattern === func.fullName;
+}
+
 export function buildTypeInfo(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   optimizeEquivalencies: boolean
 ) {
   if (!func.node.body || !func.stack) return;
-  const logThisRun = logging && process.env["TYPEFLOW_FUNC"] === func.fullName;
+  const logThisRun = logging && loggingEnabledFor("TYPEFLOW_FUNC", func);
   while (true) {
     const { graph } = buildDataFlowGraph(state, func, () => false, false, true);
     if (
@@ -97,8 +112,38 @@ export function buildTypeInfo(
       graph,
       optimizeEquivalencies,
       logThisRun
-    );
+    ).istate;
   }
+}
+
+export function buildConflictGraph(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode
+) {
+  if (!func.node.body || !func.stack) return;
+  const logThisRun = logging && loggingEnabledFor("CONFLICT_FUNC", func);
+  const { graph, identifiers } = buildDataFlowGraph(
+    state,
+    func,
+    () => false,
+    false,
+    true
+  );
+
+  const { nodeEquivs } = propagateTypes(
+    { ...state, stack: func.stack },
+    func,
+    graph,
+    false,
+    false
+  );
+  const { locals, localConflicts } = findDeadStores(
+    func,
+    graph,
+    nodeEquivs,
+    logThisRun
+  );
+  return { graph, localConflicts, locals, identifiers, logThisRun };
 }
 
 type TypeStateValue = {
@@ -1022,10 +1067,7 @@ function propagateTypes(
     return true;
   }
 
-  const nodeEquivs = new Map<
-    mctree.Node,
-    { decl: EventDecl; equiv: Array<EventDecl> }
-  >();
+  const nodeEquivs: NodeEquivMap = new Map();
   const localDecls = new Map<string, Set<EventDecl>>();
   const localConflicts = new Set<EventDecl>();
   const selfAssignments = new Set<mctree.Node>();
@@ -1328,7 +1370,7 @@ function propagateTypes(
 
   if (optimizeEquivalencies) {
     if (!nodeEquivs.size && !selfAssignments.size) {
-      return istate;
+      return { istate, nodeEquivs };
     }
     if (logThisRun) {
       if (selfAssignments.size) {
@@ -1459,5 +1501,5 @@ function propagateTypes(
     });
   }
 
-  return istate;
+  return { istate, nodeEquivs };
 }
