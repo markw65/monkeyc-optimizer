@@ -961,7 +961,7 @@ export async function optimizeMonkeyC(
         break;
       case "BlockStatement":
       case "ForStatement":
-        if (locals.map && cleanupUnusedVars(state, node)) {
+        if (locals.map && cleanupUnusedVars(state, node) && !state.inlining) {
           again = true;
         }
         break;
