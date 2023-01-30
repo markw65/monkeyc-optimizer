@@ -152,11 +152,10 @@ export default async (env, argv) => {
         zlib: "zlib",
         buffer: "buffer",
         crypto: "crypto",
-        "node:worker_threads": "node:worker_threads",
-        "node:events": "node:events",
-        "node:async_hooks": "node:async_hooks",
-        "node:os": "node:os",
       };
+      if (request.startsWith("node:")) {
+        return callback(null, request);
+      }
       if (Object.prototype.hasOwnProperty.call(obj, request)) {
         return callback(null, obj[request]);
       }
