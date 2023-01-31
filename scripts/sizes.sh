@@ -7,7 +7,8 @@
 
 old=$1
 new=$2
-
+echo old: $old
+echo new: $new
 jq -n \
   --argjson old "$(jq 'map({key:.file,value:{code,data}})|from_entries' $old)" \
   --argjson new "$(jq 'map({key:.file,value:{code,data}})|from_entries' $new)" \
