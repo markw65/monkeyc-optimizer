@@ -40,7 +40,7 @@
   "author": "markw65",
   "license": "MIT",
   "dependencies": {
-    "@markw65/prettier-plugin-monkeyc": "^1.0.42"
+    "@markw65/prettier-plugin-monkeyc": "^1.0.43"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",
