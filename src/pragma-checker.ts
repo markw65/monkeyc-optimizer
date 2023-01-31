@@ -85,7 +85,9 @@ export function pragmaChecker(
     if (node.start && node.start >= (comment.end || Infinity)) {
       const { kind, quote, needle } = matchers.shift()!;
       if (kind === "match") {
-        const haystack = formatAst(node).replace(/([\r\n]|\s)+/g, " ");
+        const haystack = formatAst(node)
+          .replace(/([\r\n]|\s)+/g, " ")
+          .replace(/\b\w+\s\/\*>(\w+)<\*\//g, "$1");
         if (!matcher(quote, needle, haystack)) {
           matcher(quote, needle, haystack);
           diagnostic(
