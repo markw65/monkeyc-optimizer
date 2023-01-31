@@ -212,7 +212,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     x = nonInlinedWrapper(1);
     check(x, 8, logger);
 
-    /* @match /^var inlineHiddenByLocal = (A.B.x|pre_x\w*);$/ */
+    /* @match /inlineHiddenByLocal = (A.B.x|pre_x\w*);$/ */
     var inlineHiddenByLocal = inlineHiddenByLocal(A.B.x);
     check(inlineHiddenByLocal, 7, logger);
 
@@ -224,7 +224,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     x = inlineNeedsToyboxImport();
     check(x == null ? 1 : 0, 1, logger);
 
-    /* @match /^var lg = logger \!= @gLogger \?/ */
+    /* @match /lg = logger \!= @gLogger \?/ */
     var lg = doubleSubstitution(logger);
     check((lg as Logger) == logger ? 1 : 0, 1, logger);
     return ok;
@@ -459,11 +459,11 @@ function inlineAssignContext(logger as Logger) as Boolean {
     z = A.B.s3(2);
     check(z, 10, logger);
 
-    /* @match "var a;" /z \+= @2;/ /a = z;/ */
+    /* @match /z \+= @2;/ /a = z;/ */
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match /var c;/ /z \+= @3/ "c = z;" "var d;" /\s+d =/ /^check/ */
+    /* @match /z \+= @3/ "c = z;" /\s+d =/ /^check/ */
     var b = 42,
         c = A.B.s3(3),
         d = -assignContext(1) + 1,
@@ -474,7 +474,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
 
     // inlining here would require a lot of gymnastics. Don't allow it
     // for now.
-    /* @match /^for / */
+    /* @match /A.B.s3.*A.B.s3.*A.B.s3/ */
     for (
         var f = 42, g = A.B.s3(3), h = A.B.s3(4), i = 42;
         f < 42;
@@ -486,20 +486,20 @@ function inlineAssignContext(logger as Logger) as Boolean {
     arr[z] = A.B.s3(1);
     check(arr[0] as Number, 1, logger);
 
-    /* @match /^\{ var z = \$\.z; self.z\+\+;/ /check/ */
+    /* @match /^\{ z = \$\.z; self.z\+\+;/ /check/ */
     x = argInterference1(A.B.x, A.x, $.z);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
-    /* @match /^\{ var y = A\.x; A.x\+\+;/ /check/ */
+    /* @match /^\{ y = A\.x; A.x\+\+;/ /check/ */
     x = argInterference2($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
     A.B.x += wrapper(0);
-    /* @match /^\{ var z = A\.B\.x; A.B.a\(\);/ /check/ */
+    /* @match /^\{ z = A\.B\.x; A.B.a\(\);/ /check/ */
     x = argInterference3($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
-    /* @match /z = A\.B\.x; var method/ /check/ */
+    /* @match /z = A\.B\.x; method/ /check/ */
     x = argInterference4($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
     return ok;
@@ -523,7 +523,7 @@ function inlineIfContext(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 4;
 
-    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = wrapper\(1\);/ */
+    /* @match /\{ \w+x\w+ = wrapper\(1\);/ */
     if (ifContext1(wrapper(1))) {
     } else {
         logger.debug("Failed: ifContext1(1) should return true");
@@ -539,14 +539,14 @@ function inlineIfContext(logger as Logger) as Boolean {
         z++;
     }
 
-    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = wrapper\(@1\);/ */
+    /* @match /\{ \w+x\w+ = wrapper\(@1\);/ */
     if (ifContext2(wrapper(1)) == 2) {
     } else {
         logger.debug("Failed: ifContext2(1) should return 2");
         ok = false;
     }
 
-    /* @match /^\{ var pmcr_tmp.* var \w+x\w+ = wrapper\(@2\);/ */
+    /* @match /\{ \w+x\w+ = wrapper\(@2\);/ */
     if (ifContext1(wrapper(2)) == true ? false : true) {
     } else {
         logger.debug("Failed: ifContext1(2) should return false");

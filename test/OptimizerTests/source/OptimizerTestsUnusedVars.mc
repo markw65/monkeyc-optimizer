@@ -5,7 +5,7 @@ import Toybox.Test;
 function testUnusedVars(logger as Logger) as Boolean {
     ok = true;
 
-    /* @match "var y;" "A.B.a();" /for \(\s*var i = @0, k = A.B.a\(\); i < 10; i\+\+, y =/ */
+    /* @match "A.B.a();" /i = @0; k = A.B.a\(\); for \( ; i < 10; i\+\+, y =/ */
     var x = 100,
         y = 50,
         z = A.B.a(),
@@ -44,7 +44,7 @@ function testUnusedCaseVars(logger as Logger) as Boolean {
 function testDeadVars(logger as Logger) as Boolean {
     ok = true;
     {
-        /* @match "var u = wrapper" /^A.B.a\(\);$/ "var v = wrapper" "check" */
+        /* @match "u = wrapper" /^A.B.a\(\);$/ "v = wrapper" "check" */
         var u = wrapper(1),
             x = A.B.a(),
             v = wrapper(2);
@@ -53,14 +53,14 @@ function testDeadVars(logger as Logger) as Boolean {
     }
 
     {
-        /* @match "var u = wrapper" /^A.B.a\(\);$/ "check" */
+        /* @match "u = wrapper" /^A.B.a\(\);$/ "check" */
         var u = wrapper(1),
             x = A.B.a();
         check(u, 1, logger);
     }
 
     {
-        /* @match "var x" /^A.B.a\(\);$/ "var v = wrapper" "x = wrapper" */
+        /* @match /^A.B.a\(\);$/ "v = wrapper" "x = wrapper" */
         var x = A.B.a(),
             v = wrapper(2);
 
@@ -69,7 +69,7 @@ function testDeadVars(logger as Logger) as Boolean {
     }
 
     {
-        /* @match "for (var x = 0, i; x < 10; x++)" */
+        /* @match "x = 0; for (; x < 10; x++)" */
         for (var x = 0, i = 0; x < 10; x++, i += 2) {
             i = x + 1;
             logger.debug(i);

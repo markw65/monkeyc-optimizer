@@ -242,7 +242,7 @@ module Inheritance {
         }
         function foo() as Number {
             var p;
-            /* @match /var x = self.p;/ /return p \+ 24;/ */
+            /* @match /x = self.p;/ /return p \+ 24;/ */
             p = badQualifier();
             return p + 24;
         }

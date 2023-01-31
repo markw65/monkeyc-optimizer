@@ -102,7 +102,7 @@ function testPreFailure1(logger as Logger) as Boolean {
         result2++;
         mResult = result2;
     }
-    /* @match /\bresult2\b.*\bresult2\b/ */
+    /* @match /\bpre_mResult\b.*\bpre_mResult\b/ */
     if (mResult != null) {
         extHr += " " + mResult;
     }
