@@ -666,3 +666,14 @@ Bug Fixes
   - Add support for comletion style lookups - find all the names available in the current context that fuzzy match a given string
   - Add helpers to read the function documentation from api.debug.xml
   - Add an option to visitReferences to only find a specific definition, rather than all definitions for that name in the current scope.
+
+### 1.1.9
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.43](https://github.com/markw65/prettier-plugin-monkeyc#1043)
+
+- Bug fixes
+
+  - fix an interaction between inlining and removing unused local vars that could cause unlimited recursion leading to stack overflow
+
+- New optimizations
+  - Adds a `minimizeLocals` pass which runs after `sizeBasedPRE` and attempts to re-use local variables in order to reduce the total number, and hence reduce the stack size.
