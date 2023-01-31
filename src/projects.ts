@@ -43,7 +43,6 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/Laverlin/Yet-Another-WatchFace",
     options: { compilerOptions: "--Eno-invalid-symbol" },
-    garminOptLevel: 0,
   },
   "https://github.com/OliverHannover/Aviatorlike",
   "https://github.com/OliverHannover/Formula_1",
@@ -56,7 +55,6 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/TrainAsONE/trainasone-connectiq",
     options: { compilerOptions: "--Eno-invalid-symbol" },
-    garminOptLevel: 0,
   },
   "https://github.com/YoungChulDK/GarminCryptoPrices",
   "https://github.com/adamml/tempo-trainer",
