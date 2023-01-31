@@ -111,7 +111,7 @@ export function pragmaChecker(
             return -1;
           }
           if (a.end.line > b.end.line) return 1;
-          if (a.end.line === b.end.line && a.end.column >= b.end.column) {
+          if (a.end.line === b.end.line && a.end.column > b.end.column) {
             return 1;
           }
           return 0;
