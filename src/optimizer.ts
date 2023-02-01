@@ -59,6 +59,7 @@ import {
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
 export * from "./optimizer-types";
+export { display } from "./type-flow/types";
 export {
   copyRecursiveAsNeeded,
   get_jungle,
