@@ -452,7 +452,10 @@ function add_one_resource(
   let id: xmlUtil.Attribute | undefined;
   let func: (() => mctree.Declaration | null) | undefined;
 
-  const varDecl = (): mctree.VariableDeclaration => {
+  const makeVarDecl = (
+    id: xmlUtil.Attribute | undefined,
+    outer: xmlUtil.Element["loc"]
+  ): mctree.VariableDeclaration => {
     const loc = id && adjustLoc(id.value.loc!);
     return wrap(
       {
@@ -478,20 +481,28 @@ function add_one_resource(
               },
               init,
             },
-            e.loc
+            outer
           ),
         ],
         kind: "var",
       },
-      e.loc
+      outer
     );
   };
+
+  const varDecl = () => makeVarDecl(id, e.loc);
 
   const classDecl = (parent: string): mctree.ClassDeclaration | null => {
     if (!id) return null;
     const loc = id.value.loc;
     const items: mctree.ClassElement[] = init
-      ? [{ type: "ClassElement", item: varDecl(), loc: e.loc }]
+      ? [
+          {
+            type: "ClassElement",
+            item: makeVarDecl(undefined, init.loc),
+            loc: e.loc,
+          },
+        ]
       : [];
     return {
       type: "ClassDeclaration",
@@ -505,7 +516,9 @@ function add_one_resource(
   const layoutDecl = (): mctree.FunctionDeclaration | null => {
     if (!id) return null;
     const loc = id.value.loc;
-    const items: mctree.Statement[] = init ? [varDecl()] : [];
+    const items: mctree.Statement[] = init
+      ? [makeVarDecl(undefined, init.loc)]
+      : [];
     return {
       type: "FunctionDeclaration",
       body: { type: "BlockStatement", body: items, loc: e.loc },
@@ -599,8 +612,13 @@ function add_one_resource(
   }
   if (!func) return;
   const elements = visit_resource_refs(state, doc, e);
+  const startLoc = elements[0]?.loc;
+  const endLoc = elements[elements.length - 1]?.loc;
   const init = elements.length
-    ? ({ type: "ArrayExpression", elements } as const)
+    ? wrap<mctree.ArrayExpression>(
+        { type: "ArrayExpression", elements },
+        startLoc && endLoc && locRange(startLoc, endLoc)
+      )
     : undefined;
   if (!id) {
     if (!init) return;
