@@ -17,11 +17,14 @@ import {
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
-import { findObjectDeclsByProperty, resolveDottedMember } from "../type-flow";
 import { couldBe } from "./could-be";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { checkCallArgs, evaluateCall } from "./interp-call";
 import { subtypeOf } from "./sub-type";
+import {
+  findObjectDeclsByProperty,
+  resolveDottedMember,
+} from "./type-flow-util";
 import {
   cloneType,
   display,

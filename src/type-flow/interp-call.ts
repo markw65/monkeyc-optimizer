@@ -4,7 +4,6 @@ import {
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
-import { findObjectDeclsByProperty } from "../type-flow";
 import { diagnostic, formatAst, getSuperClasses, hasProperty } from "../api";
 import { reduce, some } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
@@ -23,6 +22,7 @@ import {
   TypeTag,
 } from "./types";
 import { unionInto } from "./union-type";
+import { findObjectDeclsByProperty } from "./type-flow-util";
 export function evaluateCall(
   istate: InterpState,
   node: mctree.CallExpression,

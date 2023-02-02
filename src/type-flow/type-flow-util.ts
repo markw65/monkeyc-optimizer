@@ -1,8 +1,11 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   formatAst,
+  getSuperClasses,
+  hasProperty,
   isLocal,
   isStateNode,
+  lookupNext,
   variableDeclarationName,
 } from "../api";
 import {
@@ -11,8 +14,22 @@ import {
   Event,
   EventDecl,
 } from "../data-flow";
-import { VariableStateNode } from "../optimizer-types";
+import {
+  ProgramStateAnalysis,
+  StateNode,
+  VariableStateNode,
+} from "../optimizer-types";
 import { forEach, map, some } from "../util";
+import { InterpState } from "./interp";
+import { intersection } from "./intersection-type";
+import { subtypeOf } from "./sub-type";
+import {
+  ExactOrUnion,
+  getStateNodeDeclsFromType,
+  typeFromTypeStateNodes,
+  TypeTag,
+} from "./types";
+import { unionInto } from "./union-type";
 
 export { TypeFlowBlock };
 
@@ -120,4 +137,180 @@ export function printBlockTrailer(block: TypeFlowBlock) {
       block.exsucc ? (block.exsucc as TypeFlowBlock).order : ""
     }`
   );
+}
+
+/*
+ * We have an object, and a MemberExpression object.<name>
+ *  - decls are the StateNodes associated with the known type
+ *    of object.
+ *  - possible are all the StateNodes that declare <name>
+ *
+ * We want to find all the elements of possible which are
+ * "compatible" with decls, which tells us the set of things
+ * that object.<name> could correspond to, and also what that
+ * tells us about object.
+ *
+ * The return value is two arrays of StateNode. The first
+ * gives the refined type of object, and the second is the
+ * array of StateNodes that could declare <name>
+ */
+function filterDecls(
+  decls: StateNode[],
+  possible: StateNode[] | false,
+  name: string
+): [StateNode[], StateNode[]] | [null, null] {
+  if (!possible) return [null, null];
+
+  const result = decls.reduce<[Set<StateNode>, Set<StateNode>] | [null, null]>(
+    (cur, decl) => {
+      const found = possible.reduce((flag, poss) => {
+        if (
+          decl === poss ||
+          (poss.type === "ClassDeclaration" && getSuperClasses(poss)?.has(decl))
+        ) {
+          // poss extends decl, so decl must actually be a poss
+          // eg we know obj is an Object, and we call obj.toNumber
+          // so possible includes all the classes that declare toNumber
+          // so we can refine obj's type to the union of those types
+          if (!cur[0]) {
+            cur = [new Set(), new Set()];
+          }
+          cur[0].add(poss);
+          cur[1].add(poss);
+          return true;
+        } else if (
+          decl.type === "ClassDeclaration" &&
+          getSuperClasses(decl)?.has(poss)
+        ) {
+          // decl extends poss, so decl remains unchanged
+          // eg we know obj is Menu2, we call obj.toString
+          // Menu2 doesn't define toString, but Object does
+          // so poss is Object. But we still know that
+          // obj is Menu2
+          if (!cur[0]) {
+            cur = [new Set(), new Set()];
+          }
+          cur[0].add(decl);
+          cur[1].add(poss);
+          return true;
+        }
+        return flag;
+      }, false);
+      if (!found) {
+        // If we didn't find the property in any of the
+        // standard places, the runtime might still find
+        // it by searching up the Module stack (and up
+        // the module stack from any super classes)
+        //
+        // eg
+        //
+        //  obj = Application.getApp();
+        //  obj.Properties.whatever
+        //
+        // Properties doesn't exist on AppBase, but AppBase
+        // is declared in Application, and Application
+        // does declare Properties. So Application.Properties
+        // is (one of) the declarations we should find; but we
+        // must not refine obj's type to include Application.
+        let d = [decl];
+        do {
+          d.forEach((d) => {
+            const stack = d.stack!;
+            possible.forEach((poss) => {
+              for (let i = stack.length; i--; ) {
+                const sn = stack[i].sn;
+                if (sn.decls === poss.decls) {
+                  if (!cur[0]) {
+                    cur = [new Set(), new Set()];
+                  }
+                  cur[0].add(decl);
+                  cur[1].add(poss);
+                  break;
+                }
+                if (hasProperty(sn.decls, name)) {
+                  break;
+                }
+              }
+            });
+          });
+          d = d.flatMap((d) => {
+            if (
+              d.type !== "ClassDeclaration" ||
+              !d.superClass ||
+              d.superClass === true
+            ) {
+              return [];
+            }
+            return d.superClass;
+          });
+        } while (d.length);
+      }
+      return cur;
+    },
+    [null, null]
+  );
+  if (!result[0]) return [null, null];
+  return [Array.from(result[0]), Array.from(result[1])];
+}
+
+export function findObjectDeclsByProperty(
+  state: ProgramStateAnalysis,
+  object: ExactOrUnion,
+  next: mctree.DottedMemberExpression
+) {
+  const decls = getStateNodeDeclsFromType(state, object);
+  if (!decls) return [null, null] as const;
+  const possibleDecls =
+    hasProperty(state.allDeclarations, next.property.name) &&
+    state.allDeclarations[next.property.name];
+
+  return filterDecls(decls, possibleDecls, next.property.name);
+}
+
+export function refineObjectTypeByDecls(
+  istate: InterpState,
+  object: ExactOrUnion,
+  trueDecls: StateNode[]
+) {
+  const refinedType = typeFromTypeStateNodes(istate.state, trueDecls);
+  return intersection(object, refinedType);
+}
+
+export function findNextObjectType(
+  istate: InterpState,
+  trueDecls: StateNode[],
+  next: mctree.DottedMemberExpression
+) {
+  const results = lookupNext(
+    istate.state,
+    [{ parent: null, results: trueDecls }],
+    "decls",
+    next.property
+  );
+  if (!results) return null;
+  return results.reduce<ExactOrUnion>(
+    (cur, lookupDefn) => {
+      unionInto(cur, typeFromTypeStateNodes(istate.state, lookupDefn.results));
+      return cur;
+    },
+    { type: TypeTag.Never }
+  );
+}
+
+export function resolveDottedMember(
+  istate: InterpState,
+  object: ExactOrUnion,
+  next: mctree.DottedMemberExpression
+) {
+  const [objDecls, trueDecls] = findObjectDeclsByProperty(
+    istate.state,
+    object,
+    next
+  );
+  if (!objDecls) return null;
+  const property = findNextObjectType(istate, trueDecls, next);
+  if (!property) return null;
+  const type = refineObjectTypeByDecls(istate, object, objDecls);
+  const mayThrow = !subtypeOf(object, type);
+  return { mayThrow, object: type, property };
 }

@@ -36,8 +36,8 @@ import {
 } from "./optimizer-types";
 import { add_resources_to_ast, visit_resources } from "./resources";
 import { getSdkPath, xmlUtil } from "./sdk-util";
-import { findObjectDeclsByProperty } from "./type-flow";
 import { TypeMap } from "./type-flow/interp";
+import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType } from "./type-flow/types";
 import { pushUnique, sameArrays } from "./util";
 
@@ -1451,6 +1451,10 @@ export function markInvokeClassMethod(
 
 export function isLocal(v: VariableStateNode) {
   return v.stack[v.stack.length - 1]?.sn.type === "BlockStatement";
+}
+
+export function isClassVariable(v: VariableStateNode) {
+  return v.stack[v.stack.length - 1]?.sn.type === "ClassDeclaration";
 }
 
 export function diagnostic(

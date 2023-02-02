@@ -28,6 +28,13 @@ export type RefNode =
   | mctree.MemberExpression
   | mctree.Literal;
 
+export type MemberDecl = {
+  type: "MemberDecl";
+  node: mctree.MemberExpression;
+  base: StateNodeDecl | StateNodeDecl[];
+  path: mctree.MemberExpression[];
+};
+
 /*
  * The "declaration" for a Ref or Def
  * This is simply a canonical object (or array of such) which
@@ -38,12 +45,7 @@ export type EventDecl =
   | StateNodeDecl
   | StateNodeDecl[]
   | mctree.Literal
-  | {
-      type: "MemberDecl";
-      node: mctree.MemberExpression;
-      base: StateNodeDecl | StateNodeDecl[];
-      path: mctree.MemberExpression[];
-    }
+  | MemberDecl
   | {
       type: "Unknown";
       node: mctree.MemberExpression | mctree.Identifier | mctree.ThisExpression;

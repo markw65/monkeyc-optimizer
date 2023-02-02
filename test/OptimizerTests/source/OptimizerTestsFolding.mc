@@ -648,3 +648,105 @@ function recursiveArrayInferred(logger as Logger) as Boolean {
 
     return x[1] == 9;
 }
+
+class Other {
+    var value as Number = 0;
+}
+
+function hide(x as Whatever, y as Whatever) as Whatever {
+    return x.value >= y.value ? x : y;
+}
+
+class Whatever {
+    var value as Number = 0;
+    var what as Whatever? = null;
+    var other as Other? = null;
+
+    (:typecheck(false))
+    function test(logger as Logger) as Boolean {
+        ok = true;
+        var x = new Whatever();
+        var o = new Other();
+        x.other = o;
+        var z = hide(x, self); // z = x
+        var y = hide(self, x); // y = self
+        x.what = z;
+
+        // x.value might be the same as z.value
+        // so we shouldn't const prop x.value
+        x.value = 42;
+        z.value = 1;
+        // @match /check\(x.value, @1/
+        check(x.value, 1, logger);
+
+        // x.value can't be the same as o.value
+        // so we should const prop x.value
+        x.value = 42;
+        o.value = 1;
+        // @match /check\(@42, @42/
+        check(x.value, 42, logger);
+
+        // x.value might be the same as x.what.value
+        // so we shouldn't const prop x.value
+        x.value = 42;
+        x.what.value = 1;
+        // @match /check\(x.value, @1/
+        check(x.value, 1, logger);
+
+        // x.value can't be the same as x.other.value
+        // so we should const prop x.value
+        x.value = 42;
+        x.other.value = 1;
+        // @match /check\(@42, @42/
+        check(x.value, 42, logger);
+
+        // x.value might be the same as x.what.value
+        // so we shouldn't const prop x.what.value
+        x.what.value = 1;
+        x.value = 42;
+        // @match /check\(x.what.value, @42/
+        check(x.what.value, 42, logger);
+
+        // x.value can't be the same as x.other.value
+        // so we should const prop x.other.value
+        x.other.value = 1;
+        x.value = 42;
+        // @match /check\(@1, @1/
+        check(x.other.value, 1, logger);
+
+        // y.value might be the same as self.value
+        // so we shouldn't const prop y.value
+        y.value = 42;
+        value = 1;
+        // @match /check\(y.value, @1/
+        check(y.value, 1, logger);
+
+        // x.other.value can't be the same as self.value
+        // so we should const prop x.other.value
+        x.other.value = 42;
+        value = 1;
+        // @match /check\(@42, @42/
+        check(x.other.value, 42, logger);
+
+        // y.value might be the same as self.value
+        // so we shouldn't const prop self.value
+        value = 42;
+        y.value = 1;
+        // @match /check\(value, @1/
+        check(value, 1, logger);
+
+        // x.other.value can't be the same as self.value
+        // so we should const prop self.value
+        value = 1;
+        x.other.value = 42;
+        // @match /check\(@1, @1/
+        check(value, 1, logger);
+
+        return ok;
+    }
+}
+
+(:test,:typecheck(false))
+function testMemberDecl(logger as Logger) as Boolean {
+    return (new Whatever()).test(logger);
+}

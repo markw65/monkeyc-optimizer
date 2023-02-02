@@ -22,7 +22,11 @@ import {
  * This is symmetric, and a subtypeOf b, or b subtypeOf a implies
  * a couldBe b.
  */
-export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
+export function couldBeHelper(
+  a: ExactOrUnion,
+  b: ExactOrUnion,
+  shallow: boolean
+): boolean {
   const common = a.type & b.type & ~TypeTag.Typedef;
   if (common) {
     if (a.value == null || b.value == null || a.value === b.value) {
@@ -43,7 +47,10 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
       if (
         bvalue == null ||
         ac.value === bvalue ||
-        couldBeValue({ type: ac.type, avalue: ac.value, bvalue } as ValuePairs)
+        couldBeValue(
+          { type: ac.type, avalue: ac.value, bvalue } as ValuePairs,
+          shallow
+        )
       ) {
         result = true;
         return false;
@@ -103,12 +110,21 @@ export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
   return false;
 }
 
+export function couldBe(a: ExactOrUnion, b: ExactOrUnion): boolean {
+  return couldBeHelper(a, b, false);
+}
+
 export function couldBeWeak(a: ExactOrUnion, b: ExactOrUnion) {
   if (a.type === TypeTag.Never || b.type === TypeTag.Never) return true;
   return couldBe(a, b);
 }
 
-function couldBeValue(pair: ValuePairs) {
+//
+export function couldBeShallow(a: ExactOrUnion, b: ExactOrUnion) {
+  return couldBeHelper(a, b, true);
+}
+
+function couldBeValue(pair: ValuePairs, shallow: boolean) {
   switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
@@ -124,11 +140,12 @@ function couldBeValue(pair: ValuePairs) {
     case TypeTag.Symbol:
       return pair.avalue === pair.bvalue;
     case TypeTag.Array:
-      return couldBe(pair.avalue, pair.bvalue);
+      return shallow || couldBe(pair.avalue, pair.bvalue);
     case TypeTag.Dictionary: {
       return (
-        couldBe(pair.avalue.key, pair.bvalue.key) &&
-        couldBe(pair.avalue.value, pair.bvalue.value)
+        shallow ||
+        (couldBe(pair.avalue.key, pair.bvalue.key) &&
+          couldBe(pair.avalue.value, pair.bvalue.value))
       );
     }
     case TypeTag.Method: {
@@ -161,7 +178,7 @@ function couldBeValue(pair: ValuePairs) {
     case TypeTag.Object: {
       return (
         couldBe(pair.avalue.klass, pair.bvalue.klass) &&
-        couldBeObj(pair.avalue.obj, pair.bvalue.obj)
+        (shallow || couldBeObj(pair.avalue.obj, pair.bvalue.obj))
       );
     }
 

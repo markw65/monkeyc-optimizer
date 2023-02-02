@@ -1,8 +1,10 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import * as assert from "node:assert";
 import {
   formatAst,
   getSuperClasses,
   hasProperty,
+  isClassVariable,
   isLocal,
   lookupNext,
   traverseAst,
@@ -22,8 +24,10 @@ import {
   ClassStateNode,
   FunctionStateNode,
   ProgramStateAnalysis,
-  StateNode,
+  StateNodeAttributes,
+  StateNodeDecl,
 } from "./optimizer-types";
+import { couldBeShallow } from "./type-flow/could-be";
 import { eliminateDeadStores, findDeadStores } from "./type-flow/dead-store";
 import { evaluate, evaluateExpr, InterpState } from "./type-flow/interp";
 import { sysCallInfo } from "./type-flow/interp-call";
@@ -35,10 +39,13 @@ import { subtypeOf } from "./type-flow/sub-type";
 import {
   declIsLocal,
   describeEvent,
+  findNextObjectType,
+  findObjectDeclsByProperty,
   localDeclName,
   printBlockEvents,
   printBlockHeader,
   printBlockTrailer,
+  refineObjectTypeByDecls,
   sourceLocation,
   tsKey,
   TypeFlowBlock,
@@ -146,14 +153,56 @@ export function buildConflictGraph(
   return { graph, localConflicts, locals, identifiers, logThisRun };
 }
 
+// A path thats associated with a TypeStateKey
+// ie there's a MemberDecl with the TypeStateKey as
+// its base.
+// The types are the types seen when the MemberDecl was
+// evaluated, and we keep them around so we know when
+// to invalidate this entry (or at least, remove some of
+// its type specializations)
+type AssocPath = Array<{ name: string | null; type: ExactOrUnion }>;
+
 type TypeStateValue = {
   curType: ExactOrUnion;
   equivSet?: { next: TypeStateKey };
+  // set of paths used by MemberDecls whose base
+  // points to this entry.
+  assocPaths?: Set<string>;
 };
 
-type TypeState = Map<TypeStateKey, TypeStateValue>;
+type AffectedDecls = Map<TypeStateKey, Set<string>>;
 
-function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
+type TypeStateMap = Map<TypeStateKey, TypeStateValue>;
+//type TrackedMemberDecl = { key: TypeStateKey; path: string };
+type TypeState = {
+  map: TypeStateMap;
+  visits: number;
+  // For each entry in map with assocPaths, we provide a mechanism to go
+  // from any of its path components back to itself.
+  // So for example if there is an entry with a path x.y.z, and key k1, and
+  // another entry with path u.x and key k2, we'll end up with
+  // {
+  //   x => [{k1, "x.y.z"}, {k2, "u.x"}],
+  //   y => [{k1, "x.y.z"}],
+  //   z => [{k1, "x.y.z"}],
+  //   u => [{k2, "u.v"}],
+  // }
+  // This means that when we see a def to foo.bar.x, we can lookup x in this
+  // map, and find that the assignment to foo.bar.x might affect k1:x.y.z,
+  // and it might affect k2:u.x; so we only have to check those two, rather
+  // than search every entry in the map.
+  //
+  // Note that trackedMemberDecls.get(s).get(k) should always be a subset
+  // of map.get(k).assocPaths.
+  //
+  // Ownership model:
+  // The outer map, and inner map, are never shared, and can be updated
+  // freely. Changes to the Set should replace it, rather than modifying
+  // it in place.
+  trackedMemberDecls?: Map<string, AffectedDecls>;
+};
+
+function addEquiv(ts: TypeStateMap, key: TypeStateKey, equiv: TypeStateKey) {
   if (key === equiv) return true;
   let keyVal = ts.get(key);
   let equivVal = ts.get(equiv);
@@ -194,7 +243,7 @@ function addEquiv(ts: TypeState, key: TypeStateKey, equiv: TypeStateKey) {
   return false;
 }
 
-function removeEquiv(ts: TypeState, equiv: TypeStateKey) {
+function removeEquiv(ts: TypeStateMap, equiv: TypeStateKey) {
   const equivVal = ts.get(equiv);
   if (!equivVal?.equivSet) return;
   let s = equivVal.equivSet.next;
@@ -224,7 +273,7 @@ function removeEquiv(ts: TypeState, equiv: TypeStateKey) {
   ts.set(equiv, newVal);
 }
 
-function getEquivSet(ts: TypeState, k: TypeStateKey) {
+function getEquivSet(ts: TypeStateMap, k: TypeStateKey) {
   const keys = new Set<TypeStateKey>();
   let s = k;
   do {
@@ -240,7 +289,7 @@ function getEquivSet(ts: TypeState, k: TypeStateKey) {
   return keys;
 }
 
-function intersectEquiv(ts1: TypeState, ts2: TypeState, k: TypeStateKey) {
+function intersectEquiv(ts1: TypeStateMap, ts2: TypeStateMap, k: TypeStateKey) {
   const eq1 = ts1.get(k);
   const eq2 = ts2.get(k);
 
@@ -269,41 +318,118 @@ function intersectEquiv(ts1: TypeState, ts2: TypeState, k: TypeStateKey) {
   return ret;
 }
 
+function clearAssocPaths(
+  blockState: TypeState,
+  decl: TypeStateKey,
+  v: TypeStateValue
+) {
+  if (v.assocPaths?.size) {
+    assert(blockState.trackedMemberDecls);
+    v.assocPaths.forEach((assocPath) => {
+      assocPath.split(".").forEach((pathItem) => {
+        const tmd = blockState.trackedMemberDecls?.get(pathItem);
+        if (tmd) {
+          tmd.delete(decl);
+        }
+      });
+    });
+  }
+}
+
+function cloneTypeState(blockState: TypeState): TypeState {
+  const { map, trackedMemberDecls, ...rest } = blockState;
+  const clone: TypeState = { map: new Map(map), ...rest };
+  if (trackedMemberDecls) {
+    clone.trackedMemberDecls = new Map();
+    trackedMemberDecls.forEach((value, key) => {
+      clone.trackedMemberDecls!.set(key, new Map(value));
+    });
+  }
+  return clone;
+}
+
+function addTrackedMemberDecl(
+  blockState: TypeState,
+  key: TypeStateKey,
+  assocKey: string
+) {
+  if (!blockState.trackedMemberDecls) {
+    blockState.trackedMemberDecls = new Map();
+  }
+  assocKey.split(".").forEach((pathItem) => {
+    const entries = blockState.trackedMemberDecls!.get(pathItem);
+    if (!entries) {
+      blockState.trackedMemberDecls!.set(
+        pathItem,
+        new Map([[key, new Set([assocKey])]])
+      );
+      return;
+    }
+    const entry = entries.get(key);
+    if (!entry) {
+      entries.set(key, new Set([assocKey]));
+      return;
+    }
+    entry.add(assocKey);
+  });
+}
+
 function mergeTypeState(
   blockStates: TypeState[],
-  blockVisits: number[],
   index: number,
   from: TypeState
 ) {
   const to = blockStates[index];
   if (!to) {
-    blockStates[index] = new Map(from);
-    blockVisits[index] = 1;
+    blockStates[index] = cloneTypeState(from);
+    blockStates[index].visits = 1;
     return true;
   }
-  const widen = ++blockVisits[index] > 10;
+  const widen = ++to.visits > 10;
+
+  // we'll rebuild this from scratch via
+  // addTrackedMemberDecl below.
+  delete to.trackedMemberDecls;
 
   let changes = false;
-  to.forEach((tov, k) => {
-    const fromv = from.get(k);
+  to.map.forEach((tov, k) => {
+    const fromv = from.map.get(k);
     if (!fromv) {
       changes = true;
       if (tov.equivSet) {
-        removeEquiv(to, k);
+        removeEquiv(to.map, k);
       }
-      to.delete(k);
+      to.map.delete(k);
       return;
     }
     if (tov.equivSet) {
-      if (intersectEquiv(to, from, k)) {
+      if (intersectEquiv(to.map, from.map, k)) {
         changes = true;
-        tov = to.get(k)!;
+        tov = to.map.get(k)!;
       }
+    }
+    if (tov.assocPaths) {
+      const assocPaths = new Set(tov.assocPaths);
+      tov = { ...tov };
+      if (!fromv.assocPaths) {
+        changes = true;
+        delete tov.assocPaths;
+      } else {
+        assocPaths.forEach((key) => {
+          if (!fromv.assocPaths!.has(key)) {
+            assocPaths.delete(key);
+          } else {
+            addTrackedMemberDecl(to, k, key);
+          }
+        });
+        tov.assocPaths = assocPaths;
+      }
+      to.map.set(k, tov);
     }
     if (widen) {
       if (subtypeOf(fromv.curType, tov.curType)) return;
       if (subtypeOf(tov.curType, fromv.curType)) {
-        to.set(k, { ...tov, curType: fromv.curType });
+        to.map.set(k, { ...tov, curType: fromv.curType });
         changes = true;
         return;
       }
@@ -314,13 +440,13 @@ function mergeTypeState(
       const wide = widenType(result);
       if (wide) result = wide;
     }
-    to.set(k, { ...tov, curType: result });
+    to.map.set(k, { ...tov, curType: result });
     changes = true;
   });
   return changes;
 }
 
-function tsEquivs(state: TypeState, key: TypeStateKey) {
+function tsEquivs(state: TypeStateMap, key: TypeStateKey) {
   const result: string[] = [];
   let s = key;
   do {
@@ -346,191 +472,91 @@ function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
     console.log(indent + "Not visited!");
     return;
   }
-  state.forEach((value, key) => {
+  state.map.forEach((value, key) => {
     console.log(
       `${indent} - ${typeStateEntry(value, key)}${
-        value.equivSet ? " " + tsEquivs(state, key) : ""
+        value.equivSet ? " " + tsEquivs(state.map, key) : ""
       }`
     );
   });
 }
 
-/*
- * We have an object, and a MemberExpression object.<name>
- *  - decls are the StateNodes associated with the known type
- *    of object.
- *  - possible are all the StateNodes that declare <name>
- *
- * We want to find all the elements of possible which are
- * "compatible" with decls, which tells us the set of things
- * that object.<name> could correspond to, and also what that
- * tells us about object.
- *
- * The return value is two arrays of StateNode. The first
- * gives the refined type of object, and the second is the
- * array of StateNodes that could declare <name>
- */
-function filterDecls(
-  decls: StateNode[],
-  possible: StateNode[] | false,
-  name: string
-): [StateNode[], StateNode[]] | [null, null] {
-  if (!possible) return [null, null];
-
-  const result = decls.reduce<[Set<StateNode>, Set<StateNode>] | [null, null]>(
-    (cur, decl) => {
-      const found = possible.reduce((flag, poss) => {
-        if (
-          decl === poss ||
-          (poss.type === "ClassDeclaration" && getSuperClasses(poss)?.has(decl))
-        ) {
-          // poss extends decl, so decl must actually be a poss
-          // eg we know obj is an Object, and we call obj.toNumber
-          // so possible includes all the classes that declare toNumber
-          // so we can refine obj's type to the union of those types
-          if (!cur[0]) {
-            cur = [new Set(), new Set()];
-          }
-          cur[0].add(poss);
-          cur[1].add(poss);
-          return true;
-        } else if (
-          decl.type === "ClassDeclaration" &&
-          getSuperClasses(decl)?.has(poss)
-        ) {
-          // decl extends poss, so decl remains unchanged
-          // eg we know obj is Menu2, we call obj.toString
-          // Menu2 doesn't define toString, but Object does
-          // so poss is Object. But we still know that
-          // obj is Menu2
-          if (!cur[0]) {
-            cur = [new Set(), new Set()];
-          }
-          cur[0].add(decl);
-          cur[1].add(poss);
-          return true;
-        }
-        return flag;
-      }, false);
-      if (!found) {
-        // If we didn't find the property in any of the
-        // standard places, the runtime might still find
-        // it by searching up the Module stack (and up
-        // the module stack from any super classes)
-        //
-        // eg
-        //
-        //  obj = Application.getApp();
-        //  obj.Properties.whatever
-        //
-        // Properties doesn't exist on AppBase, but AppBase
-        // is declared in Application, and Application
-        // does declare Properties. So Application.Properties
-        // is (one of) the declarations we should find; but we
-        // must not refine obj's type to include Application.
-        let d = [decl];
-        do {
-          d.forEach((d) => {
-            const stack = d.stack!;
-            possible.forEach((poss) => {
-              for (let i = stack.length; i--; ) {
-                const sn = stack[i].sn;
-                if (sn.decls === poss.decls) {
-                  if (!cur[0]) {
-                    cur = [new Set(), new Set()];
-                  }
-                  cur[0].add(decl);
-                  cur[1].add(poss);
-                  break;
-                }
-                if (hasProperty(sn.decls, name)) {
-                  break;
-                }
-              }
-            });
-          });
-          d = d.flatMap((d) => {
-            if (
-              d.type !== "ClassDeclaration" ||
-              !d.superClass ||
-              d.superClass === true
-            ) {
-              return [];
-            }
-            return d.superClass;
-          });
-        } while (d.length);
+function updateAffected(
+  blockState: TypeState,
+  objectType: ExactOrUnion,
+  baseDecl: TypeStateKey,
+  assignedPath: string,
+  affectedName: string,
+  affected: AffectedDecls,
+  assignedType: ExactOrUnion
+) {
+  affected.forEach((paths, key) => {
+    const entry = blockState.map.get(key);
+    assert(entry);
+    let newEntry = entry;
+    paths.forEach((path) => {
+      if (key === baseDecl && path === assignedPath) {
+        return;
       }
-      return cur;
-    },
-    [null, null]
-  );
-  if (!result[0]) return [null, null];
-  return [Array.from(result[0]), Array.from(result[1])];
+      assert(entry.assocPaths?.has(path));
+      const assocPath: AssocPath = [];
+      const pathSegments = path.split(".");
+      let type = entry.curType;
+      for (let i = 0; i < pathSegments.length; i++) {
+        const pathItem = pathSegments[i];
+        assocPath.push({
+          name: pathItem === "*" ? null : pathItem,
+          type,
+        });
+        if (pathItem === affectedName && couldBeShallow(type, objectType)) {
+          const newAssocKey = assocPath.map((av) => av.name ?? "*").join(".");
+          const baseType = updateByAssocPath(assocPath, assignedType, true);
+          if (newEntry === entry) {
+            newEntry = { ...entry };
+          }
+          newEntry.curType = baseType;
+          if (path !== newAssocKey) {
+            newEntry.assocPaths = new Set(entry.assocPaths!);
+            newEntry.assocPaths.delete(path);
+            newEntry.assocPaths.add(newAssocKey);
+
+            const newPaths = new Set(paths);
+            newPaths.delete(path);
+            newPaths.add(newAssocKey);
+            affected.set(key, newPaths);
+          }
+          break;
+        }
+        if (pathItem === "*") {
+          const newType = { type: TypeTag.Never };
+          if (type.type & TypeTag.Array) {
+            const atype = getUnionComponent(type, TypeTag.Array);
+            if (atype) {
+              unionInto(newType, atype);
+            }
+          }
+          if (type.type & TypeTag.Dictionary) {
+            const dtype = getUnionComponent(type, TypeTag.Dictionary);
+            if (dtype) {
+              unionInto(newType, dtype.value);
+            }
+          }
+          if (newType.type === TypeTag.Never) break;
+          type = newType;
+        } else {
+          const objValue = getObjectValue(type);
+          if (!objValue || !hasProperty(objValue.obj, pathItem)) {
+            break;
+          }
+          type = objValue.obj[pathItem];
+        }
+      }
+    });
+    if (newEntry !== entry) {
+      blockState.map.set(key, newEntry);
+    }
+  });
 }
-
-export function findObjectDeclsByProperty(
-  state: ProgramStateAnalysis,
-  object: ExactOrUnion,
-  next: mctree.DottedMemberExpression
-) {
-  const decls = getStateNodeDeclsFromType(state, object);
-  if (!decls) return [null, null] as const;
-  const possibleDecls =
-    hasProperty(state.allDeclarations, next.property.name) &&
-    state.allDeclarations[next.property.name];
-
-  return filterDecls(decls, possibleDecls, next.property.name);
-}
-
-function refineObjectTypeByDecls(
-  istate: InterpState,
-  object: ExactOrUnion,
-  trueDecls: StateNode[]
-) {
-  const refinedType = typeFromTypeStateNodes(istate.state, trueDecls);
-  return intersection(object, refinedType);
-}
-
-function findNextObjectType(
-  istate: InterpState,
-  trueDecls: StateNode[],
-  next: mctree.DottedMemberExpression
-) {
-  const results = lookupNext(
-    istate.state,
-    [{ parent: null, results: trueDecls }],
-    "decls",
-    next.property
-  );
-  if (!results) return null;
-  return results.reduce<ExactOrUnion>(
-    (cur, lookupDefn) => {
-      unionInto(cur, typeFromTypeStateNodes(istate.state, lookupDefn.results));
-      return cur;
-    },
-    { type: TypeTag.Never }
-  );
-}
-
-export function resolveDottedMember(
-  istate: InterpState,
-  object: ExactOrUnion,
-  next: mctree.DottedMemberExpression
-) {
-  const [objDecls, trueDecls] = findObjectDeclsByProperty(
-    istate.state,
-    object,
-    next
-  );
-  if (!objDecls) return null;
-  const property = findNextObjectType(istate, trueDecls, next);
-  if (!property) return null;
-  const type = refineObjectTypeByDecls(istate, object, objDecls);
-  const mayThrow = !subtypeOf(object, type);
-  return { mayThrow, object: type, property };
-}
-
 function propagateTypes(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
@@ -542,6 +568,14 @@ function propagateTypes(
   // order to propagate the "availability" of the types.
   const order = getPostOrder(graph).reverse() as TypeFlowBlock[];
   const queue = new DataflowQueue();
+
+  let selfClassDecl: ClassStateNode | null = null;
+  if (!(func.attributes & StateNodeAttributes.STATIC)) {
+    const klass = func.stack?.[func.stack?.length - 1].sn;
+    if (klass && klass.type === "ClassDeclaration") {
+      selfClassDecl = klass;
+    }
+  }
 
   order.forEach((block, i) => {
     block.order = i;
@@ -563,7 +597,7 @@ function propagateTypes(
   ): [ExactOrUnion, boolean] | null {
     const baseType = getStateType(blockState, decl.base);
     const typePath: ExactOrUnion[] = [baseType];
-    let next: ExactOrUnion | null;
+    let next = null as ExactOrUnion | null;
     let updateAny = false;
     for (let i = 0, l = decl.path.length - 1; i <= l; i++) {
       let cur = typePath.pop()!;
@@ -630,53 +664,84 @@ function propagateTypes(
       typePath.push(cur);
       typePath.push(next);
     }
-    for (let i = decl.path.length; i--; ) {
-      const me = decl.path[i];
-      const property = typePath.pop()!;
-      let object = typePath.pop()!;
-      if (!me.computed) {
-        const value = getObjectValue(object);
-        if (value) {
-          if (value.obj && hasProperty(value.obj, me.property.name)) {
-            const prevProp = value.obj[me.property.name];
-            if (!subtypeOf(prevProp, property)) {
-              object = cloneType(object);
-              const newValue = { klass: value.klass, obj: { ...value.obj } };
-              newValue.obj[me.property.name] = intersection(prevProp, property);
-              setUnionComponent(object, TypeTag.Object, newValue);
+    const assocValue: AssocPath = decl.path.map((me, i) => ({
+      name: me.computed ? null : me.property.name,
+      type: typePath[i],
+    }));
+    const assocKey = assocValue.map((av) => av.name ?? "*").join(".");
+    const newType = updateByAssocPath(assocValue, next!, false);
+    setStateEvent(blockState, decl.base, newType, false);
+    // setStateEvent guarantees that tsv is "unshared" at this
+    // point. So we can munge it directly.
+    const tsv = blockState.map.get(decl.base)!;
+    if (!tsv.assocPaths) tsv.assocPaths = new Set();
+    tsv.assocPaths.add(assocKey);
+    addTrackedMemberDecl(blockState, decl.base, assocKey);
+    if (newValue) {
+      const baseElem = assocValue[decl.path.length - 1];
+      if (baseElem.name) {
+        const affected = blockState.trackedMemberDecls?.get(baseElem.name);
+        if (affected) {
+          updateAffected(
+            blockState,
+            baseElem.type,
+            decl.base,
+            assocKey,
+            baseElem.name,
+            affected,
+            next!
+          );
+        }
+      }
+      if (selfClassDecl) {
+        // Handle interference between the MemberDecl store
+        // and the "self" object.
+        const baseObj = getObjectValue(baseElem.type);
+        if (
+          baseObj &&
+          baseObj.klass.type === TypeTag.Class &&
+          some(
+            baseObj.klass.value,
+            (cls) =>
+              cls === selfClassDecl ||
+              getSuperClasses(cls)?.has(selfClassDecl!) ||
+              getSuperClasses(selfClassDecl!)?.has(cls) ||
+              false
+          )
+        ) {
+          const last = decl.path[decl.path.length - 1];
+          if (!last.computed) {
+            const result = lookupNext(
+              state,
+              [{ parent: null, results: [selfClassDecl] }],
+              "decls",
+              last.property
+            );
+            if (result) {
+              const decls: StateNodeDecl[] = result.flatMap(
+                (lookupDef) => lookupDef.results
+              );
+              const doUpdate = (key: TypeStateKey, cur: TypeStateValue) => {
+                const update = cloneType(cur.curType);
+                unionInto(update, next!);
+                setStateEvent(blockState, key, update, false);
+              };
+
+              if (decls.length === 1) {
+                const cur = blockState.map.get(decls[0]);
+                cur && doUpdate(decls[0], cur);
+              } else {
+                blockState.map.forEach((cur, key) => {
+                  if (Array.isArray(key) && key[0] === decls[0]) {
+                    doUpdate(key, cur);
+                  }
+                });
+              }
             }
-          } else {
-            const obj = value.obj ? { ...value.obj } : {};
-            obj[me.property.name] = property;
-            object = cloneType(object);
-            setUnionComponent(object, TypeTag.Object, {
-              klass: value.klass,
-              obj,
-            });
-          }
-        }
-      } else {
-        if (object.type & TypeTag.Array) {
-          const avalue = getUnionComponent(object, TypeTag.Array);
-          if (!avalue || !subtypeOf(property, avalue)) {
-            object = cloneType(object);
-            setUnionComponent(object, TypeTag.Array, property);
-          }
-        }
-        if (object.type & TypeTag.Dictionary) {
-          const dvalue = getUnionComponent(object, TypeTag.Dictionary);
-          if (!dvalue || !subtypeOf(property, dvalue.value)) {
-            object = cloneType(object);
-            setUnionComponent(object, TypeTag.Dictionary, {
-              key: dvalue?.key || { type: TypeTag.Any },
-              value: property,
-            });
           }
         }
       }
-      typePath.push(object);
     }
-    setStateEvent(blockState, decl.base, typePath[0], false);
     return [next!, updateAny];
   }
 
@@ -712,16 +777,16 @@ function propagateTypes(
       Array.isArray(decl) ||
       (decl.type !== "MemberDecl" && decl.type !== "Unknown")
     ) {
+      const v = { ...blockState.map.get(decl) };
       if (!clearEquiv) {
         /*
          * If we're not clearing the equivalencies then this update
          * must be applied to every element of the set
          */
-        const v = blockState.get(decl);
-        if (v?.equivSet) {
+        if (v.equivSet) {
           let s = decl;
           do {
-            const next = blockState.get(s);
+            const next = blockState.map.get(s);
             if (!next || !next.equivSet) {
               throw new Error(
                 `Inconsistent equivSet for ${tsKey(
@@ -729,15 +794,21 @@ function propagateTypes(
                 )}: missing value for ${tsKey(s)}`
               );
             }
-            blockState.set(s, { ...next, curType: value });
+            blockState.map.set(s, { ...next, curType: value });
             s = next.equivSet.next;
           } while (s !== decl);
           return;
         }
       } else {
-        removeEquiv(blockState, decl);
+        removeEquiv(blockState.map, decl);
+        delete v.equivSet;
+        if (v.assocPaths?.size) {
+          clearAssocPaths(blockState, decl, v as TypeStateValue);
+          delete v.assocPaths;
+        }
       }
-      blockState.set(decl, { curType: value });
+      v.curType = value;
+      blockState.map.set(decl, v as TypeStateValue);
       return;
     }
     if (decl.type === "Unknown") {
@@ -758,10 +829,10 @@ function propagateTypes(
       Array.isArray(decl) ||
       (decl.type !== "MemberDecl" && decl.type !== "Unknown")
     ) {
-      let tsVal = blockState.get(decl);
+      let tsVal = blockState.map.get(decl);
       if (!tsVal) {
         tsVal = { curType: typeConstraint(decl) };
-        blockState.set(decl, tsVal);
+        blockState.map.set(decl, tsVal);
       }
       return tsVal;
     }
@@ -775,7 +846,6 @@ function propagateTypes(
   }
 
   const blockStates: TypeState[] = [];
-  const blockVisits: number[] = [];
   const typeMap = new Map<mctree.Node, ExactOrUnion>();
   const istate: InterpState = {
     state,
@@ -803,7 +873,7 @@ function propagateTypes(
       if (succ.order == null) {
         throw new Error("Unreachable block was visited");
       }
-      if (mergeTypeState(blockStates, blockVisits, succ.order, curState)) {
+      if (mergeTypeState(blockStates, succ.order, curState)) {
         queue.enqueue(succ);
       }
     });
@@ -854,7 +924,7 @@ function propagateTypes(
             return false;
           }
         }
-        const tmpState = new Map(curState);
+        const tmpState = cloneTypeState(curState);
         setStateEvent(tmpState, leftDecl, leftr, false);
         if (rightDecl) {
           let rightr = restrictByEquality(left, right);
@@ -880,7 +950,7 @@ function propagateTypes(
         const singletonRemoved = cloneType(left);
         singletonRemoved.type -= right.type;
         if (singletonRemoved.type === TypeTag.Never) return false;
-        const tmpState = new Map(curState);
+        const tmpState = cloneTypeState(curState);
         setStateEvent(tmpState, leftDecl, singletonRemoved, false);
         return tmpState;
       }
@@ -922,7 +992,7 @@ function propagateTypes(
               const singletonRemoved = cloneType(left);
               singletonRemoved.type &= ~(TypeTag.Null | TypeTag.False);
               if (singletonRemoved.type === TypeTag.Never) return false;
-              const tmpState = new Map(curState);
+              const tmpState = cloneTypeState(curState);
               setStateEvent(tmpState, event.left, singletonRemoved, false);
               return tmpState;
             }
@@ -936,7 +1006,7 @@ function propagateTypes(
                 TypeTag.Enum,
             });
             if (nonNullRemoved.type === TypeTag.Never) return false;
-            const tmpState = new Map(curState);
+            const tmpState = cloneTypeState(curState);
             setStateEvent(tmpState, event.left, nonNullRemoved, false);
             return tmpState;
           }
@@ -1005,7 +1075,7 @@ function propagateTypes(
             }
           }
           if (result) {
-            const tmpState = new Map(curState);
+            const tmpState = cloneTypeState(curState);
             setStateEvent(tmpState, event.left, result, false);
             return tmpState;
           }
@@ -1035,14 +1105,7 @@ function propagateTypes(
         console.log(`  Flow (true): merge to ${trueSucc.order || -1}`);
         printBlockState(top, sTrue || curState, "    >true ");
       }
-      if (
-        mergeTypeState(
-          blockStates,
-          blockVisits,
-          trueSucc.order!,
-          sTrue || curState
-        )
-      ) {
+      if (mergeTypeState(blockStates, trueSucc.order!, sTrue || curState)) {
         queue.enqueue(trueSucc);
       }
     }
@@ -1053,14 +1116,7 @@ function propagateTypes(
         console.log(`  Flow (false): merge to: ${falseSucc.order || -1}`);
         printBlockState(top, sFalse || curState, "    >false ");
       }
-      if (
-        mergeTypeState(
-          blockStates,
-          blockVisits,
-          falseSucc.order!,
-          sFalse || curState
-        )
-      ) {
+      if (mergeTypeState(blockStates, falseSucc.order!, sFalse || curState)) {
         queue.enqueue(falseSucc);
       }
     }
@@ -1082,7 +1138,6 @@ function propagateTypes(
       if (
         mergeTypeState(
           blockStates,
-          blockVisits,
           (top.exsucc as TypeFlowBlock).order!,
           curState
         )
@@ -1094,9 +1149,12 @@ function propagateTypes(
       case "kil": {
         const curEntry = getStateEntry(curState, event.decl);
         if (curEntry.equivSet) {
-          removeEquiv(curState, event.decl);
+          removeEquiv(curState.map, event.decl);
         }
-        curState.delete(event.decl);
+        if (curEntry.assocPaths) {
+          clearAssocPaths(curState, event.decl, curEntry);
+        }
+        curState.map.delete(event.decl);
         break;
       }
       case "ref": {
@@ -1105,7 +1163,7 @@ function propagateTypes(
         nodeEquivs.delete(event.node);
         if (curEntry.equivSet) {
           const equiv = Array.from(
-            getEquivSet(curState, event.decl as TypeStateKey)
+            getEquivSet(curState.map, event.decl as TypeStateKey)
           ).filter((decl) => decl !== event.decl && declIsLocal(decl));
           if (equiv.length) {
             nodeEquivs.set(event.node, {
@@ -1153,16 +1211,31 @@ function propagateTypes(
             break;
           }
         }
-        curState.forEach((tsv, decl) => {
+        curState.map.forEach((tsv, decl) => {
           let type = tsv.curType;
-          if (callees === undefined || modifiableDecl(decl, callees)) {
+          if (
+            !some(
+              decl,
+              (d) =>
+                d.type === "VariableDeclarator" &&
+                (d.node.kind === "var" ||
+                  // even a "const" could have its "inner" type altered
+                  (type.value != null && (type.type & TypeTag.Object) !== 0))
+            )
+          ) {
+            return;
+          }
+          if (modifiableDecl(decl, callees)) {
             if (tsv.equivSet) {
-              removeEquiv(curState, decl);
+              removeEquiv(curState.map, decl);
             }
-            curState.set(decl, { curType: typeConstraint(decl) });
+            if (tsv.assocPaths) {
+              clearAssocPaths(curState, decl, tsv);
+            }
+            curState.map.set(decl, { curType: typeConstraint(decl) });
           } else if (
             type.value != null &&
-            !every(callees, (callee) => callee.info === false)
+            (!callees || !every(callees, (callee) => callee.info === false))
           ) {
             if (type.type & TypeTag.Object) {
               const odata = getObjectValue(tsv.curType);
@@ -1170,7 +1243,7 @@ function propagateTypes(
                 type = cloneType(type);
                 const newData = { klass: odata.klass };
                 setUnionComponent(type, TypeTag.Object, newData);
-                curState.set(decl, { ...tsv, curType: type });
+                curState.map.set(decl, { ...tsv, curType: type });
               }
             }
           }
@@ -1197,11 +1270,48 @@ function propagateTypes(
         const type = expr
           ? evaluate(istate, expr).value
           : { type: TypeTag.Any };
-        if (setStateEvent(curState, event.decl, type, true)) {
-          // we wrote through a computed member expression
-          // which might have been a Class, Module or Object.
-          // That could have affected anything...
-          curState.forEach((value, decls) => {
+        const wasComputedDecl = setStateEvent(curState, event.decl, type, true);
+        some(event.decl, (decl) => {
+          if (
+            decl.type !== "VariableDeclarator" ||
+            decl.node.kind !== "var" ||
+            !isClassVariable(decl)
+          ) {
+            return false;
+          }
+          // A write to a class variable could interfere with
+          // a MemberDecl
+          const affected = curState.trackedMemberDecls?.get(decl.name);
+          if (affected) {
+            const objType = typeFromTypeStateNodes(
+              istate.state,
+              map(
+                event.decl,
+                (decl) =>
+                  decl.type === "VariableDeclarator" &&
+                  decl.stack[decl.stack.length - 1].sn
+              ).filter(
+                (decl): decl is ClassStateNode =>
+                  decl && decl.type === "ClassDeclaration"
+              )
+            );
+            updateAffected(
+              curState,
+              objType,
+              event.decl as TypeStateKey,
+              decl.name,
+              decl.name,
+              affected,
+              type
+            );
+          }
+          return true;
+        });
+        if (wasComputedDecl) {
+          curState.map.forEach((value, decls) => {
+            // we wrote through a computed member expression
+            // which might have been a Class, Module or Object.
+            // That could have affected any non-local...
             if (
               some(
                 decls,
@@ -1212,15 +1322,19 @@ function propagateTypes(
               )
             ) {
               if (value.equivSet) {
-                removeEquiv(curState, decls);
+                removeEquiv(curState.map, decls);
               }
-              curState.set(decls, { curType: typeConstraint(decls) });
+              if (value.assocPaths) {
+                clearAssocPaths(curState, decls, value);
+              }
+              curState.map.set(decls, { curType: typeConstraint(decls) });
             }
           });
         }
+
         if (event.rhs) {
           const selfAssign = addEquiv(
-            curState,
+            curState.map,
             event.rhs as TypeStateKey,
             event.decl as TypeStateKey
           );
@@ -1240,7 +1354,10 @@ function propagateTypes(
             localDecls.set(name, new Set([event.decl]));
           } else {
             locals.forEach((local) => {
-              if (local !== event.decl && curState.has(local as TypeStateKey)) {
+              if (
+                local !== event.decl &&
+                curState.map.has(local as TypeStateKey)
+              ) {
                 localConflicts.add(local);
               }
             });
@@ -1268,7 +1385,7 @@ function propagateTypes(
             `  ${describeEvent(event)} : ${
               !Array.isArray(event.left) && event.left.type === "MemberDecl"
                 ? `${display(
-                    curState.get(event.left.base)?.curType || {
+                    curState.map.get(event.left.base)?.curType || {
                       type: TypeTag.Any,
                     }
                   )} :: `
@@ -1284,7 +1401,7 @@ function propagateTypes(
     return false;
   };
 
-  blockStates[0] = new Map();
+  blockStates[0] = { map: new Map(), visits: 0 };
   const head = blockStates[0];
   // set the parameters to their initial types
   func.node.params.forEach((param) => {
@@ -1306,7 +1423,7 @@ function propagateTypes(
       throw new Error(`Unreachable block was visited!`);
     }
     if (!blockStates[top.order]) continue;
-    const curState = new Map(blockStates[top.order]);
+    const curState = cloneTypeState(blockStates[top.order]);
     if (logThisRun) {
       printBlockHeader(top);
       printBlockState(top, curState);
@@ -1502,4 +1619,67 @@ function propagateTypes(
   }
 
   return { istate, nodeEquivs };
+}
+
+function updateByAssocPath(
+  path: AssocPath,
+  property: ExactOrUnion,
+  union: boolean
+) {
+  const valueToStore = (base: ExactOrUnion) => {
+    const clone = cloneType(base);
+    unionInto(clone, property);
+    return clone;
+  };
+  for (let i = path.length; i--; ) {
+    const pathElem = path[i];
+    let object = pathElem.type;
+    if (pathElem.name) {
+      const value = getObjectValue(object);
+      if (value) {
+        const obj = value.obj ? { ...value.obj } : {};
+        obj[pathElem.name] = union
+          ? valueToStore(obj[pathElem.name] || { type: TypeTag.Any })
+          : property;
+        object = cloneType(object);
+        setUnionComponent(object, TypeTag.Object, {
+          klass: value.klass,
+          obj,
+        });
+      }
+    } else {
+      if (object.type & TypeTag.Array) {
+        object = cloneType(object);
+        setUnionComponent(
+          object,
+          TypeTag.Array,
+          union
+            ? valueToStore(
+                getUnionComponent(object, TypeTag.Array) || {
+                  type: TypeTag.Any,
+                }
+              )
+            : property
+        );
+      }
+      if (object.type & TypeTag.Dictionary) {
+        const dvalue = getUnionComponent(object, TypeTag.Dictionary);
+        object = cloneType(object);
+        setUnionComponent(object, TypeTag.Dictionary, {
+          key: dvalue?.key || { type: TypeTag.Any },
+          value: union
+            ? valueToStore(
+                getUnionComponent(object, TypeTag.Dictionary)?.value || {
+                  type: TypeTag.Any,
+                }
+              )
+            : property,
+        });
+      }
+    }
+    path[i].type = object;
+    property = object;
+    union = false;
+  }
+  return property;
 }
