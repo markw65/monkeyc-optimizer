@@ -2,6 +2,7 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as assert from "node:assert";
 import {
   formatAst,
+  formatAstLongLines,
   getSuperClasses,
   hasProperty,
   isClassVariable,
@@ -9,17 +10,21 @@ import {
   lookupNext,
   traverseAst,
 } from "./api";
-import { withLoc } from "./ast";
+import { withLoc, withLocDeep } from "./ast";
 import { getPostOrder } from "./control-flow";
 import {
   buildDataFlowGraph,
   DataflowQueue,
+  DefEvent,
   Event,
   EventDecl,
   FlowEvent,
   FlowKind,
+  ModEvent,
+  RefEvent,
 } from "./data-flow";
 import { findCalleesByNode, functionMayModify } from "./function-info";
+import { inlineRequested } from "./inliner";
 import {
   ClassStateNode,
   FunctionStateNode,
@@ -28,7 +33,11 @@ import {
   StateNodeDecl,
 } from "./optimizer-types";
 import { couldBeShallow } from "./type-flow/could-be";
-import { eliminateDeadStores, findDeadStores } from "./type-flow/dead-store";
+import {
+  CopyPropStores,
+  eliminateDeadStores,
+  findDeadStores,
+} from "./type-flow/dead-store";
 import { evaluate, evaluateExpr, InterpState } from "./type-flow/interp";
 import { sysCallInfo } from "./type-flow/interp-call";
 import {
@@ -38,9 +47,11 @@ import {
 import { subtypeOf } from "./type-flow/sub-type";
 import {
   declIsLocal,
+  declIsNonLocal,
   describeEvent,
   findNextObjectType,
   findObjectDeclsByProperty,
+  isTypeStateKey,
   localDeclName,
   printBlockEvents,
   printBlockHeader,
@@ -74,6 +85,12 @@ import { every, map, reduce, some } from "./util";
 
 const logging = true;
 
+const enum UpdateKind {
+  None,
+  Inner,
+  Reassign,
+}
+
 // Toybox APIs often fail to include Null when they should.
 // To avoid over zealous optimizations, we don't optimize
 // away any Null checks for now.
@@ -83,6 +100,8 @@ export type NodeEquivMap = Map<
   mctree.Node,
   { decl: EventDecl; equiv: Array<EventDecl> }
 >;
+
+type CopyPropMap = Map<mctree.Node, mctree.Node | false>;
 
 function loggingEnabledFor(env: string, func: FunctionStateNode) {
   const pattern = process.env[env];
@@ -103,23 +122,32 @@ export function buildTypeInfo(
   const logThisRun = logging && loggingEnabledFor("TYPEFLOW_FUNC", func);
   while (true) {
     const { graph } = buildDataFlowGraph(state, func, () => false, false, true);
-    if (
-      optimizeEquivalencies &&
-      eliminateDeadStores(state, func, graph, logThisRun)
-    ) {
-      /*
-       * eliminateDeadStores can change the control flow graph,
-       * so we need to recompute it if it did anything.
-       */
-      continue;
+    let copyPropStores: CopyPropStores | undefined;
+    if (optimizeEquivalencies) {
+      const result = eliminateDeadStores(state, func, graph, logThisRun);
+      if (result.changes) {
+        /*
+         * eliminateDeadStores can change the control flow graph,
+         * so we need to recompute it if it did anything.
+         */
+        continue;
+      }
+      if (result.copyPropStores.size) {
+        copyPropStores = result.copyPropStores;
+      }
     }
-    return propagateTypes(
+    const result = propagateTypes(
       { ...state, stack: func.stack },
       func,
       graph,
       optimizeEquivalencies,
+      copyPropStores,
       logThisRun
-    ).istate;
+    );
+
+    if (!result.redo) {
+      return result.istate;
+    }
   }
 }
 
@@ -142,7 +170,8 @@ export function buildConflictGraph(
     func,
     graph,
     false,
-    false
+    undefined,
+    logThisRun
   );
   const { locals, localConflicts } = findDeadStores(
     func,
@@ -162,19 +191,33 @@ export function buildConflictGraph(
 // its type specializations)
 type AssocPath = Array<{ name: string | null; type: ExactOrUnion }>;
 
+type CopyPropItem = {
+  event: DefEvent;
+  contained: Map<TypeStateKey | null, Array<RefEvent | ModEvent>>;
+};
 type TypeStateValue = {
   curType: ExactOrUnion;
   equivSet?: { next: TypeStateKey };
   // set of paths used by MemberDecls whose base
   // points to this entry.
   assocPaths?: Set<string>;
+  // used to implement single-use copy-prop
+  // ie
+  //   var x = y + z;
+  //   foo(x); // only use of x
+  // becomes
+  //   foo(y + z);
+  copyPropItem?: CopyPropItem;
 };
 
 type AffectedDecls = Set<TypeStateKey>;
 
 type TypeStateMap = Map<TypeStateKey, TypeStateValue>;
-//type TrackedMemberDecl = { key: TypeStateKey; path: string };
+
 type TypeState = {
+  // Ownership model:
+  // The map itself is owned by this TypeState. The entries are shared
+  // though, so any changes need to be to new copies.
   map: TypeStateMap;
   visits: number;
   // For each entry in map with assocPaths, we provide a mechanism to go
@@ -198,6 +241,16 @@ type TypeState = {
   // Ownership model:
   // Never shared. Always safe to update in place
   trackedMemberDecls?: Map<string, AffectedDecls>;
+
+  // liveCopyPropEvents.get(decl) is a set of decls, all of which
+  // have copyPropItems whose contained events depend on decl.
+  // This means that when we see a def or kill event for decl,
+  // we can quickly find all the map entries whose
+  // copyPropEvents depend on decl.
+  //
+  // Ownership model:
+  // Fully owned by this TypeState. Always safe to modify in place.
+  liveCopyPropEvents?: Map<EventDecl | null, Set<TypeStateKey>>;
 };
 
 function addEquiv(ts: TypeStateMap, key: TypeStateKey, equiv: TypeStateKey) {
@@ -335,12 +388,18 @@ function clearAssocPaths(
 }
 
 function cloneTypeState(blockState: TypeState): TypeState {
-  const { map, trackedMemberDecls, ...rest } = blockState;
+  const { map, trackedMemberDecls, liveCopyPropEvents, ...rest } = blockState;
   const clone: TypeState = { map: new Map(map), ...rest };
   if (trackedMemberDecls) {
     clone.trackedMemberDecls = new Map();
     trackedMemberDecls.forEach((value, key) => {
       clone.trackedMemberDecls!.set(key, new Set(value));
+    });
+  }
+  if (liveCopyPropEvents) {
+    clone.liveCopyPropEvents = new Map();
+    liveCopyPropEvents.forEach((value, key) => {
+      clone.liveCopyPropEvents?.set(key, new Set(value));
     });
   }
   return clone;
@@ -364,7 +423,83 @@ function addTrackedMemberDecl(
   });
 }
 
+function addCopyPropEvent(blockState: TypeState, item: CopyPropItem) {
+  if (!blockState.liveCopyPropEvents) {
+    blockState.liveCopyPropEvents = new Map();
+  }
+  const liveCopyPropEvents = blockState.liveCopyPropEvents;
+  const decl = item.event.decl;
+  assert(declIsLocal(decl));
+  let tov = blockState.map.get(decl);
+  assert(tov);
+  if (tov.copyPropItem !== item) {
+    tov = { ...tov, copyPropItem: item };
+    blockState.map.set(decl, tov);
+  }
+  item.contained.forEach((value, key) => {
+    const decls = liveCopyPropEvents.get(key);
+    if (!decls) {
+      liveCopyPropEvents.set(key, new Set([decl]));
+    } else {
+      decls.add(decl);
+    }
+  });
+}
+
+function clearCopyProp(blockState: TypeState, item: CopyPropItem) {
+  const liveCopyPropEvents = blockState.liveCopyPropEvents;
+  assert(liveCopyPropEvents);
+  const itemDecl = item.event.decl as TypeStateKey;
+  item.contained.forEach((event, decl) => {
+    const decls = liveCopyPropEvents.get(decl);
+    assert(decls && decls.has(itemDecl));
+    decls.delete(itemDecl);
+  });
+}
+
+function copyPropFailed(
+  blockState: TypeState,
+  item: CopyPropItem,
+  nodeCopyProp: CopyPropMap
+) {
+  clearCopyProp(blockState, item);
+  const ref = nodeCopyProp.get(item.event.node);
+  if (ref) {
+    nodeCopyProp.delete(ref);
+  }
+  nodeCopyProp.set(item.event.node, false);
+}
+
+function clearRelatedCopyPropEvents(
+  blockState: TypeState,
+  decl: EventDecl | null,
+  nodeCopyProp: CopyPropMap
+) {
+  blockState.liveCopyPropEvents
+    ?.get(decl as TypeStateKey)
+    ?.forEach((cpDecl) => {
+      let value = blockState.map.get(cpDecl);
+      assert(value && value.copyPropItem);
+      assert(
+        Array.from(value.copyPropItem.contained).some(([key]) => {
+          return decl === key;
+        })
+      );
+
+      copyPropFailed(blockState, value.copyPropItem, nodeCopyProp);
+      value = { ...value };
+      delete value.copyPropItem;
+      blockState.map.set(cpDecl, value);
+    });
+}
+
 function validateTypeState(curState: TypeState) {
+  curState.liveCopyPropEvents?.forEach((decls) =>
+    decls.forEach((cpDecl) => {
+      const value = curState.map.get(cpDecl);
+      assert(value && value.copyPropItem);
+    })
+  );
   curState.trackedMemberDecls?.forEach((affected, key) => {
     affected.forEach((decl) => {
       const value = curState.map.get(decl);
@@ -383,7 +518,8 @@ function validateTypeState(curState: TypeState) {
 function mergeTypeState(
   blockStates: TypeState[],
   index: number,
-  from: TypeState
+  from: TypeState,
+  nodeCopyProp: CopyPropMap
 ) {
   const to = blockStates[index];
   if (!to) {
@@ -393,9 +529,9 @@ function mergeTypeState(
   }
   const widen = ++to.visits > 10;
 
-  // we'll rebuild this from scratch via
-  // addTrackedMemberDecl below.
+  // we'll rebuild these from scratch
   delete to.trackedMemberDecls;
+  delete to.liveCopyPropEvents;
 
   let changes = false;
   to.map.forEach((tov, k) => {
@@ -424,6 +560,7 @@ function mergeTypeState(
         assocPaths.forEach((key) => {
           if (!fromv.assocPaths!.has(key)) {
             assocPaths.delete(key);
+            changes = true;
           } else {
             addTrackedMemberDecl(to, k, key);
           }
@@ -435,6 +572,31 @@ function mergeTypeState(
         }
       }
       to.map.set(k, tov);
+    }
+    // if both from and to have copyPropEvents, we can only
+    // keep it if they're the same event.
+    if (tov.copyPropItem) {
+      if (tov.copyPropItem.event !== fromv.copyPropItem?.event) {
+        const toProp = nodeCopyProp.get(tov.copyPropItem.event.node);
+        if (toProp) {
+          nodeCopyProp.delete(toProp);
+        }
+        nodeCopyProp.set(tov.copyPropItem.event.node, false);
+        if (fromv.copyPropItem) {
+          const fromProp = nodeCopyProp.get(fromv.copyPropItem.event.node);
+          if (fromProp) {
+            nodeCopyProp.delete(fromProp);
+          }
+          nodeCopyProp.set(fromv.copyPropItem.event.node, false);
+        }
+        tov = { ...tov };
+        delete tov.copyPropItem;
+        changes = true;
+        to.map.set(k, tov);
+      } else {
+        assert(k === tov.copyPropItem.event.decl);
+        addCopyPropEvent(to, tov.copyPropItem);
+      }
     }
     if (widen) {
       if (subtypeOf(fromv.curType, tov.curType)) return;
@@ -462,11 +624,7 @@ function tsEquivs(state: TypeStateMap, key: TypeStateKey) {
   do {
     result.push(tsKey(s));
     const next = state.get(s);
-    if (!next || !next.equivSet) {
-      throw new Error(
-        `Inconsistent equivSet for ${tsKey(key)}: missing value for ${tsKey(s)}`
-      );
-    }
+    assert(next && next.equivSet);
     s = next.equivSet.next;
   } while (s !== key);
   return `[(${result.join(", ")})]`;
@@ -527,11 +685,6 @@ function updateAffected(
             newEntry = { ...entry };
           }
           if (newAssocKey !== path) {
-            // we're truncating the path, so we should also be tracking
-            // the truncated path (if we saw x.foo.bar, we must also have
-            // seen x.foo)
-            assert(entry.assocPaths!.has(newAssocKey));
-            // so we can just drop this one...
             newEntry.assocPaths = new Set(newEntry.assocPaths!);
             newEntry.assocPaths.delete(path);
             // the "extra" path components will also have entries
@@ -596,6 +749,7 @@ function propagateTypes(
   func: FunctionStateNode,
   graph: TypeFlowBlock,
   optimizeEquivalencies: boolean,
+  copyPropStores: CopyPropStores | undefined,
   logThisRun: boolean
 ) {
   // We want to traverse the blocks in reverse post order, in
@@ -626,7 +780,6 @@ function propagateTypes(
   function memberDeclInfo(
     blockState: TypeState,
     decl: Extract<EventDecl, { type: "MemberDecl" }>,
-    clearEquiv: boolean,
     newValue?: ExactOrUnion | undefined
   ): [ExactOrUnion, boolean] | null {
     const baseType = getStateType(blockState, decl.base);
@@ -704,7 +857,12 @@ function propagateTypes(
     }));
     const assocKey = assocValue.map((av) => av.name ?? "*").join(".");
     const newType = updateByAssocPath(assocValue, next!, false);
-    setStateEvent(blockState, decl.base, newType, false);
+    setStateEvent(
+      blockState,
+      decl.base,
+      newType,
+      newValue ? UpdateKind.Inner : UpdateKind.None
+    );
     const tsv = { ...blockState.map.get(decl.base)! };
     tsv.assocPaths = new Set(tsv.assocPaths);
     tsv.assocPaths.add(assocKey);
@@ -757,7 +915,7 @@ function propagateTypes(
               const doUpdate = (key: TypeStateKey, cur: TypeStateValue) => {
                 const update = cloneType(cur.curType);
                 unionInto(update, next!);
-                setStateEvent(blockState, key, update, false);
+                setStateEvent(blockState, key, update, UpdateKind.None);
               };
 
               if (decls.length === 1) {
@@ -804,19 +962,33 @@ function propagateTypes(
     blockState: TypeState,
     decl: EventDecl,
     value: ExactOrUnion,
-    clearEquiv: boolean
+    updateKind: UpdateKind
   ) {
     if (
       Array.isArray(decl) ||
       (decl.type !== "MemberDecl" && decl.type !== "Unknown")
     ) {
-      const v = { ...blockState.map.get(decl) };
-      if (!clearEquiv) {
+      if (updateKind !== UpdateKind.None) {
+        // even if we're only modifying an Object, rather
+        // than reassigning it, we need to clear the
+        // related copy prop events, because although
+        // we may only see the object itself, the expression
+        // could access its fields. eg if x is the decl, then
+        //
+        //   foo(x);
+        //
+        // might change when x.a.b.c is changed, even if we know
+        // that foo is side-effect free, and accesses no globals.
+        clearRelatedCopyPropEvents(blockState, decl, nodeCopyProp);
+      }
+      if (updateKind !== UpdateKind.Reassign) {
         /*
-         * If we're not clearing the equivalencies then this update
-         * must be applied to every element of the set
+         * If we're not re-assigning, the equivalencies don't
+         * change, so this update must be applied to every
+         * element of the set
          */
-        if (v.equivSet) {
+        const v = blockState.map.get(decl);
+        if (v?.equivSet) {
           let s = decl;
           do {
             const next = blockState.map.get(s);
@@ -830,24 +1002,26 @@ function propagateTypes(
             blockState.map.set(s, { ...next, curType: value });
             s = next.equivSet.next;
           } while (s !== decl);
-          return;
+        } else {
+          blockState.map.set(decl, { ...v, curType: value });
         }
       } else {
+        const v = blockState.map.get(decl);
         removeEquiv(blockState.map, decl);
-        delete v.equivSet;
-        if (v.assocPaths?.size) {
+        if (v?.assocPaths?.size) {
           clearAssocPaths(blockState, decl, v as TypeStateValue);
-          delete v.assocPaths;
         }
+        if (v?.copyPropItem) {
+          copyPropFailed(blockState, v.copyPropItem, nodeCopyProp);
+        }
+        blockState.map.set(decl, { curType: value });
       }
-      v.curType = value;
-      blockState.map.set(decl, v as TypeStateValue);
       return;
     }
     if (decl.type === "Unknown") {
       return;
     }
-    return memberDeclInfo(blockState, decl, clearEquiv, value)?.[1];
+    return memberDeclInfo(blockState, decl, value)?.[1];
   }
 
   function getStateType(blockState: TypeState, decl: EventDecl): ExactOrUnion {
@@ -874,7 +1048,7 @@ function propagateTypes(
       return { curType: { type: TypeTag.Never } };
     }
 
-    const info = memberDeclInfo(blockState, decl, false);
+    const info = memberDeclInfo(blockState, decl);
     return { curType: info ? info[0] : { type: TypeTag.Any } };
   }
 
@@ -906,30 +1080,84 @@ function propagateTypes(
       if (succ.order == null) {
         throw new Error("Unreachable block was visited");
       }
-      if (mergeTypeState(blockStates, succ.order, curState)) {
+      if (mergeTypeState(blockStates, succ.order, curState, nodeCopyProp)) {
+        if (logThisRun) {
+          console.log(`re-merge: ${top.order} -> ${succ.order}`);
+        }
         queue.enqueue(succ);
       }
     });
   };
 
-  function handleMod(
+  function checkModResults(
     curState: TypeState,
     calleeObjDecl: EventDecl,
     callees: FunctionStateNode | FunctionStateNode[] | undefined | null,
     node: mctree.CallExpression
   ) {
     const calleeObj = getStateType(curState, calleeObjDecl);
-    return every(callees, (callee) => {
+    const calleeResult: ExactOrUnion = { type: TypeTag.Never };
+    const result = every(callees, (callee) => {
       const info = sysCallInfo(callee);
       if (!info) return false;
       const result = info(istate.state, callee, calleeObj, () =>
         node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
       );
+      if (!result.effectFree) {
+        return false;
+      }
       if (result.calleeObj) {
-        setStateEvent(curState, calleeObjDecl, result.calleeObj, false);
+        unionInto(calleeResult, result.calleeObj);
       }
       return true;
     });
+    return result ? calleeResult : null;
+  }
+
+  function modInterference(
+    blockState: TypeState,
+    event: ModEvent,
+    doUpdate: boolean,
+    callback: (
+      callees: FunctionStateNode | FunctionStateNode[] | undefined | null,
+      calleeObj: EventDecl | undefined
+    ) => boolean
+  ) {
+    let callees: FunctionStateNode | FunctionStateNode[] | undefined | null =
+      undefined;
+    if (event.calleeDecl) {
+      const calleeType = getStateType(blockState, event.calleeDecl);
+      if (hasValue(calleeType) && calleeType.type === TypeTag.Function) {
+        callees = calleeType.value;
+      } else {
+        callees = findCalleesByNode(state, event.node as mctree.Expression);
+      }
+    }
+    if (callees === undefined && event.callees !== undefined) {
+      callees = event.callees;
+    }
+    if (event.calleeObj) {
+      const calleeObjResult = checkModResults(
+        blockState,
+        event.calleeObj,
+        callees,
+        event.node as mctree.CallExpression
+      );
+      if (calleeObjResult) {
+        if (calleeObjResult.type !== TypeTag.Never) {
+          if (doUpdate) {
+            setStateEvent(
+              blockState,
+              event.calleeObj,
+              calleeObjResult,
+              UpdateKind.None
+            );
+          }
+        }
+        return true;
+      }
+    }
+    return callback(callees, event.calleeObj);
   }
 
   function handleFlowEvent(
@@ -958,7 +1186,7 @@ function propagateTypes(
           }
         }
         const tmpState = cloneTypeState(curState);
-        setStateEvent(tmpState, leftDecl, leftr, false);
+        setStateEvent(tmpState, leftDecl, leftr, UpdateKind.None);
         if (rightDecl) {
           let rightr = restrictByEquality(left, right);
           if (rightr.type === TypeTag.Never) {
@@ -969,7 +1197,7 @@ function propagateTypes(
               return false;
             }
           }
-          setStateEvent(tmpState, rightDecl, rightr, false);
+          setStateEvent(tmpState, rightDecl, rightr, UpdateKind.None);
         }
         return tmpState;
       }
@@ -984,7 +1212,7 @@ function propagateTypes(
         singletonRemoved.type -= right.type;
         if (singletonRemoved.type === TypeTag.Never) return false;
         const tmpState = cloneTypeState(curState);
-        setStateEvent(tmpState, leftDecl, singletonRemoved, false);
+        setStateEvent(tmpState, leftDecl, singletonRemoved, UpdateKind.None);
         return tmpState;
       }
       return null;
@@ -1026,7 +1254,12 @@ function propagateTypes(
               singletonRemoved.type &= ~(TypeTag.Null | TypeTag.False);
               if (singletonRemoved.type === TypeTag.Never) return false;
               const tmpState = cloneTypeState(curState);
-              setStateEvent(tmpState, event.left, singletonRemoved, false);
+              setStateEvent(
+                tmpState,
+                event.left,
+                singletonRemoved,
+                UpdateKind.None
+              );
               return tmpState;
             }
           } else {
@@ -1040,7 +1273,12 @@ function propagateTypes(
             });
             if (nonNullRemoved.type === TypeTag.Never) return false;
             const tmpState = cloneTypeState(curState);
-            setStateEvent(tmpState, event.left, nonNullRemoved, false);
+            setStateEvent(
+              tmpState,
+              event.left,
+              nonNullRemoved,
+              UpdateKind.None
+            );
             return tmpState;
           }
           break;
@@ -1109,7 +1347,7 @@ function propagateTypes(
           }
           if (result) {
             const tmpState = cloneTypeState(curState);
-            setStateEvent(tmpState, event.left, result, false);
+            setStateEvent(tmpState, event.left, result, UpdateKind.None);
             return tmpState;
           }
         }
@@ -1138,7 +1376,17 @@ function propagateTypes(
         console.log(`  Flow (true): merge to ${trueSucc.order || -1}`);
         printBlockState(top, sTrue || curState, "    >true ");
       }
-      if (mergeTypeState(blockStates, trueSucc.order!, sTrue || curState)) {
+      if (
+        mergeTypeState(
+          blockStates,
+          trueSucc.order!,
+          sTrue || curState,
+          nodeCopyProp
+        )
+      ) {
+        if (logThisRun) {
+          console.log(`re-merge: ${top.order} -> ${trueSucc.order}`);
+        }
         queue.enqueue(trueSucc);
       }
     }
@@ -1149,13 +1397,30 @@ function propagateTypes(
         console.log(`  Flow (false): merge to: ${falseSucc.order || -1}`);
         printBlockState(top, sFalse || curState, "    >false ");
       }
-      if (mergeTypeState(blockStates, falseSucc.order!, sFalse || curState)) {
+      if (
+        mergeTypeState(
+          blockStates,
+          falseSucc.order!,
+          sFalse || curState,
+          nodeCopyProp
+        )
+      ) {
+        if (logThisRun) {
+          console.log(`re-merge: ${top.order} -> ${falseSucc.order}`);
+        }
         queue.enqueue(falseSucc);
       }
     }
     return true;
   }
 
+  /*
+   * nodeCopyProp contains two related maps. It maps ref nodes
+   * to the def node that should be copy propagated. It also maps
+   * def nodes to false, to indicate a previous failure to find
+   * a copy prop candidate.
+   */
+  const nodeCopyProp: CopyPropMap = new Map();
   const nodeEquivs: NodeEquivMap = new Map();
   const localDecls = new Map<string, Set<EventDecl>>();
   const localConflicts = new Set<EventDecl>();
@@ -1172,7 +1437,8 @@ function propagateTypes(
         mergeTypeState(
           blockStates,
           (top.exsucc as TypeFlowBlock).order!,
-          curState
+          curState,
+          nodeCopyProp
         )
       ) {
         queue.enqueue(top.exsucc);
@@ -1188,11 +1454,15 @@ function propagateTypes(
         if (curEntry.assocPaths) {
           clearAssocPaths(curState, event.decl, curEntry);
         }
+        if (curEntry.copyPropItem) {
+          copyPropFailed(curState, curEntry.copyPropItem, nodeCopyProp);
+        }
+        clearRelatedCopyPropEvents(curState, event.decl, nodeCopyProp);
         curState.map.delete(event.decl);
         break;
       }
       case "ref": {
-        const curEntry = getStateEntry(curState, event.decl);
+        let curEntry = getStateEntry(curState, event.decl);
         typeMap.set(event.node, curEntry.curType);
         nodeEquivs.delete(event.node);
         if (curEntry.equivSet) {
@@ -1206,6 +1476,27 @@ function propagateTypes(
             });
           }
         }
+        if (copyPropStores) {
+          nodeCopyProp.delete(event.node);
+          if (curEntry.copyPropItem) {
+            const copyPropInfo = copyPropStores.get(
+              curEntry.copyPropItem.event.node
+            );
+            assert(copyPropInfo && copyPropInfo.ref === event.node);
+            const defNode = nodeCopyProp.get(curEntry.copyPropItem.event.node);
+            assert(!defNode || defNode === event.node);
+            if (defNode !== false) {
+              nodeCopyProp.set(event.node, curEntry.copyPropItem.event.node);
+              nodeCopyProp.set(curEntry.copyPropItem.event.node, event.node);
+            }
+            clearCopyProp(curState, curEntry.copyPropItem);
+            curEntry = { ...curEntry };
+            delete curEntry.copyPropItem;
+            curState.map.set(event.decl as TypeStateKey, curEntry);
+          } else if (declIsNonLocal(event.decl)) {
+            clearRelatedCopyPropEvents(curState, null, nodeCopyProp);
+          }
+        }
         if (logThisRun) {
           console.log(
             `  ${describeEvent(event)} == ${display(curEntry.curType)}`
@@ -1217,70 +1508,70 @@ function propagateTypes(
         if (logThisRun) {
           console.log(`  ${describeEvent(event)}`);
         }
-        let callees:
-          | FunctionStateNode
-          | FunctionStateNode[]
-          | undefined
-          | null = undefined;
-        if (event.calleeDecl) {
-          const calleeType = getStateType(curState, event.calleeDecl);
-          if (hasValue(calleeType) && calleeType.type === TypeTag.Function) {
-            callees = calleeType.value;
-          } else {
-            callees = findCalleesByNode(state, event.node as mctree.Expression);
-          }
-        }
-        if (callees === undefined && event.callees !== undefined) {
-          callees = event.callees;
-        }
-        if (event.calleeObj) {
-          if (
-            handleMod(
-              curState,
-              event.calleeObj,
-              callees,
-              event.node as mctree.CallExpression
-            )
-          ) {
-            break;
-          }
-        }
-        curState.map.forEach((tsv, decl) => {
-          let type = tsv.curType;
-          if (
-            !some(
-              decl,
-              (d) =>
-                d.type === "VariableDeclarator" &&
-                (d.node.kind === "var" ||
-                  // even a "const" could have its "inner" type altered
-                  (type.value != null && (type.type & TypeTag.Object) !== 0))
-            )
-          ) {
-            return;
-          }
-          if (modifiableDecl(decl, callees)) {
-            if (tsv.equivSet) {
-              removeEquiv(curState.map, decl);
+        modInterference(curState, event, true, (callees, calleeObj) => {
+          clearRelatedCopyPropEvents(curState, null, nodeCopyProp);
+          if (calleeObj) {
+            const objType = getStateType(curState, calleeObj);
+            if (
+              objType.type &
+              (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary)
+            ) {
+              setStateEvent(curState, calleeObj, objType, UpdateKind.Inner);
             }
-            if (tsv.assocPaths) {
-              clearAssocPaths(curState, decl, tsv);
+          }
+          curState.map.forEach((tsv, decl) => {
+            let type = tsv.curType;
+            if (
+              !some(
+                decl,
+                (d) =>
+                  d.type === "VariableDeclarator" &&
+                  (d.node.kind === "var" ||
+                    // even a "const" could have its "inner" type altered
+                    (type.value != null && (type.type & TypeTag.Object) !== 0))
+              )
+            ) {
+              return;
             }
-            curState.map.set(decl, { curType: typeConstraint(decl) });
-          } else if (
-            type.value != null &&
-            (!callees || !every(callees, (callee) => callee.info === false))
-          ) {
-            if (type.type & TypeTag.Object) {
-              const odata = getObjectValue(tsv.curType);
-              if (odata?.obj) {
-                type = cloneType(type);
-                const newData = { klass: odata.klass };
-                setUnionComponent(type, TypeTag.Object, newData);
-                curState.map.set(decl, { ...tsv, curType: type });
+            if (modifiableDecl(decl, callees)) {
+              if (tsv.equivSet) {
+                removeEquiv(curState.map, decl);
+              }
+              if (tsv.assocPaths) {
+                clearAssocPaths(curState, decl, tsv);
+              }
+              // we only attach copyPropItems to locals,
+              // which can't be modified by a call.
+              assert(!tsv.copyPropItem);
+              clearRelatedCopyPropEvents(curState, decl, nodeCopyProp);
+              curState.map.set(decl, { curType: typeConstraint(decl) });
+            } else if (
+              type.value != null &&
+              (!callees || !every(callees, (callee) => callee.info === false))
+            ) {
+              if (type.type & TypeTag.Object) {
+                const odata = getObjectValue(tsv.curType);
+                if (odata?.obj) {
+                  type = cloneType(type);
+                  const newData = { klass: odata.klass };
+                  setUnionComponent(type, TypeTag.Object, newData);
+                  if (tsv.assocPaths) {
+                    clearAssocPaths(curState, decl, tsv);
+                    tsv = { ...tsv };
+                    delete tsv.assocPaths;
+                  }
+                  if (tsv.copyPropItem) {
+                    copyPropFailed(curState, tsv.copyPropItem, nodeCopyProp);
+                    tsv = { ...tsv };
+                    delete tsv.copyPropItem;
+                  }
+                  clearRelatedCopyPropEvents(curState, decl, nodeCopyProp);
+                  curState.map.set(decl, { ...tsv, curType: type });
+                }
               }
             }
-          }
+          });
+          return true;
         });
         break;
       }
@@ -1292,9 +1583,20 @@ function propagateTypes(
             ? event.node.left
             : null;
         if (lval) {
-          const beforeType = getStateType(curState, event.decl);
-          if (beforeType) {
-            typeMap.set(lval, beforeType);
+          const before = getStateEntry(curState, event.decl);
+          if (before.curType) {
+            typeMap.set(lval, before.curType);
+          }
+          if (
+            before.copyPropItem &&
+            (event.node.type !== "AssignmentExpression" ||
+              event.node.operator !== "=")
+          ) {
+            copyPropFailed(curState, before.copyPropItem, nodeCopyProp);
+            const v = { ...before };
+            delete v.copyPropItem;
+            assert(isTypeStateKey(event.decl));
+            curState.map.set(event.decl, v);
           }
         }
         const expr: mctree.Expression | null =
@@ -1304,7 +1606,12 @@ function propagateTypes(
         const type = expr
           ? evaluate(istate, expr).value
           : { type: TypeTag.Any };
-        const wasComputedDecl = setStateEvent(curState, event.decl, type, true);
+        const wasComputedDecl = setStateEvent(
+          curState,
+          event.decl,
+          type,
+          UpdateKind.Reassign
+        );
         some(event.decl, (decl) => {
           if (
             decl.type !== "VariableDeclarator" ||
@@ -1348,7 +1655,7 @@ function propagateTypes(
             // That could have affected any non-local...
             if (
               some(
-                decls,
+                decls as TypeStateKey,
                 (decl) =>
                   decl.type === "VariableDeclarator" &&
                   decl.node.kind === "var" &&
@@ -1361,18 +1668,22 @@ function propagateTypes(
               if (value.assocPaths) {
                 clearAssocPaths(curState, decls, value);
               }
+              assert(!value.copyPropItem);
               curState.map.set(decls, { curType: typeConstraint(decls) });
+              clearRelatedCopyPropEvents(curState, decls, nodeCopyProp);
             }
           });
         }
-
         if (event.rhs) {
           const selfAssign = addEquiv(
             curState.map,
             event.rhs as TypeStateKey,
             event.decl as TypeStateKey
           );
-          if (event.node.type === "AssignmentExpression") {
+          if (
+            event.node.type === "AssignmentExpression" &&
+            event.node.operator === "="
+          ) {
             if (selfAssign) {
               // rhs and lhs are identical
               selfAssignments.add(event.node);
@@ -1381,7 +1692,90 @@ function propagateTypes(
             }
           }
         }
-        if (declIsLocal(event.decl)) {
+
+        if (!declIsLocal(event.decl)) {
+          clearRelatedCopyPropEvents(curState, null, nodeCopyProp);
+        } else {
+          if (
+            event.containedEvents &&
+            copyPropStores &&
+            nodeCopyProp.get(event.node) !== false &&
+            (!event.rhs || !declIsLocal(event.rhs))
+          ) {
+            const copyPropCandidate = copyPropStores.get(event.node);
+            if (copyPropCandidate) {
+              const contained = new Map() as CopyPropItem["contained"];
+              if (
+                event.containedEvents.every((event) => {
+                  if (event.type === "mod") {
+                    if (modInterference(curState, event, false, () => false)) {
+                      return true;
+                    }
+                    if (
+                      !copyPropCandidate.ant ||
+                      // If the ref isn't anticipated, we can't propagate it
+                      // in case it has side effects.
+                      some(
+                        event.calleeDecl,
+                        (callee) =>
+                          callee.type === "FunctionDeclaration" &&
+                          inlineRequested(state, callee)
+                      )
+                    ) {
+                      // Don't copy prop if the rhs is marked for
+                      // inline, because we might move it out of
+                      // assignment context, to somewhere it can't be
+                      // inlined.
+                      return false;
+                    }
+                  }
+
+                  if (
+                    !event.decl ||
+                    (isTypeStateKey(event.decl) &&
+                      some(
+                        event.decl,
+                        (decl) =>
+                          (decl.type === "VariableDeclarator" &&
+                            decl.node.kind === "var") ||
+                          decl.type === "BinaryExpression" ||
+                          decl.type === "Identifier"
+                      ))
+                  ) {
+                    const key = event.decl ?? null;
+                    if (
+                      key &&
+                      declIsLocal(key) &&
+                      nodeCopyProp.has(event.node)
+                    ) {
+                      // we might have
+                      //
+                      //   var x = foo();
+                      //   var y = x + 1;
+                      //   bar();
+                      //   return y;
+                      //
+                      // In that case, its ok to drop "x = foo()" and rewrite as y = foo() + 1"
+                      // OR its ok to drop "y = x + 1" and rewrite as "return x + 1".
+                      // But we can't do both, and rewrite as "bar(); return foo() + 1;"
+                      // So just disable copy prop for *this* node. We'll re-run and have a
+                      // second chance later.
+                      return false;
+                    }
+                    const item = contained.get(key);
+                    if (!item) {
+                      contained.set(key, [event]);
+                    } else {
+                      item.push(event);
+                    }
+                  }
+                  return true;
+                })
+              ) {
+                addCopyPropEvent(curState, { event, contained });
+              }
+            }
+          }
           const name = localDeclName(event.decl);
           const locals = localDecls.get(name);
           if (!locals) {
@@ -1445,7 +1839,7 @@ function propagateTypes(
       param.type === "BinaryExpression"
         ? typeFromTypespec(state, param.right)
         : { type: TypeTag.Any },
-      false
+      UpdateKind.None
     );
   });
 
@@ -1489,6 +1883,19 @@ function propagateTypes(
     }
   }
 
+  nodeCopyProp.forEach((value, key) => {
+    if (
+      key.type === "VariableDeclarator" ||
+      key.type === "AssignmentExpression"
+    ) {
+      if (value === false) {
+        nodeCopyProp.delete(key);
+        return;
+      }
+      assert(nodeCopyProp.get(value) === key);
+    }
+  });
+
   if (logThisRun) {
     order.forEach((block) => {
       printBlockHeader(block);
@@ -1517,10 +1924,44 @@ function propagateTypes(
         )}] ${key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""}`
       );
     });
+    console.log("====== Copy Prop =====");
+    nodeCopyProp.forEach((value, key) => {
+      assert(value !== false);
+      if (
+        key.type === "VariableDeclarator" ||
+        key.type === "AssignmentExpression"
+      ) {
+        return;
+      }
+      assert(
+        (value.type === "VariableDeclarator" && value.init) ||
+          value.type === "AssignmentExpression"
+      );
+      const node =
+        value.type === "VariableDeclarator" ? value.init! : value.right;
+      console.log(
+        `${formatAst(key)} = [${formatAstLongLines(node)}] ${
+          key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
+        }`
+      );
+    });
+  }
+
+  if (logThisRun) {
+    console.log(formatAstLongLines(func.node));
+    if (copyPropStores) {
+      copyPropStores.forEach(({ ref, ant }, node) => {
+        console.log(
+          `copy-prop-store: ${formatAstLongLines(node)}${ant ? "!" : ""} => ${
+            nodeCopyProp.get(node) !== ref ? "Failed" : "Success"
+          }`
+        );
+      });
+    }
   }
 
   if (optimizeEquivalencies) {
-    if (!nodeEquivs.size && !selfAssignments.size) {
+    if (!nodeEquivs.size && !selfAssignments.size && !nodeCopyProp.size) {
       return { istate, nodeEquivs };
     }
     if (logThisRun) {
@@ -1578,6 +2019,55 @@ function propagateTypes(
     );
 
     traverseAst(func.node.body!, null, (node) => {
+      const copyNode = nodeCopyProp.get(node);
+      if (copyNode) {
+        if (node.type === "AssignmentExpression") {
+          if (logThisRun) {
+            console.log(
+              `Killing copy-prop assignment ${formatAstLongLines(node)}`
+            );
+          }
+          return withLoc(
+            { type: "Literal", value: null, raw: "null" },
+            node,
+            node
+          );
+        }
+        if (node.type === "VariableDeclarator") {
+          assert(node.init);
+          if (logThisRun) {
+            console.log(
+              `Killing copy-prop variable initialization ${formatAstLongLines(
+                node
+              )}`
+            );
+          }
+          const dup = { ...node };
+          delete dup.init;
+          return dup;
+        }
+        if (copyNode.type === "AssignmentExpression") {
+          if (logThisRun) {
+            console.log(
+              `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
+                copyNode.right
+              )}`
+            );
+          }
+          return withLocDeep(copyNode.right, node, node, false);
+        } else if (copyNode.type === "VariableDeclarator") {
+          assert(copyNode.init);
+          if (logThisRun) {
+            console.log(
+              `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
+                copyNode.init
+              )}`
+            );
+          }
+          return withLocDeep(copyNode.init, node, node, false);
+        }
+        assert(false);
+      }
       if (selfAssignments.has(node)) {
         if (logThisRun) {
           console.log(
@@ -1591,6 +2081,22 @@ function propagateTypes(
           node,
           node
         );
+      }
+      if (nodeCopyProp.size) {
+        /*
+         * Copy prop and equiv can interfere with each other:
+         *
+         *   var c = g; // copy prop kills this
+         *   ...
+         *   var x = g + 2; // node equiv replaces g with c
+         *   ...
+         *   return c; // copy prop changes this to g
+         *
+         * So ignore equivalencies if copy prop is active.
+         * Note that we have to re-run propagation anyway
+         * if copy prop did anything.
+         */
+        return null;
       }
       const equiv = nodeEquivs.get(node);
       if (!equiv || localConflicts.has(equiv.decl)) return null;
@@ -1652,7 +2158,11 @@ function propagateTypes(
     });
   }
 
-  return { istate, nodeEquivs };
+  return {
+    istate,
+    nodeEquivs,
+    redo: optimizeEquivalencies && nodeCopyProp.size,
+  };
 }
 
 function updateByAssocPath(

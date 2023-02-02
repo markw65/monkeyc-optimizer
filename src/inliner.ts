@@ -305,7 +305,10 @@ function inliningLooksUseful(
   return false;
 }
 
-function inlineRequested(state: ProgramStateAnalysis, func: FunctionStateNode) {
+export function inlineRequested(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode
+) {
   const excludeAnnotations =
     (func.node.loc?.source &&
       state.fnMap[func.node.loc?.source]?.excludeAnnotations) ||

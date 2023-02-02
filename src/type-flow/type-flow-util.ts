@@ -52,6 +52,12 @@ export function declIsLocal(
   );
 }
 
+export function declIsNonLocal(
+  decl: EventDecl
+): decl is VariableStateNode | VariableStateNode[] {
+  return some(decl, (d) => d.type === "VariableDeclarator" && !isLocal(d));
+}
+
 export function localDeclName(decl: EventDecl) {
   if (Array.isArray(decl)) decl = decl[0];
   switch (decl.type) {

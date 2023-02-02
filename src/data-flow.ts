@@ -15,6 +15,7 @@ import {
   StateNodeDecl,
   VariableStateNode,
 } from "./optimizer-types";
+import { declIsLocal } from "./type-flow/type-flow-util";
 import { every, some } from "./util";
 
 /*
@@ -81,6 +82,7 @@ export interface DefEvent extends BaseEvent {
     | mctree.VariableDeclarator;
   decl: EventDecl;
   rhs?: EventDecl;
+  containedEvents?: Array<RefEvent | ModEvent>;
 }
 
 /*
@@ -360,10 +362,11 @@ export function buildDataFlowGraph(
       };
   return {
     identifiers,
-    graph: buildReducedGraph(
+    graph: buildReducedGraph<Event>(
       state,
       func,
-      (node, stmt, mayThrow): Event | Event[] | null => {
+      wantsAllRefs,
+      (node, stmt, mayThrow, getContainedEvents): Event | Event[] | null => {
         if (mayThrow === 1) {
           return wantsAllRefs ? getFlowEvent(node, stmt, findDecl) : null;
         }
@@ -497,6 +500,15 @@ export function buildDataFlowGraph(
                 const rhs = findDecl(node.init);
                 if (rhs) def.rhs = rhs;
               }
+              if (declIsLocal(decl)) {
+                const contained = getContainedEvents().filter(
+                  (e): e is RefEvent | ModEvent =>
+                    e.type === "ref" || e.type === "mod"
+                );
+                if (contained.length) {
+                  def.containedEvents = contained;
+                }
+              }
               return def;
             }
             break;
@@ -511,14 +523,23 @@ export function buildDataFlowGraph(
                 decl,
                 mayThrow,
               };
-              if (
-                wantsAllRefs &&
-                node.operator === "=" &&
-                (node.right.type === "Identifier" ||
-                  node.right.type === "MemberExpression")
-              ) {
-                const rhs = findDecl(node.right);
-                if (rhs) def.rhs = rhs;
+              if (wantsAllRefs && node.operator === "=") {
+                if (
+                  node.right.type === "Identifier" ||
+                  node.right.type === "MemberExpression"
+                ) {
+                  const rhs = findDecl(node.right);
+                  if (rhs) def.rhs = rhs;
+                }
+                if (declIsLocal(decl)) {
+                  const contained = getContainedEvents().filter(
+                    (e): e is RefEvent | ModEvent =>
+                      e.type === "ref" || e.type === "mod"
+                  );
+                  if (contained.length) {
+                    def.containedEvents = contained;
+                  }
+                }
               }
               return def;
             } else if (wantsAllRefs) {
@@ -568,6 +589,11 @@ export function buildDataFlowGraph(
                     mod.calleeObj = calleeObj;
                   } else {
                     mod.calleeObj = calleeDecl.base;
+                  }
+                } else if (node.callee.type === "MemberExpression") {
+                  const calleeObj = findDecl(node.callee.object);
+                  if (calleeObj) {
+                    mod.calleeObj = calleeObj;
                   }
                 }
                 return mod;

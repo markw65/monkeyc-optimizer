@@ -44,7 +44,7 @@ function testUnusedCaseVars(logger as Logger) as Boolean {
 function testDeadVars(logger as Logger) as Boolean {
     ok = true;
     {
-        /* @match "u = wrapper" /^A.B.a\(\);$/ "v = wrapper" "check" */
+        /* @match "u = wrapper" /^A.B.a\(\);$/ "check(u + wrapper(2)," */
         var u = wrapper(1),
             x = A.B.a(),
             v = wrapper(2);
@@ -60,7 +60,7 @@ function testDeadVars(logger as Logger) as Boolean {
     }
 
     {
-        /* @match /^A.B.a\(\);$/ "v = wrapper" "x = wrapper" */
+        /* @match /^A.B.a\(\);$/ "v = wrapper" "check(wrapper(" */
         var x = A.B.a(),
             v = wrapper(2);
 

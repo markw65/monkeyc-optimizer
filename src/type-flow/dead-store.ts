@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import * as assert from "node:assert";
 import { NodeEquivMap } from "src/type-flow";
 import { formatAst, traverseAst } from "../api";
 import { withLoc } from "../ast";
@@ -8,6 +9,7 @@ import { unused } from "../inliner";
 import { FunctionStateNode, ProgramStateAnalysis } from "../optimizer-types";
 import {
   declIsLocal,
+  describeEvent,
   isTypeStateKey,
   printBlockHeader,
   sourceLocation,
@@ -16,7 +18,46 @@ import {
   TypeStateKey,
 } from "./type-flow-util";
 
+export type CopyPropStores = Map<
+  mctree.Node,
+  { ref: mctree.Node; ant: boolean }
+>;
+
 type NodeConflictsMap = Map<mctree.Node, Set<TypeStateKey>>;
+
+type AntMap = Map<TypeStateKey, Set<mctree.Identifier>>;
+type DeadState = {
+  dead: Set<TypeStateKey>;
+  anticipated?: AntMap;
+  partiallyAnticipated?: AntMap;
+};
+
+function cloneAnt(antMap: AntMap) {
+  const ant = new Map() as AntMap;
+  antMap.forEach((s, k) => ant.set(k, new Set(s)));
+  return ant;
+}
+
+function addAnt(antMap: AntMap, decl: TypeStateKey, node: mctree.Node) {
+  assert(node.type === "Identifier");
+  const ant = antMap.get(decl);
+  if (!ant) {
+    antMap.set(decl, new Set([node]));
+  } else {
+    ant.add(node);
+  }
+}
+
+function cloneState(blockState: DeadState) {
+  const clone: DeadState = { dead: new Set(blockState.dead) };
+  if (blockState.anticipated) {
+    clone.anticipated = cloneAnt(blockState.anticipated);
+  }
+  if (blockState.partiallyAnticipated) {
+    clone.partiallyAnticipated = cloneAnt(blockState.partiallyAnticipated);
+  }
+  return clone;
+}
 
 export function findDeadStores(
   func: FunctionStateNode,
@@ -29,17 +70,68 @@ export function findDeadStores(
     block.order = i;
   });
 
-  const blockStates: Array<Set<TypeStateKey>> = [];
+  const blockStates: Array<DeadState> = [];
   const nodeConflicts: NodeConflictsMap | null = nodeEquivs && new Map();
 
-  const mergeStates = (to: Set<TypeStateKey>, from: Set<TypeStateKey>) => {
-    return Array.from(to).reduce((changed, decl) => {
-      if (!from.has(decl)) {
-        to.delete(decl);
+  const mergeStates = (to: DeadState, from: DeadState) => {
+    let changed = Array.from(to.dead).reduce((changed, decl) => {
+      if (!from.dead.has(decl)) {
+        to.dead.delete(decl);
         changed = true;
       }
       return changed;
     }, false);
+    if (to.anticipated) {
+      if (!from.anticipated) {
+        delete to.anticipated;
+        changed = true;
+      } else {
+        changed = Array.from(to.anticipated).reduce(
+          (changed, [decl, toant]) => {
+            const fromant = from.anticipated!.get(decl);
+            if (!fromant) {
+              to.anticipated!.delete(decl);
+              changed = true;
+            } else {
+              toant.forEach((node) => {
+                if (!fromant.has(node)) {
+                  toant.delete(node);
+                  changed = true;
+                }
+              });
+            }
+            return changed;
+          },
+          changed
+        );
+      }
+    }
+    if (from.partiallyAnticipated) {
+      if (!to.partiallyAnticipated) {
+        to.partiallyAnticipated = cloneAnt(from.partiallyAnticipated);
+        changed = true;
+      } else {
+        changed = Array.from(from.partiallyAnticipated).reduce(
+          (changed, [decl, fromant]) => {
+            const toant = to.partiallyAnticipated!.get(decl);
+            if (!toant) {
+              to.partiallyAnticipated!.set(decl, fromant);
+              changed = true;
+            } else {
+              fromant.forEach((node) => {
+                if (!toant.has(node)) {
+                  changed = true;
+                  toant.add(node);
+                }
+              });
+            }
+            return changed;
+          },
+          changed
+        );
+      }
+    }
+    return changed;
   };
 
   const queue = new DataflowQueue();
@@ -60,11 +152,12 @@ export function findDeadStores(
   );
 
   const deadStores = new Set<mctree.Node>();
+  const copyPropStores: CopyPropStores = new Map();
 
   order.forEach((block) => {
     if (!block.succs) {
       queue.enqueue(block);
-      blockStates[block.order!] = new Set(locals);
+      blockStates[block.order!] = { dead: new Set(locals) };
     }
   });
   while (!queue.empty()) {
@@ -75,10 +168,12 @@ export function findDeadStores(
     if (!blockStates[top.order]) {
       throw new Error(`Block ${top.order || 0} had no state!`);
     }
-    const curState = new Set(blockStates[top.order]);
+    const curState = cloneState(blockStates[top.order]);
     if (logThisRun) {
       printBlockHeader(top);
-      curState.forEach((decl) => console.log(` - anticipated: ${tsKey(decl)}`));
+      curState.dead.forEach((decl) =>
+        console.log(` - anticipated: ${tsKey(decl)}`)
+      );
     }
     if (top.events) {
       for (let i = top.events.length; i--; ) {
@@ -96,10 +191,28 @@ export function findDeadStores(
         switch (event.type) {
           case "ref":
             if (isTypeStateKey(event.decl)) {
-              curState.delete(event.decl);
               if (logThisRun) {
+                console.log(describeEvent(event));
                 console.log(`  kill => ${tsKey(event.decl)}`);
               }
+              if (!nodeEquivs && declIsLocal(event.decl)) {
+                if (!curState.anticipated) {
+                  curState.anticipated = new Map();
+                }
+                addAnt(curState.anticipated, event.decl, event.node);
+                if (!curState.partiallyAnticipated) {
+                  curState.partiallyAnticipated = new Map();
+                }
+                addAnt(curState.partiallyAnticipated, event.decl, event.node);
+                if (logThisRun) {
+                  console.log(
+                    `  antrefs: ${
+                      curState.partiallyAnticipated.get(event.decl)?.size ?? 0
+                    } ${curState.anticipated.get(event.decl)?.size ?? 0}`
+                  );
+                }
+              }
+              curState.dead.delete(event.decl);
             }
             break;
           case "def":
@@ -107,24 +220,50 @@ export function findDeadStores(
               isTypeStateKey(event.decl) &&
               (event.node.type !== "VariableDeclarator" || event.node.init)
             ) {
-              if (curState.has(event.decl)) {
+              if (logThisRun) {
+                console.log(describeEvent(event));
+              }
+              const assignNode =
+                (event.node.type === "AssignmentExpression" &&
+                  event.node.operator === "=" &&
+                  event.node.right) ||
+                (event.node.type === "VariableDeclarator" && event.node.init);
+
+              if (curState.dead.has(event.decl)) {
                 deadStores.add(event.node);
               } else {
                 deadStores.delete(event.node);
+                if (
+                  assignNode &&
+                  declIsLocal(event.decl) &&
+                  curState.partiallyAnticipated
+                ) {
+                  const pant = curState.partiallyAnticipated.get(event.decl);
+                  if (pant && pant.size === 1) {
+                    if (logThisRun) {
+                      console.log(
+                        `  is copy-prop-candidate ${
+                          curState.anticipated?.get(event.decl)?.size ?? 0
+                        }`
+                      );
+                    }
+                    copyPropStores.set(event.node, {
+                      ref: Array.from(pant)[0],
+                      ant: curState.anticipated?.get(event.decl)?.size === 1,
+                    });
+                  }
+                  curState.partiallyAnticipated.delete(event.decl);
+                  curState.anticipated?.delete(event.decl);
+                } else {
+                  copyPropStores.delete(event.node);
+                }
               }
               if (nodeConflicts) {
                 const conflicts = new Set(locals);
-                curState.forEach((dead) => conflicts.delete(dead));
+                curState.dead.forEach((dead) => conflicts.delete(dead));
                 if (event.rhs) {
                   conflicts.delete(event.rhs as TypeStateKey);
-                  const equiv =
-                    event.node.type === "AssignmentExpression" &&
-                    event.node.operator === "="
-                      ? nodeEquivs!.get(event.node.right)
-                      : event.node.type === "VariableDeclarator" &&
-                        event.node.init
-                      ? nodeEquivs!.get(event.node.init)
-                      : null;
+                  const equiv = assignNode && nodeEquivs!.get(assignNode);
                   if (equiv) {
                     equiv.equiv.forEach(
                       (e) => isTypeStateKey(e) && conflicts.delete(e)
@@ -135,12 +274,8 @@ export function findDeadStores(
                 conflicts.add(event.decl);
                 nodeConflicts.set(event.node, conflicts);
               }
-              if (
-                (event.node.type === "AssignmentExpression" &&
-                  event.node.operator === "=") ||
-                (event.node.type === "VariableDeclarator" && event.node.init)
-              ) {
-                curState.add(event.decl);
+              if (assignNode) {
+                curState.dead.add(event.decl);
                 if (logThisRun) {
                   console.log(`  anticipated => ${tsKey(event.decl)}`);
                 }
@@ -149,15 +284,15 @@ export function findDeadStores(
             break;
           case "kil":
             if (isTypeStateKey(event.decl)) {
-              curState.add(event.decl);
+              curState.dead.add(event.decl);
               if (logThisRun) {
                 console.log(`  anticipated => ${tsKey(event.decl)}`);
               }
             }
             break;
           case "mod":
-            curState.forEach(
-              (decl) => declIsLocal(decl) || curState.delete(decl)
+            curState.dead.forEach(
+              (decl) => declIsLocal(decl) || curState.dead.delete(decl)
             );
             break;
           case "flw":
@@ -168,7 +303,7 @@ export function findDeadStores(
     const doMerge = (pred: TypeFlowBlock) => {
       const pi = pred.order || 0;
       if (!blockStates[pi]) {
-        blockStates[pi] = new Set(curState);
+        blockStates[pi] = cloneState(curState);
         queue.enqueue(pred);
       } else if (mergeStates(blockStates[pi], curState)) {
         queue.enqueue(pred);
@@ -204,7 +339,7 @@ export function findDeadStores(
     );
     func.node.params.forEach((param, index, arr) => addConflicts(param, arr));
   }
-  return { deadStores, locals, localConflicts };
+  return { deadStores, locals, localConflicts, copyPropStores };
 }
 
 export function eliminateDeadStores(
@@ -212,13 +347,22 @@ export function eliminateDeadStores(
   func: FunctionStateNode,
   graph: TypeFlowBlock,
   logThisRun: boolean
-) {
-  const { deadStores } = findDeadStores(func, graph, null, logThisRun);
-  if (!deadStores.size) return false;
+): { changes: boolean; copyPropStores: CopyPropStores } {
+  const { deadStores, copyPropStores } = findDeadStores(
+    func,
+    graph,
+    null,
+    logThisRun
+  );
+  if (!deadStores.size) return { changes: false, copyPropStores };
   if (logThisRun) {
     console.log("====== Dead Stores =====");
-    deadStores.forEach((dead) =>
-      console.log(`${formatAst(dead)} (${sourceLocation(dead.loc)})`)
+    deadStores.forEach(
+      (dead) =>
+        (dead.type === "AssignmentExpression" ||
+          dead.type === "UpdateExpression" ||
+          dead.type === "VariableDeclarator") &&
+        console.log(`${formatAst(dead)} (${sourceLocation(dead.loc)})`)
     );
   }
   let changes = false;
@@ -293,5 +437,5 @@ export function eliminateDeadStores(
     return null;
   });
 
-  return changes;
+  return { copyPropStores, changes };
 }

@@ -129,10 +129,12 @@ class LocalState<T extends EventConstraint<T>> {
 export function buildReducedGraph<T extends EventConstraint<T>>(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
+  refsForUpdate: boolean,
   notice: (
     node: mctree.Node,
     stmt: mctree.Node,
-    mayThrow: boolean | 1
+    mayThrow: boolean | 1,
+    containedEvents: () => T[]
   ) => T | T[] | null
 ) {
   const { stack, pre, post } = state;
@@ -142,9 +144,12 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     state.stack = [...func.stack!];
     const stmtStack: mctree.Node[] = [func.node];
     const testStack: TestContext<T>[] = [{ node: func.node }];
+    const allEvents = [] as T[];
+    const eventsStack = [] as number[];
 
     let tryActive = 0;
     state.pre = (node) => {
+      eventsStack.push(allEvents.length);
       if (state.inType || localState.unreachable) {
         return [];
       }
@@ -470,6 +475,12 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           return [];
 
         case "AssignmentExpression":
+          if (refsForUpdate && node.operator !== "=") {
+            // if its an update, we need to see a "ref"
+            // of the lhs, then whatever happens on the rhs,
+            // and then the assignment itself
+            return null;
+          }
           if (node.left.type === "MemberExpression") {
             state.traverse(node.left.object);
             if (node.left.computed) {
@@ -500,6 +511,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
       return null;
     };
     const addEvent = (block: Block<T>, event: T) => {
+      allEvents.push(event);
       if (!block.events) {
         block.events = [event];
       } else {
@@ -507,11 +519,13 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
       }
     };
     state.post = (node) => {
+      const eventIndex = eventsStack.pop()!;
+      const getContainedEvents = () => allEvents.slice(eventIndex);
       const curStmt = stmtStack[stmtStack.length - 1];
       const topTest = testStack[testStack.length - 1];
       if (!state.inType) {
         const throws = tryActive > 0 && mayThrow(node);
-        const events = notice(node, curStmt, throws);
+        const events = notice(node, curStmt, throws, getContainedEvents);
         if (throws) {
           if (!events) {
             throw new Error(
@@ -557,7 +571,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               throw new Error("Internal error: Unexpected successor edges");
             }
             localState.addEdge(localState.curBlock, topTest.false);
-            const event = notice(node, curStmt, 1);
+            const event = notice(node, curStmt, 1, getContainedEvents);
             if (event) {
               if (Array.isArray(event)) {
                 throw new Error(`Unexpected array of flw events`);

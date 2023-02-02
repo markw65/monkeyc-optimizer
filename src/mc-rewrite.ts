@@ -605,6 +605,9 @@ export async function optimizeMonkeyC(
   state.calledFunctions = {};
   state.usedByName = {};
 
+  const checkLookupRules = config.checkCompilerLookupRules;
+  config.checkCompilerLookupRules = "OFF";
+
   let again = false;
   const optimizeCallHelper = (
     istate: InterpState,
@@ -1251,6 +1254,7 @@ export async function optimizeMonkeyC(
     });
   });
 
+  config.checkCompilerLookupRules = checkLookupRules;
   reportMissingSymbols(state, config);
 
   if (state.inlineDiagnostics) {

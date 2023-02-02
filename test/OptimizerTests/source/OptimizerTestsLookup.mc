@@ -242,7 +242,7 @@ module Inheritance {
         }
         function foo() as Number {
             var p;
-            /* @match /x = self.p;/ /return p \+ 24;/ */
+            /* @match /return self.p \+ 24;/ */
             p = badQualifier();
             return p + 24;
         }
@@ -466,6 +466,7 @@ module Compiler2 {
         module M {
             class N {
                 const K = 0;
+                var V as Number = 0;
             }
         }
     }
@@ -531,7 +532,7 @@ module Compiler2 {
             (:test,:typecheck(false))
             function testImportCrash(logger as Logger) as Boolean {
                 // @expect "N will only be found"
-                return N.K == Lang.Lang.ENDIAN_LITTLE;
+                return N.V == Lang.Lang.ENDIAN_LITTLE;
             }
             (:test,:typecheck(false))
             function testClassNonInstanceLookupCrash(

@@ -65,9 +65,11 @@ module A {
 }
 
 function getinst(
-    x as Number or Long or Float or Double or String or Char
+    x as Number or Long or Float or Double or String or Char or Null
 ) as String {
-    return x instanceof Lang.Number
+    return x == null
+        ? "Null"
+        : x instanceof Lang.Number
         ? "Number"
         : x instanceof Lang.Long
         ? "Long"
@@ -87,16 +89,16 @@ const DOUBLE_EPSILON = Math.pow(2, -52);
 
 var ok as Boolean = false;
 function check(
-    x as Number or Long or Float or Double or String or Char,
-    expected as Number or Long or Float or Double or String or Char,
+    x as Number or Long or Float or Double or String or Char or Null,
+    expected as Number or Long or Float or Double or String or Char or Null,
     logger as Logger
 ) as Void {
     checker(x, expected, logger, false);
 }
 
 function checker(
-    x as Number or Long or Float or Double or String or Char,
-    expected as Number or Long or Float or Double or String or Char,
+    x as Number or Long or Float or Double or String or Char or Null,
+    expected as Number or Long or Float or Double or String or Char or Null,
     logger as Logger,
     isFloat as Boolean
 ) as Void {
@@ -107,6 +109,8 @@ function checker(
             ? ((x as Numeric) - (expected as Numeric)).abs() >
               (einst.equals("Float") ? FLOAT_EPSILON : DOUBLE_EPSILON) *
                   (expected as Numeric).abs()
+            : x == null
+            ? expected == null
             : !x.equals(expected)
     ) {
         logger.debug(
@@ -212,19 +216,19 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     x = nonInlinedWrapper(1);
     check(x, 8, logger);
 
-    /* @match /inlineHiddenByLocal = (A.B.x|pre_x\w*);$/ */
+    /* @match /^check\((A.B.x|pre_x\w*),/ */
     var inlineHiddenByLocal = inlineHiddenByLocal(A.B.x);
     check(inlineHiddenByLocal, 7, logger);
 
-    /* @match /^x = A\.B\.a\(\);$/ */
+    /* @match /^check\(A\.B\.a\(\),/ */
     x = inlineNeedsLocalImport();
     check(x, 8, logger);
 
-    /* @match /^x = .*\? Toybox.Application.Storage.getValue/ */
+    /* @match /^check.*\? Toybox.Application.Storage.getValue/ */
     x = inlineNeedsToyboxImport();
     check(x == null ? 1 : 0, 1, logger);
 
-    /* @match /lg = logger \!= @gLogger \?/ */
+    /* @match /check.*logger \!= @gLogger \?/ */
     var lg = doubleSubstitution(logger);
     check((lg as Logger) == logger ? 1 : 0, 1, logger);
     return ok;
@@ -452,18 +456,18 @@ function inlineAssignContext(logger as Logger) as Boolean {
         x = assignContext(A.B.x);
         check(x, z, logger);
     }
-    /* @match /^z \+= A.B.s3/ */
+    /* @match /^@z \+= A.B.s3/ */
     z += A.B.s3(2);
     check(z, 8, logger);
     /* @match /z \+= @2/ */
     z = A.B.s3(2);
     check(z, 10, logger);
 
-    /* @match /z \+= @2;/ /a = z;/ */
+    /* @match /z \+= @2;/ /^check\(z,/ */
     var a = A.B.s3(2);
     check(a, 12, logger);
 
-    /* @match /z \+= @3/ "c = z;" /\s+d =/ /^check/ */
+    /* @match /z \+= @3/ /^check\(z/ /^check\(@1 - @z \* @2/ /^check\(@0,/ */
     var b = 42,
         c = A.B.s3(3),
         d = -assignContext(1) + 1,
@@ -486,7 +490,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     arr[z] = A.B.s3(1);
     check(arr[0] as Number, 1, logger);
 
-    /* @match /^\{ z = \$\.z; self.z\+\+;/ /check/ */
+    /* @match /^\{ z = \$\.z; self.z\+\+;/ /check\(x,/ */
     x = argInterference1(A.B.x, A.x, $.z);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
@@ -499,7 +503,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     x = argInterference3($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
-    /* @match /z = A\.B\.x; method/ /check/ */
+    /* @match /z = A\.B\.x; \(new Lang.Method/ /check/ */
     x = argInterference4($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
     return ok;
