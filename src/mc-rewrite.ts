@@ -32,6 +32,7 @@ import {
 import {
   inlinableSubExpression,
   InlineContext,
+  inlineDiagnostic,
   inlineFunction,
   shouldInline,
   unused,
@@ -1321,6 +1322,7 @@ function optimizeCall(
     ) {
       const ret = evaluateFunction(istate, callee, node.arguments);
       if (ret) {
+        inlineDiagnostic(state, callees[0], node, null);
         return withLoc(ret, node, node);
       }
     }

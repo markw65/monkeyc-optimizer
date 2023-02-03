@@ -646,7 +646,7 @@ export function unused(
   return top ? null : [estmt(expression)];
 }
 
-function inlineDiagnostic(
+export function inlineDiagnostic(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   call: mctree.CallExpression,
