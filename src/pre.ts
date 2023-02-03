@@ -339,11 +339,12 @@ const LocalRefCost = 2;
 function refCost(node: RefNode) {
   if (node.type === "Literal") {
     switch (typeof node.value) {
+      case "bigint":
+        return 9;
       case "string":
         return 5;
-      case "bigint":
       case "number":
-        return 5;
+        return node.raw.match(/d/i) ? 9 : 5;
       case "boolean":
         return 2;
       default:
