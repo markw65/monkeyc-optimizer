@@ -65,6 +65,7 @@ import {
 } from "./type-flow/interp";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
+import { typeFromLiteral } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameVariable } from "./variable-renamer";
@@ -612,7 +613,12 @@ export async function optimizeMonkeyC(
     const result = optimizeCall(istate, call, node);
     if (result) {
       if (isExpression(result)) {
-        istate.stack[istate.stack.length - 1].node = result;
+        const elem = istate.stack[istate.stack.length - 1];
+        elem.node = result;
+        if (result.type === "Literal") {
+          elem.value = typeFromLiteral(result);
+          elem.embeddedEffects = false;
+        }
       }
       again = true;
     }
@@ -1014,11 +1020,14 @@ export async function optimizeMonkeyC(
 
       case "VariableDeclaration": {
         const locals = topLocals();
-        if (
-          locals.map &&
-          locals.node &&
-          locals.node.type === "BlockStatement"
-        ) {
+        if (!locals.map) {
+          if (again) {
+            again = false;
+            state.traverse(node);
+          }
+          break;
+        }
+        if (locals.node && locals.node.type === "BlockStatement") {
           let results: mctree.Statement[] | undefined;
           const declarations = node.declarations;
           let i = 0;
