@@ -1,6 +1,14 @@
+import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { hasProperty, variableDeclarationName } from "./api";
 import { traverseAst } from "./ast";
 import { ProgramStateAnalysis } from "./optimizer-types";
+
+export function renameIdentifier(ident: mctree.Identifier, newName: string) {
+  if (!ident.original) {
+    ident.original = ident.name;
+  }
+  ident.name = newName;
+}
 
 export function renameVariable(
   state: ProgramStateAnalysis,

@@ -1,8 +1,8 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as assert from "node:assert";
-import { getPostOrder } from "../control-flow";
 import { variableDeclarationName } from "../api";
 import { isExpression, traverseAst, withLoc, withLocDeep } from "../ast";
+import { getPostOrder } from "../control-flow";
 import {
   FunctionStateNode,
   ProgramStateAnalysis,
@@ -10,6 +10,7 @@ import {
   VariableStateNode,
 } from "../optimizer-types";
 import { buildConflictGraph } from "../type-flow";
+import { renameIdentifier } from "../variable-renamer";
 import { isTypeStateKey, tsKey, TypeStateKey } from "./type-flow-util";
 
 export function minimizeLocals(
@@ -199,8 +200,7 @@ export function minimizeLocals(
     switch (node.type) {
       case "Identifier":
         if (info && info.name !== node.name) {
-          node.original = node.name;
-          node.name = info.name;
+          renameIdentifier(node, info.name);
         }
         return null;
       case "AssignmentExpression":
@@ -217,8 +217,7 @@ export function minimizeLocals(
             );
           }
           if (node.left.name !== info.name) {
-            node.left.original = node.left.name;
-            node.left.name = info.name;
+            renameIdentifier(node.left, info.name);
           }
           return null;
         }
@@ -232,8 +231,7 @@ export function minimizeLocals(
         if (info) {
           assert(node.argument.type === "Identifier");
           if (node.argument.name !== info.name) {
-            node.argument.original = node.argument.name;
-            node.argument.name = info.name;
+            renameIdentifier(node.argument, info.name);
           }
           return null;
         }

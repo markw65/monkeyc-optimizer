@@ -442,7 +442,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     /* @match /^check\(@-42/ */
     x = -(assignContext(z) + 1 == 13 ? 42 : 0);
     check(x, -42, logger);
-    /* @match /\b(\w+x\w+) = (\1|arr)\.slice/ */
+    /* @match /\b(x) = (\1|arr)\.slice/ */
     x = assignContext3(arr)[2] + 1;
     check(x, 4, logger);
     z = wrapper(z);

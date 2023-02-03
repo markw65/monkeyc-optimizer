@@ -68,7 +68,7 @@ import { subtypeOf } from "./type-flow/sub-type";
 import { typeFromLiteral } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
-import { renameVariable } from "./variable-renamer";
+import { renameIdentifier, renameVariable } from "./variable-renamer";
 
 /*
  * Map each name to the list of StateNodes that declare that
@@ -731,7 +731,7 @@ export async function optimizeMonkeyC(
             );
           }
         }
-        ident.name = name;
+        renameIdentifier(ident, name);
       } else {
         map[declName] = true;
       }
@@ -797,7 +797,7 @@ export async function optimizeMonkeyC(
           if (hasProperty(map, node.name)) {
             const name = map[node.name];
             if (typeof name === "string") {
-              node.name = name;
+              renameIdentifier(node, name);
             }
             const [, results] = state.lookupValue(node);
             if (results) {
@@ -839,7 +839,7 @@ export async function optimizeMonkeyC(
             if (hasProperty(map, lhs.name)) {
               const name = map[lhs.name];
               if (typeof name === "string") {
-                lhs.name = name;
+                renameIdentifier(lhs, name);
               }
             }
           }
