@@ -677,3 +677,12 @@ Bug Fixes
 
 - New optimizations
   - Adds a `minimizeLocals` pass which runs after `sizeBasedPRE` and attempts to re-use local variables in order to reduce the total number, and hence reduce the stack size.
+
+### 1.1.10
+
+- Bug fixes
+  - Fix a bug that could cause inlined code to not get fully optimized
+  - Fix costs for pre of Long and Double constants, so that values that are used twice (rather than 3 times) will be subject to pre
+  - Fix some issues tracking the contents of Objects. In some circumstances, if two objects could be aliased, an assignment to a field of one of them might not be recognized as affecting the other.
+  - Don't warn about inlining failing if constant folding succeeds.
+  - In the vscode extension, in some cases `Go to Definition` worked for a resource (eg a Menu), but then `Go to References` said there were none. This was caused by incorrect source location in the (fake) resource code.
