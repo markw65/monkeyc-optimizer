@@ -170,7 +170,7 @@ type TypeStateValue = {
   assocPaths?: Set<string>;
 };
 
-type AffectedDecls = Map<TypeStateKey, Set<string>>;
+type AffectedDecls = Set<TypeStateKey>;
 
 type TypeStateMap = Map<TypeStateKey, TypeStateValue>;
 //type TrackedMemberDecl = { key: TypeStateKey; path: string };
@@ -196,9 +196,7 @@ type TypeState = {
   // of map.get(k).assocPaths.
   //
   // Ownership model:
-  // The outer map, and inner map, are never shared, and can be updated
-  // freely. Changes to the Set should replace it, rather than modifying
-  // it in place.
+  // Never shared. Always safe to update in place
   trackedMemberDecls?: Map<string, AffectedDecls>;
 };
 
@@ -342,7 +340,7 @@ function cloneTypeState(blockState: TypeState): TypeState {
   if (trackedMemberDecls) {
     clone.trackedMemberDecls = new Map();
     trackedMemberDecls.forEach((value, key) => {
-      clone.trackedMemberDecls!.set(key, new Map(value));
+      clone.trackedMemberDecls!.set(key, new Set(value));
     });
   }
   return clone;
@@ -359,18 +357,26 @@ function addTrackedMemberDecl(
   assocKey.split(".").forEach((pathItem) => {
     const entries = blockState.trackedMemberDecls!.get(pathItem);
     if (!entries) {
-      blockState.trackedMemberDecls!.set(
-        pathItem,
-        new Map([[key, new Set([assocKey])]])
-      );
+      blockState.trackedMemberDecls!.set(pathItem, new Set([key]));
       return;
     }
-    const entry = entries.get(key);
-    if (!entry) {
-      entries.set(key, new Set([assocKey]));
-      return;
-    }
-    entry.add(assocKey);
+    entries.add(key);
+  });
+}
+
+function validateTypeState(curState: TypeState) {
+  curState.trackedMemberDecls?.forEach((affected, key) => {
+    affected.forEach((decl) => {
+      const value = curState.map.get(decl);
+      assert(value && value.assocPaths);
+      if (
+        !Array.from(value.assocPaths).some((path) =>
+          `.${path}.`.includes(`.${key}.`)
+        )
+      ) {
+        throw new Error("What");
+      }
+    });
   });
 }
 
@@ -409,12 +415,12 @@ function mergeTypeState(
       }
     }
     if (tov.assocPaths) {
-      const assocPaths = new Set(tov.assocPaths);
       tov = { ...tov };
       if (!fromv.assocPaths) {
         changes = true;
         delete tov.assocPaths;
       } else {
+        const assocPaths = new Set(tov.assocPaths);
         assocPaths.forEach((key) => {
           if (!fromv.assocPaths!.has(key)) {
             assocPaths.delete(key);
@@ -422,7 +428,11 @@ function mergeTypeState(
             addTrackedMemberDecl(to, k, key);
           }
         });
-        tov.assocPaths = assocPaths;
+        if (assocPaths.size) {
+          tov.assocPaths = assocPaths;
+        } else {
+          delete tov.assocPaths;
+        }
       }
       to.map.set(k, tov);
     }
@@ -490,17 +500,20 @@ function updateAffected(
   affected: AffectedDecls,
   assignedType: ExactOrUnion
 ) {
-  affected.forEach((paths, key) => {
+  affected.forEach((key) => {
+    let droppedComponents = null as Set<string> | null;
     const entry = blockState.map.get(key);
-    assert(entry);
+    assert(entry && entry.assocPaths);
     let newEntry = entry;
-    paths.forEach((path) => {
+    entry.assocPaths.forEach((path) => {
       if (key === baseDecl && path === assignedPath) {
         return;
       }
-      assert(entry.assocPaths?.has(path));
-      const assocPath: AssocPath = [];
       const pathSegments = path.split(".");
+      if (!pathSegments.includes(affectedName)) {
+        return;
+      }
+      const assocPath: AssocPath = [];
       let type = entry.curType;
       for (let i = 0; i < pathSegments.length; i++) {
         const pathItem = pathSegments[i];
@@ -510,21 +523,30 @@ function updateAffected(
         });
         if (pathItem === affectedName && couldBeShallow(type, objectType)) {
           const newAssocKey = assocPath.map((av) => av.name ?? "*").join(".");
-          const baseType = updateByAssocPath(assocPath, assignedType, true);
           if (newEntry === entry) {
             newEntry = { ...entry };
           }
-          newEntry.curType = baseType;
-          if (path !== newAssocKey) {
-            newEntry.assocPaths = new Set(entry.assocPaths!);
+          if (newAssocKey !== path) {
+            // we're truncating the path, so we should also be tracking
+            // the truncated path (if we saw x.foo.bar, we must also have
+            // seen x.foo)
+            assert(entry.assocPaths!.has(newAssocKey));
+            // so we can just drop this one...
+            newEntry.assocPaths = new Set(newEntry.assocPaths!);
             newEntry.assocPaths.delete(path);
-            newEntry.assocPaths.add(newAssocKey);
-
-            const newPaths = new Set(paths);
-            newPaths.delete(path);
-            newPaths.add(newAssocKey);
-            affected.set(key, newPaths);
+            // the "extra" path components will also have entries
+            // in blockState.trackedMemberDecls. Since they're gone
+            // from here, we (may) need to remove them from there
+            if (!droppedComponents) {
+              droppedComponents = new Set();
+            }
+            while (++i < pathSegments.length) {
+              droppedComponents.add(pathSegments[i]);
+            }
+            break;
           }
+          const baseType = updateByAssocPath(assocPath, assignedType, true);
+          newEntry.curType = baseType;
           break;
         }
         if (pathItem === "*") {
@@ -553,6 +575,18 @@ function updateAffected(
       }
     });
     if (newEntry !== entry) {
+      if (droppedComponents) {
+        newEntry.assocPaths!.forEach((path) =>
+          path
+            .split(".")
+            .forEach((pathComponent) =>
+              droppedComponents!.delete(pathComponent)
+            )
+        );
+        droppedComponents.forEach((pathComponent) =>
+          blockState.trackedMemberDecls!.get(pathComponent)!.delete(key)
+        );
+      }
       blockState.map.set(key, newEntry);
     }
   });
@@ -671,11 +705,10 @@ function propagateTypes(
     const assocKey = assocValue.map((av) => av.name ?? "*").join(".");
     const newType = updateByAssocPath(assocValue, next!, false);
     setStateEvent(blockState, decl.base, newType, false);
-    // setStateEvent guarantees that tsv is "unshared" at this
-    // point. So we can munge it directly.
-    const tsv = blockState.map.get(decl.base)!;
-    if (!tsv.assocPaths) tsv.assocPaths = new Set();
+    const tsv = { ...blockState.map.get(decl.base)! };
+    tsv.assocPaths = new Set(tsv.assocPaths);
     tsv.assocPaths.add(assocKey);
+    blockState.map.set(decl.base, tsv);
     addTrackedMemberDecl(blockState, decl.base, assocKey);
     if (newValue) {
       const baseElem = assocValue[decl.path.length - 1];
@@ -1145,6 +1178,7 @@ function propagateTypes(
         queue.enqueue(top.exsucc);
       }
     }
+    validateTypeState(curState);
     switch (event.type) {
       case "kil": {
         const curEntry = getStateEntry(curState, event.decl);
