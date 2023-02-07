@@ -35,6 +35,24 @@ export function cleanupUnusedVars(
     { parent: mctree.Statement[]; indices: number[] }
   >();
   const stack: mctree.Statement[][] = [];
+  /*
+   * Every local mentioned in toRemove can be removed, but
+   * occurances of the identifier prior to its declaration
+   * must be non-local. So reconstruct the toRemove record
+   * as we go. This is to prevent issues with something like
+   *
+   * var g = 0;
+   * function foo(var h) {
+   *   // if we just consult toRemove, we'll remove this assignment
+   *   g = h * 2;
+   *   var x = g;
+   *   ...
+   *   // *This* g is unused, and "g" gets added to activeRemove here.
+   *   var g = 42;
+   * }
+   */
+  const activeRemove: Record<string, VariableStateNode | null> = {};
+
   let changes = false;
   traverseAst(
     node,
@@ -58,6 +76,7 @@ export function cleanupUnusedVars(
           node.declarations.forEach((decl, i) => {
             const name = variableDeclarationName(decl.id);
             if (hasProperty(toRemove, name)) {
+              activeRemove[name] = toRemove[name];
               const info = varDeclarations.get(node);
               if (info) {
                 info.indices.push(i);
@@ -75,7 +94,7 @@ export function cleanupUnusedVars(
           if (node.expression.type === "AssignmentExpression") {
             if (
               node.expression.left.type === "Identifier" &&
-              hasProperty(toRemove, node.expression.left.name)
+              hasProperty(activeRemove, node.expression.left.name)
             ) {
               changes = true;
               return unused(state, node.expression.right);
@@ -83,7 +102,7 @@ export function cleanupUnusedVars(
           } else if (
             node.expression.type === "UpdateExpression" &&
             node.expression.argument.type === "Identifier" &&
-            hasProperty(toRemove, node.expression.argument.name)
+            hasProperty(activeRemove, node.expression.argument.name)
           ) {
             return false;
           }
@@ -94,7 +113,7 @@ export function cleanupUnusedVars(
             if (expr.type === "AssignmentExpression") {
               if (
                 expr.left.type === "Identifier" &&
-                hasProperty(toRemove, expr.left.name)
+                hasProperty(activeRemove, expr.left.name)
               ) {
                 const rep = unused(state, expr.right);
                 if (!rep.length) {
@@ -103,14 +122,14 @@ export function cleanupUnusedVars(
                 } else {
                   // Sequence expressions can only be assignments
                   // or update expressions. Even calls aren't allowed
-                  toRemove[expr.left.name] = null;
+                  activeRemove[expr.left.name] = null;
                   expr.operator = "=";
                 }
               }
             } else if (
               expr.type === "UpdateExpression" &&
               expr.argument.type === "Identifier" &&
-              hasProperty(toRemove, expr.argument.name)
+              hasProperty(activeRemove, expr.argument.name)
             ) {
               changes = true;
               node.expressions.splice(i, 1);
@@ -128,7 +147,7 @@ export function cleanupUnusedVars(
       const i = info.indices[ii];
       const vdecl = decl.declarations[i];
       const name = variableDeclarationName(vdecl.id);
-      if (hasProperty(toRemove, name)) {
+      if (hasProperty(activeRemove, name)) {
         const rep = vdecl.init ? unused(state, vdecl.init) : [];
         if (rep.length) {
           if (
@@ -182,7 +201,7 @@ export function cleanupUnusedVars(
           j = i;
           continue;
         }
-        if (toRemove[name]) {
+        if (activeRemove[name]) {
           changes = true;
           j--;
           decl.declarations.splice(i, 1);
