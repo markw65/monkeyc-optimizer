@@ -67,7 +67,10 @@ export function pragmaChecker(
     const re = new RegExp(
       needle.replace(
         /@([-\d.\w]+|"[^"]*")/g,
-        (_match, pat) => `(?:${pat}|pre_${pat.replace(/\W/g, "_")}(?:_\\d+)?)`
+        (_match, pat) =>
+          `(?:${pat}|pre_${pat
+            .replace(/^([a-zA-Z_]+\.)*/, "")
+            .replace(/\W/g, "_")}(?:_\\d+)?)`
       )
     );
     return re.test(haystack);
