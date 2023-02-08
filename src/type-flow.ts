@@ -177,6 +177,7 @@ export function buildConflictGraph(
     func,
     graph,
     nodeEquivs,
+    false,
     logThisRun
   );
   return { graph, localConflicts, locals, identifiers, logThisRun };

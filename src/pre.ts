@@ -138,7 +138,9 @@ export function sizeBasedPRE(
     applyReplacements(func.node, nodeMap, declMap);
     func.node.body.body.unshift(variableDecl);
   }
-  minimizeLocals(state, func);
+  if (state.config?.minimizeLocals ?? true) {
+    minimizeLocals(state, func);
+  }
 }
 
 function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {

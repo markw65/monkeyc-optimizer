@@ -39,6 +39,8 @@ export type BuildConfig = {
   useLocalOptimizer?: boolean;
   propagateTypes?: boolean;
   trustDeclaredTypes?: boolean;
+  minimizeLocals?: boolean;
+  singleUseCopyProp?: boolean;
   covarianceWarnings?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
 };

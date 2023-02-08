@@ -691,6 +691,8 @@ const configOptionsToCheck = [
   "sizeBasedPRE",
   "trustDeclaredTypes",
   "propagateTypes",
+  "singleUseCopyProp",
+  "minimizeLocals",
   "extensionVersion",
   "typeCheckLevel",
   "covarianceWarnings",

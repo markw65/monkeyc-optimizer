@@ -63,6 +63,7 @@ export function findDeadStores(
   func: FunctionStateNode,
   graph: TypeFlowBlock,
   nodeEquivs: NodeEquivMap | null,
+  findCopyPropCandidates: boolean,
   logThisRun: boolean
 ) {
   const order = getPostOrder(graph) as TypeFlowBlock[];
@@ -195,7 +196,7 @@ export function findDeadStores(
                 console.log(describeEvent(event));
                 console.log(`  kill => ${tsKey(event.decl)}`);
               }
-              if (!nodeEquivs && declIsLocal(event.decl)) {
+              if (findCopyPropCandidates && declIsLocal(event.decl)) {
                 if (!curState.anticipated) {
                   curState.anticipated = new Map();
                 }
@@ -352,6 +353,7 @@ export function eliminateDeadStores(
     func,
     graph,
     null,
+    state.config?.singleUseCopyProp ?? true,
     logThisRun
   );
   if (!deadStores.size) return { changes: false, copyPropStores };

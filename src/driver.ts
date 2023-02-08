@@ -54,6 +54,8 @@ export async function driver() {
   let parallelism: number | undefined = undefined;
   let propagateTypes = true;
   let trustDeclaredTypes = true;
+  let minimizeLocals = true;
+  let singleUseCopyProp = true;
   let checkTypes: DiagnosticType | "OFF" = "WARNING";
   let skipRemote = false;
   let covarianceWarnings: boolean | undefined;
@@ -190,6 +192,14 @@ export async function driver() {
         if (value == null) return key;
         propagateTypes = /^false|0$/i.test(value) ? false : true;
         break;
+      case "singleUseCopyProp":
+        if (value == null) return key;
+        singleUseCopyProp = /^false|0$/i.test(value) ? false : true;
+        break;
+      case "minimizeLocals":
+        if (value == null) return key;
+        minimizeLocals = /^false|0$/i.test(value) ? false : true;
+        break;
       case "ignoreInvalidSymbols":
         if (!value || /^true|1$/i.test(value)) {
           extraMonkeycArgs.push("--Eno-invalid-symbol");
@@ -312,6 +322,8 @@ export async function driver() {
       checkInvalidSymbols,
       trustDeclaredTypes,
       propagateTypes,
+      singleUseCopyProp,
+      minimizeLocals,
       checkTypes,
       checkCompilerLookupRules,
       sizeBasedPRE,
