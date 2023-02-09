@@ -1,7 +1,10 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { couldBeWeak } from "./could-be";
 import { roundToFloat } from "./interp";
+import { subtypeOf } from "./sub-type";
 import {
   castType,
+  ClassType,
   ExactOrUnion,
   ExactTypes,
   hasValue,
@@ -158,10 +161,7 @@ function equalsCheck(left: ValueTypes, right: ValueTypes): boolean | undefined {
     : undefined;
 }
 
-let operators: Record<
-  mctree.BinaryOperator | "instanceof",
-  OpInfo | null
-> | null = null;
+let operators: Record<mctree.BinaryOperator, OpInfo | null> | null = null;
 
 export function evaluateBinaryTypes(
   op: mctree.BinaryOperator | "instanceof",
@@ -394,14 +394,6 @@ export function evaluateBinaryTypes(
               : TypeTag.False,
         }),
       },
-      instanceof: {
-        allowed: TypeTag.Any,
-        typeFn: () => ({
-          tag: TypeTag.Boolean,
-          castArgs: false,
-        }),
-        valueFn: (_left, _right) => undefined,
-      },
       has: {
         allowed: TypeTag.Any,
         typeFn: () => ({
@@ -410,6 +402,22 @@ export function evaluateBinaryTypes(
         }),
         valueFn: (_left, _right) => undefined,
       },
+    };
+  }
+
+  if (op === "instanceof") {
+    if (right.type & TypeTag.Class) {
+      if (!isExact(right)) {
+        return { type: TypeTag.Boolean };
+      }
+      right = { type: TypeTag.Object, value: { klass: right as ClassType } };
+    }
+    return {
+      type: subtypeOf(left, right)
+        ? TypeTag.True
+        : !couldBeWeak(left, right)
+        ? TypeTag.False
+        : TypeTag.Boolean,
     };
   }
 

@@ -1,6 +1,7 @@
 import Toybox.Test;
 import Toybox.Lang;
 import Toybox.Math;
+import Toybox.Application;
 
 const NON_ZERO_CONST = 42;
 const ZERO_CONST = 0;
@@ -749,4 +750,60 @@ class Whatever {
 (:test,:typecheck(false))
 function testMemberDecl(logger as Logger) as Boolean {
     return (new Whatever()).test(logger);
+}
+
+(:test)
+function testInstanceofFolding(logger as Logger) as Boolean {
+    var x = 42;
+    if (gMaybeModified != x) {
+        x = logger;
+    }
+    if (x instanceof Lang.Number) {
+        return x == 42;
+    } else {
+        /* @match /^return / */
+        if (x instanceof Test.Logger) {
+            return x == logger;
+        } else {
+            return false;
+        }
+    }
+
+}
+
+(:inline)
+function toBool1(
+    value as PropertyValueType?,
+    defaultValue as Boolean
+) as Boolean {
+    return value instanceof Lang.Boolean
+        ? value
+        : value != null && value has :toNumber
+        ? value.toNumber() != 0
+        : defaultValue;
+}
+
+(:inline)
+function toBool2(
+    value as PropertyValueType?,
+    defaultValue as Boolean
+) as Boolean {
+    if (value instanceof Lang.Boolean) {
+        return value;
+    }
+    if (value != null && value has :toNumber) {
+        return value.toNumber() != 0;
+    }
+    return defaultValue;
+}
+
+(:test)
+function toBoolTest(logger as Logger) as Boolean {
+    if (!toBool1(null, true)) {
+        return false;
+    }
+    if (!toBool2(null, true)) {
+        return false;
+    }
+    return toBool1(42, false);
 }
