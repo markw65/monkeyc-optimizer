@@ -686,3 +686,20 @@ Bug Fixes
   - Fix some issues tracking the contents of Objects. In some circumstances, if two objects could be aliased, an assignment to a field of one of them might not be recognized as affecting the other.
   - Don't warn about inlining failing if constant folding succeeds.
   - In the vscode extension, in some cases `Go to Definition` worked for a resource (eg a Menu), but then `Go to References` said there were none. This was caused by incorrect source location in the (fake) resource code.
+
+### 1.1.11
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.44](https://github.com/markw65/prettier-plugin-monkeyc#1044)
+
+  - Fixes a parser bug relating to Methods returning Void, and a printer bug relating to nested Method declarations.
+
+- Bug fixes
+  - Fixes an odd bug that could remove assignments to a global with the same name as an unused local, if the local was declared part way through a block, and the global was used before the declaration of the local.
+  - Fix some asserts related to complex member expressions that could fire in unusual circumstances
+- New features
+  - Constant fold instanceof expressions
+  - Add more Toybox functions to sysCallInfo, so the optimizer knows they have no side effects
+  - Remove top level, side-effect free expressions
+  - Propagate any :typecheck annotations from inlined functions to their callers
+  - Fix some issues keeping track of function calls used as arguments to inlined functions, that could result in bogus diagnostics.
+  - Implement [Single Use Copy Propagation](https://github.com/markw65/monkeyc-optimizer/wiki/Local-variable-elimination#single-use-copy-propagation)
