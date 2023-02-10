@@ -203,12 +203,19 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
 
     A.B.x = 4;
     // h can be inlined unless its argument has side effects.
-    x = /* @match /check\(@2/ */ A.B.h(1);
+    /* @match /check\(@2/ */
+    x = A.B.h(1);
     check(x, 2, logger);
-    x = /* @match /check\(@8/ */ A.B.h(A.B.x);
+    /* @match /check\(@8/ */
+    x = A.B.h(A.B.x);
     check(x, 8, logger);
-    x = /* @match A.B.h */ A.B.h(A.B.a()) + 1;
-    check(x, 11, logger);
+    /* @match "check(A.B.h" */
+    check(A.B.h(A.B.a()) + 1, 11, logger);
+    x = A.B.x + 2;
+    // make sure we don't copy prop x into A.B.h
+    // because that would prevent inlining.
+    /* @match "check(x + x" */
+    check(A.B.h(x), 14, logger);
 
     // i can be inlined regardless of arguments
     x = /* @match @^A\.B\.a\(\)$@ */ A.B.i(A.B.a());

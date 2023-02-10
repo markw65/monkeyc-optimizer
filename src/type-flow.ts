@@ -1520,6 +1520,22 @@ function propagateTypes(
               setStateEvent(curState, calleeObj, objType, UpdateKind.Inner);
             }
           }
+          if (
+            nodeCopyProp.size &&
+            event.node.type === "CallExpression" &&
+            some(callees, (callee) => inlineRequested(state, callee))
+          ) {
+            // we don't want to copy-prop to the argument of
+            // an inline function, because that could prevent
+            // inlining.
+            event.node.arguments.forEach((arg) => {
+              const def = nodeCopyProp.get(arg);
+              if (def && nodeCopyProp.get(def) !== false) {
+                nodeCopyProp.set(def, false);
+                nodeCopyProp.delete(arg);
+              }
+            });
+          }
           curState.map.forEach((tsv, decl) => {
             let type = tsv.curType;
             if (
