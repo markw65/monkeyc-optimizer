@@ -1169,20 +1169,21 @@ export async function createDocumentationMap(
         docMap.set(
           decl.fullName,
           info.doc
-            .replace(/(\*.*?)\s*<br\/>\s*(?!\s*\*)/g, "$1\n\n")
             .replace(
-              /@example(.*?)(@|$)/g,
-              (match, m1, m2) =>
-                `\n#### Example\n\`\`\`${m1.replace(
+              /@example\s*(.*?)<br\/>(.*?)(@|$)/g,
+              (match, title, m1, m2) =>
+                `\n#### Example: ${title}\n\`\`\`${m1.replace(
                   /<br\/>/g,
                   "\n"
                 )}\`\`\`${m2}`
             )
+            .replace(/(\*.*?)\s*<br\/>\s*(?!\s*\*)/g, "$1\n\n")
             .replace(/@note/g, "\n#### Note\n")
             .replace(/@see/, "\n#### See Also:\n$&")
             .replace(/@see\s+(.*?)(?=<br\/>)/g, "\n  * {$1}")
             .replace(/@throws/, "\n#### Throws:\n$&")
             .replace(/@throws\s+(.*?)(?=<br\/>)/g, "\n  * $1")
+            .replace(/@option\s+\w+\s+(.*?)(?=<br\/>)/g, "\n  - $1")
             .replace(
               /@since\s+(.*?)(?=<br\/>)/,
               "\n#### Since:\nAPI Level $1\n"
