@@ -58,6 +58,27 @@ export function beforeEvaluate(
   node: mctree.Node
 ): mctree.Node | null | false {
   switch (node.type) {
+    case "ExpressionStatement": {
+      if (node.expression.type !== "Literal") {
+        const expression = popIstate(istate, node.expression);
+        if (expression.embeddedEffects) {
+          istate.stack.push(expression);
+        } else {
+          const rep = withLoc(
+            { type: "Literal", value: null, raw: "null" },
+            node,
+            node
+          );
+          istate.stack.push({
+            value: { type: TypeTag.Null },
+            embeddedEffects: false,
+            node: rep,
+          });
+          node.expression = rep;
+        }
+      }
+      break;
+    }
     case "ConditionalExpression": {
       let alternate = tryPop(istate, node.alternate);
       let consequent = tryPop(istate, node.consequent);
