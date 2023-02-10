@@ -1,10 +1,18 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   FunctionStateNode,
+  ProgramState,
   ProgramStateAnalysis,
   StateNodeAttributes,
+  StateNodeDecl,
 } from "../optimizer-types";
-import { diagnostic, formatAst, getSuperClasses, hasProperty } from "../api";
+import {
+  diagnostic,
+  formatAst,
+  getSuperClasses,
+  hasProperty,
+  isStateNode,
+} from "../api";
 import { reduce, some } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
 import { subtypeOf } from "./sub-type";
@@ -96,7 +104,7 @@ export function checkCallArgs(
       let argEffects = true;
       const object = calleeObjectType(istate, node.callee);
       if (object) {
-        const info = sysCallInfo(cur);
+        const info = sysCallInfo(istate.state, cur);
         if (info) {
           const result = info(istate.state, cur, object, () => args);
           if (result.argTypes) argTypes = result.argTypes;
@@ -269,17 +277,23 @@ type SysCallHelper = (
 ) => SysCallHelperResult;
 
 let systemCallInfo: Record<string, SysCallHelper> | null = null;
+let systemCallVersion: string | undefined;
 
-export function sysCallInfo(func: FunctionStateNode) {
-  const info = getSystemCallTable();
+export function sysCallInfo(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode
+) {
+  const info = getSystemCallTable(state);
   if (hasProperty(info, func.fullName)) {
     return info[func.fullName];
   }
   return null;
 }
 
-function getSystemCallTable(): Record<string, SysCallHelper> {
-  if (systemCallInfo) return systemCallInfo;
+function getSystemCallTable(state: ProgramStateAnalysis) {
+  if (systemCallInfo && systemCallVersion === state.sdk) {
+    return systemCallInfo;
+  }
 
   const arrayAdd: SysCallHelper = (
     state: ProgramStateAnalysis,
@@ -570,7 +584,8 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     return results;
   };
 
-  return (systemCallInfo = {
+  systemCallVersion = state.sdk;
+  return (systemCallInfo = expandKeys(state, {
     "$.Toybox.Lang.Array.add": arrayAdd,
     "$.Toybox.Lang.Array.addAll": arrayAdd,
     "$.Toybox.Lang.Array.remove": mod,
@@ -638,5 +653,56 @@ function getSystemCallTable(): Record<string, SysCallHelper> {
     "$.Toybox.Math.variance": nop,
     "$.Toybox.Math.srand": mod,
     "$.Toybox.Math.rand": mod,
+
+    "$.Toybox.Lang.*.(to*|equals|abs)": nop,
+    "$.Toybox.Time.Gregorian.(duration|info|localMoment|moment|utcInfo)": nop,
+    "$.Toybox.Time.(Duration|LocalMoment|Moment).(?!initialize)*": nop,
+    "$.Toybox.Graphics.Dc.get*": nop,
+  }));
+}
+
+function expandKeys(
+  state: ProgramState,
+  table: Record<string, SysCallHelper>
+): Record<string, SysCallHelper> {
+  const result = {} as Record<string, SysCallHelper>;
+  const pattern = /[*()|]/;
+  Object.entries(table).forEach(([key, value]) => {
+    if (!pattern.test(key)) {
+      result[key] = value;
+      return;
+    }
+    if (state.stack) {
+      const decls = key
+        .split(".")
+        .slice(1)
+        .reduce(
+          (decls, decl) => {
+            if (pattern.test(decl)) {
+              const re = new RegExp(`^${decl.replace(/\*/g, ".*")}$`);
+              return decls.flatMap((sn) =>
+                isStateNode(sn) && sn.decls
+                  ? Object.keys(sn.decls)
+                      .filter((m) => re.test(m))
+                      .flatMap((m) => sn.decls![m])
+                  : []
+              );
+            } else {
+              return decls.flatMap(
+                (sn) => (isStateNode(sn) && sn.decls?.[decl]) || []
+              );
+            }
+          },
+          [state.stack[0].sn] as StateNodeDecl[]
+        );
+      decls.forEach((decl) => {
+        if (decl.type === "FunctionDeclaration") {
+          if (!hasProperty(result, decl.fullName)) {
+            result[decl.fullName] = value;
+          }
+        }
+      });
+    }
   });
+  return result;
 }

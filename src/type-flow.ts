@@ -1099,7 +1099,7 @@ function propagateTypes(
     const calleeObj = getStateType(curState, calleeObjDecl);
     const calleeResult: ExactOrUnion = { type: TypeTag.Never };
     const result = every(callees, (callee) => {
-      const info = sysCallInfo(callee);
+      const info = sysCallInfo(istate.state, callee);
       if (!info) return false;
       const result = info(istate.state, callee, calleeObj, () =>
         node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
