@@ -351,6 +351,7 @@ function unusedLogicals() as Number {
     );
 }
 
+// @match /:typecheck\(false\)/
 (:test)
 function unusedExpressionCleanupTests(logger as Logger) as Boolean {
     ok = true;

@@ -930,10 +930,10 @@ export function inlineFunction(
 ): InlineBody | null {
   const ret = inlineFunctionHelper(state, func, call, context);
   if (!ret) return ret;
-  const typecheckFalse = func.node.attrs?.attributes?.elements.find((attr) =>
-    isTypecheckArg(attr, false)
+  const typecheckAttrs = func.node.attrs?.attributes?.elements.filter((attr) =>
+    isTypecheckArg(attr, null)
   );
-  if (!typecheckFalse) {
+  if (!typecheckAttrs || !typecheckAttrs.length) {
     return ret;
   }
   const callerElem = state.stack.find(
@@ -944,6 +944,13 @@ export function inlineFunction(
   }
   const callerSn = callerElem.sn as FunctionStateNode;
   const caller = callerSn.node;
+  if (
+    caller.attrs?.attributes?.elements.find((attr) =>
+      isTypecheckArg(attr, null)
+    )
+  ) {
+    return ret;
+  }
   if (!caller.attrs) {
     caller.attrs = withLoc(
       {
@@ -960,13 +967,10 @@ export function inlineFunction(
       false
     );
   }
-  if (
-    caller.attrs.attributes.elements.find((attr) => isTypecheckArg(attr, null))
-  ) {
-    return ret;
-  }
   caller.attrs.attributes.elements.unshift(
-    withLocDeep({ ...typecheckFalse }, caller.attrs, false)
+    ...typecheckAttrs.map((typecheck) =>
+      withLocDeep({ ...typecheck }, caller.attrs!, false)
+    )
   );
   return ret;
 }
