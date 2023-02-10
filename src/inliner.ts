@@ -869,17 +869,19 @@ function updateLocationForInline<T extends mctree.Node>(
   }
   traverseAst(node, (node) => {
     if (
-      node.loc &&
-      (node.loc.source !== loc.source ||
-        node.loc.start.offset > loc.end.offset ||
-        node.loc.end.offset <= loc.start.offset)
+      !node.loc ||
+      node.loc.source !== loc.source ||
+      node.loc.start.offset > loc.end.offset ||
+      node.loc.end.offset <= loc.start.offset
     ) {
-      if (!node.origins) {
-        node.origins = [];
+      if (node.loc) {
+        if (!node.origins) {
+          node.origins = [];
+        }
+        node.origins.unshift({ loc: node.loc, func: func.fullName });
       }
-      node.origins.unshift({ loc: node.loc, func: func.fullName });
+      withLoc(node, context, context === original ? context : false);
     }
-    withLoc(node, context, context === original ? context : false);
   });
   return node;
 }
