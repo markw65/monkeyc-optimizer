@@ -25,7 +25,7 @@ export type CopyPropStores = Map<
 
 type NodeConflictsMap = Map<mctree.Node, Set<TypeStateKey>>;
 
-type AntMap = Map<TypeStateKey, Set<mctree.Identifier>>;
+type AntMap = Map<TypeStateKey, mctree.Identifier | false>;
 type DeadState = {
   dead: Set<TypeStateKey>;
   anticipated?: AntMap;
@@ -33,18 +33,17 @@ type DeadState = {
 };
 
 function cloneAnt(antMap: AntMap) {
-  const ant = new Map() as AntMap;
-  antMap.forEach((s, k) => ant.set(k, new Set(s)));
-  return ant;
+  return new Map(antMap);
 }
 
 function addAnt(antMap: AntMap, decl: TypeStateKey, node: mctree.Node) {
   assert(node.type === "Identifier");
   const ant = antMap.get(decl);
-  if (!ant) {
-    antMap.set(decl, new Set([node]));
+  if (ant === false || ant === node) return;
+  if (ant === undefined) {
+    antMap.set(decl, node);
   } else {
-    ant.add(node);
+    antMap.set(decl, false);
   }
 }
 
@@ -90,16 +89,9 @@ export function findDeadStores(
         changed = Array.from(to.anticipated).reduce(
           (changed, [decl, toant]) => {
             const fromant = from.anticipated!.get(decl);
-            if (!fromant) {
+            if (toant !== fromant) {
               to.anticipated!.delete(decl);
               changed = true;
-            } else {
-              toant.forEach((node) => {
-                if (!fromant.has(node)) {
-                  toant.delete(node);
-                  changed = true;
-                }
-              });
             }
             return changed;
           },
@@ -115,16 +107,14 @@ export function findDeadStores(
         changed = Array.from(from.partiallyAnticipated).reduce(
           (changed, [decl, fromant]) => {
             const toant = to.partiallyAnticipated!.get(decl);
-            if (!toant) {
+            if (toant === undefined) {
               to.partiallyAnticipated!.set(decl, fromant);
               changed = true;
             } else {
-              fromant.forEach((node) => {
-                if (!toant.has(node)) {
-                  changed = true;
-                  toant.add(node);
-                }
-              });
+              if (toant !== fromant) {
+                changed = true;
+                to.partiallyAnticipated!.set(decl, false);
+              }
             }
             return changed;
           },
@@ -208,8 +198,8 @@ export function findDeadStores(
                 if (logThisRun) {
                   console.log(
                     `  antrefs: ${
-                      curState.partiallyAnticipated.get(event.decl)?.size ?? 0
-                    } ${curState.anticipated.get(event.decl)?.size ?? 0}`
+                      curState.partiallyAnticipated.get(event.decl) !== false
+                    } ${curState.anticipated.get(event.decl) !== false}`
                   );
                 }
               }
@@ -240,17 +230,17 @@ export function findDeadStores(
                   curState.partiallyAnticipated
                 ) {
                   const pant = curState.partiallyAnticipated.get(event.decl);
-                  if (pant && pant.size === 1) {
+                  if (pant) {
                     if (logThisRun) {
                       console.log(
                         `  is copy-prop-candidate ${
-                          curState.anticipated?.get(event.decl)?.size ?? 0
+                          curState.anticipated?.get(event.decl) === pant
                         }`
                       );
                     }
                     copyPropStores.set(event.node, {
-                      ref: Array.from(pant)[0],
-                      ant: curState.anticipated?.get(event.decl)?.size === 1,
+                      ref: pant,
+                      ant: curState.anticipated?.get(event.decl) === pant,
                     });
                   }
                   curState.partiallyAnticipated.delete(event.decl);
