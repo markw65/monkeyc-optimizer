@@ -224,6 +224,7 @@ export function findDeadStores(
                 deadStores.add(event.node);
               } else {
                 deadStores.delete(event.node);
+                copyPropStores.delete(event.node);
                 if (
                   assignNode &&
                   declIsLocal(event.decl) &&
@@ -245,8 +246,6 @@ export function findDeadStores(
                   }
                   curState.partiallyAnticipated.delete(event.decl);
                   curState.anticipated?.delete(event.decl);
-                } else {
-                  copyPropStores.delete(event.node);
                 }
               }
               if (nodeConflicts) {
