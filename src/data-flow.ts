@@ -523,10 +523,11 @@ export function buildDataFlowGraph(
                 decl,
                 mayThrow,
               };
-              if (wantsAllRefs && node.operator === "=") {
+              if (wantsAllRefs) {
                 if (
-                  node.right.type === "Identifier" ||
-                  node.right.type === "MemberExpression"
+                  (node.right.type === "Identifier" ||
+                    node.right.type === "MemberExpression") &&
+                  node.operator === "="
                 ) {
                   const rhs = findDecl(node.right);
                   if (rhs) def.rhs = rhs;

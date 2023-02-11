@@ -225,11 +225,7 @@ export function findDeadStores(
               } else {
                 deadStores.delete(event.node);
                 copyPropStores.delete(event.node);
-                if (
-                  assignNode &&
-                  declIsLocal(event.decl) &&
-                  curState.partiallyAnticipated
-                ) {
+                if (declIsLocal(event.decl) && curState.partiallyAnticipated) {
                   const pant = curState.partiallyAnticipated.get(event.decl);
                   if (pant) {
                     if (logThisRun) {

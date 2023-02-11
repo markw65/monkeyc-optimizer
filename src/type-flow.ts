@@ -10,7 +10,7 @@ import {
   lookupNext,
   traverseAst,
 } from "./api";
-import { withLoc, withLocDeep } from "./ast";
+import { cloneDeep, withLoc, withLocDeep } from "./ast";
 import { getPostOrder } from "./control-flow";
 import {
   buildDataFlowGraph,
@@ -1715,24 +1715,42 @@ function propagateTypes(
                       ))
                   ) {
                     const key = event.decl ?? null;
-                    if (
-                      key &&
-                      declIsLocal(key) &&
-                      nodeCopyProp.has(event.node)
-                    ) {
-                      // we might have
-                      //
-                      //   var x = foo();
-                      //   var y = x + 1;
-                      //   bar();
-                      //   return y;
-                      //
-                      // In that case, its ok to drop "x = foo()" and rewrite as y = foo() + 1"
-                      // OR its ok to drop "y = x + 1" and rewrite as "return x + 1".
-                      // But we can't do both, and rewrite as "bar(); return foo() + 1;"
-                      // So just disable copy prop for *this* node. We'll re-run and have a
-                      // second chance later.
-                      return false;
+                    if (key && declIsLocal(key)) {
+                      if (nodeCopyProp.has(event.node)) {
+                        // we might have
+                        //
+                        //   var x = foo();
+                        //   var y = x + 1;
+                        //   bar();
+                        //   return y;
+                        //
+                        // In that case, its ok to drop "x = foo()" and rewrite as y = foo() + 1"
+                        // OR its ok to drop "y = x + 1" and rewrite as "return x + 1".
+                        // But we can't do both, and rewrite as "bar(); return foo() + 1;"
+                        // So just disable copy prop for *this* node. We'll re-run and have a
+                        // second chance later.
+                        return false;
+                      } else if (
+                        event.node.type === "AssignmentExpression" &&
+                        event.node.operator !== "=" &&
+                        nodeCopyProp.has(event.node.left)
+                      ) {
+                        // If we're copy proping into the lhs of an update
+                        // assignment, we're going to have to rewrite it.
+                        // similar to the above, don't also do forward copy
+                        // prop. eg
+                        //
+                        //  var x = a + b;
+                        //  x += c;
+                        //  return x;
+                        //
+                        // becomes
+                        //
+                        //  var x;
+                        //  x = (a + b) + c;
+                        //  return x; // <- dont propagate to here (yet), in case a+b has changed.
+                        return false;
+                      }
                     }
                     const item = contained.get(key);
                     if (!item) {
@@ -1990,13 +2008,98 @@ function propagateTypes(
         })
     );
 
-    traverseAst(func.node.body!, null, (node) => {
-      const copyNode = nodeCopyProp.get(node);
-      if (copyNode) {
-        if (node.type === "AssignmentExpression") {
+    traverseAst(
+      func.node.body!,
+      (node) => {
+        if (
+          node.type === "AssignmentExpression" &&
+          node.operator !== "=" &&
+          nodeCopyProp.has(node.left)
+        ) {
+          const left = cloneDeep(node.left);
+          const right: mctree.BinaryExpression = withLoc(
+            {
+              type: "BinaryExpression",
+              operator: node.operator.slice(0, -1) as mctree.BinaryOperator,
+              left: withLocDeep(node.left, node.right, false, true),
+              right: node.right,
+            },
+            node.left,
+            node.right
+          );
+          node.operator = "=";
+          node.left = left;
+          node.right = right;
+        }
+      },
+      (node) => {
+        const copyNode = nodeCopyProp.get(node);
+        if (copyNode) {
+          if (node.type === "AssignmentExpression") {
+            if (logThisRun) {
+              console.log(
+                `Killing copy-prop assignment ${formatAstLongLines(node)}`
+              );
+            }
+            return withLoc(
+              { type: "Literal", value: null, raw: "null" },
+              node,
+              node
+            );
+          }
+          if (node.type === "VariableDeclarator") {
+            assert(node.init);
+            if (logThisRun) {
+              console.log(
+                `Killing copy-prop variable initialization ${formatAstLongLines(
+                  node
+                )}`
+              );
+            }
+            const dup = { ...node };
+            delete dup.init;
+            return dup;
+          }
+          if (copyNode.type === "AssignmentExpression") {
+            const replacement: mctree.Expression =
+              copyNode.operator === "="
+                ? copyNode.right
+                : {
+                    type: "BinaryExpression",
+                    operator: copyNode.operator.slice(
+                      0,
+                      -1
+                    ) as mctree.BinaryOperator,
+                    left: copyNode.left,
+                    right: copyNode.right,
+                  };
+            if (logThisRun) {
+              console.log(
+                `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
+                  replacement
+                )}`
+              );
+            }
+            return withLocDeep(replacement, node, node, false);
+          } else if (copyNode.type === "VariableDeclarator") {
+            assert(copyNode.init);
+            if (logThisRun) {
+              console.log(
+                `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
+                  copyNode.init
+                )}`
+              );
+            }
+            return withLocDeep(copyNode.init, node, node, false);
+          }
+          assert(false);
+        }
+        if (selfAssignments.has(node)) {
           if (logThisRun) {
             console.log(
-              `Killing copy-prop assignment ${formatAstLongLines(node)}`
+              `Deleting self assignment: ${formatAst(node)} (${sourceLocation(
+                node.loc
+              )})`
             );
           }
           return withLoc(
@@ -2005,129 +2108,81 @@ function propagateTypes(
             node
           );
         }
-        if (node.type === "VariableDeclarator") {
-          assert(node.init);
-          if (logThisRun) {
-            console.log(
-              `Killing copy-prop variable initialization ${formatAstLongLines(
-                node
-              )}`
-            );
-          }
-          const dup = { ...node };
-          delete dup.init;
-          return dup;
+        if (nodeCopyProp.size) {
+          /*
+           * Copy prop and equiv can interfere with each other:
+           *
+           *   var c = g; // copy prop kills this
+           *   ...
+           *   var x = g + 2; // node equiv replaces g with c
+           *   ...
+           *   return c; // copy prop changes this to g
+           *
+           * So ignore equivalencies if copy prop is active.
+           * Note that we have to re-run propagation anyway
+           * if copy prop did anything.
+           */
+          return null;
         }
-        if (copyNode.type === "AssignmentExpression") {
-          if (logThisRun) {
-            console.log(
-              `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
-                copyNode.right
-              )}`
-            );
-          }
-          return withLocDeep(copyNode.right, node, node, false);
-        } else if (copyNode.type === "VariableDeclarator") {
-          assert(copyNode.init);
-          if (logThisRun) {
-            console.log(
-              `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
-                copyNode.init
-              )}`
-            );
-          }
-          return withLocDeep(copyNode.init, node, node, false);
-        }
-        assert(false);
-      }
-      if (selfAssignments.has(node)) {
-        if (logThisRun) {
-          console.log(
-            `Deleting self assignment: ${formatAst(node)} (${sourceLocation(
-              node.loc
-            )})`
+        const equiv = nodeEquivs.get(node);
+        if (!equiv || localConflicts.has(equiv.decl)) return null;
+        const curInfo = nodeEquivDeclInfo.get(equiv.decl);
+        if (!curInfo) {
+          throw new Error(
+            `Missing info for equiv ${formatAst(node)} = [${equiv.equiv
+              .map((decl) => tsKey(decl as TypeStateKey))
+              .join(", ")}]`
           );
         }
-        return withLoc(
-          { type: "Literal", value: null, raw: "null" },
-          node,
-          node
+        const rep = equiv.equiv.reduce((cur, decl) => {
+          if (localConflicts.has(decl)) return cur;
+          let info = nodeEquivDeclInfo.get(decl);
+          if (!info) {
+            // this is a one way equivalency. There are
+            // no references to decl while equiv.decl
+            // is equivalent to it. eg
+            //
+            //   var b = a;
+            //   ... use b but not a ...
+            //
+            const cost =
+              Array.isArray(decl) || decl.type === "VariableDeclarator" ? 2 : 0;
+            info = { cost, numAssign: 0, decl, numEquiv: 0 };
+          }
+          if (info.cost > 3) {
+            throw new Error(`Replacement decl is not a local!`);
+          }
+          if (
+            info.cost < cur.cost ||
+            (info.cost === cur.cost &&
+              (info.numAssign > cur.numAssign ||
+                (info.numAssign === cur.numAssign &&
+                  info.numEquiv > cur.numEquiv)))
+          ) {
+            return info;
+          }
+          return cur;
+        }, curInfo);
+        if (rep === curInfo) return null;
+        const name = reduce(
+          rep.decl,
+          (cur, decl) => (decl.type === "VariableDeclarator" ? decl.name : cur),
+          null as string | null
         );
-      }
-      if (nodeCopyProp.size) {
-        /*
-         * Copy prop and equiv can interfere with each other:
-         *
-         *   var c = g; // copy prop kills this
-         *   ...
-         *   var x = g + 2; // node equiv replaces g with c
-         *   ...
-         *   return c; // copy prop changes this to g
-         *
-         * So ignore equivalencies if copy prop is active.
-         * Note that we have to re-run propagation anyway
-         * if copy prop did anything.
-         */
-        return null;
-      }
-      const equiv = nodeEquivs.get(node);
-      if (!equiv || localConflicts.has(equiv.decl)) return null;
-      const curInfo = nodeEquivDeclInfo.get(equiv.decl);
-      if (!curInfo) {
-        throw new Error(
-          `Missing info for equiv ${formatAst(node)} = [${equiv.equiv
-            .map((decl) => tsKey(decl as TypeStateKey))
-            .join(", ")}]`
-        );
-      }
-      const rep = equiv.equiv.reduce((cur, decl) => {
-        if (localConflicts.has(decl)) return cur;
-        let info = nodeEquivDeclInfo.get(decl);
-        if (!info) {
-          // this is a one way equivalency. There are
-          // no references to decl while equiv.decl
-          // is equivalent to it. eg
-          //
-          //   var b = a;
-          //   ... use b but not a ...
-          //
-          const cost =
-            Array.isArray(decl) || decl.type === "VariableDeclarator" ? 2 : 0;
-          info = { cost, numAssign: 0, decl, numEquiv: 0 };
+        if (!name) return null;
+        if (logThisRun) {
+          console.log(
+            `Replacing ${formatAst(node)} with ${name} at ${sourceLocation(
+              node.loc
+            )}`
+          );
         }
-        if (info.cost > 3) {
-          throw new Error(`Replacement decl is not a local!`);
-        }
-        if (
-          info.cost < cur.cost ||
-          (info.cost === cur.cost &&
-            (info.numAssign > cur.numAssign ||
-              (info.numAssign === cur.numAssign &&
-                info.numEquiv > cur.numEquiv)))
-        ) {
-          return info;
-        }
-        return cur;
-      }, curInfo);
-      if (rep === curInfo) return null;
-      const name = reduce(
-        rep.decl,
-        (cur, decl) => (decl.type === "VariableDeclarator" ? decl.name : cur),
-        null as string | null
-      );
-      if (!name) return null;
-      if (logThisRun) {
-        console.log(
-          `Replacing ${formatAst(node)} with ${name} at ${sourceLocation(
-            node.loc
-          )}`
-        );
+        const replacement = withLoc({ type: "Identifier", name }, node, node);
+        const tm = typeMap.get(node);
+        if (tm) typeMap.set(replacement, tm);
+        return replacement;
       }
-      const replacement = withLoc({ type: "Identifier", name }, node, node);
-      const tm = typeMap.get(node);
-      if (tm) typeMap.set(replacement, tm);
-      return replacement;
-    });
+    );
   }
 
   return {
