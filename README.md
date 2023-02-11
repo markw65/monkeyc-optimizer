@@ -703,3 +703,11 @@ Bug Fixes
   - Propagate any :typecheck annotations from inlined functions to their callers
   - Fix some issues keeping track of function calls used as arguments to inlined functions, that could result in bogus diagnostics.
   - Implement [Single Use Copy Propagation](https://github.com/markw65/monkeyc-optimizer/wiki/Local-variable-elimination#single-use-copy-propagation)
+
+### 1.1.12
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.45](https://github.com/markw65/prettier-plugin-monkeyc#1045)
+  - fixes some bugs that could cause comments to go missing, resulting in an internal error from the formatter
+- Streamline some of the data structures used for `Minimise Locals` and `Single Copy Prop` to reduce memory use, and speed things up a little.
+- Fix a bug that could cause incorrect copy propagation in loops
+- Add support for update assignments in copy propagation (so that `var x = a; x += b; return x` goes to `return a + b`)
