@@ -1492,17 +1492,16 @@ function propagateTypes(
               }
             });
           }
+          let calleeEffects: boolean | undefined;
           curState.map.forEach((tsv, decl) => {
             let type = tsv.curType;
             if (
-              !some(
-                decl,
-                (d) =>
-                  d.type === "VariableDeclarator" &&
-                  (d.node.kind === "var" ||
-                    // even a "const" could have its "inner" type altered
-                    (type.value != null && (type.type & TypeTag.Object) !== 0))
-              )
+              (type.value == null ||
+                !(
+                  type.type &
+                  (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary)
+                )) &&
+              !some(decl, (d) => d.type === "VariableDeclarator" && !isLocal(d))
             ) {
               return;
             }
@@ -1519,10 +1518,15 @@ function propagateTypes(
               clearRelatedCopyPropEvents(curState, decl, nodeCopyProp);
               curState.map.set(decl, { curType: typeConstraint(decl) });
             } else if (
-              type.value != null &&
-              (!callees || !every(callees, (callee) => callee.info === false))
+              type.type &
+                (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary) &&
+              (calleeEffects == null
+                ? (calleeEffects =
+                    !callees ||
+                    !every(callees, (callee) => callee.info === false))
+                : calleeEffects)
             ) {
-              if (type.type & TypeTag.Object) {
+              if (type.value != null && type.type & TypeTag.Object) {
                 const odata = getObjectValue(tsv.curType);
                 if (odata?.obj) {
                   type = cloneType(type);
@@ -1533,15 +1537,10 @@ function propagateTypes(
                     tsv = { ...tsv };
                     delete tsv.assocPaths;
                   }
-                  if (tsv.copyPropItem) {
-                    copyPropFailed(curState, tsv.copyPropItem, nodeCopyProp);
-                    tsv = { ...tsv };
-                    delete tsv.copyPropItem;
-                  }
-                  clearRelatedCopyPropEvents(curState, decl, nodeCopyProp);
                   curState.map.set(decl, { ...tsv, curType: type });
                 }
               }
+              clearRelatedCopyPropEvents(curState, decl, nodeCopyProp);
             }
           });
           return true;
