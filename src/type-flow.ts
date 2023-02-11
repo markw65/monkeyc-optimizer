@@ -198,7 +198,10 @@ type CopyPropItem = {
 };
 type TypeStateValue = {
   curType: ExactOrUnion;
-  equivSet?: { next: TypeStateKey };
+  // Ownership model:
+  // The equivSet is owned by this TypeStateValue,
+  // and can be modified in place.
+  equivSet?: Set<TypeStateKey>;
   // set of paths used by MemberDecls whose base
   // points to this entry.
   assocPaths?: Set<string>;
@@ -260,84 +263,43 @@ function addEquiv(ts: TypeStateMap, key: TypeStateKey, equiv: TypeStateKey) {
   let equivVal = ts.get(equiv);
   if (!keyVal || !equivVal) return false;
   if (equivVal.equivSet) {
-    if (keyVal.equivSet) {
-      // key is already a member of a set, see if
-      // equiv is part of it.
-      let s = keyVal.equivSet.next;
-      do {
-        if (s === equiv) {
-          // these two are already equivalent
-          return true;
-        }
-        const next = ts.get(s);
-        if (!next || !next.equivSet) {
-          throw new Error(
-            `Inconsistent equivSet for ${tsKey(key)}: missing value for ${tsKey(
-              s
-            )}`
-          );
-        }
-        s = next.equivSet.next;
-      } while (s !== key);
+    if (equivVal.equivSet.has(key)) {
+      return true;
     }
     // equiv is already a member of a set. remove it
     removeEquiv(ts, equiv);
   }
   // equiv is not (or no longer) part of an equivSet
-  keyVal = { ...keyVal };
   if (!keyVal.equivSet) {
-    keyVal.equivSet = { next: key };
+    keyVal = { ...keyVal };
+    keyVal.equivSet = new Set([key, equiv]);
+    ts.set(key, keyVal);
+  } else {
+    keyVal.equivSet.add(equiv);
   }
   equivVal = { ...equivVal, equivSet: keyVal.equivSet };
-  keyVal.equivSet = { next: equiv };
-  ts.set(key, keyVal);
   ts.set(equiv, equivVal);
   return false;
 }
 
 function removeEquiv(ts: TypeStateMap, equiv: TypeStateKey) {
-  const equivVal = ts.get(equiv);
+  let equivVal = ts.get(equiv);
   if (!equivVal?.equivSet) return;
-  let s = equivVal.equivSet.next;
-  do {
-    const next = ts.get(s);
-    if (!next || !next.equivSet) {
-      throw new Error(
-        `Inconsistent equivSet for ${tsKey(equiv)}: missing value for ${tsKey(
-          s
-        )}`
-      );
-    }
-    if (next.equivSet.next === equiv) {
-      const { equivSet: _e, ...rest } = next;
-      if (equivVal.equivSet.next === s) {
-        // this is a pair. just kill both
-        ts.set(s, rest);
-      } else {
-        ts.set(s, { ...rest, equivSet: equivVal.equivSet });
-      }
-      break;
-    }
-    s = next.equivSet.next;
-  } while (true);
-  const newVal = { ...equivVal };
-  delete newVal.equivSet;
-  ts.set(equiv, newVal);
+  equivVal.equivSet.delete(equiv);
+  if (equivVal.equivSet.size === 1) {
+    const other = Array.from(equivVal.equivSet)[0];
+    const otherVal = { ...ts.get(other)! };
+    delete otherVal.equivSet;
+    ts.set(other, otherVal);
+  }
+  equivVal = { ...equivVal };
+  delete equivVal.equivSet;
+  ts.set(equiv, equivVal);
 }
 
 function getEquivSet(ts: TypeStateMap, k: TypeStateKey) {
-  const keys = new Set<TypeStateKey>();
-  let s = k;
-  do {
-    const next = ts.get(s);
-    if (!next || !next.equivSet) {
-      throw new Error(
-        `Inconsistent equivSet for ${tsKey(k)}: missing value for ${tsKey(s)}`
-      );
-    }
-    keys.add(s);
-    s = next.equivSet.next;
-  } while (s !== k);
+  const keys = ts.get(k)?.equivSet;
+  assert(keys);
   return keys;
 }
 
@@ -350,24 +312,28 @@ function intersectEquiv(ts1: TypeStateMap, ts2: TypeStateMap, k: TypeStateKey) {
     removeEquiv(ts1, k);
     return true;
   }
-
-  const keys = getEquivSet(ts2, k);
-  let ret = false;
-  let s = eq1.equivSet.next;
-  do {
-    const next = ts1.get(s);
-    if (!next || !next.equivSet) {
-      throw new Error(
-        `Inconsistent equivSet for ${tsKey(k)}: missing value for ${tsKey(s)}`
-      );
+  let removed = null as Set<TypeStateKey> | null;
+  eq1.equivSet.forEach((key) => {
+    if (!eq2.equivSet!.has(key)) {
+      eq1.equivSet!.delete(key);
+      if (!removed) {
+        removed = new Set();
+      }
+      removed.add(key);
     }
-    if (!keys.has(s)) {
-      ret = true;
-      removeEquiv(ts1, s);
-    }
-    s = next.equivSet.next;
-  } while (s !== k);
-  return ret;
+  });
+  if (eq1.equivSet.size === 1) {
+    assert(eq1.equivSet.has(k));
+    delete eq1.equivSet;
+  }
+  if (removed) {
+    removed.forEach((k) =>
+      removed!.size === 1
+        ? delete ts1.get(k)!.equivSet
+        : (ts1.get(k)!.equivSet = removed!)
+    );
+  }
+  return false;
 }
 
 function clearAssocPaths(
@@ -391,6 +357,14 @@ function clearAssocPaths(
 function cloneTypeState(blockState: TypeState): TypeState {
   const { map, trackedMemberDecls, liveCopyPropEvents, ...rest } = blockState;
   const clone: TypeState = { map: new Map(map), ...rest };
+  clone.map.forEach((value, key) => {
+    if (value.equivSet && key === Array.from(value.equivSet)[0]) {
+      const equivSet = new Set(value.equivSet);
+      equivSet.forEach((k) =>
+        clone.map.set(k, { ...clone.map.get(k)!, equivSet })
+      );
+    }
+  });
   if (trackedMemberDecls) {
     clone.trackedMemberDecls = new Map();
     trackedMemberDecls.forEach((value, key) => {
@@ -619,18 +593,6 @@ function mergeTypeState(
   return changes;
 }
 
-function tsEquivs(state: TypeStateMap, key: TypeStateKey) {
-  const result: string[] = [];
-  let s = key;
-  do {
-    result.push(tsKey(s));
-    const next = state.get(s);
-    assert(next && next.equivSet);
-    s = next.equivSet.next;
-  } while (s !== key);
-  return `[(${result.join(", ")})]`;
-}
-
 function typeStateEntry(value: TypeStateValue, key: TypeStateKey) {
   return `${tsKey(key)} = ${display(value.curType)}`;
 }
@@ -644,7 +606,9 @@ function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
   state.map.forEach((value, key) => {
     console.log(
       `${indent} - ${typeStateEntry(value, key)}${
-        value.equivSet ? " " + tsEquivs(state.map, key) : ""
+        value.equivSet
+          ? " " + `[(${Array.from(value.equivSet).map(tsKey).join(", ")})]`
+          : ""
       }`
     );
   });
@@ -990,19 +954,11 @@ function propagateTypes(
          */
         const v = blockState.map.get(decl);
         if (v?.equivSet) {
-          let s = decl;
-          do {
+          v.equivSet.forEach((s) => {
             const next = blockState.map.get(s);
-            if (!next || !next.equivSet) {
-              throw new Error(
-                `Inconsistent equivSet for ${tsKey(
-                  decl
-                )}: missing value for ${tsKey(s)}`
-              );
-            }
+            assert(next && next.equivSet?.has(s));
             blockState.map.set(s, { ...next, curType: value });
-            s = next.equivSet.next;
-          } while (s !== decl);
+          });
         } else {
           blockState.map.set(decl, { ...v, curType: value });
         }
