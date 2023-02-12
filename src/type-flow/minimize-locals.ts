@@ -1,7 +1,13 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as assert from "node:assert";
 import { variableDeclarationName } from "../api";
-import { isExpression, traverseAst, withLoc, withLocDeep } from "../ast";
+import {
+  isExpression,
+  isStatement,
+  traverseAst,
+  withLoc,
+  withLocDeep,
+} from "../ast";
 import { getPostOrder } from "../control-flow";
 import {
   FunctionStateNode,
@@ -222,11 +228,6 @@ export function minimizeLocals(
           return null;
         }
         break;
-      case "ExpressionStatement":
-        if (node.expression.type === "Literal") {
-          return false;
-        }
-        break;
       case "UpdateExpression":
         if (info) {
           assert(node.argument.type === "Identifier");
@@ -247,7 +248,7 @@ export function minimizeLocals(
           }
           // VariableDeclarations aren't allowed to have
           // AssignmentExpressions in them, but we'll fix that
-          // below
+          // via variableCleanup
           return withLoc(
             {
               type: "AssignmentExpression",
@@ -268,104 +269,120 @@ export function minimizeLocals(
           );
         }
         break;
-      case "VariableDeclaration":
-        if (
-          node.declarations.some(
-            (decl: mctree.Node) => decl.type !== "VariableDeclarator"
-          )
-        ) {
-          const results = [] as mctree.Statement[];
-          node.declarations.forEach(
-            (decl: mctree.VariableDeclarator | mctree.Expression) => {
-              if (isExpression(decl)) {
-                results.push(
-                  withLoc(
-                    { type: "ExpressionStatement", expression: decl },
-                    decl,
-                    decl
-                  )
-                );
-              } else if (decl.init) {
-                results.push(
-                  withLoc(
-                    {
-                      type: "ExpressionStatement",
-                      expression: withLoc(
-                        {
-                          type: "AssignmentExpression",
-                          operator: "=",
-                          left: withLoc(
-                            {
-                              type: "Identifier",
-                              name: variableDeclarationName(decl.id),
-                            },
-                            decl.id,
-                            decl.id
-                          ),
-                          right: decl.init,
-                        },
-                        decl,
-                        decl
-                      ),
-                    },
-                    decl,
-                    decl
-                  )
-                );
-              }
-            }
-          );
-          node.declarations = node.declarations.filter((decl) => {
-            if (decl.type === "VariableDeclarator") {
-              delete decl.init;
-              return true;
-            }
-            return false;
-          });
-          if (node.declarations.length) {
-            withLocDeep(node, node, false);
-            results.unshift(node);
-          }
-          // if this was the init of a ForStatement, this will
-          // replace its init with a BlockStatement, so we have to
-          // fix that below.
-          return results;
-        }
-        break;
-      case "ForStatement":
-        if (node.init) {
-          if ((node.init as mctree.Node).type === "BlockStatement") {
-            const result = node.init as mctree.Node as mctree.BlockStatement;
-            delete node.init;
-            result.body.push(node);
-            if (node.loc && result.loc) {
-              // result has the range of the original VariableDeclaration
-              // but now we're moving that ahead of the 'for', so to keep
-              // things straight, we need to set the for's start to be
-              // where result ended, and result's end to be where the for
-              // ends (since that block now encloses the for)
-              node.start = result.end;
-              node.loc.start = result.loc.end;
-              result.end = node.end;
-              result.loc.end = node.loc.end;
-            }
-            return result;
-          }
-          if (node.init.type === "Literal") {
-            delete node.init;
-          }
-        }
-        break;
-      case "SequenceExpression":
-        if (node.expressions.some((e) => e.type === "Literal")) {
-          node.expressions = node.expressions.filter(
-            (e) => e.type !== "Literal"
-          );
-        }
-        break;
     }
     assert(!info);
-    return null;
+    return variableCleanup(node);
   });
   return;
+}
+
+export function variableCleanup(node: mctree.Node) {
+  switch (node.type) {
+    case "ExpressionStatement":
+      if (node.expression.type === "Literal") {
+        return false;
+      }
+      break;
+    case "VariableDeclaration":
+      if (
+        node.declarations.some(
+          (decl: mctree.Node) => decl.type !== "VariableDeclarator"
+        )
+      ) {
+        const results = [] as mctree.Statement[];
+        node.declarations.forEach(
+          (
+            decl:
+              | mctree.VariableDeclarator
+              | mctree.Expression
+              | mctree.Statement
+          ) => {
+            if (isStatement(decl)) {
+              results.push(decl);
+            } else if (isExpression(decl)) {
+              results.push(
+                withLoc(
+                  { type: "ExpressionStatement", expression: decl },
+                  decl,
+                  decl
+                )
+              );
+            } else if (decl.init) {
+              results.push(
+                withLoc(
+                  {
+                    type: "ExpressionStatement",
+                    expression: withLoc(
+                      {
+                        type: "AssignmentExpression",
+                        operator: "=",
+                        left: withLoc(
+                          {
+                            type: "Identifier",
+                            name: variableDeclarationName(decl.id),
+                          },
+                          decl.id,
+                          decl.id
+                        ),
+                        right: decl.init,
+                      },
+                      decl,
+                      decl
+                    ),
+                  },
+                  decl,
+                  decl
+                )
+              );
+            }
+          }
+        );
+        node.declarations = node.declarations.filter((decl) => {
+          if (decl.type === "VariableDeclarator") {
+            delete decl.init;
+            return true;
+          }
+          return false;
+        });
+        if (node.declarations.length) {
+          withLocDeep(node, node, false);
+          results.unshift(node);
+        }
+        // if this was the init of a ForStatement, this will
+        // replace its init with a BlockStatement, so we have to
+        // fix that below.
+        return results;
+      }
+      break;
+    case "ForStatement":
+      if (node.init) {
+        if ((node.init as mctree.Node).type === "BlockStatement") {
+          const result = node.init as mctree.Node as mctree.BlockStatement;
+          delete node.init;
+          result.body.push(node);
+          if (node.loc && result.loc) {
+            // result has the range of the original VariableDeclaration
+            // but now we're moving that ahead of the 'for', so to keep
+            // things straight, we need to set the for's start to be
+            // where result ended, and result's end to be where the for
+            // ends (since that block now encloses the for)
+            node.start = result.end;
+            node.loc.start = result.loc.end;
+            result.end = node.end;
+            result.loc.end = node.loc.end;
+          }
+          return result;
+        }
+        if (node.init.type === "Literal") {
+          delete node.init;
+        }
+      }
+      break;
+    case "SequenceExpression":
+      if (node.expressions.some((e) => e.type === "Literal")) {
+        node.expressions = node.expressions.filter((e) => e.type !== "Literal");
+      }
+      break;
+  }
+  return null;
 }

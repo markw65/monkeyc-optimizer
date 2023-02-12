@@ -490,7 +490,7 @@ function inlineAssignContext(logger as Logger) as Boolean {
     for (
         var f = 42, g = A.B.s3(3), h = A.B.s3(4), i = 42;
         f < 42;
-        f++, g = A.B.s3(3)
+        f++, g = A.B.s3(g + h)
     ) {}
 
     z = 0;

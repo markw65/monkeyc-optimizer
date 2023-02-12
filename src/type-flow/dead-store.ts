@@ -7,6 +7,7 @@ import { getPostOrder } from "../control-flow";
 import { DataflowQueue, DefEvent } from "../data-flow";
 import { unused } from "../inliner";
 import { FunctionStateNode, ProgramStateAnalysis } from "../optimizer-types";
+import { variableCleanup } from "./minimize-locals";
 import {
   declIsLocal,
   describeEvent,
@@ -353,7 +354,9 @@ export function eliminateDeadStores(
     );
   }
   let changes = false;
-  traverseAst(func.node.body!, null, (node, parent) => {
+  traverseAst(func.node.body!, null, (node) => {
+    const cleaned = variableCleanup(node);
+    if (cleaned !== null) return cleaned;
     if (
       node.type === "ExpressionStatement" &&
       node.expression.type === "AssignmentExpression" &&
@@ -384,41 +387,17 @@ export function eliminateDeadStores(
       return { type: "Literal", value: null, raw: "null" };
     }
 
-    if (node.type === "VariableDeclaration") {
-      const result: mctree.Statement[] = [];
-      for (let i = 0; i < node.declarations.length; i++) {
-        const decl = node.declarations[i];
-        if (decl.init && deadStores.has(decl)) {
-          const body = unused(state, decl.init);
-          if (body.length) {
-            if (
-              !parent ||
-              (parent.type !== "BlockStatement" && parent.type !== "SwitchCase")
-            ) {
-              // Must be the init in a for statement. Fixing
-              // it would be complicated, so just punt for now.
-              break;
-            }
-            const newDeclaration = withLoc({ ...node }, node, decl.id);
-            if (i + 1 < node.declarations.length) {
-              newDeclaration.declarations = node.declarations.splice(0, i + 1);
-              result.push(newDeclaration);
-              withLoc(node, node.declarations[0], node);
-              i = -1;
-            } else {
-              result.push(node);
-            }
-            result.push(...body);
-          }
-          changes = true;
-          delete decl.init;
+    if (node.type === "VariableDeclarator") {
+      const decl = node;
+      if (decl.init && deadStores.has(decl)) {
+        const body = unused(state, decl.init);
+        delete decl.init;
+        changes = true;
+        if (!body.length) {
+          return null;
         }
-      }
-      if (result.length) {
-        if (!result.includes(node)) {
-          result.push(node);
-        }
-        return result;
+        body.unshift(decl as unknown as mctree.Statement);
+        return body;
       }
     }
     return null;
