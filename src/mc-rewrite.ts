@@ -64,6 +64,7 @@ import {
   InterpState,
   preEvaluate,
 } from "./type-flow/interp";
+import { minimizeModules } from "./type-flow/minimize-modules";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
 import { typeFromLiteral } from "./type-flow/types";
@@ -797,38 +798,34 @@ export async function optimizeMonkeyC(
         break;
       case "Identifier": {
         const map = topLocals().map;
-        if (map) {
-          if (hasProperty(map, node.name)) {
-            const name = map[node.name];
-            if (typeof name === "string") {
-              renameIdentifier(node, name);
+        if (hasProperty(map, node.name)) {
+          const name = map[node.name];
+          if (typeof name === "string") {
+            renameIdentifier(node, name);
+          }
+          const [, results] = state.lookupValue(node);
+          if (results) {
+            if (results.length !== 1 || results[0].results.length !== 1) {
+              throw new Error(`Local ${node.name} had multiple lookup results`);
             }
-            const [, results] = state.lookupValue(node);
-            if (results) {
-              if (results.length !== 1 || results[0].results.length !== 1) {
-                throw new Error(
-                  `Local ${node.name} had multiple lookup results`
-                );
-              }
-              const parent = results[0].parent;
-              if (!parent) {
-                throw new Error(`Local ${node.name} had no parent`);
-              }
-              const decl = results[0].results[0];
-              if (
-                parent.type === "FunctionDeclaration" ||
-                decl.type !== "VariableDeclarator"
-              ) {
-                // we can't optimize away function or catch parameters
-                return [];
-              }
-              if (parent.type !== "BlockStatement") {
-                throw new Error(
-                  `Local ${node.name} was not declared at block scope(??)`
-                );
-              }
-              decl.used = true;
+            const parent = results[0].parent;
+            if (!parent) {
+              throw new Error(`Local ${node.name} had no parent`);
             }
+            const decl = results[0].results[0];
+            if (
+              parent.type === "FunctionDeclaration" ||
+              decl.type !== "VariableDeclarator"
+            ) {
+              // we can't optimize away function or catch parameters
+              return [];
+            }
+            if (parent.type !== "BlockStatement") {
+              throw new Error(
+                `Local ${node.name} was not declared at block scope(??)`
+              );
+            }
+            decl.used = true;
           }
         }
         return [];
@@ -1136,6 +1133,11 @@ export async function optimizeMonkeyC(
   state.nextExposed = {};
   delete state.pre;
   delete state.post;
+
+  Object.values(fnMap).forEach((f) => {
+    minimizeModules(f.ast!, state);
+  });
+
   Object.values(state.allFunctions).forEach((fns) =>
     fns.forEach((fn) => sizeBasedPRE(state, fn))
   );

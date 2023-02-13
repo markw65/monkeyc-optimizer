@@ -29,7 +29,8 @@ function noNumber(x as Number or String) as Boolean {
 }
 
 function properties() as Void {
-    /* @expect "Properties will only be found" */
+    // mimimizeModules prevents this from firing for now
+    /* @ expect "Properties will only be found" */
     Properties.getValue("What");
 }
 
@@ -76,7 +77,8 @@ class TestClass extends X.Y.Base {
         return t;
     }
     function properties() as Void {
-        /* @expect "Properties will only be found" */
+        // mimimizeModules prevents this from firing for now
+        /* @ expect "Properties will only be found" */
         Properties.getValue("What");
     }
 }

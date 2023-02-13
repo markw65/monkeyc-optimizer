@@ -90,7 +90,7 @@ export function pragmaChecker(
       if (kind === "match") {
         const haystack = formatAst(node)
           .replace(/([\r\n]|\s)+/g, " ")
-          .replace(/\b\w+\s\/\*>(\w+)<\*\//g, "$1");
+          .replace(/\b\w+\s\/\*>([\w.]+)<\*\//g, "$1");
         if (!matcher(quote, needle, haystack)) {
           matcher(quote, needle, haystack);
           diagnostic(
