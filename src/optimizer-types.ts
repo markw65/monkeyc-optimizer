@@ -41,6 +41,7 @@ export type BuildConfig = {
   trustDeclaredTypes?: boolean;
   minimizeLocals?: boolean;
   minimizeModules?: boolean;
+  postBuildOptimizer?: boolean;
   singleUseCopyProp?: boolean;
   covarianceWarnings?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues

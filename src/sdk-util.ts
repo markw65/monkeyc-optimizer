@@ -3,7 +3,8 @@ import * as path from "path";
 import { globa } from "./util";
 import { parseXml, Element } from "./xml-util";
 
-export { readPrg, SectionKinds } from "./readprg";
+export { readPrg, optimizeProgram, readPrgWithOffsets } from "./readprg";
+export { SectionKinds } from "./readprg/bytecode";
 export * as xmlUtil from "./xml-util";
 
 export const isWin = process.platform === "win32";
