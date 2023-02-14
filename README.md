@@ -711,3 +711,7 @@ Bug Fixes
 - Streamline some of the data structures used for `Minimise Locals` and `Single Copy Prop` to reduce memory use, and speed things up a little.
 - Fix a bug that could cause incorrect copy propagation in loops
 - Add support for update assignments in copy propagation (so that `var x = a; x += b; return x` goes to `return a + b`)
+
+### 1.1.13
+
+- Adds a new [Minimize Modules](https://github.com/markw65/monkeyc-optimizer/wiki/Optimizing-module-imports#minimize-modules) pass, which attempts to ensure that every module referenced by the program is imported.
