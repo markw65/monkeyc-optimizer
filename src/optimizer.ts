@@ -693,6 +693,7 @@ const configOptionsToCheck = [
   "propagateTypes",
   "singleUseCopyProp",
   "minimizeLocals",
+  "minimizeModules",
   "extensionVersion",
   "typeCheckLevel",
   "covarianceWarnings",

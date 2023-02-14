@@ -1134,9 +1134,11 @@ export async function optimizeMonkeyC(
   delete state.pre;
   delete state.post;
 
-  Object.values(fnMap).forEach((f) => {
-    minimizeModules(f.ast!, state);
-  });
+  if (state.config?.minimizeModules ?? true) {
+    Object.values(fnMap).forEach((f) => {
+      minimizeModules(f.ast!, state);
+    });
+  }
 
   Object.values(state.allFunctions).forEach((fns) =>
     fns.forEach((fn) => sizeBasedPRE(state, fn))

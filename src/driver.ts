@@ -55,6 +55,7 @@ export async function driver() {
   let propagateTypes = true;
   let trustDeclaredTypes = true;
   let minimizeLocals = true;
+  let minimizeModules = true;
   let singleUseCopyProp = true;
   let checkTypes: DiagnosticType | "OFF" = "WARNING";
   let skipRemote = false;
@@ -200,6 +201,10 @@ export async function driver() {
         if (value == null) return key;
         minimizeLocals = /^false|0$/i.test(value) ? false : true;
         break;
+      case "minimizeModules":
+        if (value == null) return key;
+        minimizeModules = /^false|0$/i.test(value) ? false : true;
+        break;
       case "ignoreInvalidSymbols":
         if (!value || /^true|1$/i.test(value)) {
           extraMonkeycArgs.push("--Eno-invalid-symbol");
@@ -324,6 +329,7 @@ export async function driver() {
       propagateTypes,
       singleUseCopyProp,
       minimizeLocals,
+      minimizeModules,
       checkTypes,
       checkCompilerLookupRules,
       sizeBasedPRE,
