@@ -113,7 +113,7 @@ declare global {
  * @param {BuildConfig} options
  * @returns {Promise<BuildConfig>}
  */
-function getConfig(options: BuildConfig) {
+export function getConfig(options: BuildConfig) {
   const config: BuildConfig = { ...defaultConfig, ...(options || {}) };
   return [
     "jungleFiles",

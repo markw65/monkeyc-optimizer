@@ -3,6 +3,7 @@ import * as path from "path";
 import { checkCompilerVersion, parseSdkVersion } from "./api";
 import {
   defaultConfig,
+  getConfig,
   getProjectAnalysis,
   get_jungle,
   launchSimulator,
@@ -11,7 +12,7 @@ import {
 } from "./optimizer";
 import { BuildConfig, DiagnosticType, ProgramState } from "./optimizer-types";
 import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
-import { getSdkPath, readPrg, SectionKinds } from "./sdk-util";
+import { getSdkPath, optimizeProgram, readPrg, SectionKinds } from "./sdk-util";
 import { forEach, globa, promiseAll, spawnByLine } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
@@ -60,6 +61,9 @@ export async function driver() {
   let checkTypes: DiagnosticType | "OFF" = "WARNING";
   let skipRemote = false;
   let covarianceWarnings: boolean | undefined;
+  let postOptimize = false;
+  let postProcess: string | null = null;
+  let postProcessTarget: string | undefined;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -103,6 +107,17 @@ export async function driver() {
         break;
       case "release":
         releaseBuild = !value || /^true|1$/i.test(value);
+        break;
+      case "postOptimize":
+        postOptimize = !value || /^true|1$/i.test(value);
+        break;
+      case "postProcess":
+        if (value == null) return key;
+        postProcess = value;
+        break;
+      case "postProcessTarget":
+        if (value == null) return key;
+        postProcessTarget = value;
         break;
       case "warnings":
         compilerWarnings = !value || /^true|1$/i.test(value);
@@ -255,6 +270,12 @@ export async function driver() {
     return null;
   }, null);
   if (prev) error(`Missing arg for '${prev}'`);
+  if (!developerKeyPath) {
+    developerKeyPath = (await getConfig({})).developerKeyPath;
+  }
+  if (postProcess) {
+    await optimizeProgram(postProcess, developerKeyPath, postProcessTarget);
+  }
   if (remoteProjects) {
     const rp = remoteProjects;
     promise = promise
@@ -267,7 +288,10 @@ export async function driver() {
       });
   }
   await promise;
-  if (!jungles.length) throw new Error("No inputs!");
+  if (!jungles.length) {
+    if (postProcess) return;
+    throw new Error("No inputs!");
+  }
   if (testBuild) {
     execute = true;
   } else if (products) {
@@ -348,6 +372,27 @@ export async function driver() {
     Object.entries(options).forEach(
       ([k, v]) => v === undefined && delete options[k as keyof typeof options]
     );
+    const showInfoFn = <
+      T extends {
+        program: string;
+        product: string | null;
+        hasTests: boolean;
+      } | null
+    >(
+      res: T
+    ) => {
+      if (showInfo && res && res.program) {
+        return readPrg(res.program).then((info) => {
+          logger(
+            `${path.basename(res.program)} sizes: text: ${
+              info[SectionKinds.TEXT]
+            } data: ${info[SectionKinds.DATA]}`
+          );
+          return res;
+        });
+      }
+      return res;
+    };
     let start = 0;
     return promise
       .then(
@@ -382,37 +427,47 @@ export async function driver() {
                   product: products ? products[0] : null,
                   options,
                 },
-              }).then(
-                ({ exe, args, program, product, hasTests, diagnostics }) => {
-                  reportDiagnostics(diagnostics, logger, extraArgs);
-                  args.push(...extraArgs);
-                  logger(
-                    [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
-                  );
-                  return spawnByLine(exe, args, logger, {
-                    cwd: workspace,
-                  }).then(() => ({
-                    program,
-                    product,
-                    hasTests,
-                  }));
-                }
-              )
+              })
+                .then(
+                  ({ exe, args, program, product, hasTests, diagnostics }) => {
+                    reportDiagnostics(diagnostics, logger, extraArgs);
+                    args.push(...extraArgs);
+                    logger(
+                      [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
+                    );
+                    return Promise.all([
+                      {
+                        program,
+                        product,
+                        hasTests,
+                      },
+                      spawnByLine(exe, args, logger, {
+                        cwd: workspace,
+                      }),
+                    ]);
+                  }
+                )
+                .then(([res]) => showInfoFn(res))
+                .then((res) => {
+                  return Promise.all([
+                    postOptimize
+                      ? {
+                          program:
+                            path.join(
+                              path.dirname(res.program),
+                              path.basename(res.program, ".prg")
+                            ) + ".opt.prg",
+                          product: res.product,
+                          hasTests: res.hasTests,
+                        }
+                      : res,
+                    postOptimize &&
+                      optimizeProgram(res.program, developerKeyPath),
+                  ]).then(([res]) => res);
+                })
         )
       )
-      .then((res) => {
-        if (showInfo && res && res.program) {
-          return readPrg(res.program).then((info) => {
-            logger(
-              `${path.basename(res.program)} sizes: text: ${
-                info[SectionKinds.TEXT]
-              } data: ${info[SectionKinds.DATA]}`
-            );
-            return res;
-          });
-        }
-        return res;
-      })
+      .then((res) => showInfoFn(res))
       .then((res) => {
         if (
           res &&
@@ -488,6 +543,17 @@ export async function driver() {
             logger(line);
           };
           const serializePromise = serializeSim.promise
+            .then(() =>
+              process.platform === "darwin"
+                ? spawnByLine(
+                    "pkill",
+                    ["-f", "Contents/MacOS/simulator"],
+                    [logger, logger]
+                  ).catch(() => {
+                    /**/
+                  })
+                : Promise.resolve()
+            )
             .then(() => launchSimulator(pass !== undefined))
             .then(() =>
               simulateProgram(
