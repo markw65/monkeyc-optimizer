@@ -546,3 +546,76 @@ export function emitBytecode(
   }
   return offset;
 }
+
+export function getOpInfo(bytecode: Bytecode) {
+  switch (bytecode.op) {
+    case Opcodes.nop:
+    case Opcodes.ret:
+    case Opcodes.incsp:
+    case Opcodes.argc:
+    case Opcodes.goto:
+    case Opcodes.jsr:
+      return { pop: 0, push: 0 };
+    case Opcodes.popv:
+    case Opcodes.return:
+    case Opcodes.throw:
+    case Opcodes.bt:
+    case Opcodes.bf:
+      return { pop: 1, push: 0 };
+    case Opcodes.addv:
+    case Opcodes.subv:
+    case Opcodes.mulv:
+    case Opcodes.divv:
+    case Opcodes.andv:
+    case Opcodes.orv:
+    case Opcodes.modv:
+    case Opcodes.shlv:
+    case Opcodes.shrv:
+    case Opcodes.xorv:
+    case Opcodes.eq:
+    case Opcodes.lt:
+    case Opcodes.lte:
+    case Opcodes.gt:
+    case Opcodes.gte:
+    case Opcodes.ne:
+    case Opcodes.canhazplz:
+    case Opcodes.isa:
+      return { pop: 2, push: 1 };
+    case Opcodes.getv: // thing, symbol
+    case Opcodes.agetv: // array, index
+      return { pop: 2, push: 1 };
+    case Opcodes.putv: // thing, symbol, value
+    case Opcodes.aputv: // array, index, value
+      return { pop: 3, push: 0 };
+    case Opcodes.newc:
+    case Opcodes.isnull:
+    case Opcodes.invv:
+    case Opcodes.getm:
+    case Opcodes.newa:
+    case Opcodes.newba:
+    case Opcodes.newd:
+    case Opcodes.lputv:
+      return { pop: 1, push: 1 };
+    case Opcodes.frpush:
+    case Opcodes.npush:
+    case Opcodes.bpush:
+    case Opcodes.lgetv:
+    case Opcodes.dup:
+    case Opcodes.news:
+    case Opcodes.ipush:
+    case Opcodes.fpush:
+    case Opcodes.spush:
+    case Opcodes.cpush:
+    case Opcodes.lpush:
+    case Opcodes.dpush:
+      return { pop: 0, push: 1 };
+
+    case Opcodes.invokem:
+      return { pop: bytecode.arg + 1, push: 1 };
+
+    case Opcodes.ts:
+      throw new Error(`Unknown opcode ${bytecode.op}`);
+    default:
+      unhandledType(bytecode);
+  }
+}
