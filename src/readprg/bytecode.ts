@@ -7,6 +7,7 @@ import { emitFunc, UpdateInfo } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
 import { fixupLineNum, LineNumber } from "./linenum";
 import { Bytecode, Opcodes } from "./opcodes";
+import { optimizeFunc } from "./optimize";
 import { SymbolTable } from "./symbols";
 
 export const enum SectionKinds {
@@ -67,8 +68,9 @@ export function optimizeBytecode(context: Context) {
   const functions = findFunctions(context);
   //functions.forEach((func) => printFunction(func, context));
 
-  const code = context.sections[SectionKinds.TEXT].view;
+  functions.forEach((func) => optimizeFunc(func));
 
+  const code = context.sections[SectionKinds.TEXT].view;
   let offset = 0;
   const updateInfo: UpdateInfo = {
     offsetMap: new Map(),
