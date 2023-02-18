@@ -134,11 +134,21 @@ export interface Modv extends Argless {
   op: Opcodes.modv;
 }
 
-export interface Shlv extends Argless {
+// shlv and shrv don't really have a byte
+// argument, but garmin's tools think they
+// do. The assembler doesn't let you specify
+// the arg though, so its always zero, which
+// is a nop bytecode.
+// Removing the nop works in the simulator
+// and the devices I've tested on, but
+// causes garmin's tools to report that its
+// an invalid binary. So we have to just
+// live with it.
+export interface Shlv extends ByteArg {
   op: Opcodes.shlv;
 }
 
-export interface Shrv extends Argless {
+export interface Shrv extends ByteArg {
   op: Opcodes.shrv;
 }
 
@@ -408,8 +418,6 @@ export function parseCode(view: DataView) {
       case Opcodes.andv:
       case Opcodes.orv:
       case Opcodes.modv:
-      case Opcodes.shlv:
-      case Opcodes.shrv:
       case Opcodes.xorv:
       case Opcodes.getv:
       case Opcodes.putv:
@@ -445,6 +453,8 @@ export function parseCode(view: DataView) {
       case Opcodes.bpush:
       case Opcodes.dup:
       case Opcodes.argc:
+      case Opcodes.shlv:
+      case Opcodes.shrv:
         return { op, arg: view.getUint8(current++), offset, size: 2 };
       case Opcodes.goto:
       case Opcodes.jsr:
@@ -507,6 +517,8 @@ export function emitBytecode(
     case Opcodes.bpush:
     case Opcodes.dup:
     case Opcodes.argc:
+    case Opcodes.shlv:
+    case Opcodes.shrv:
       view.setUint8(offset++, bytecode.arg);
       break;
     case Opcodes.goto:
