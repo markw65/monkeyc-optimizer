@@ -1,8 +1,26 @@
-import { FuncEntry } from "./bytecode";
+import { bytecodeToString, FuncEntry } from "./bytecode";
 import { Opcodes } from "./opcodes";
 
 export function optimizeFunc(func: FuncEntry) {
   clearSelf(func);
+
+  // delete nops
+  func.blocks.forEach((block) => {
+    for (let i = block.bytecodes.length; i--; ) {
+      if (block.bytecodes[i].op === Opcodes.nop) {
+        block.bytecodes.splice(i, 1);
+        console.log(`Deleting nop in ${func.name}`);
+        if (i > 0) {
+          console.log(
+            ` - previous bytecode was ${bytecodeToString(
+              block.bytecodes[i - 1],
+              null
+            )}`
+          );
+        }
+      }
+    }
+  });
 }
 
 function clearSelf(func: FuncEntry) {
