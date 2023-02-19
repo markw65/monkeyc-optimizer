@@ -22,10 +22,10 @@ export function optimizeFunc(func: FuncEntry) {
       } else if (i && cur.op === Opcodes.shlv) {
         const prev = block.bytecodes[i - 1];
         if (prev.op === Opcodes.ipush || prev.op === Opcodes.lpush) {
-          const shift = BigInt(prev.arg);
-          if (!(shift & 63n) && prev.op === Opcodes.ipush) {
+          const shift = BigInt(prev.arg) & 63n;
+          if (!shift && prev.op === Opcodes.ipush) {
             block.bytecodes.splice(i - 1, 2);
-            console.log(`${func.name}: deleting no-op shift`);
+            console.log(`${func.name}: deleting no-op shift (${shift})`);
             continue;
           }
           // note that 31 isn't safe if the other operand is a Long,
@@ -47,6 +47,12 @@ export function optimizeFunc(func: FuncEntry) {
             delete mulv.arg;
           }
         }
+      } else if (
+        cur.op === Opcodes.jsr &&
+        func.blocks.get(cur.arg)?.bytecodes[0]?.op === Opcodes.ret
+      ) {
+        block.bytecodes.splice(i, 1);
+        console.log(`${func.name}: deleting empty finally handler`);
       }
     }
   });
