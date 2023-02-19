@@ -1,23 +1,27 @@
+import { wouldLog, log, logger } from "../util";
 import { bytecodeToString, FuncEntry } from "./bytecode";
 import { Bytecode, Mulv, Opcodes } from "./opcodes";
 
 export function optimizeFunc(func: FuncEntry) {
   clearSelf(func);
 
+  const logging = wouldLog("optimize", 5);
   // trivial transformations
   func.blocks.forEach((block) => {
     for (let i = block.bytecodes.length; i--; ) {
       const cur = block.bytecodes[i];
       if (cur.op === Opcodes.nop) {
         block.bytecodes.splice(i, 1);
-        console.log(`${func.name}: deleting nop`);
-        if (i > 0) {
-          console.log(
-            ` - previous bytecode was ${bytecodeToString(
-              block.bytecodes[i - 1],
-              null
-            )}`
-          );
+        if (logging) {
+          log(`${func.name}: deleting nop`);
+          if (i > 0) {
+            log(
+              ` - previous bytecode was ${bytecodeToString(
+                block.bytecodes[i - 1],
+                null
+              )}`
+            );
+          }
         }
       } else if (i && cur.op === Opcodes.shlv) {
         const prev = block.bytecodes[i - 1];
@@ -25,7 +29,7 @@ export function optimizeFunc(func: FuncEntry) {
           const shift = BigInt(prev.arg) & 63n;
           if (!shift && prev.op === Opcodes.ipush) {
             block.bytecodes.splice(i - 1, 2);
-            console.log(`${func.name}: deleting no-op shift (${shift})`);
+            logging && log(`${func.name}: deleting no-op shift (${shift})`);
             continue;
           }
           // note that 31 isn't safe if the other operand is a Long,
@@ -37,9 +41,10 @@ export function optimizeFunc(func: FuncEntry) {
             } else {
               prev.arg = BigInt.asIntN(64, mul);
             }
-            console.log(
-              `${func.name}: converting shlv(${shift}) to mulv(${prev.arg})`
-            );
+            logging &&
+              log(
+                `${func.name}: converting shlv(${shift}) to mulv(${prev.arg})`
+              );
 
             const mulv = cur as Bytecode as Mulv;
             mulv.op = Opcodes.mulv;
@@ -52,7 +57,7 @@ export function optimizeFunc(func: FuncEntry) {
         func.blocks.get(cur.arg)?.bytecodes[0]?.op === Opcodes.ret
       ) {
         block.bytecodes.splice(i, 1);
-        console.log(`${func.name}: deleting empty finally handler`);
+        logging && log(`${func.name}: deleting empty finally handler`);
       }
     }
   });
@@ -75,7 +80,7 @@ function clearSelf(func: FuncEntry) {
       entry.bytecodes[i - 1].op === Opcodes.getm &&
       entry.bytecodes[i - 2].op === Opcodes.spush
     ) {
-      console.log(`Deleting self from ${func.name}`);
+      logger("self", 1, `Deleting self from ${func.name}`);
       entry.bytecodes.splice(i - 2, 3);
       return;
     }

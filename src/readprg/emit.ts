@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { hasProperty } from "../ast";
-import { Block, FuncEntry, offsetToString, bytecodeToString } from "./bytecode";
+import { Block, FuncEntry } from "./bytecode";
 import { ExceptionEntry } from "./exceptions";
 import { Bytecode, emitBytecode, Opcodes } from "./opcodes";
 
@@ -45,12 +45,6 @@ export function emitFunc(
           li.endPc = offset + bytecode.size;
         }
       }
-      false &&
-        console.log(
-          `${offsetToString(bytecode.offset)} => ${offsetToString(
-            offset
-          )}: ${bytecodeToString(bytecode, null)}`
-        );
       offset = emitBytecode(bytecode, view, offset, linktable);
     });
     if (block.try) {

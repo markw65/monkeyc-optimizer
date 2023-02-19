@@ -18,6 +18,7 @@ import { parseCode } from "./readprg/opcodes";
 import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
 import { SymbolTable } from "./readprg/symbols";
 import { xmlUtil } from "./sdk-util";
+import { logger } from "./util";
 
 export async function readPrg(path: string) {
   const { sections } = await readPrgFromFile(path);
@@ -92,7 +93,7 @@ export function optimizeProgramBuffer(
   key: crypto.KeyObject | undefined
 ) {
   const { sections } = readPrgWithOffsets(view);
-  //console.log(sections);
+  logger("readprg", 5, sections);
   const symbolTable = new SymbolTable();
   if (hasProperty(sections, SectionKinds.SYMBOLS.toString())) {
     symbolTable.parse(sections[SectionKinds.SYMBOLS].view);
@@ -154,172 +155,172 @@ function optimizePackage(
       ? path.join(path.dirname(name), outName)
       : name;
 
-  return getDevKey(devKey).then((key) =>
-    new Promise((resolve, reject) => {
-      let manifest: string | null = null;
-      const sigs: Map<string, Buffer> = new Map();
-      const zipfile = new yazl.ZipFile();
-      const pending: Map<
-        string,
-        {
-          name: string;
-          buffer: Buffer;
-        }
-      > = new Map();
-      zipfile.outputStream
-        .pipe(fscb.createWriteStream(output!))
-        .on("close", () => {
-          resolve({ output });
-        });
+  return getDevKey(devKey).then(
+    (key) =>
+      new Promise((resolve, reject) => {
+        let manifest: string | null = null;
+        const sigs: Map<string, Buffer> = new Map();
+        const zipfile = new yazl.ZipFile();
+        const pending: Map<
+          string,
+          {
+            name: string;
+            buffer: Buffer;
+          }
+        > = new Map();
+        zipfile.outputStream
+          .pipe(fscb.createWriteStream(output!))
+          .on("close", () => {
+            resolve({ output });
+          });
 
-      yauzl.open(filepath, { lazyEntries: true }, function (err, unzip) {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        const doOptimize = (
-          prgName: string,
-          prgBuffer: Buffer,
-          xmlName: string,
-          xmlBuffer: Buffer
-        ) => {
-          const debugXml = xmlUtil.parseXml(xmlBuffer.toString(), xmlName);
-          const { buffer: outbuf, signature } = optimizeProgramBuffer(
-            prgName,
-            new DataView(prgBuffer.buffer),
-            debugXml,
-            key
-          );
-          if (!signature) {
-            reject(new Error(`Unable to generate signature for ${prgName}`));
-            unzip.close();
+        yauzl.open(filepath, { lazyEntries: true }, function (err, unzip) {
+          if (err) {
+            reject(err);
             return;
           }
-          const name = rename(prgName);
-          sigs.set(name, signature);
-          zipfile.addBuffer(outbuf, name);
-          const contents = Buffer.from(xmlUtil.writeXml(debugXml));
-          zipfile.addBuffer(contents, xmlName);
-        };
 
-        unzip.readEntry();
-
-        unzip.on("entry", function (entry) {
-          if (/\/$/.test(entry.fileName)) {
-            unzip.readEntry();
-          } else {
-            if (entry.fileName === "manifest.sig") {
-              unzip.readEntry();
+          const doOptimize = (
+            prgName: string,
+            prgBuffer: Buffer,
+            xmlName: string,
+            xmlBuffer: Buffer
+          ) => {
+            const debugXml = xmlUtil.parseXml(xmlBuffer.toString(), xmlName);
+            const { buffer: outbuf, signature } = optimizeProgramBuffer(
+              prgName,
+              new DataView(prgBuffer.buffer),
+              debugXml,
+              key
+            );
+            if (!signature) {
+              reject(new Error(`Unable to generate signature for ${prgName}`));
+              unzip.close();
               return;
             }
-            unzip.openReadStream(entry, (err, readStream) => {
-              if (err) {
-                reject(err);
-                unzip.close();
+            const name = rename(prgName);
+            sigs.set(name, signature);
+            zipfile.addBuffer(outbuf, name);
+            const contents = Buffer.from(xmlUtil.writeXml(debugXml));
+            zipfile.addBuffer(contents, xmlName);
+          };
+
+          unzip.readEntry();
+
+          unzip.on("entry", function (entry) {
+            if (/\/$/.test(entry.fileName)) {
+              unzip.readEntry();
+            } else {
+              if (entry.fileName === "manifest.sig") {
+                unzip.readEntry();
                 return;
               }
-              const buffers: Buffer[] = [];
-              readStream.on("end", function () {
-                unzip.readEntry();
-                const buffer = Buffer.concat(buffers);
-                if (entry.fileName === "manifest.xml") {
-                  manifest = buffer.toString("utf-8");
+              unzip.openReadStream(entry, (err, readStream) => {
+                if (err) {
+                  reject(err);
+                  unzip.close();
                   return;
                 }
-                if (/\.prg$/i.test(entry.fileName)) {
-                  const p = pending.get(path.dirname(entry.fileName));
-                  if (p) {
-                    doOptimize(entry.fileName, buffer, p.name, p.buffer);
-                  } else {
-                    pending.set(path.dirname(entry.fileName), {
-                      name: entry.fileName,
-                      buffer,
-                    });
+                const buffers: Buffer[] = [];
+                readStream.on("end", function () {
+                  unzip.readEntry();
+                  const buffer = Buffer.concat(buffers);
+                  if (entry.fileName === "manifest.xml") {
+                    manifest = buffer.toString("utf-8");
+                    return;
                   }
-                  return;
-                }
-                if (entry.fileName === "debug.xml") {
-                  const p = pending.get(path.dirname(entry.fileName));
-                  if (p) {
-                    doOptimize(p.name, p.buffer, entry.fileName, buffer);
-                  } else {
-                    pending.set(path.dirname(entry.fileName), {
-                      name: entry.fileName,
-                      buffer,
-                    });
+                  if (/\.prg$/i.test(entry.fileName)) {
+                    const p = pending.get(path.dirname(entry.fileName));
+                    if (p) {
+                      doOptimize(entry.fileName, buffer, p.name, p.buffer);
+                    } else {
+                      pending.set(path.dirname(entry.fileName), {
+                        name: entry.fileName,
+                        buffer,
+                      });
+                    }
+                    return;
                   }
-                  return;
-                }
-                zipfile.addBuffer(buffer, entry.fileName);
+                  if (entry.fileName === "debug.xml") {
+                    const p = pending.get(path.dirname(entry.fileName));
+                    if (p) {
+                      doOptimize(p.name, p.buffer, entry.fileName, buffer);
+                    } else {
+                      pending.set(path.dirname(entry.fileName), {
+                        name: entry.fileName,
+                        buffer,
+                      });
+                    }
+                    return;
+                  }
+                  zipfile.addBuffer(buffer, entry.fileName);
+                });
+                readStream.on("data", (data: Buffer) => {
+                  buffers.push(data);
+                });
               });
-              readStream.on("data", (data: Buffer) => {
-                buffers.push(data);
-              });
-            });
-          }
-        });
+            }
+          });
 
-        unzip.on("end", () => {
-          try {
-            if (!manifest) {
-              throw new Error("No manifest file found");
+          unzip.on("end", () => {
+            try {
+              if (!manifest) {
+                throw new Error("No manifest file found");
+              }
+              const xml = xmlUtil.parseXml(manifest);
+              if (xml.body instanceof Error) {
+                throw xml.body;
+              }
+              xml.body
+                .children("iq:application")
+                .children("iq:products")
+                .children("iq:product")
+                .attrs()
+                .forEach((attr) => {
+                  const id = attr.id?.value.value;
+                  if (!id) {
+                    throw new Error(
+                      `Product with missing id found in manifest`
+                    );
+                  }
+                  const filename = attr.filename?.value.value;
+                  if (!filename) {
+                    throw new Error(
+                      `Product ${id} was missing a filename in the manifest`
+                    );
+                  }
+                  const newName = rename(filename);
+                  const sig = sigs.get(newName);
+                  if (!sig) {
+                    throw new Error(
+                      `${newName}, listed in the manifest for product ${id}, was not found`
+                    );
+                  }
+                  if (!attr.sig) {
+                    throw new Error(
+                      `${newName}, listed in the manifest had no signature`
+                    );
+                  }
+                  attr.filename!.value.value = newName;
+                  attr.sig.value.value = sig.toString("hex").toUpperCase();
+                });
+              const contents = Buffer.from(xmlUtil.writeXml(xml));
+              zipfile.addBuffer(contents, "manifest.xml");
+              const sig = signView(
+                key,
+                new DataView(
+                  contents.buffer,
+                  contents.byteOffset,
+                  contents.byteLength
+                )
+              );
+              zipfile.addBuffer(sig, "manifest.sig");
+            } catch (e) {
+              reject(e);
             }
-            const xml = xmlUtil.parseXml(manifest);
-            if (xml.body instanceof Error) {
-              throw xml.body;
-            }
-            xml.body
-              .children("iq:application")
-              .children("iq:products")
-              .children("iq:product")
-              .attrs()
-              .forEach((attr) => {
-                const id = attr.id?.value.value;
-                if (!id) {
-                  throw new Error(`Product with missing id found in manifest`);
-                }
-                const filename = attr.filename?.value.value;
-                if (!filename) {
-                  throw new Error(
-                    `Product ${id} was missing a filename in the manifest`
-                  );
-                }
-                const newName = rename(filename);
-                const sig = sigs.get(newName);
-                if (!sig) {
-                  throw new Error(
-                    `${newName}, listed in the manifest for product ${id}, was not found`
-                  );
-                }
-                if (!attr.sig) {
-                  throw new Error(
-                    `${newName}, listed in the manifest had no signature`
-                  );
-                }
-                attr.filename!.value.value = newName;
-                attr.sig.value.value = sig.toString("hex").toUpperCase();
-              });
-            const contents = Buffer.from(xmlUtil.writeXml(xml));
-            zipfile.addBuffer(contents, "manifest.xml");
-            const sig = signView(
-              key,
-              new DataView(
-                contents.buffer,
-                contents.byteOffset,
-                contents.byteLength
-              )
-            );
-            zipfile.addBuffer(sig, "manifest.sig");
-          } catch (e) {
-            reject(e);
-          }
-          zipfile.end();
+            zipfile.end();
+          });
         });
-      });
-    }).catch((e) => {
-      console.log(`Got an ${e}`);
-      throw e;
-    })
+      })
   );
 }

@@ -10,6 +10,8 @@ import * as readline from "readline";
 // @ts-ignore
 global["lastModifiedSource" + ""] = 0;
 
+export { logger, log, wouldLog } from "./logger";
+
 export function globa(
   pattern: string,
   options?: glob.Options & { mark?: boolean }

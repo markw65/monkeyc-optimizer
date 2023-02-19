@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import * as crypto from "node:crypto";
-import { xmlUtil } from "src/sdk-util";
+import { xmlUtil } from "../sdk-util";
+import { logger, log, wouldLog } from "../util";
 import { hasProperty } from "../ast";
 import { fixupData } from "./data";
 import { emitFunc, UpdateInfo } from "./emit";
@@ -21,6 +22,7 @@ export const enum SectionKinds {
 }
 
 export type SectionInfo = { offset: number; length: number; view: DataView };
+export type Logger = (module: string, level: number, message: string) => void;
 
 export type Context = {
   filepath: string;
@@ -66,7 +68,9 @@ export function fixSectionSize(
 
 export function optimizeBytecode(context: Context) {
   const functions = findFunctions(context);
-  //functions.forEach((func) => printFunction(func, context));
+  if (wouldLog("list-input", 1)) {
+    functions.forEach((func) => printFunction(func, context));
+  }
 
   functions.forEach((func) => optimizeFunc(func));
 
@@ -79,17 +83,20 @@ export function optimizeBytecode(context: Context) {
 
   functions.forEach((func) => {
     if (!func.name) return;
-    false &&
-      console.log(
-        `${func.name}: ${offset.toString(16)} ${offset - func.offset}`
-      );
+    logger(
+      "bytecode",
+      5,
+      `${func.name}: ${offset.toString(16)} ${offset - func.offset}`
+    );
     offset = emitFunc(func, code, offset, updateInfo);
   });
 
   const { offsetMap } = updateInfo;
   offsetMap.set(code.byteLength, offset);
 
-  console.log(
+  logger(
+    "bytecode",
+    1,
     `${context.filepath}: code size: ${
       context.sections[SectionKinds.TEXT].length
     } => ${offset} difference: ${
@@ -99,7 +106,9 @@ export function optimizeBytecode(context: Context) {
 
   fixSectionSize(SectionKinds.TEXT, context.sections, offset);
 
-  //functions.forEach((func) => printFunction(func, context));
+  if (wouldLog("list-output", 1)) {
+    functions.forEach((func) => printFunction(func, context));
+  }
 
   fixupExceptions(context, offsetMap);
   fixupData(context, offsetMap);
@@ -214,12 +223,12 @@ export function optimizeBytecode(context: Context) {
 }
 
 export function printFunction(func: FuncEntry, context: Context | null) {
-  console.log(`${func.name ?? "<unknown>"}:`);
+  log(`${func.name ?? "<unknown>"}:`);
   func.blocks.forEach((block) => {
-    console.log(`${offsetToString(block.offset)}:`);
+    log(`${offsetToString(block.offset)}:`);
     block.try?.forEach((exInfo) => {
       assert(exInfo);
-      console.log(
+      log(
         `tryCatch - start: ${offsetToString(
           exInfo.tryStart
         )} end: ${offsetToString(exInfo.tryEnd)} handler: ${offsetToString(
@@ -232,20 +241,20 @@ export function printFunction(func: FuncEntry, context: Context | null) {
       const lineInfo = context.lineTable.get(pc);
       if (lineInfo) {
         const file = context.symbolTable.symbols.get(lineInfo.file);
-        console.log(`${file?.str || "<unknown>"}:${lineInfo.line}`);
+        log(`${file?.str || "<unknown>"}:${lineInfo.line}`);
       }
     }
     block.bytecodes.forEach((bytecode) => {
-      console.log(`    ${bytecodeToString(bytecode, context?.symbolTable)}`);
+      log(`    ${bytecodeToString(bytecode, context?.symbolTable)}`);
     });
     if (block.next != null) {
-      console.log(`  -> ${offsetToString(block.next)}`);
+      log(`  -> ${offsetToString(block.next)}`);
     }
     if (block.taken != null) {
-      console.log(`  -> ${offsetToString(block.taken)}`);
+      log(`  -> ${offsetToString(block.taken)}`);
     }
   });
-  console.log(`${func.name ?? "<unknown>"}_end`);
+  log(`${func.name ?? "<unknown>"}_end`);
 }
 
 export function bytecodeToString(
