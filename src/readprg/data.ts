@@ -31,13 +31,16 @@ function skipClassDef(view: DataView, current: number, symbols: SymbolTable) {
     const section = addr >>> 28;
     if (section === 1) {
       const pc = addr & 0xffffff;
+      if (symbols.methods.get(pc)) {
+        continue;
+      }
       let label = symbols.symbols.get(pc)?.str;
       if (!label) {
         const offset = symbols.symbolToLabelMap.get(f1 >>> 8);
         label =
           (offset != null && symbols.symbols.get(offset)?.str) ||
           `method_${pc}`;
-        symbols.symbols.set(pc, { str: label, label });
+        //symbols.symbols.set(pc, { str: label, label });
       }
       symbols.methods.set(pc, label);
     }

@@ -66,7 +66,7 @@ export async function optimizeProgram(
       ".opt.prg";
   }
 
-  const xmlBytes = await fs.readFile(filepath + ".debug.xml");
+  const xmlBytes = await fs.readFile(filepath + ".debug.xml").catch(() => "");
   const debugXml = xmlUtil.parseXml(xmlBytes.toString());
 
   const key = devKey ? await getDevKey(devKey) : undefined;
@@ -80,8 +80,10 @@ export async function optimizeProgram(
   );
   await fs.writeFile(output, buffer);
 
-  const contents = Buffer.from(xmlUtil.writeXml(debugXml));
-  await fs.writeFile(output + ".debug.xml", contents);
+  if (!(debugXml.body instanceof Error)) {
+    const contents = Buffer.from(xmlUtil.writeXml(debugXml));
+    await fs.writeFile(output + ".debug.xml", contents);
+  }
 
   return { signature, output };
 }
@@ -98,11 +100,11 @@ export function optimizeProgramBuffer(
   if (hasProperty(sections, SectionKinds.SYMBOLS.toString())) {
     symbolTable.parse(sections[SectionKinds.SYMBOLS].view);
   }
+  symbolTable.parseXml(debugXml);
   parseData(sections[SectionKinds.DATA].view, symbolTable);
   const lineTable = parseLineNum(sections[SectionKinds.LINENUM].view);
   const exceptionsMap = parseExceptions(sections[SectionKinds.EXCEPTIONS].view);
   const bytecodes = parseCode(sections[SectionKinds.TEXT].view);
-  symbolTable.parseXml(debugXml);
 
   const context: Context = {
     filepath,
@@ -187,6 +189,11 @@ function optimizePackage(
             xmlBuffer: Buffer
           ) => {
             const debugXml = xmlUtil.parseXml(xmlBuffer.toString(), xmlName);
+            if (debugXml.body instanceof Error) {
+              reject(debugXml.body);
+              unzip.close();
+              return;
+            }
             const { buffer: outbuf, signature } = optimizeProgramBuffer(
               prgName,
               new DataView(prgBuffer.buffer),
@@ -241,7 +248,7 @@ function optimizePackage(
                     }
                     return;
                   }
-                  if (entry.fileName === "debug.xml") {
+                  if (/debug.xml$/i.test(entry.fileName)) {
                     const p = pending.get(path.dirname(entry.fileName));
                     if (p) {
                       doOptimize(p.name, p.buffer, entry.fileName, buffer);

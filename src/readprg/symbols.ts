@@ -5,7 +5,6 @@ export class SymbolTable {
   // label offset, then symbols.get(label) gives us the symbol
   // name
   symbolToLabelMap = new Map<number, number>();
-  labelToSymbolMap = new Map<number, number>();
   symbols = new Map<number, { str: string; label: string }>();
   methods = new Map<number, string>();
   decoder = new TextDecoder();
@@ -17,7 +16,6 @@ export class SymbolTable {
       const symbol = view.getInt32((current += 4) - 4);
       const label = view.getInt32((current += 4) - 4);
       this.symbolToLabelMap.set(symbol, label);
-      this.labelToSymbolMap.set(label, symbol);
     }
     return current;
   }
@@ -42,6 +40,21 @@ export class SymbolTable {
           debugXml.processRefs(name.value.value);
         const pc = Number(startPc.value.value) & 0xffffff;
         this.methods.set(pc, fullName);
+      });
+    debugXml.body
+      .children("symbolTable")
+      .children("entry")
+      .elements.forEach((entry) => {
+        const { id, symbol } = entry.attr;
+        if (!id || !symbol) return;
+        const symId = Number(id.value.value);
+        if (this.symbolToLabelMap.has(symId)) {
+          return;
+        }
+        const str = debugXml.processRefs(symbol.value.value);
+        const label = str.replace(/\W/g, "_") + "_" + hash(str);
+        this.symbolToLabelMap.set(symId, symId);
+        this.symbols.set(symId, { str, label });
       });
   }
 
