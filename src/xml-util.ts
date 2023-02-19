@@ -153,8 +153,8 @@ export interface Prolog extends BaseNode {
 interface XmlDecl extends BaseNode {
   type: "xmldecl";
   version: "1.0";
-  encoding?: string[];
-  standalone?: string[];
+  encoding?: string;
+  standalone?: string;
 }
 
 const entities = {
@@ -449,8 +449,8 @@ function writeNode(
       return ` NDATA ${node.value}`;
     case "xmldecl":
       return `<?xml version=${attributeString(node.version)}${
-        node.encoding ? node.encoding.join("") : ""
-      }${node.standalone ? node.standalone.join("") : ""} ?>`;
+        node.encoding ? ` encoding=${node.encoding}` : ""
+      }${node.standalone ? ` standalone=${node.standalone}` : ""}?>`;
     case "doctypedecl":
       return `<!DOCTYPE ${node.name} ${
         node.externalID ? writeNode(node.externalID) + " " : ""

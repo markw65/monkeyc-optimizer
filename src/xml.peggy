@@ -237,7 +237,7 @@ extSubsetDecl = (markupdecl / DeclSep)*
 // Standalone Document Declaration
 
 SDDecl
-  = S "standalone" Eq (("'" ("yes" / "no") "'") / ("\"" ("yes" / "no") "\""))
+  = S "standalone" Eq @$(("'" ("yes" / "no") "'") / ("\"" ("yes" / "no") "\""))
 
 // Elements, Tags and Element Content
 
@@ -421,7 +421,7 @@ TextDecl = "<?xml" VersionInfo? EncodingDecl S? "?>"
 
 extParsedEnt = TextDecl? content
 
-EncodingDecl = S "encoding" Eq ("\"" EncName "\"" / "'" EncName "'")
+EncodingDecl = S "encoding" Eq @$("\"" EncName "\"" / "'" EncName "'")
 
 EncName = [A-Za-z] ([A-Za-z0-9._] / "-")*
 
