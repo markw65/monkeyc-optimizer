@@ -336,7 +336,9 @@ export function shouldInline(
   call: mctree.CallExpression,
   context: InlineContext | null
 ): boolean {
-  if (state.inlining) return false;
+  if (state.inlining || (state.localsStack?.length ?? 0) <= 1) {
+    return false;
+  }
   let autoInline: number | boolean = false;
   let inlineAsExpression = false;
   const args = call.arguments;
