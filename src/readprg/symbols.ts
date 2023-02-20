@@ -6,7 +6,7 @@ export class SymbolTable {
   // name
   symbolToLabelMap = new Map<number, number>();
   symbols = new Map<number, { str: string; label: string }>();
-  methods = new Map<number, string>();
+  methods = new Map<number, { name: string; id: number | null }>();
   decoder = new TextDecoder();
 
   parseSymbolTable(view: DataView) {
@@ -39,7 +39,7 @@ export class SymbolTable {
           (parent ? debugXml.processRefs(parent.value.value) + "." : "") +
           debugXml.processRefs(name.value.value);
         const pc = Number(startPc.value.value) & 0xffffff;
-        this.methods.set(pc, fullName);
+        this.methods.set(pc, { name: fullName, id: null });
       });
     debugXml.body
       .children("symbolTable")

@@ -79,6 +79,7 @@ export function optimizeBytecode(context: Context) {
   const updateInfo: UpdateInfo = {
     offsetMap: new Map(),
     localsMap: new Map(),
+    lineMap: [],
   };
 
   functions.forEach((func) => {
@@ -112,16 +113,10 @@ export function optimizeBytecode(context: Context) {
 
   fixupExceptions(context, offsetMap);
   fixupData(context, offsetMap);
-  fixupLineNum(context, offsetMap);
+  fixupLineNum(context, updateInfo);
   if (context.debugXml.body instanceof Error) {
     return;
   }
-  const fixpc = (pc: number) => {
-    if (pc >>> 28 !== 1) return pc;
-    const newPc = offsetMap.get(pc & 0xffffff);
-    if (newPc == null) return null;
-    return newPc | 0x10000000;
-  };
 
   const funcArray = Array.from(functions.values()).filter(
     (func) => func.name != null
@@ -156,28 +151,6 @@ export function optimizeBytecode(context: Context) {
     }
     return [s + 0x10000000, e + 0x10000000];
   };
-
-  context.debugXml.body
-    .children("pcToLineNum")
-    .elements.forEach((lineNumEntries) => {
-      const kids = lineNumEntries.children;
-      if (!kids) return;
-      for (let i = kids.length, j = i; i--; ) {
-        const entry = kids[i];
-        if (entry.type === "element") {
-          assert(entry.name === "entry");
-          const pc = entry.attr.pc;
-          assert(pc);
-          const newPc = fixpc(Number(pc.value.value));
-          if (newPc == null) {
-            kids.splice(i, j - i);
-          } else {
-            pc.value.value = newPc.toString();
-          }
-          j = i;
-        }
-      }
-    });
 
   let func = funcArray[0];
   let fend = funcArray[1].offset;
@@ -224,6 +197,7 @@ export function optimizeBytecode(context: Context) {
 
 export function printFunction(func: FuncEntry, context: Context | null) {
   log(`${func.name ?? "<unknown>"}:`);
+  let lineNum: LineNumber | null = null;
   func.blocks.forEach((block) => {
     log(`${offsetToString(block.offset)}:`);
     block.try?.forEach((exInfo) => {
@@ -236,15 +210,20 @@ export function printFunction(func: FuncEntry, context: Context | null) {
         )}`
       );
     });
-    if (context) {
-      const pc = block.offset | 0x10000000;
-      const lineInfo = context.lineTable.get(pc);
-      if (lineInfo) {
-        const file = context.symbolTable.symbols.get(lineInfo.file);
-        log(`${file?.str || "<unknown>"}:${lineInfo.line}`);
-      }
-    }
     block.bytecodes.forEach((bytecode) => {
+      const lineInfo = bytecode.lineNum;
+      if (lineInfo && (!lineNum || lineInfo.line !== lineNum.line)) {
+        lineNum = lineInfo;
+        const file =
+          lineInfo.fileStr ??
+          context?.symbolTable.symbols.get(lineInfo.file)?.str ??
+          "<unknown>";
+        log(
+          `${file}:${lineInfo.line}${
+            lineInfo.symbolStr ? ` - ${lineInfo.symbolStr}` : ""
+          }`
+        );
+      }
       log(`    ${bytecodeToString(bytecode, context?.symbolTable)}`);
     });
     if (block.next != null) {
@@ -298,19 +277,8 @@ export function bytecodeToString(
   return `${Opcodes[bytecode.op]}${arg ?? ""}`;
 }
 
-function findFunctions({
-  bytecodes,
-  lineTable,
-  symbolTable,
-  exceptionsMap,
-}: Context) {
+function findFunctions({ bytecodes, symbolTable, exceptionsMap }: Context) {
   const blockStarts = new Set<number>();
-  for (const pc of lineTable.keys()) {
-    const section = pc >>> 28;
-    if (section === 1) {
-      blockStarts.add(pc & 0xffffff);
-    }
-  }
 
   exceptionsMap.forEach((exns) =>
     exns.forEach((exn) => {
@@ -421,10 +389,23 @@ function findFunctions({
       .map((key) => [key, func.get(key)!] as const);
     const offset = funcSorted[0][0];
     const f: FuncEntry = { offset, blocks: new Map(funcSorted) };
-    const name = symbolTable.methods.get(offset);
+    const name = symbolTable.methods.get(offset)?.name;
     if (name) f.name = name;
     functions.set(offset, f);
   }
+
+  functions.forEach((func) => {
+    let lineNum: LineNumber | null = null;
+    func.blocks.forEach((block) =>
+      block.bytecodes.forEach((bc) => {
+        if (bc.lineNum) {
+          lineNum = bc.lineNum;
+        } else if (lineNum) {
+          bc.lineNum = lineNum;
+        }
+      })
+    );
+  });
 
   return functions;
 }

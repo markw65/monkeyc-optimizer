@@ -2,6 +2,7 @@ import * as assert from "node:assert";
 import { hasProperty } from "../ast";
 import { Block, Context, FuncEntry } from "./bytecode";
 import { ExceptionEntry } from "./exceptions";
+import { LineNumber } from "./linenum";
 import { Bytecode, emitBytecode, Opcodes } from "./opcodes";
 import { cleanCfg } from "./optimize";
 
@@ -9,6 +10,7 @@ export type LocalsMap = Map<number, { startPc: number; endPc: number }>;
 export type UpdateInfo = {
   offsetMap: Map<number, number>;
   localsMap: Map<FuncEntry, LocalsMap>;
+  lineMap: LineNumber[];
 };
 
 export function emitFunc(
@@ -27,11 +29,28 @@ export function emitFunc(
   updateInfo.localsMap.set(func, localsMap);
   const linktable = new Map<number, number>();
   let offset = start;
+  let lineNum: LineNumber | null = null;
+  const compareLineInfo = (a: LineNumber, b: LineNumber) => {
+    return (
+      a.line === b.line &&
+      a.file === b.file &&
+      a.symbol === b.symbol &&
+      a.fileStr === b.fileStr &&
+      a.symbolStr === b.symbolStr
+    );
+  };
   Array.from(func.blocks.values()).forEach((block, i, blocks) => {
     offsetMap.set(block.offset, offset);
     block.bytecodes.forEach((bytecode) => {
       if (bytecode.op === Opcodes.goto) {
         return;
+      }
+      if (bytecode.lineNum) {
+        if (!lineNum || !compareLineInfo(lineNum, bytecode.lineNum)) {
+          lineNum = { ...bytecode.lineNum };
+          lineNum.pc = offset | 0x10000000;
+          updateInfo.lineMap.push(lineNum);
+        }
       }
       offsetMap.set(bytecode.offset, offset);
       if (bytecode.op === Opcodes.argc) {

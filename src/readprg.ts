@@ -102,9 +102,9 @@ export function optimizeProgramBuffer(
   }
   symbolTable.parseXml(debugXml);
   parseData(sections[SectionKinds.DATA].view, symbolTable);
-  const lineTable = parseLineNum(sections[SectionKinds.LINENUM].view);
+  const lineTable = parseLineNum(sections[SectionKinds.LINENUM].view, debugXml);
   const exceptionsMap = parseExceptions(sections[SectionKinds.EXCEPTIONS].view);
-  const bytecodes = parseCode(sections[SectionKinds.TEXT].view);
+  const bytecodes = parseCode(sections[SectionKinds.TEXT].view, lineTable);
 
   const context: Context = {
     filepath,

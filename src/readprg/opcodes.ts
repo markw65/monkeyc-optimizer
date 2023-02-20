@@ -1,4 +1,5 @@
 import { unhandledType } from "../data-flow";
+import { LineNumber } from "./linenum";
 
 export enum Opcodes {
   nop,
@@ -62,6 +63,7 @@ interface BaseOpcode {
   op: Opcodes;
   offset: number;
   size: number;
+  lineNum?: LineNumber;
   arg?: unknown;
 }
 
@@ -403,7 +405,7 @@ export type Bytecode =
   | Argc
   | Newba;
 
-export function parseCode(view: DataView) {
+export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
   let current = 0;
   const parseOne = (): Bytecode => {
     const offset = current;
@@ -495,6 +497,10 @@ export function parseCode(view: DataView) {
   const results: Bytecode[] = [];
   while (current < view.byteLength) {
     const nextOp = parseOne();
+    const lineNum = lineTable.get(nextOp.offset | 0x10000000);
+    if (lineNum) {
+      nextOp.lineNum = lineNum;
+    }
     results.push(nextOp);
   }
   results.push({ op: Opcodes.nop, size: 1, offset: current });

@@ -31,7 +31,16 @@ function skipClassDef(view: DataView, current: number, symbols: SymbolTable) {
     const section = addr >>> 28;
     if (section === 1) {
       const pc = addr & 0xffffff;
-      if (symbols.methods.get(pc)) {
+      const method = symbols.methods.get(pc);
+      if (method) {
+        if (method.id != null) {
+          // More than one method can be mapped to
+          // the same pc (generally shared, no-op <init>
+          // and initialize methods)
+          // assert(method.id === f1 >>> 8);
+        } else {
+          method.id = f1 >>> 8;
+        }
         continue;
       }
       let label = symbols.symbols.get(pc)?.str;
@@ -42,7 +51,7 @@ function skipClassDef(view: DataView, current: number, symbols: SymbolTable) {
           `method_${pc}`;
         //symbols.symbols.set(pc, { str: label, label });
       }
-      symbols.methods.set(pc, label);
+      symbols.methods.set(pc, { name: label, id: f1 >>> 8 });
     }
   }
   return current;
