@@ -72,7 +72,7 @@ export function optimizeBytecode(context: Context) {
     functions.forEach((func) => printFunction(func, context));
   }
 
-  functions.forEach((func) => optimizeFunc(func));
+  functions.forEach((func) => optimizeFunc(func, context));
 
   const code = context.sections[SectionKinds.TEXT].view;
   let offset = 0;

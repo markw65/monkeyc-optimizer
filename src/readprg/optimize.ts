@@ -1,12 +1,15 @@
-import { wouldLog, log, logger } from "../util";
-import { bytecodeToString, FuncEntry } from "./bytecode";
+import { wouldLog, log } from "../util";
+import { bytecodeToString, Context, FuncEntry } from "./bytecode";
+import { localDCE } from "./dce";
 import { Bytecode, Mulv, Opcodes } from "./opcodes";
 
-export function optimizeFunc(func: FuncEntry) {
-  clearSelf(func);
+export function optimizeFunc(func: FuncEntry, context: Context) {
+  localDCE(func, context);
+  simpleOpts(func, context);
+}
 
+function simpleOpts(func: FuncEntry, _context: Context) {
   const logging = wouldLog("optimize", 5);
-  // trivial transformations
   func.blocks.forEach((block) => {
     for (let i = block.bytecodes.length; i--; ) {
       const cur = block.bytecodes[i];
@@ -61,28 +64,4 @@ export function optimizeFunc(func: FuncEntry) {
       }
     }
   });
-}
-
-function clearSelf(func: FuncEntry) {
-  const blocks = Array.from(func.blocks.values());
-  const usesSelf = blocks.some((b) =>
-    b.bytecodes.some(
-      (bytecode) => bytecode.op === Opcodes.lgetv && bytecode.arg === 0
-    )
-  );
-  if (usesSelf) return;
-  const entry = blocks[0];
-  let i = entry.bytecodes.length;
-  while (i-- > 2) {
-    if (
-      entry.bytecodes[i].op === Opcodes.lputv &&
-      entry.bytecodes[i].arg === 0 &&
-      entry.bytecodes[i - 1].op === Opcodes.getm &&
-      entry.bytecodes[i - 2].op === Opcodes.spush
-    ) {
-      logger("self", 1, `Deleting self from ${func.name}`);
-      entry.bytecodes.splice(i - 2, 3);
-      return;
-    }
-  }
 }
