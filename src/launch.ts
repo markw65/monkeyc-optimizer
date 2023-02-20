@@ -1,17 +1,27 @@
-import * as path from "path";
 import * as net from "net";
+import * as path from "path";
 
 import { execFile } from "child_process";
 import { getSdkPath, isWin } from "./sdk-util";
-import { spawnByLine, LineHandler } from "./util";
+import { LineHandler, spawnByLine } from "./util";
 
 export async function launchSimulator(force = true): Promise<void> {
   try {
     if (!force && (await checkIfSimulatorRunning())) return;
     const sdk = await getSdkPath();
-    const child = execFile(
-      path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq")
-    );
+    const child =
+      force || process.platform !== "darwin"
+        ? execFile(path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq"))
+        : execFile("/usr/bin/open", [
+            "-g",
+            "-a",
+            path.resolve(
+              sdk,
+              "bin",
+              "ConnectIQ.App",
+              "Contents/MacOS/simulator"
+            ),
+          ]);
     child.unref();
     for (let i = 0; ; i++) {
       if (await checkIfSimulatorRunning()) return;
