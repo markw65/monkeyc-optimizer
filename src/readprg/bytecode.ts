@@ -88,7 +88,7 @@ export function optimizeBytecode(context: Context) {
       5,
       `${func.name}: ${offset.toString(16)} ${offset - func.offset}`
     );
-    offset = emitFunc(func, code, offset, updateInfo);
+    offset = emitFunc(func, code, offset, updateInfo, context);
   });
 
   const { offsetMap } = updateInfo;
@@ -427,4 +427,10 @@ function findFunctions({
   }
 
   return functions;
+}
+
+export function makeArgless(bc: Bytecode, op: Opcodes) {
+  bc.op = op;
+  delete bc.arg;
+  bc.size = 1;
 }

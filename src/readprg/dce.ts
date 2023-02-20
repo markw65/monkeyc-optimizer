@@ -5,6 +5,7 @@ import {
   Context,
   bytecodeToString,
   printFunction,
+  makeArgless,
 } from "./bytecode";
 import { Opcodes, getOpInfo, Bytecode } from "./opcodes";
 
@@ -53,14 +54,14 @@ export function localDCE(func: FuncEntry, context: Context) {
     : null;
 
   let changes = false;
-  const makeArgless = (bc: Bytecode, op: Opcodes) => {
-    bc.op = op;
-    delete bc.arg;
-    bc.size = 1;
+  const makeNop = (bc: Bytecode) => {
     changes = true;
+    makeArgless(bc, Opcodes.nop);
   };
-  const makeNop = (bc: Bytecode) => makeArgless(bc, Opcodes.nop);
-  const makePopv = (bc: Bytecode) => makeArgless(bc, Opcodes.popv);
+  const makePopv = (bc: Bytecode) => {
+    changes = true;
+    makeArgless(bc, Opcodes.popv);
+  };
   type DceLiveItem = { dead: false };
   type DceDeadItem = { dead: true; deps: number[] };
   type DceStackItem = DceLiveItem | DceDeadItem;

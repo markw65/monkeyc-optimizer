@@ -1,8 +1,9 @@
 import * as assert from "node:assert";
 import { hasProperty } from "../ast";
-import { Block, FuncEntry } from "./bytecode";
+import { Block, Context, FuncEntry } from "./bytecode";
 import { ExceptionEntry } from "./exceptions";
 import { Bytecode, emitBytecode, Opcodes } from "./opcodes";
+import { cleanCfg } from "./optimize";
 
 export type LocalsMap = Map<number, { startPc: number; endPc: number }>;
 export type UpdateInfo = {
@@ -14,9 +15,10 @@ export function emitFunc(
   func: FuncEntry,
   view: DataView,
   start: number,
-  updateInfo: UpdateInfo
+  updateInfo: UpdateInfo,
+  context: Context
 ) {
-  cleanCfg(func);
+  cleanCfg(func, context);
   groupBlocks(func);
 
   const { offsetMap } = updateInfo;
@@ -82,52 +84,6 @@ export function emitFunc(
 }
 
 type CFGNode = { items: Set<CFGNode | Block>; succs: Set<number> };
-
-function cleanCfg(func: FuncEntry) {
-  const deadBlocks = new Map<number, number>();
-  func.blocks.forEach((block) => {
-    if (
-      block.bytecodes.length === 1 &&
-      block.bytecodes[0].op === Opcodes.goto
-    ) {
-      deadBlocks.set(block.offset, block.bytecodes[0].arg);
-    }
-  });
-  deadBlocks.forEach((target, key) => {
-    let next = deadBlocks.get(target);
-    if (next != null) {
-      do {
-        deadBlocks.set(key, next);
-        next = deadBlocks.get(next);
-      } while (next);
-    }
-  });
-  func.blocks.forEach((block) => {
-    if (block.next) {
-      const fixed = deadBlocks.get(block.next);
-      if (fixed) {
-        block.next = fixed;
-      }
-    }
-    if (block.taken) {
-      const fixed = deadBlocks.get(block.taken);
-      if (fixed) {
-        block.taken = fixed;
-        const last = block.bytecodes[block.bytecodes.length - 1];
-        switch (last.op) {
-          case Opcodes.goto:
-          case Opcodes.bf:
-          case Opcodes.bt:
-          case Opcodes.jsr:
-            last.arg = fixed;
-            break;
-          default:
-            assert(false);
-        }
-      }
-    }
-  });
-}
 
 function groupBlocks(func: FuncEntry) {
   const cfgMap = new Map<ExceptionEntry | null, CFGNode>([

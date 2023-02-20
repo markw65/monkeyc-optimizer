@@ -1,9 +1,11 @@
-import { wouldLog, log } from "../util";
-import { bytecodeToString, Context, FuncEntry } from "./bytecode";
+import * as assert from "node:assert";
+import { log, logger, wouldLog } from "../util";
+import { bytecodeToString, Context, FuncEntry, makeArgless } from "./bytecode";
 import { localDCE } from "./dce";
 import { Bytecode, Mulv, Opcodes } from "./opcodes";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
+  cleanCfg(func, context);
   localDCE(func, context);
   simpleOpts(func, context);
 }
@@ -61,6 +63,66 @@ function simpleOpts(func: FuncEntry, _context: Context) {
       ) {
         block.bytecodes.splice(i, 1);
         logging && log(`${func.name}: deleting empty finally handler`);
+      }
+    }
+  });
+}
+
+export function cleanCfg(func: FuncEntry, context: Context) {
+  const deadBlocks = new Map<number, number>();
+  func.blocks.forEach((block) => {
+    if (
+      block.bytecodes.length === 1 &&
+      block.bytecodes[0].op === Opcodes.goto
+    ) {
+      deadBlocks.set(block.offset, block.bytecodes[0].arg);
+    }
+  });
+  deadBlocks.forEach((target, key) => {
+    let next = deadBlocks.get(target);
+    if (next != null) {
+      do {
+        deadBlocks.set(key, next);
+        next = deadBlocks.get(next);
+      } while (next);
+    }
+  });
+  func.blocks.forEach((block) => {
+    if (block.next) {
+      const fixed = deadBlocks.get(block.next);
+      if (fixed) {
+        block.next = fixed;
+      }
+    }
+    if (block.taken) {
+      const fixed = deadBlocks.get(block.taken);
+      if (fixed) {
+        block.taken = fixed;
+        const last = block.bytecodes[block.bytecodes.length - 1];
+        switch (last.op) {
+          case Opcodes.bf:
+          case Opcodes.bt:
+            if (block.taken === block.next) {
+              logger(
+                "cfg",
+                1,
+                `${func.name}: killing no-op ${bytecodeToString(
+                  last,
+                  context.symbolTable
+                )}`
+              );
+              makeArgless(last, Opcodes.popv);
+              break;
+            }
+            last.arg = fixed;
+            break;
+          case Opcodes.goto:
+          case Opcodes.jsr:
+            last.arg = fixed;
+            break;
+          default:
+            assert(false);
+        }
       }
     }
   });
