@@ -69,9 +69,10 @@ function simpleOpts(func: FuncEntry, _context: Context) {
         }
       } else if (
         cur.op === Opcodes.jsr &&
-        func.blocks.get(cur.arg)?.bytecodes[0]?.op === Opcodes.ret
+        func.blocks.get(block.taken!)?.bytecodes[0]?.op === Opcodes.ret
       ) {
         block.bytecodes.splice(i, 1);
+        func.blocks.get(block.taken!)!.preds!.delete(block.offset);
         delete block.taken;
         changes = true;
         logging && log(`${func.name}: deleting empty finally handler`);
@@ -113,14 +114,6 @@ function simpleOpts(func: FuncEntry, _context: Context) {
               (next.bytecodes.length > 2 &&
                 isBoolOp(next.bytecodes[next.bytecodes.length - 2].op)))
           ) {
-            // drop the dup
-            block.bytecodes.splice(i - 1, 1);
-            // redirect the branch
-            block.taken =
-              taken.bytecodes[0].op === cur.op ? taken.taken : taken.next;
-            // drop the andv/orv
-            next.bytecodes.pop();
-            changes = true;
             if (logging) {
               log(
                 `${func.name}: simplifying ${
@@ -132,6 +125,18 @@ function simpleOpts(func: FuncEntry, _context: Context) {
                 )}:${offsetToString(taken.offset)}:`
               );
             }
+            // drop the dup
+            block.bytecodes.splice(i - 1, 1);
+            // redirect the branch
+            redirect(
+              func,
+              block,
+              block.taken!,
+              taken.bytecodes[0].op === cur.op ? taken.taken! : taken.next!
+            );
+            // drop the andv/orv
+            next.bytecodes.pop();
+            changes = true;
           } else if (
             taken.next === block.next &&
             taken.taken == null &&
@@ -144,14 +149,6 @@ function simpleOpts(func: FuncEntry, _context: Context) {
               (taken.bytecodes.length > 2 &&
                 isBoolOp(taken.bytecodes[taken.bytecodes.length - 2].op)))
           ) {
-            // drop the dup
-            block.bytecodes.splice(i - 1, 1);
-            // redirect the branch
-            block.taken =
-              next.bytecodes[0].op === cur.op ? next.next : next.taken;
-            // drop the andv/orv
-            next.bytecodes.pop();
-            changes = true;
             if (logging) {
               log(
                 `${func.name}: simplifying ${
@@ -164,6 +161,18 @@ function simpleOpts(func: FuncEntry, _context: Context) {
                 )}:${offsetToString(next.offset)}:`
               );
             }
+            // drop the dup
+            block.bytecodes.splice(i - 1, 1);
+            // redirect the branch
+            redirect(
+              func,
+              block,
+              block.next!,
+              next.bytecodes[0].op === cur.op ? next.next! : next.taken!
+            );
+            // drop the andv/orv
+            next.bytecodes.pop();
+            changes = true;
           }
         }
       }
@@ -195,34 +204,29 @@ export function cleanCfg(func: FuncEntry, context: Context) {
     if (block.next) {
       const fixed = deadBlocks.get(block.next);
       if (fixed) {
-        block.next = fixed;
+        redirect(func, block, block.next, fixed);
       }
     }
     if (block.taken) {
       const fixed = deadBlocks.get(block.taken);
       if (fixed) {
-        block.taken = fixed;
+        redirect(func, block, block.taken, fixed);
+      }
+      if (block.taken === block.next) {
         const last = block.bytecodes[block.bytecodes.length - 1];
         switch (last.op) {
           case Opcodes.bf:
           case Opcodes.bt:
-            if (block.taken === block.next) {
-              logger(
-                "cfg",
-                1,
-                `${func.name}: killing no-op ${bytecodeToString(
-                  last,
-                  context.symbolTable
-                )}`
-              );
-              makeArgless(last, Opcodes.popv);
-              break;
-            }
-            last.arg = fixed;
-            break;
-          case Opcodes.goto:
-          case Opcodes.jsr:
-            last.arg = fixed;
+            logger(
+              "cfg",
+              1,
+              `${func.name}: killing no-op ${bytecodeToString(
+                last,
+                context.symbolTable
+              )}`
+            );
+            makeArgless(last, Opcodes.popv);
+            delete block.taken;
             break;
           default:
             assert(false);

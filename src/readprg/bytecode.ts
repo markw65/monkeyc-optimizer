@@ -41,6 +41,7 @@ export type Block = {
   try?: ExceptionEntry[];
   next?: number;
   taken?: number;
+  preds?: Set<number>;
 };
 
 export type FuncEntry = {
@@ -390,21 +391,32 @@ function findFunctions({ bytecodes, symbolTable, exceptionsMap }: Context) {
     const offset = funcSorted[0][0];
     const f: FuncEntry = { offset, blocks: new Map(funcSorted) };
     const name = symbolTable.methods.get(offset)?.name;
-    if (name) f.name = name;
+    if (!name) continue;
+    f.name = name;
     functions.set(offset, f);
   }
 
   functions.forEach((func) => {
     let lineNum: LineNumber | null = null;
-    func.blocks.forEach((block) =>
+    func.blocks.forEach((block) => {
+      if (block.next) {
+        const next = func.blocks.get(block.next)!;
+        if (!next.preds) next.preds = new Set();
+        next.preds.add(block.offset);
+      }
+      if (block.taken) {
+        const taken = func.blocks.get(block.taken)!;
+        if (!taken.preds) taken.preds = new Set();
+        taken.preds.add(block.offset);
+      }
       block.bytecodes.forEach((bc) => {
         if (bc.lineNum) {
           lineNum = bc.lineNum;
         } else if (lineNum) {
           bc.lineNum = lineNum;
         }
-      })
-    );
+      });
+    });
   });
 
   return functions;
@@ -414,4 +426,48 @@ export function makeArgless(bc: Bytecode, op: Opcodes) {
   bc.op = op;
   delete bc.arg;
   bc.size = 1;
+}
+
+export function removePred(func: FuncEntry, target: number, pred: number) {
+  const targetBlock = func.blocks.get(target)!;
+  assert(targetBlock.preds?.has(pred));
+  targetBlock.preds!.delete(pred);
+}
+
+export function addPred(func: FuncEntry, target: number, pred: number) {
+  const targetBlock = func.blocks.get(target)!;
+  if (!targetBlock.preds) targetBlock.preds = new Set();
+  targetBlock.preds.add(pred);
+}
+
+export function redirect(
+  func: FuncEntry,
+  block: Block,
+  from: number,
+  to: number
+) {
+  let changes = false;
+  if (block.next === from) {
+    block.next = to;
+    changes = true;
+  }
+  if (block.taken === from) {
+    block.taken = to;
+    const last = block.bytecodes[block.bytecodes.length - 1];
+    switch (last.op) {
+      case Opcodes.bt:
+      case Opcodes.bf:
+      case Opcodes.jsr:
+        last.arg = to;
+        break;
+      default:
+        assert(false);
+    }
+    changes = true;
+  }
+  if (changes) {
+    removePred(func, from, block.offset);
+    addPred(func, to, block.offset);
+  }
+  return changes;
 }
