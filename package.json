@@ -23,9 +23,9 @@
     "prepack": "webpack --mode production",
     "test": "npm run test-mocha && npm run test-optimized && npm run test-unopt && npm run test-remote && npm run test-remote-tests",
     "test-mocha": "npx mocha --timeout 999999 build/mocha.cjs",
-    "test-remote": "node ./test/test.js --product=pick-one --github",
-    "test-remote-tests": "node ./test/test.js --product=pick-one --run-tests --github",
-    "test-optimized": "node test/test.js --typeCheckLevel Strict --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
+    "test-remote": "node ./test/test.js --showInfo --postOptimize --product=pick-one --github",
+    "test-remote-tests": "node ./test/test.js --showInfo --postOptimize --product=pick-one --run-tests --github",
+    "test-optimized": "node test/test.js --showInfo --postOptimize --typeCheckLevel Strict --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
     "test-unopt": "node test/test.js --typeCheckLevel Strict --skipOptimization --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
     "test-garmin-opt": "node test/test.js --typeCheckLevel Strict --skipOptimization --garminOptLevel=2 --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
     "eslint": "npx eslint ."
