@@ -6,15 +6,20 @@ import {
   FuncEntry,
   makeArgless,
   offsetToString,
+  redirect,
 } from "./bytecode";
 import { localDCE } from "./dce";
 import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
+import { blockSharing } from "./sharing";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
   do {
     cleanCfg(func, context);
-    localDCE(func, context);
-  } while (simpleOpts(func, context));
+  } while (
+    localDCE(func, context) ||
+    blockSharing(func, context) ||
+    simpleOpts(func, context)
+  );
 }
 
 function simpleOpts(func: FuncEntry, _context: Context) {

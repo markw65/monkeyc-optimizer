@@ -53,6 +53,7 @@ export function localDCE(func: FuncEntry, context: Context) {
       }
     : null;
 
+  let anyChanges = false;
   let changes = false;
   const makeNop = (bc: Bytecode) => {
     changes = true;
@@ -219,6 +220,7 @@ export function localDCE(func: FuncEntry, context: Context) {
       }
     }
     if (changes) {
+      anyChanges = true;
       block.bytecodes = block.bytecodes.filter((bc) => bc.op !== Opcodes.nop);
       if (wouldLog("dce", 3)) {
         log("======== dce: After =========");
@@ -226,4 +228,5 @@ export function localDCE(func: FuncEntry, context: Context) {
       }
     }
   });
+  return anyChanges;
 }

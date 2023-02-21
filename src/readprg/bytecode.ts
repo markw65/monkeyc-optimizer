@@ -406,6 +406,9 @@ function findFunctions({ bytecodes, symbolTable, exceptionsMap }: Context) {
     func.blocks.forEach((block) => {
       if (block.next) {
         const next = func.blocks.get(block.next)!;
+        if (!next) {
+          assert(false);
+        }
         if (!next.preds) next.preds = new Set();
         next.preds.add(block.offset);
       }
@@ -431,6 +434,16 @@ export function makeArgless(bc: Bytecode, op: Opcodes) {
   bc.op = op;
   delete bc.arg;
   bc.size = 1;
+}
+
+export function equalBlocks(b1: Block, b2: Block) {
+  if (b1.bytecodes.length !== b2.bytecodes.length) return false;
+  if (b1.next !== b2.next) return false;
+  if (b1.taken !== b2.taken) return false;
+  return b1.bytecodes.every((bc1, i) => {
+    const bc2 = b2.bytecodes[i];
+    return bc1.op === bc2.op && bc1.arg === bc2.arg;
+  });
 }
 
 export function removePred(func: FuncEntry, target: number, pred: number) {
