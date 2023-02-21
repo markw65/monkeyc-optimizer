@@ -625,3 +625,26 @@ export function getOpInfo(bytecode: Bytecode) {
       unhandledType(bytecode);
   }
 }
+
+export function isBoolOp(op: Opcodes) {
+  switch (op) {
+    case Opcodes.isnull:
+    case Opcodes.eq:
+    case Opcodes.ne:
+    case Opcodes.lt:
+    case Opcodes.lte:
+    case Opcodes.gt:
+    case Opcodes.gte:
+      return true;
+  }
+  return false;
+}
+
+export function isCondBranch(op: Opcodes) {
+  switch (op) {
+    case Opcodes.bt:
+    case Opcodes.bf:
+      return true;
+  }
+  return false;
+}

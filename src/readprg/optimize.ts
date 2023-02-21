@@ -1,22 +1,30 @@
 import * as assert from "node:assert";
 import { log, logger, wouldLog } from "../util";
-import { bytecodeToString, Context, FuncEntry, makeArgless } from "./bytecode";
+import {
+  bytecodeToString,
+  Context,
+  FuncEntry,
+  makeArgless,
+  offsetToString,
+} from "./bytecode";
 import { localDCE } from "./dce";
-import { Bytecode, Mulv, Opcodes } from "./opcodes";
+import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
-  cleanCfg(func, context);
-  localDCE(func, context);
-  simpleOpts(func, context);
+  do {
+    cleanCfg(func, context);
+    localDCE(func, context);
+  } while (simpleOpts(func, context));
 }
 
 function simpleOpts(func: FuncEntry, _context: Context) {
   const logging = wouldLog("optimize", 5);
-  func.blocks.forEach((block) => {
+  return Array.from(func.blocks.values()).reduce((changes, block) => {
     for (let i = block.bytecodes.length; i--; ) {
       const cur = block.bytecodes[i];
       if (cur.op === Opcodes.nop) {
         block.bytecodes.splice(i, 1);
+        changes = true;
         if (logging) {
           log(`${func.name}: deleting nop`);
           if (i > 0) {
@@ -34,6 +42,7 @@ function simpleOpts(func: FuncEntry, _context: Context) {
           const shift = BigInt(prev.arg) & 63n;
           if (!shift && prev.op === Opcodes.ipush) {
             block.bytecodes.splice(i - 1, 2);
+            changes = true;
             logging && log(`${func.name}: deleting no-op shift (${shift})`);
             continue;
           }
@@ -51,6 +60,7 @@ function simpleOpts(func: FuncEntry, _context: Context) {
                 `${func.name}: converting shlv(${shift}) to mulv(${prev.arg})`
               );
 
+            changes = true;
             const mulv = cur as Bytecode as Mulv;
             mulv.op = Opcodes.mulv;
             mulv.size = 1;
@@ -63,10 +73,103 @@ function simpleOpts(func: FuncEntry, _context: Context) {
       ) {
         block.bytecodes.splice(i, 1);
         delete block.taken;
+        changes = true;
         logging && log(`${func.name}: deleting empty finally handler`);
+      } else if (i && (cur.op === Opcodes.bt || cur.op === Opcodes.bf)) {
+        /*
+         * Garmin implements `x && y` as `x ? x & y : false`
+         * As long as one of x and y is Boolean, this is equivalent to
+         * `x ? y : false`. If the result is assigned to a variable,
+         * there's not much we can do. But when its just branched on,
+         * we can simplify.
+         * The typical pattern is
+         *        <x>
+         *        dup 0
+         *        bt/bf taken
+         * next:  <y>
+         *        andv/orv
+         * taken: bt/bf final
+         * tnext:
+         *
+         * and the optimization is to drop the dup and the andv/orv,
+         * and redirect the first branch to either final or tnext.
+         */
+        if (
+          block.bytecodes[i - 1].op === Opcodes.dup &&
+          !block.bytecodes[i - 1].arg
+        ) {
+          const isBool = i >= 2 && isBoolOp(block.bytecodes[i - 2].op);
+          const next = func.blocks.get(block.next!)!;
+          const taken = func.blocks.get(block.taken!)!;
+          if (
+            next.next === block.taken &&
+            next.taken == null &&
+            taken.bytecodes.length === 1 &&
+            isCondBranch(taken.bytecodes[0].op) &&
+            next.bytecodes.length > 1 &&
+            next.bytecodes[next.bytecodes.length - 1].op ===
+              (cur.op === Opcodes.bf ? Opcodes.andv : Opcodes.orv) &&
+            (isBool ||
+              (next.bytecodes.length > 2 &&
+                isBoolOp(next.bytecodes[next.bytecodes.length - 2].op)))
+          ) {
+            // drop the dup
+            block.bytecodes.splice(i - 1, 1);
+            // redirect the branch
+            block.taken =
+              taken.bytecodes[0].op === cur.op ? taken.taken : taken.next;
+            // drop the andv/orv
+            next.bytecodes.pop();
+            changes = true;
+            if (logging) {
+              log(
+                `${func.name}: simplifying ${
+                  next.bytecodes[next.bytecodes.length - 1].op === Opcodes.andv
+                    ? "'&&'"
+                    : "'||'"
+                } at ${offsetToString(block.offset)}:${offsetToString(
+                  next.offset
+                )}:${offsetToString(taken.offset)}:`
+              );
+            }
+          } else if (
+            taken.next === block.next &&
+            taken.taken == null &&
+            next.bytecodes.length === 1 &&
+            isCondBranch(next.bytecodes[0].op) &&
+            taken.bytecodes.length > 1 &&
+            taken.bytecodes[taken.bytecodes.length - 1].op ===
+              (cur.op === Opcodes.bt ? Opcodes.andv : Opcodes.orv) &&
+            (isBool ||
+              (taken.bytecodes.length > 2 &&
+                isBoolOp(taken.bytecodes[taken.bytecodes.length - 2].op)))
+          ) {
+            // drop the dup
+            block.bytecodes.splice(i - 1, 1);
+            // redirect the branch
+            block.taken =
+              next.bytecodes[0].op === cur.op ? next.next : next.taken;
+            // drop the andv/orv
+            next.bytecodes.pop();
+            changes = true;
+            if (logging) {
+              log(
+                `${func.name}: simplifying ${
+                  taken.bytecodes[taken.bytecodes.length - 1].op ===
+                  Opcodes.andv
+                    ? "'&&'"
+                    : "'||'"
+                } at ${offsetToString(block.offset)}:${offsetToString(
+                  taken.offset
+                )}:${offsetToString(next.offset)}:`
+              );
+            }
+          }
+        }
       }
     }
-  });
+    return changes;
+  }, false);
 }
 
 export function cleanCfg(func: FuncEntry, context: Context) {
