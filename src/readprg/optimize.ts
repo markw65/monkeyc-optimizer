@@ -62,6 +62,7 @@ function simpleOpts(func: FuncEntry, _context: Context) {
         func.blocks.get(cur.arg)?.bytecodes[0]?.op === Opcodes.ret
       ) {
         block.bytecodes.splice(i, 1);
+        delete block.taken;
         logging && log(`${func.name}: deleting empty finally handler`);
       }
     }
