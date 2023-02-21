@@ -715,3 +715,14 @@ Bug Fixes
 ### 1.1.13
 
 - Adds a new [Minimize Modules](https://github.com/markw65/monkeyc-optimizer/wiki/Optimizing-module-imports#minimize-modules) pass, which attempts to ensure that every module referenced by the program is imported.
+
+### 1.1.14
+
+- Fixes a bug that could crash the optimizer if it tried to inline a function in a non-local variable's initializer.
+- Adds a post build optimizer. This step takes the built .prg file, and optimizes the bytecode. Currently the optimizations are:
+  - Remove unreachable code
+  - simplify control flow by removing branches to branches
+  - Remove empty "finally" handlers (every try/catch gets an empty finally handler)
+  - Remove stores to dead locals
+  - Remove side-effect free code that produces an unused result
+  - Optimize shift left by constant to multiply, since the bytecode is smaller (this seems to be a bug in the garmin tools; they consider shift left and shift right to have an 8-bit argument, but its always zero, and the simulator and devices treat it as a one byte shift instruction, followed by a one byte nop).
