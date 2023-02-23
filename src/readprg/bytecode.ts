@@ -1,8 +1,8 @@
 import * as assert from "node:assert";
 import * as crypto from "node:crypto";
-import { xmlUtil } from "../sdk-util";
-import { logger, log, wouldLog } from "../util";
 import { hasProperty } from "../ast";
+import { xmlUtil } from "../sdk-util";
+import { log, logger, wouldLog } from "../util";
 import { fixupData } from "./data";
 import { emitFunc, UpdateInfo } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
@@ -198,43 +198,48 @@ export function optimizeBytecode(context: Context) {
 
 export function printFunction(func: FuncEntry, context: Context | null) {
   log(`${func.name ?? "<unknown>"}:`);
-  let lineNum: LineNumber | null = null;
-  func.blocks.forEach((block) => {
-    log(`${offsetToString(block.offset)}:`);
-    block.try?.forEach((exInfo) => {
-      assert(exInfo);
-      log(
-        `tryCatch - start: ${offsetToString(
-          exInfo.tryStart
-        )} end: ${offsetToString(exInfo.tryEnd)} handler: ${offsetToString(
-          exInfo.handler
-        )}`
-      );
-    });
-    block.bytecodes.forEach((bytecode) => {
-      const lineInfo = bytecode.lineNum;
-      if (lineInfo && (!lineNum || lineInfo.line !== lineNum.line)) {
-        lineNum = lineInfo;
-        const file =
-          lineInfo.fileStr ??
-          context?.symbolTable.symbols.get(lineInfo.file)?.str ??
-          "<unknown>";
-        log(
-          `${file}:${lineInfo.line}${
-            lineInfo.symbolStr ? ` - ${lineInfo.symbolStr}` : ""
-          }`
-        );
-      }
-      log(`    ${bytecodeToString(bytecode, context?.symbolTable)}`);
-    });
-    if (block.next != null) {
-      log(`  -> ${offsetToString(block.next)}`);
-    }
-    if (block.taken != null) {
-      log(`  -> ${offsetToString(block.taken)}`);
-    }
-  });
+  func.blocks.forEach((block) => log(blockToString(block, context)));
   log(`${func.name ?? "<unknown>"}_end`);
+}
+
+export function blockToString(block: Block, context: Context | null) {
+  let lineNum: LineNumber | null = null;
+  const parts: string[] = [];
+  const log = (msg: string) => parts.push(msg + "\n");
+  log(`${offsetToString(block.offset)}:`);
+  block.try?.forEach((exInfo) => {
+    assert(exInfo);
+    log(
+      `tryCatch - start: ${offsetToString(
+        exInfo.tryStart
+      )} end: ${offsetToString(exInfo.tryEnd)} handler: ${offsetToString(
+        exInfo.handler
+      )}`
+    );
+  });
+  block.bytecodes.forEach((bytecode) => {
+    const lineInfo = bytecode.lineNum;
+    if (lineInfo && (!lineNum || lineInfo.line !== lineNum.line)) {
+      lineNum = lineInfo;
+      const file =
+        lineInfo.fileStr ??
+        context?.symbolTable.symbols.get(lineInfo.file)?.str ??
+        "<unknown>";
+      log(
+        `${file}:${lineInfo.line}${
+          lineInfo.symbolStr ? ` - ${lineInfo.symbolStr}` : ""
+        }`
+      );
+    }
+    log(`    ${bytecodeToString(bytecode, context?.symbolTable)}`);
+  });
+  if (block.next != null) {
+    log(`  -> ${offsetToString(block.next)}`);
+  }
+  if (block.taken != null) {
+    log(`  -> ${offsetToString(block.taken)}`);
+  }
+  return parts.join("");
 }
 
 export function bytecodeToString(
