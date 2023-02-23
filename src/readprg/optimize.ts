@@ -85,6 +85,18 @@ function simpleOpts(func: FuncEntry, _context: Context) {
       } else if (isCondBranch(cur.op)) {
         const next = func.blocks.get(block.next!)!;
         const taken = func.blocks.get(block.taken!)!;
+        if (next.preds!.size > 1 && taken.preds!.size === 1) {
+          const newOp = cur.op === Opcodes.bt ? Opcodes.bf : Opcodes.bt;
+          if (logging) {
+            log(
+              `${func.name}: converting ${Opcodes[cur.op]} to ${Opcodes[newOp]}`
+            );
+          }
+          changes = true;
+          cur.op = newOp;
+          block.next = taken.offset;
+          cur.arg = block.taken = next.offset;
+        }
         /*
          * Garmin implements `x && y` as `x ? x & y : false`
          * As long as one of x and y is Boolean, this is equivalent to
