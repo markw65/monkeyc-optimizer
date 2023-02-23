@@ -470,7 +470,6 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
         };
       case Opcodes.news:
       case Opcodes.ipush:
-      case Opcodes.fpush:
       case Opcodes.spush:
       case Opcodes.cpush:
         return { op, arg: view.getInt32((current += 4) - 4), offset, size: 5 };
@@ -480,6 +479,13 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
           arg: view.getBigInt64((current += 8) - 8),
           offset,
           size: 9,
+        };
+      case Opcodes.fpush:
+        return {
+          op,
+          arg: view.getFloat32((current += 4) - 4),
+          offset,
+          size: 5,
         };
       case Opcodes.dpush:
         return {
@@ -536,13 +542,15 @@ export function emitBytecode(
       break;
     case Opcodes.news:
     case Opcodes.ipush:
-    case Opcodes.fpush:
     case Opcodes.spush:
     case Opcodes.cpush:
       view.setInt32((offset += 4) - 4, bytecode.arg);
       break;
     case Opcodes.lpush:
       view.setBigInt64((offset += 8) - 8, bytecode.arg);
+      break;
+    case Opcodes.fpush:
+      view.setFloat32((offset += 4) - 4, bytecode.arg);
       break;
     case Opcodes.dpush:
       view.setFloat64((offset += 8) - 8, bytecode.arg);
