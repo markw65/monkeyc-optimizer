@@ -283,7 +283,11 @@ export function bytecodeToString(
   return `${Opcodes[bytecode.op]}${arg ?? ""}`;
 }
 
-function findFunctions({ bytecodes, symbolTable, exceptionsMap }: Context) {
+export function findFunctions({
+  bytecodes,
+  symbolTable,
+  exceptionsMap,
+}: Context) {
   const blockStarts = new Set<number>();
 
   exceptionsMap.forEach((exns) =>
@@ -318,37 +322,8 @@ function findFunctions({ bytecodes, symbolTable, exceptionsMap }: Context) {
   let next: number | undefined;
   let taken: number | undefined;
   bytecodes.forEach((bytecode, i) => {
-    if (blockStarts.has(bytecode.offset)) {
-      if (i > start) {
-        const offset = bytecodes[start].offset;
-        const block: Block = {
-          bytecodes: bytecodes.slice(start, i),
-          offset,
-        };
-        if (next != null) {
-          block.next = next;
-        }
-        if (taken != null) {
-          block.taken = taken;
-        }
-        if (exnStack.length) {
-          block.try = exnStack.slice();
-        }
-        blocks.set(offset, block);
-      }
-      if (
-        exnStack.length &&
-        exnStack[exnStack.length - 1].tryEnd === bytecode.offset
-      ) {
-        exnStack.pop();
-      }
-      start = i;
-      const exnEntry = exceptionsMap.get(bytecode.offset);
-      if (exnEntry) {
-        exnStack.push(...exnEntry);
-      }
-    }
-    next = bytecode.offset + bytecode.size;
+    const nextBcOffset = bytecode.offset + bytecode.size;
+    next = nextBcOffset;
     taken = undefined;
     switch (bytecode.op) {
       case Opcodes.return:
@@ -364,6 +339,37 @@ function findFunctions({ bytecodes, symbolTable, exceptionsMap }: Context) {
       case Opcodes.jsr:
         taken = bytecode.arg;
         break;
+    }
+    if (blockStarts.has(nextBcOffset)) {
+      const offset = bytecodes[start].offset;
+      const block: Block = {
+        bytecodes: bytecodes.slice(start, i + 1),
+        offset,
+      };
+      if (i && bytecode.op === Opcodes.goto) {
+        block.bytecodes.pop();
+      }
+      if (next != null) {
+        block.next = next;
+      }
+      if (taken != null) {
+        block.taken = taken;
+      }
+      if (exnStack.length) {
+        block.try = exnStack.slice();
+      }
+      blocks.set(offset, block);
+      if (
+        exnStack.length &&
+        exnStack[exnStack.length - 1].tryEnd === nextBcOffset
+      ) {
+        exnStack.pop();
+      }
+      start = i + 1;
+      const exnEntry = exceptionsMap.get(nextBcOffset);
+      if (exnEntry) {
+        exnStack.push(...exnEntry);
+      }
     }
   });
   const functions = new Map<number, FuncEntry>();

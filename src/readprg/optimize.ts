@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import { log, logger, wouldLog } from "../util";
 import {
+  Block,
   bytecodeToString,
   Context,
   FuncEntry,
@@ -13,13 +14,13 @@ import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
 import { blockSharing } from "./sharing";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
+  let changes;
   do {
     cleanCfg(func, context);
-  } while (
-    localDCE(func, context) ||
-    blockSharing(func, context) ||
-    simpleOpts(func, context)
-  );
+    changes = localDCE(func, context);
+    changes = blockSharing(func, context) || changes;
+    changes = simpleOpts(func, context) || changes;
+  } while (changes);
 }
 
 function simpleOpts(func: FuncEntry, _context: Context) {
@@ -81,7 +82,9 @@ function simpleOpts(func: FuncEntry, _context: Context) {
         delete block.taken;
         changes = true;
         logging && log(`${func.name}: deleting empty finally handler`);
-      } else if (i && (cur.op === Opcodes.bt || cur.op === Opcodes.bf)) {
+      } else if (isCondBranch(cur.op)) {
+        const next = func.blocks.get(block.next!)!;
+        const taken = func.blocks.get(block.taken!)!;
         /*
          * Garmin implements `x && y` as `x ? x & y : false`
          * As long as one of x and y is Boolean, this is equivalent to
@@ -101,12 +104,11 @@ function simpleOpts(func: FuncEntry, _context: Context) {
          * and redirect the first branch to either final or tnext.
          */
         if (
+          i &&
           block.bytecodes[i - 1].op === Opcodes.dup &&
           !block.bytecodes[i - 1].arg
         ) {
           const isBool = i >= 2 && isBoolOp(block.bytecodes[i - 2].op);
-          const next = func.blocks.get(block.next!)!;
-          const taken = func.blocks.get(block.taken!)!;
           if (
             next.next === block.taken &&
             next.taken == null &&
@@ -117,7 +119,9 @@ function simpleOpts(func: FuncEntry, _context: Context) {
               (cur.op === Opcodes.bf ? Opcodes.andv : Opcodes.orv) &&
             (isBool ||
               (next.bytecodes.length > 2 &&
-                isBoolOp(next.bytecodes[next.bytecodes.length - 2].op)))
+                isBoolOp(next.bytecodes[next.bytecodes.length - 2].op))) &&
+            next.preds?.size === 1 &&
+            taken.preds?.size === 2
           ) {
             if (logging) {
               log(
@@ -152,7 +156,9 @@ function simpleOpts(func: FuncEntry, _context: Context) {
               (cur.op === Opcodes.bt ? Opcodes.andv : Opcodes.orv) &&
             (isBool ||
               (taken.bytecodes.length > 2 &&
-                isBoolOp(taken.bytecodes[taken.bytecodes.length - 2].op)))
+                isBoolOp(taken.bytecodes[taken.bytecodes.length - 2].op))) &&
+            next.preds?.size === 2 &&
+            taken.preds?.size === 1
           ) {
             if (logging) {
               log(
@@ -176,7 +182,7 @@ function simpleOpts(func: FuncEntry, _context: Context) {
               next.bytecodes[0].op === cur.op ? next.next! : next.taken!
             );
             // drop the andv/orv
-            next.bytecodes.pop();
+            taken.bytecodes.pop();
             changes = true;
           }
         }
@@ -186,14 +192,19 @@ function simpleOpts(func: FuncEntry, _context: Context) {
   }, false);
 }
 
+function isNopBlock(block: Block) {
+  return (
+    block.bytecodes.length === 0 ||
+    (block.bytecodes.length === 1 &&
+      (block.bytecodes[0].op === Opcodes.goto ||
+        block.bytecodes[0].op === Opcodes.nop))
+  );
+}
 export function cleanCfg(func: FuncEntry, context: Context) {
   const deadBlocks = new Map<number, number>();
   func.blocks.forEach((block) => {
-    if (
-      block.bytecodes.length === 1 &&
-      block.bytecodes[0].op === Opcodes.goto
-    ) {
-      deadBlocks.set(block.offset, block.bytecodes[0].arg);
+    if (isNopBlock(block)) {
+      deadBlocks.set(block.offset, block.next!);
     }
   });
   deadBlocks.forEach((target, key) => {

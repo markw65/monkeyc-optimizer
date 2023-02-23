@@ -513,6 +513,74 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
   return results;
 }
 
+export function opcodeSize(op: Opcodes) {
+  switch (op) {
+    case Opcodes.nop:
+    case Opcodes.popv:
+    case Opcodes.addv:
+    case Opcodes.subv:
+    case Opcodes.mulv:
+    case Opcodes.divv:
+    case Opcodes.andv:
+    case Opcodes.orv:
+    case Opcodes.modv:
+    case Opcodes.xorv:
+    case Opcodes.getv:
+    case Opcodes.putv:
+    case Opcodes.agetv:
+    case Opcodes.aputv:
+    case Opcodes.newc:
+    case Opcodes.return:
+    case Opcodes.ret:
+    case Opcodes.eq:
+    case Opcodes.lt:
+    case Opcodes.lte:
+    case Opcodes.gt:
+    case Opcodes.gte:
+    case Opcodes.ne:
+    case Opcodes.frpush:
+    case Opcodes.canhazplz:
+    case Opcodes.isa:
+    case Opcodes.npush:
+    case Opcodes.isnull:
+    case Opcodes.invv:
+    case Opcodes.getm:
+    case Opcodes.throw:
+    case Opcodes.newa:
+    case Opcodes.newba:
+    case Opcodes.newd:
+      return 1;
+    case Opcodes.incsp:
+    case Opcodes.invokem:
+    case Opcodes.lgetv:
+    case Opcodes.lputv:
+    case Opcodes.bpush:
+    case Opcodes.dup:
+    case Opcodes.argc:
+    case Opcodes.shlv:
+    case Opcodes.shrv:
+      return 2;
+    case Opcodes.goto:
+    case Opcodes.jsr:
+    case Opcodes.bt:
+    case Opcodes.bf:
+      return 3;
+    case Opcodes.news:
+    case Opcodes.ipush:
+    case Opcodes.spush:
+    case Opcodes.cpush:
+    case Opcodes.fpush:
+      return 5;
+    case Opcodes.lpush:
+    case Opcodes.dpush:
+      return 9;
+    case Opcodes.ts:
+      throw new Error(`Unknown opcode ${op}`);
+    default:
+      unhandledType(op);
+  }
+}
+
 export function emitBytecode(
   bytecode: Bytecode,
   view: DataView,
