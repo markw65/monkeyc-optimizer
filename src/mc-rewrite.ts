@@ -20,6 +20,7 @@ import {
   isExpression,
   traverseAst,
   withLoc,
+  withLocDeep,
 } from "./ast";
 import {
   findCallees,
@@ -632,36 +633,6 @@ export async function optimizeMonkeyC(
 
   const topLocals = () => state.localsStack[state.localsStack.length - 1];
   /*
-   * Might this function be called from somewhere, including
-   * callbacks from the api (eg getSettingsView, etc).
-   */
-  const maybeCalled = (func: mctree.FunctionDeclaration) => {
-    if (!func.body) {
-      // this is an api.mir function. It can be called
-      return true;
-    }
-    if (hasProperty(state.exposed, func.id.name)) return true;
-    if (
-      func.attrs &&
-      func.attrs.attributes &&
-      func.attrs.attributes.elements.some((attr) => {
-        if (attr.type !== "UnaryExpression") return false;
-        if (attr.argument.type !== "Identifier") return false;
-        return attr.argument.name === "test";
-      })
-    ) {
-      return true;
-    }
-
-    if (hasProperty(state.calledFunctions, func.id.name)) {
-      return (
-        state.calledFunctions[func.id.name].find((f) => f === func) !== null
-      );
-    }
-
-    return false;
-  };
-  /*
    * Does elm (a class) have a maybeCalled function called name,
    * anywhere in its superClass chain.
    */
@@ -675,7 +646,7 @@ export async function optimizeMonkeyC(
               (f) =>
                 isStateNode(f) &&
                 f.type === "FunctionDeclaration" &&
-                maybeCalled(f.node)
+                maybeCalled(state, f.node)
             )) ||
           (sc.superClass && checkInherited(sc, name))
       ));
@@ -908,7 +879,7 @@ export async function optimizeMonkeyC(
           }
           istate = is;
         }
-        if (parent.type === "ClassDeclaration" && !maybeCalled(node)) {
+        if (parent.type === "ClassDeclaration" && !maybeCalled(state, node)) {
           let used = false;
           if (node.id.name === "initialize") {
             used = true;
@@ -1122,15 +1093,34 @@ export async function optimizeMonkeyC(
   Object.values(fnMap).forEach((f) => {
     collectNamespaces(f.ast!, state);
   });
-  state.usedByName = {};
-  state.calledFunctions = {};
-  state.exposed = state.nextExposed;
-  state.nextExposed = {};
-  Object.values(fnMap).forEach((f) => {
-    collectNamespaces(f.ast!, state);
-  });
-  state.exposed = state.nextExposed;
-  state.nextExposed = {};
+
+  const cleanupAll = () =>
+    Object.values(fnMap).reduce((changes, f) => {
+      traverseAst(f.ast!, undefined, (node) => {
+        const ret = cleanup(state, node, f.ast!);
+        if (ret === false) {
+          changes = true;
+          state.removeNodeComments(node, f.ast!);
+        } else if (ret) {
+          changes = true;
+        }
+        return ret;
+      });
+      return changes;
+    }, false);
+
+  do {
+    state.usedByName = {};
+    state.calledFunctions = {};
+    state.exposed = state.nextExposed;
+    state.nextExposed = {};
+    Object.values(fnMap).forEach((f) => {
+      collectNamespaces(f.ast!, state);
+    });
+    state.exposed = state.nextExposed;
+    state.nextExposed = {};
+  } while (cleanupAll() && state.config?.iterateOptimizer);
+
   delete state.pre;
   delete state.post;
 
@@ -1144,120 +1134,7 @@ export async function optimizeMonkeyC(
     fns.forEach((fn) => sizeBasedPRE(state, fn))
   );
 
-  const cleanup = (node: mctree.Node) => {
-    switch (node.type) {
-      case "ThisExpression":
-        node.text = "self";
-        break;
-      case "EnumStringBody":
-        if (
-          node.members.every((m) => {
-            const name = "name" in m ? m.name : m.id.name;
-            return (
-              hasProperty(state.index, name) &&
-              !hasProperty(state.exposed, name) &&
-              !hasProperty(state.usedByName, name)
-            );
-          })
-        ) {
-          node.enumType = [
-            ...new Set(
-              node.members.map((m) => {
-                if (!("init" in m)) return "Number";
-                const [node, type] = getNodeValue(m.init);
-                if (!node) {
-                  throw new Error("Failed to get type for eliminated enum");
-                }
-                return type;
-              })
-            ),
-          ].join(" or ");
-          node.members.splice(0);
-        }
-        break;
-      case "EnumDeclaration":
-        if (!node.body.members.length) {
-          if (!node.id) return false;
-          if (!node.body.enumType) {
-            throw new Error("Missing enumType on optimized enum");
-          }
-          return {
-            type: "TypedefDeclaration",
-            id: node.id,
-            ts: {
-              type: "UnaryExpression",
-              argument: {
-                type: "TypeSpecList",
-                ts: [
-                  node.body.enumType,
-                ] as unknown as mctree.TypeSpecList["ts"],
-              },
-              prefix: true,
-              operator: " as",
-            },
-          } as const;
-        }
-        break;
-      case "VariableDeclaration": {
-        node.declarations = node.declarations.filter((d) => {
-          const name = variableDeclarationName(d.id);
-          return (
-            !hasProperty(state.index, name) ||
-            hasProperty(state.exposed, name) ||
-            hasProperty(state.usedByName, name)
-          );
-        });
-        if (!node.declarations.length) {
-          return false;
-        }
-        break;
-      }
-      case "ClassElement":
-        if (!node.item) {
-          return false;
-        }
-        break;
-      case "FunctionDeclaration":
-        if (!maybeCalled(node)) {
-          if (
-            node.attrs &&
-            node.attrs.attributes &&
-            node.attrs.attributes.elements.some(
-              (attr) =>
-                attr.type === "UnaryExpression" && attr.argument.name === "keep"
-            )
-          ) {
-            break;
-          }
-
-          return false;
-        }
-        break;
-      case "ClassDeclaration":
-      case "ModuleDeclaration":
-        // none of the attributes means anything on classes and
-        // modules, and the new compiler complains about some
-        // of them. Just drop them all.
-        if (node.attrs && node.attrs.access) {
-          if (node.attrs.attributes) {
-            delete node.attrs.access;
-          } else {
-            delete node.attrs;
-          }
-        }
-    }
-    return null;
-  };
-  Object.entries(fnMap).forEach(([, f]) => {
-    traverseAst(f.ast!, undefined, (node) => {
-      const ret = cleanup(node);
-      if (ret === false) {
-        state.removeNodeComments(node, f.ast!);
-      }
-      return ret;
-    });
-  });
-
+  cleanupAll();
   config.checkCompilerLookupRules = checkLookupRules;
   reportMissingSymbols(state, config);
 
@@ -1282,6 +1159,152 @@ export async function optimizeMonkeyC(
   });
 
   return state.diagnostics;
+}
+
+/*
+ * Might this function be called from somewhere, including
+ * callbacks from the api (eg getSettingsView, etc).
+ */
+function maybeCalled(
+  state: ProgramStateAnalysis,
+  func: mctree.FunctionDeclaration
+) {
+  if (!func.body) {
+    // this is an api.mir function. It can be called
+    return true;
+  }
+  if (hasProperty(state.exposed, func.id.name)) return true;
+  if (
+    func.attrs &&
+    func.attrs.attributes &&
+    func.attrs.attributes.elements.some((attr) => {
+      if (attr.type !== "UnaryExpression") return false;
+      if (attr.argument.type !== "Identifier") return false;
+      return attr.argument.name === "test";
+    })
+  ) {
+    return true;
+  }
+
+  if (hasProperty(state.calledFunctions, func.id.name)) {
+    return state.calledFunctions[func.id.name].find((f) => f === func) !== null;
+  }
+
+  return false;
+}
+
+function cleanup(
+  state: ProgramStateAnalysis,
+  node: mctree.Node,
+  ast: mctree.Program
+) {
+  switch (node.type) {
+    case "ThisExpression":
+      node.text = "self";
+      break;
+    case "EnumStringBody":
+      if (
+        node.members.every((m) => {
+          const name = "name" in m ? m.name : m.id.name;
+          return (
+            hasProperty(state.index, name) &&
+            !hasProperty(state.exposed, name) &&
+            !hasProperty(state.usedByName, name)
+          );
+        })
+      ) {
+        node.enumType = [
+          ...new Set(
+            node.members.map((m) => {
+              if (!("init" in m)) return "Number";
+              const [node, type] = getNodeValue(m.init);
+              if (!node) {
+                throw new Error("Failed to get type for eliminated enum");
+              }
+              return type;
+            })
+          ),
+        ].join(" or ");
+        node.members.splice(0);
+      }
+      break;
+    case "EnumDeclaration":
+      if (!node.body.members.length) {
+        if (!node.id) return false;
+        if (!node.body.enumType) {
+          throw new Error("Missing enumType on optimized enum");
+        }
+        state.removeNodeComments(node, ast);
+        return withLocDeep(
+          {
+            type: "TypedefDeclaration",
+            id: node.id,
+            ts: {
+              type: "UnaryExpression",
+              argument: {
+                type: "TypeSpecList",
+                ts: [
+                  node.body.enumType,
+                ] as unknown as mctree.TypeSpecList["ts"],
+              },
+              prefix: true,
+              operator: " as",
+            },
+          } as const,
+          node,
+          node
+        );
+      }
+      break;
+    case "VariableDeclarator": {
+      const name = variableDeclarationName(node.id);
+      return !hasProperty(state.index, name) ||
+        hasProperty(state.exposed, name) ||
+        hasProperty(state.usedByName, name)
+        ? null
+        : false;
+    }
+    case "VariableDeclaration": {
+      if (!node.declarations.length) {
+        return false;
+      }
+      break;
+    }
+    case "ClassElement":
+      if (!node.item) {
+        return false;
+      }
+      break;
+    case "FunctionDeclaration":
+      if (!maybeCalled(state, node)) {
+        if (
+          node.attrs &&
+          node.attrs.attributes &&
+          node.attrs.attributes.elements.some(
+            (attr) =>
+              attr.type === "UnaryExpression" && attr.argument.name === "keep"
+          )
+        ) {
+          break;
+        }
+
+        return false;
+      }
+      break;
+    case "ClassDeclaration":
+    case "ModuleDeclaration":
+      // none of the attributes means anything on classes and
+      // modules, and the new compiler complains about some
+      // of them. Just drop them all.
+      if (node.attrs && node.attrs.access) {
+        if (node.attrs.attributes) {
+          delete node.attrs.access;
+        } else {
+          delete node.attrs;
+        }
+      }
+  }
+  return null;
 }
 
 function optimizeCall(

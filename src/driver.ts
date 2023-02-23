@@ -62,6 +62,7 @@ export async function driver() {
   let skipRemote = false;
   let covarianceWarnings: boolean | undefined;
   let postOptimize = false;
+  let iterateOptimizer = false;
   let postProcess: string | null = null;
   let postProcessTarget: string | undefined;
 
@@ -110,6 +111,9 @@ export async function driver() {
         break;
       case "postOptimize":
         postOptimize = !value || /^true|1$/i.test(value);
+        break;
+      case "iterateOptimizer":
+        iterateOptimizer = !value || /^true|1$/i.test(value);
         break;
       case "postProcess":
         if (value == null) return key;
@@ -362,6 +366,7 @@ export async function driver() {
       checkManifest: true,
       checkBuildPragmas,
       covarianceWarnings,
+      iterateOptimizer,
     };
     let extraArgs = extraMonkeycArgs;
     if (jungleInfo.garminOptLevel != null && supportsCompiler2) {

@@ -440,7 +440,7 @@ function testShrFolding(logger as Logger) as Boolean {
 (:test)
 function testIfFolding(logger as Logger) as Boolean {
     var x = logger != gLogger;
-    /* @match "if (x) {" */
+    /* @match /if \((x|logger != gLogger)\) \{/ */
     if (!x) {
         logger.debug("Nope");
         return false;

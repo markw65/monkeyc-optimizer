@@ -43,6 +43,7 @@ export type BuildConfig = {
   minimizeModules?: boolean;
   postBuildOptimizer?: boolean;
   singleUseCopyProp?: boolean;
+  iterateOptimizer?: boolean;
   covarianceWarnings?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
 };

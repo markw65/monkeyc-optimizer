@@ -677,7 +677,7 @@ function excludesFromAnnotations(
   return excludes;
 }
 
-const configOptionsToCheck = [
+const configOptionsToCheck: Array<keyof BuildConfig> = [
   "workspace",
   "releaseBuild",
   "testBuild",
@@ -697,7 +697,8 @@ const configOptionsToCheck = [
   "extensionVersion",
   "typeCheckLevel",
   "covarianceWarnings",
-] as const;
+  "iterateOptimizer",
+];
 
 /**
  * @param {BuildConfig} config
