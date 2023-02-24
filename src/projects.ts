@@ -3,7 +3,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { globa, promiseAll, spawnByLine } from "./util";
 import { BuildConfig } from "./optimizer-types";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+//const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export type RemoteProject =
   | string

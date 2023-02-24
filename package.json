@@ -16,11 +16,11 @@
     }
   },
   "scripts": {
-    "watch": "webpack --mode development --watch",
+    "watch": "node esbuild.js --watch",
     "prettier-live": "test -z \"$(git status --untracked-files=no --porcelain || echo dirty)\" && npm install ../prettier-plugin-monkeyc && git commit -am 'prettier-plugin-monkeyc-live'",
-    "build-debug": "webpack --mode development",
-    "build-release": "webpack --mode production",
-    "prepack": "webpack --mode production",
+    "build-debug": "node esbuild.js",
+    "build-release": "node esbuild.js --release",
+    "prepack": "node esbuild.js --release",
     "test": "npm run test-mocha && npm run test-optimized && npm run test-unopt && npm run test-remote && npm run test-remote-tests",
     "test-mocha": "npx mocha --timeout 999999 build/mocha.cjs",
     "test-remote": "node ./test/test.js --showInfo --postOptimize --product=pick-one --github",
@@ -35,6 +35,7 @@
     "build/util.cjs",
     "build/sdk-util.cjs",
     "build/api.cjs",
+    "build/chunk-*.cjs",
     "build/src/**/*.d.ts"
   ],
   "author": "markw65",
@@ -53,6 +54,7 @@
     "@typescript-eslint/eslint-plugin": "^5.28.0",
     "@typescript-eslint/parser": "^5.28.0",
     "chai": "^4.3.7",
+    "esbuild": "^0.17.10",
     "eslint": "^8.12.0",
     "extract-zip": "^2.0.1",
     "fast-glob": "^3.2.12",
@@ -61,10 +63,7 @@
     "prettier": "^2.6.2",
     "prettier-plugin-pegjs": "https://github.com/markw65/prettier-plugin-pegjs/releases/download/v0.5.2/prettier-plugin-pegjs-0.5.2.tgz",
     "priorityqueuejs": "^2.0.0",
-    "ts-loader": "^9.3.0",
     "typescript": "^4.6.4",
-    "webpack": "^5.72.0",
-    "webpack-cli": "^4.9.2",
     "yauzl": "^2.10.0",
     "yazl": "^2.5.1"
   },

@@ -5,11 +5,6 @@ import glob from "fast-glob";
 import * as path from "path";
 import * as readline from "readline";
 
-// Write it this way so that webpack.DefinePlugin doesn't
-// recognize global.lastModifiedSource.
-// @ts-ignore
-global["lastModifiedSource" + ""] = 0;
-
 export { logger, log, wouldLog } from "./logger";
 
 export function globa(

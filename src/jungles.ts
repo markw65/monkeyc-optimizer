@@ -2,7 +2,7 @@ import * as crypto from "crypto";
 import extract from "extract-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
-import * as jungle from "../build/jungle.js";
+import * as jungle from "src/jungle.peggy";
 import { hasProperty } from "./api";
 import {
   manifestAnnotations,

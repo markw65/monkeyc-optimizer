@@ -2,18 +2,28 @@
   "compilerOptions": {
     "baseUrl": "./",
     "outDir": "build",
-    "module": "es2020",
-    "target": "es2020",
+    "module": "esnext",
+    "target": "esnext",
     "checkJs": true /* Typecheck .js files. */,
-    "lib": ["ES2020"],
+    "lib": ["esnext"],
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "noImplicitReturns": true,
     "sourceMap": true,
     "declaration": true,
     "useUnknownInCatchVariables": true,
-    "strict": true
+    "strict": true,
+    "paths": {
+      "src/*.peggy": ["src/*.d.ts"]
+    }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["build", "node_modules", "webpack.config.js", "test"]
+
+  "include": ["src/**/*.ts", "src/*.peggy"],
+  "exclude": [
+    "build",
+    "node_modules",
+    "esbuild.js",
+    "test/projects",
+    "test/OptimizerTests"
+  ]
 }

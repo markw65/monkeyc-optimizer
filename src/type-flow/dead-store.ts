@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import assert from "node:assert";
-import { NodeEquivMap } from "src/type-flow";
+import { NodeEquivMap } from "../type-flow";
 import { formatAst, traverseAst } from "../api";
 import { withLoc } from "../ast";
 import { getPostOrder } from "../control-flow";

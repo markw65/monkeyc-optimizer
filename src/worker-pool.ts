@@ -53,7 +53,7 @@ class WorkerPool extends EventEmitter {
   addNewWorker() {
     const worker: TaskWorker = new Worker(
       //new URL("worker-thread.cjs", import.meta.url)
-      "./build/worker-thread.cjs"
+      `${__dirname}/worker-thread.cjs`
     );
     worker.on("message", (result) => {
       // In case of success: Call the callback that was passed to `runTask`,

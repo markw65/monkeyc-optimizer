@@ -1,4 +1,4 @@
-import { parse } from "../build/xml.js";
+import { parse } from "src/xml.peggy";
 import { hasProperty } from "./ast";
 
 export class PeggyError extends Error {

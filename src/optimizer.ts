@@ -811,7 +811,7 @@ async function generateOneConfig(
     const opt_time = await first_modified(
       Object.values(fnMap).map((v) => v.output)
     );
-    if (source_time < opt_time && global.lastModifiedSource < opt_time) {
+    if (source_time < opt_time && lastModifiedSource < opt_time) {
       return { hasTests, diagnostics: prevDiagnostics };
     }
   }
