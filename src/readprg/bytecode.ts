@@ -1,4 +1,4 @@
-import * as assert from "node:assert";
+import assert from "node:assert";
 import * as crypto from "node:crypto";
 import { hasProperty } from "../ast";
 import { xmlUtil } from "../sdk-util";

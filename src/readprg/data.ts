@@ -1,4 +1,4 @@
-import * as assert from "node:assert";
+import assert from "node:assert";
 import { Context, SectionKinds } from "./bytecode";
 import { SymbolTable } from "./symbols";
 

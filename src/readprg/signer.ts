@@ -1,5 +1,5 @@
 import * as fs from "fs/promises";
-import * as assert from "node:assert";
+import assert from "node:assert";
 import * as crypto from "node:crypto";
 
 import { Context, SectionKinds } from "./bytecode";

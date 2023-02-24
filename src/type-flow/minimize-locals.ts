@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import * as assert from "node:assert";
+import assert from "node:assert";
 import { variableDeclarationName } from "../api";
 import {
   isExpression,

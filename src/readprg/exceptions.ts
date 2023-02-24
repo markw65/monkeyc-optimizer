@@ -1,4 +1,4 @@
-import * as assert from "node:assert";
+import assert from "node:assert";
 import { Context, fixSectionSize, SectionKinds } from "./bytecode";
 
 export type ExceptionEntry = {

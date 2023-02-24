@@ -1,7 +1,7 @@
 import * as child_process from "child_process";
 import * as fsc from "fs";
 import * as fs from "fs/promises";
-import * as glob from "fast-glob";
+import glob from "fast-glob";
 import * as path from "path";
 import * as readline from "readline";
 

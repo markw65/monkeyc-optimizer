@@ -1,4 +1,4 @@
-import * as assert from "node:assert";
+import assert from "node:assert";
 import { hasProperty } from "../ast";
 import { Block, Context, FuncEntry } from "./bytecode";
 import { ExceptionEntry } from "./exceptions";

@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import * as PriorityQueue from "priorityqueuejs";
+import PriorityQueue from "priorityqueuejs";
 import { formatAst, isLocal, isStateNode, lookupNext } from "./api";
 import { getNodeValue, isExpression } from "./ast";
 import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
