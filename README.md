@@ -726,3 +726,14 @@ Bug Fixes
   - Remove stores to dead locals
   - Remove side-effect free code that produces an unused result
   - Optimize shift left by constant to multiply, since the bytecode is smaller (this seems to be a bug in the garmin tools; they consider shift left and shift right to have an 8-bit argument, but its always zero, and the simulator and devices treat it as a one byte shift instruction, followed by a one byte nop).
+
+### 1.1.15
+
+- Post build optimizer improvements
+
+  - Simplify LogicalExpressions. This generally saves 3 bytes per `&&` or `||`, and also makes them faster
+  - Adds a simple code sharing pass. If multiple code paths converge to the same point (or leave the function via return) and they end with the same sequence of bytecode, they're merged into one.
+  - Flips branch-true to branch-false or vice versa if the fall through block has multiple predecessors, and the target block has just one. This often leads to better control flow, reducing the number of "goto" bytecodes required.
+
+- Source to Source Optimizer improvements
+  - Adds an `Iterate Optimizer` option that causes the optimizer to keep re-running until it finds nothing to remove. Defaults to false.
