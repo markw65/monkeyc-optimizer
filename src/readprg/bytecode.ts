@@ -41,6 +41,7 @@ export type Block = {
   try?: ExceptionEntry[];
   next?: number;
   taken?: number;
+  exsucc?: number;
   preds?: Set<number>;
 };
 
@@ -319,6 +320,7 @@ export function findFunctions({
   const exnStack: ExceptionEntry[] = [];
   const blocks = new Map<number, Block>();
   let start = 0;
+  let mayThrow = false;
   let next: number | undefined;
   let taken: number | undefined;
   bytecodes.forEach((bytecode, i) => {
@@ -326,9 +328,15 @@ export function findFunctions({
     next = nextBcOffset;
     taken = undefined;
     switch (bytecode.op) {
+      case Opcodes.throw:
+        mayThrow = true;
+        next = undefined;
+        break;
+      case Opcodes.invokem:
+        mayThrow = true;
+        break;
       case Opcodes.return:
       case Opcodes.ret:
-      case Opcodes.throw:
         next = undefined;
         break;
       case Opcodes.goto:
@@ -357,6 +365,9 @@ export function findFunctions({
       }
       if (exnStack.length) {
         block.try = exnStack.slice();
+        if (mayThrow) {
+          block.exsucc = exnStack[exnStack.length - 1].handler;
+        }
       }
       blocks.set(offset, block);
       if (
@@ -366,6 +377,7 @@ export function findFunctions({
         exnStack.pop();
       }
       start = i + 1;
+      mayThrow = false;
       const exnEntry = exceptionsMap.get(nextBcOffset);
       if (exnEntry) {
         exnStack.push(...exnEntry);
