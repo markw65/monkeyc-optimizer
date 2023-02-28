@@ -37,7 +37,11 @@ const fixImportsPlugin = {
       const source = await fs.readFile(args.path, "utf8");
       const contents = source
         .replace(/(\s(?:from|import)\s+".\/chunk-.*\.)(js")/g, "$1c$2")
-        .replace("lastModifiedSource", Date.now().toString());
+        .replace("lastModifiedSource", Date.now().toString())
+        // yauzl includes a library that has this. There are years-old
+        // bug reports, so we'll just fix it here (otherwise we get
+        // deprecation warnings)
+        .replace("new Buffer(toRead)", "Buffer.alloc(toRead)");
       return { contents };
     });
   },
