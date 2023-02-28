@@ -1,4 +1,4 @@
-import { driver, error } from "../build/driver.cjs";
+const { driver, error } = require("../build/driver.cjs");
 
 driver()
   .then(() => console.log("Success"))

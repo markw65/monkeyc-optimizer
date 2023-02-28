@@ -1,6 +1,6 @@
 {
   "name": "@markw65/monkeyc-optimizer",
-  "type": "module",
+  "type": "commonjs",
   "version": "1.1.15",
   "description": "Source to source optimizer for Garmin Monkey C code",
   "main": "build/optimizer.cjs",
@@ -16,11 +16,11 @@
     }
   },
   "scripts": {
-    "watch": "node esbuild.js --watch",
+    "watch": "node esbuild.mjs --watch",
     "prettier-live": "test -z \"$(git status --untracked-files=no --porcelain || echo dirty)\" && npm install ../prettier-plugin-monkeyc && git commit -am 'prettier-plugin-monkeyc-live'",
-    "build-debug": "node esbuild.js",
-    "build-release": "node esbuild.js --release",
-    "prepack": "node esbuild.js --release",
+    "build-debug": "node esbuild.mjs",
+    "build-release": "node esbuild.mjs --release",
+    "prepack": "node esbuild.mjs --release",
     "test": "npm run test-mocha && npm run test-optimized && npm run test-unopt && npm run test-remote && npm run test-remote-tests",
     "test-mocha": "npx mocha --timeout 999999 build/mocha.cjs",
     "test-remote": "node ./test/test.js --showInfo --postOptimize --product=pick-one --github",
