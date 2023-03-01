@@ -59,7 +59,7 @@ import {
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
 export * from "./optimizer-types";
-export { display } from "./type-flow/types";
+export { display, ExactOrUnion } from "./type-flow/types";
 export {
   copyRecursiveAsNeeded,
   get_jungle,
@@ -71,6 +71,7 @@ export {
   mctree,
   ResolvedJungle,
   simulateProgram,
+  TypeMap,
 };
 
 function relative_path_no_dotdot(relative: string) {
