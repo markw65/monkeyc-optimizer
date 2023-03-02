@@ -1,13 +1,13 @@
 import assert from "node:assert";
-import { log, logger, wouldLog } from "../util";
+import { log, logger, setBanner, wouldLog } from "../util";
 import {
-  FuncEntry,
-  Context,
   bytecodeToString,
-  printFunction,
+  Context,
+  FuncEntry,
+  functionBanner,
   makeArgless,
 } from "./bytecode";
-import { Opcodes, getOpInfo, Bytecode } from "./opcodes";
+import { Bytecode, getOpInfo, Opcodes } from "./opcodes";
 
 export function localDCE(func: FuncEntry, context: Context) {
   let numArgs = 0;
@@ -45,13 +45,9 @@ export function localDCE(func: FuncEntry, context: Context) {
     })
   );
 
-  let before = wouldLog("dce", 5)
-    ? () => {
-        log("======== dce: Before =========");
-        printFunction(func, context);
-        before = null;
-      }
-    : null;
+  if (wouldLog("dce", 5)) {
+    setBanner(functionBanner(func, context, "local-dce-start"));
+  }
 
   let anyChanges = false;
   let changes = false;
@@ -72,7 +68,6 @@ export function localDCE(func: FuncEntry, context: Context) {
   };
   func.blocks.forEach((block) => {
     const reportPopv = (i: number, item: DceDeadItem, kill: boolean) => {
-      before && before();
       logger(
         "dce",
         2,
@@ -91,7 +86,6 @@ export function localDCE(func: FuncEntry, context: Context) {
       );
     };
     const reportNop = (item: DceDeadItem) => {
-      before && before();
       logger(
         "dce",
         2,
@@ -168,7 +162,6 @@ export function localDCE(func: FuncEntry, context: Context) {
         case Opcodes.lputv: {
           const local = dceInfo.locals[bytecode.arg];
           if (!local.read) {
-            before && before();
             logger(
               "dce",
               2,
@@ -291,10 +284,10 @@ export function localDCE(func: FuncEntry, context: Context) {
       anyChanges = true;
       block.bytecodes = block.bytecodes.filter((bc) => bc.op !== Opcodes.nop);
       if (wouldLog("dce", 3)) {
-        log("======== dce: After =========");
-        printFunction(func, context);
+        log(functionBanner(func, context, "local-dce-end")());
       }
     }
   });
+  setBanner(null);
   return anyChanges;
 }

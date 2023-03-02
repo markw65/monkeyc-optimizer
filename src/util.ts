@@ -5,7 +5,7 @@ import glob from "fast-glob";
 import * as path from "path";
 import * as readline from "readline";
 
-export { logger, log, wouldLog } from "./logger";
+export { logger, log, wouldLog, setBanner, bumpLogging } from "./logger";
 
 export function globa(
   pattern: string,

@@ -1,11 +1,12 @@
 import assert from "node:assert";
-import { log, wouldLog } from "../util";
+import { log, setBanner, wouldLog } from "../util";
 import {
   Block,
   blockToString,
   Context,
   equalBlocks,
   FuncEntry,
+  functionBanner,
   offsetToString,
   redirect,
 } from "./bytecode";
@@ -29,6 +30,9 @@ export function blockSharing(func: FuncEntry, context: Context) {
   if (!any) return false;
   any = false;
   const logging = wouldLog("sharing", 1);
+  if (logging && wouldLog("sharing", 10)) {
+    setBanner(functionBanner(func, context, "sharing"));
+  }
   candidates.forEach((blocks) => {
     while (blocks.size > 1) {
       const group: Block[] = [];
@@ -66,5 +70,6 @@ export function blockSharing(func: FuncEntry, context: Context) {
       }
     }
   });
+  setBanner(null);
   return any;
 }

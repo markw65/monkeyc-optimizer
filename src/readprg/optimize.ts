@@ -1,10 +1,11 @@
 import assert from "node:assert";
-import { log, logger, wouldLog } from "../util";
+import { log, logger, setBanner, wouldLog } from "../util";
 import {
   Block,
   bytecodeToString,
   Context,
   FuncEntry,
+  functionBanner,
   makeArgless,
   offsetToString,
   redirect,
@@ -213,6 +214,9 @@ function isNopBlock(block: Block) {
   );
 }
 export function cleanCfg(func: FuncEntry, context: Context) {
+  if (wouldLog("cfg", 10)) {
+    setBanner(functionBanner(func, context, "sharing"));
+  }
   const deadBlocks = new Map<number, number>();
   func.blocks.forEach((block) => {
     if (isNopBlock(block)) {
@@ -262,4 +266,5 @@ export function cleanCfg(func: FuncEntry, context: Context) {
       }
     }
   });
+  setBanner(null);
 }

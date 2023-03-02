@@ -2,7 +2,7 @@ import assert from "node:assert";
 import * as crypto from "node:crypto";
 import { hasProperty } from "../ast";
 import { xmlUtil } from "../sdk-util";
-import { log, logger, wouldLog } from "../util";
+import { bumpLogging, log, logger, wouldLog } from "../util";
 import { fixupData } from "./data";
 import { emitFunc, UpdateInfo } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
@@ -70,11 +70,34 @@ export function fixSectionSize(
 
 export function optimizeBytecode(context: Context) {
   const functions = findFunctions(context);
+
+  const loggerFunc = process.env["MC_LOGGER_FUNC"]
+    ? new RegExp(process.env["MC_LOGGER_FUNC"])
+    : null;
+  const forEachFunction = (callback: (func: FuncEntry) => unknown) => {
+    if (!loggerFunc) {
+      functions.forEach(callback);
+      return;
+    }
+    bumpLogging(null, 10);
+    functions.forEach((func) => {
+      if (loggerFunc.test(func.name ?? "<null>")) {
+        bumpLogging(null, -10);
+        callback(func);
+        bumpLogging(null, 10);
+        return;
+      }
+      callback(func);
+    });
+    bumpLogging(null, -10);
+  };
   if (wouldLog("list-input", 1)) {
-    functions.forEach((func) => printFunction(func, context));
+    forEachFunction(
+      (func) => wouldLog("list-input", 1) && printFunction(func, context)
+    );
   }
 
-  functions.forEach((func) => optimizeFunc(func, context));
+  forEachFunction((func) => optimizeFunc(func, context));
 
   const code = context.sections[SectionKinds.TEXT].view;
   let offset = 0;
@@ -84,7 +107,7 @@ export function optimizeBytecode(context: Context) {
     lineMap: [],
   };
 
-  functions.forEach((func) => {
+  forEachFunction((func) => {
     if (!func.name) return;
     logger(
       "bytecode",
@@ -110,7 +133,9 @@ export function optimizeBytecode(context: Context) {
   fixSectionSize(SectionKinds.TEXT, context.sections, offset);
 
   if (wouldLog("list-output", 1)) {
-    functions.forEach((func) => printFunction(func, context));
+    forEachFunction(
+      (func) => wouldLog("list-output", 1) && printFunction(func, context)
+    );
   }
 
   fixupExceptions(context, offsetMap);
@@ -197,10 +222,28 @@ export function optimizeBytecode(context: Context) {
     });
 }
 
+export function functionBanner(
+  func: FuncEntry,
+  context: Context | null,
+  pass: string
+) {
+  return () =>
+    `================ ${pass} : ${
+      func.name
+    } ================\n${functionToString(func, context)}\n---------------- ${
+      func.name
+    } ----------------`;
+}
 export function printFunction(func: FuncEntry, context: Context | null) {
-  log(`${func.name ?? "<unknown>"}:`);
-  func.blocks.forEach((block) => log(blockToString(block, context)));
-  log(`${func.name ?? "<unknown>"}_end`);
+  log(functionToString(func, context));
+}
+
+export function functionToString(func: FuncEntry, context: Context | null) {
+  const parts: string[] = [];
+  parts.push(`${func.name ?? "<unknown>"}:`);
+  func.blocks.forEach((block) => parts.push(blockToString(block, context)));
+  parts.push(`${func.name ?? "<unknown>"}_end`);
+  return parts.join("\n");
 }
 
 export function blockToString(block: Block, context: Context | null) {
@@ -218,6 +261,9 @@ export function blockToString(block: Block, context: Context | null) {
       )}`
     );
   });
+  if (block.preds) {
+    log(`preds: ${Array.from(block.preds).map(offsetToString).join(" ")}`);
+  }
   block.bytecodes.forEach((bytecode) => {
     const lineInfo = bytecode.lineNum;
     if (lineInfo && (!lineNum || lineInfo.line !== lineNum.line)) {
@@ -254,7 +300,7 @@ export function bytecodeToString(
       if (argSym) {
         const symbol = symbolTable?.symbols.get(argSym);
         if (symbol) {
-          arg = symbol.str;
+          arg = `${symbol.str} (${bytecode.arg})`;
         }
       }
       break;
