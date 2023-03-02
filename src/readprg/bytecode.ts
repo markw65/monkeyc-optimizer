@@ -7,7 +7,7 @@ import { fixupData } from "./data";
 import { emitFunc, UpdateInfo } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
 import { fixupLineNum, LineNumber } from "./linenum";
-import { Bytecode, Opcodes } from "./opcodes";
+import { Bytecode, isCondBranch, Opcodes } from "./opcodes";
 import { optimizeFunc } from "./optimize";
 import { SymbolTable } from "./symbols";
 
@@ -512,9 +512,20 @@ export function equalBlocks(b1: Block, b2: Block) {
   });
 }
 
+export function removeBlock(func: FuncEntry, offset: number) {
+  const block = func.blocks.get(offset);
+  assert(block && !block.preds?.size);
+  block.next && removePred(func, block.next, block.offset);
+  block.taken && removePred(func, block.taken, block.offset);
+  block.exsucc && removePred(func, block.exsucc, block.offset);
+  func.blocks.delete(offset);
+}
+
 export function removePred(func: FuncEntry, target: number, pred: number) {
   const targetBlock = func.blocks.get(target)!;
-  assert(targetBlock.preds?.has(pred));
+  if (!targetBlock.preds?.has(pred)) {
+    assert(targetBlock.preds?.has(pred));
+  }
   targetBlock.preds!.delete(pred);
 }
 
@@ -563,16 +574,33 @@ export function redirect(
 }
 
 export function splitBlock(func: FuncEntry, block: Block, offset: number) {
+  const fixEx = (block: Block, isNew: boolean) => {
+    if (block.exsucc) {
+      if (
+        !block.bytecodes.some(
+          (bc) => bc.op === Opcodes.throw || bc.op === Opcodes.invokem
+        )
+      ) {
+        if (!isNew) {
+          removePred(func, block.exsucc, block.offset);
+        }
+        delete block.exsucc;
+      } else if (isNew) {
+        addPred(func, block.exsucc, block.offset);
+      }
+    }
+  };
   if (offset > 0) {
     assert(offset < block.bytecodes.length);
     const tail = block.bytecodes.splice(offset);
     const tailBlock: Block = {
+      ...block,
       bytecodes: tail,
       offset: tail[0].offset,
       preds: new Set([block.offset]),
-      next: block.next,
-      taken: block.taken,
     };
+    fixEx(block, false);
+    fixEx(tailBlock, true);
     func.blocks.set(tailBlock.offset, tailBlock);
     if (block.next != null) {
       const next = func.blocks.get(block.next)!;
@@ -590,6 +618,7 @@ export function splitBlock(func: FuncEntry, block: Block, offset: number) {
     assert(offset < 0 && offset + block.bytecodes.length > 0);
     const head = block.bytecodes.splice(0, block.bytecodes.length + offset);
     const headBlock: Block = {
+      ...block,
       bytecodes: head,
       offset: block.offset,
       preds: block.preds,
@@ -597,6 +626,9 @@ export function splitBlock(func: FuncEntry, block: Block, offset: number) {
     block.offset = block.bytecodes[0].offset;
     block.preds = new Set([headBlock.offset]);
     headBlock.next = block.offset;
+    delete headBlock.taken;
+    fixEx(block, true);
+    fixEx(headBlock, false);
 
     func.blocks.set(headBlock.offset, headBlock);
     func.blocks.set(block.offset, block);
@@ -611,4 +643,31 @@ export function splitBlock(func: FuncEntry, block: Block, offset: number) {
       taken.preds!.add(block.offset);
     }
   }
+}
+
+// Determine how many of a block's predecessors
+// rely on a fall through to get there.
+//
+// A predecessor that ends in a conditional branch,
+// where the other edge goes to a block with exactly
+// one pred doesn't count, because we can arrange
+// for that branch to fall through to its other pred,
+// and branch to this block.
+export function countFallthroughPreds(func: FuncEntry, block: Block) {
+  if (!block.preds || !block.preds.size) return 0;
+  return Array.from(block.preds).reduce((count, predOffset) => {
+    const pred = func.blocks.get(predOffset)!;
+    if (
+      !isCondBranch(
+        pred.bytecodes[pred.bytecodes.length - 1]?.op ?? Opcodes.nop
+      ) ||
+      (pred.taken !== block.offset &&
+        func.blocks.get(pred.taken!)!.preds!.size !== 1) ||
+      (pred.next !== block.offset &&
+        func.blocks.get(pred.next!)!.preds!.size !== 1)
+    ) {
+      count++;
+    }
+    return count;
+  }, 0);
 }
