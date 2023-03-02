@@ -419,22 +419,24 @@ export function findFunctions({
     functions.set(offset, f);
   }
 
+  const addPred = (
+    func: FuncEntry,
+    block: number,
+    succ: number | undefined
+  ) => {
+    if (succ != null) {
+      const next = func.blocks.get(succ)!;
+      if (!next.preds) next.preds = new Set();
+      next.preds.add(block);
+    }
+  };
+
   functions.forEach((func) => {
     let lineNum: LineNumber | null = null;
     func.blocks.forEach((block) => {
-      if (block.next) {
-        const next = func.blocks.get(block.next)!;
-        if (!next) {
-          assert(false);
-        }
-        if (!next.preds) next.preds = new Set();
-        next.preds.add(block.offset);
-      }
-      if (block.taken) {
-        const taken = func.blocks.get(block.taken)!;
-        if (!taken.preds) taken.preds = new Set();
-        taken.preds.add(block.offset);
-      }
+      addPred(func, block.offset, block.next);
+      addPred(func, block.offset, block.taken);
+      addPred(func, block.offset, block.exsucc);
       block.bytecodes.forEach((bc) => {
         if (bc.lineNum) {
           lineNum = bc.lineNum;
@@ -501,9 +503,66 @@ export function redirect(
     }
     changes = true;
   }
+  if (block.exsucc === from) {
+    assert(block.try);
+    block.try[block.try.length - 1].handler = to;
+    block.exsucc = to;
+    changes = true;
+  }
   if (changes) {
     removePred(func, from, block.offset);
     addPred(func, to, block.offset);
   }
   return changes;
+}
+
+export function splitBlock(func: FuncEntry, block: Block, offset: number) {
+  if (offset > 0) {
+    assert(offset < block.bytecodes.length);
+    const tail = block.bytecodes.splice(offset);
+    const tailBlock: Block = {
+      bytecodes: tail,
+      offset: tail[0].offset,
+      preds: new Set([block.offset]),
+      next: block.next,
+      taken: block.taken,
+    };
+    func.blocks.set(tailBlock.offset, tailBlock);
+    if (block.next != null) {
+      const next = func.blocks.get(block.next)!;
+      next.preds!.delete(block.offset);
+      next.preds!.add(tailBlock.offset);
+    }
+    block.next = tailBlock.offset;
+    if (block.taken != null) {
+      const taken = func.blocks.get(block.taken)!;
+      taken.preds!.delete(block.offset);
+      taken.preds!.add(tailBlock.offset);
+      delete block.taken;
+    }
+  } else {
+    assert(offset < 0 && offset + block.bytecodes.length > 0);
+    const head = block.bytecodes.splice(0, block.bytecodes.length + offset);
+    const headBlock: Block = {
+      bytecodes: head,
+      offset: block.offset,
+      preds: block.preds,
+    };
+    block.offset = block.bytecodes[0].offset;
+    block.preds = new Set([headBlock.offset]);
+    headBlock.next = block.offset;
+
+    func.blocks.set(headBlock.offset, headBlock);
+    func.blocks.set(block.offset, block);
+    if (block.next != null) {
+      const next = func.blocks.get(block.next)!;
+      next.preds!.delete(headBlock.offset);
+      next.preds!.add(block.offset);
+    }
+    if (block.taken != null) {
+      const taken = func.blocks.get(block.taken)!;
+      taken.preds!.delete(headBlock.offset);
+      taken.preds!.add(block.offset);
+    }
+  }
 }
