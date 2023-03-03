@@ -105,6 +105,7 @@ export function optimizeBytecode(context: Context) {
     offsetMap: new Map(),
     localsMap: new Map(),
     lineMap: [],
+    exceptionsMap: new Map(),
   };
 
   forEachFunction((func) => {
@@ -138,7 +139,7 @@ export function optimizeBytecode(context: Context) {
     );
   }
 
-  fixupExceptions(context, offsetMap);
+  fixupExceptions(context, updateInfo);
   fixupData(context, offsetMap);
   fixupLineNum(context, updateInfo);
   if (context.debugXml.body instanceof Error) {
@@ -363,7 +364,7 @@ export function findFunctions({
     }
   });
 
-  const exnStack: ExceptionEntry[] = [];
+  let exnStack: ExceptionEntry[] = [];
   const blocks = new Map<number, Block>();
   let start = 0;
   let mayThrow = false;
@@ -410,7 +411,7 @@ export function findFunctions({
         block.taken = taken;
       }
       if (exnStack.length) {
-        block.try = exnStack.slice();
+        block.try = exnStack;
         if (mayThrow) {
           block.exsucc = exnStack[exnStack.length - 1].handler;
         }
@@ -420,13 +421,13 @@ export function findFunctions({
         exnStack.length &&
         exnStack[exnStack.length - 1].tryEnd === nextBcOffset
       ) {
-        exnStack.pop();
+        exnStack = exnStack.slice(0, -1);
       }
       start = i + 1;
       mayThrow = false;
       const exnEntry = exceptionsMap.get(nextBcOffset);
       if (exnEntry) {
-        exnStack.push(...exnEntry);
+        exnStack = exnStack.concat(exnEntry);
       }
     }
   });

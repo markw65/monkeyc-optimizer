@@ -265,6 +265,30 @@ export function cleanCfg(func: FuncEntry, context: Context) {
         }
       }
     }
+    if (block.exsucc) {
+      const fixed = deadBlocks.get(block.exsucc);
+      if (fixed) {
+        redirect(func, block, block.exsucc, fixed);
+      }
+    } else if (block.try) {
+      for (let i = block.try.length; i--; ) {
+        const handler = block.try[i].handler;
+        if (!func.blocks.get(handler)!.preds?.size) {
+          logger(
+            "cfg",
+            1,
+            `${func.name}: killing unused try-catch at ${offsetToString(
+              block.offset
+            )} with handler at ${handler}`
+          );
+
+          block.try.splice(i, 1);
+        }
+      }
+      if (!block.try.length) {
+        delete block.try;
+      }
+    }
   });
   setBanner(null);
 }

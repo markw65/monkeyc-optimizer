@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { Context, fixSectionSize, SectionKinds } from "./bytecode";
+import { UpdateInfo } from "./emit";
 
 export type ExceptionEntry = {
   tryStart: number;
@@ -40,35 +41,25 @@ function read24(view: DataView, current: number) {
   );
 }
 
-export function fixupExceptions(
-  context: Context,
-  offsetMap: Map<number, number>
-) {
+export function fixupExceptions(context: Context, updateInfo: UpdateInfo) {
   const view = context.sections[SectionKinds.EXCEPTIONS].view;
+  const elems = updateInfo.exceptionsMap.size;
+  const sectionLength = 2 + 9 * elems;
+  assert(sectionLength <= view.byteLength);
 
-  let num = view.getUint16(0);
-  let readPos = 2;
-  let writePos = 2;
-  while (num--) {
-    const tryStart = read24(view, (readPos += 3) - 3);
-    const tryEnd = read24(view, (readPos += 3) - 3);
-    const handler = read24(view, (readPos += 3) - 3);
-
-    const newStart = offsetMap.get(tryStart);
-    if (newStart == null) continue;
-    const newEnd = offsetMap.get(tryEnd);
-    const newHandler = offsetMap.get(handler);
-    if (!newEnd || !newHandler) {
-      assert(newEnd != null && newHandler != null);
-    }
-    write24(view, (writePos += 3) - 3, newStart);
-    write24(view, (writePos += 3) - 3, newEnd);
-    write24(view, (writePos += 3) - 3, newHandler);
-  }
-  const elems = (writePos - 2) / 9;
   view.setUint16(0, elems);
+  let writePos = 2;
+  updateInfo.exceptionsMap.forEach((entries) =>
+    entries.forEach((entry) => {
+      const handler = updateInfo.offsetMap.get(entry.handler);
+      assert(handler != null);
+      write24(view, (writePos += 3) - 3, entry.tryStart);
+      write24(view, (writePos += 3) - 3, entry.tryEnd);
+      write24(view, (writePos += 3) - 3, handler);
+    })
+  );
 
-  fixSectionSize(SectionKinds.EXCEPTIONS, context.sections, writePos);
+  fixSectionSize(SectionKinds.EXCEPTIONS, context.sections, sectionLength);
 }
 
 function write24(view: DataView, current: number, value: number) {

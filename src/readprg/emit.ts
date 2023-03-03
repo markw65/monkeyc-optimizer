@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { hasProperty } from "../ast";
 import { Block, Context, FuncEntry } from "./bytecode";
-import { ExceptionEntry } from "./exceptions";
+import { ExceptionEntry, ExceptionsMap } from "./exceptions";
 import { LineNumber } from "./linenum";
 import { Bytecode, emitBytecode, Opcodes } from "./opcodes";
 import { cleanCfg } from "./optimize";
@@ -11,6 +11,7 @@ export type UpdateInfo = {
   offsetMap: Map<number, number>;
   localsMap: Map<FuncEntry, LocalsMap>;
   lineMap: LineNumber[];
+  exceptionsMap: ExceptionsMap;
 };
 
 export function emitFunc(
@@ -39,8 +40,34 @@ export function emitFunc(
       a.symbolStr === b.symbolStr
     );
   };
+  const exceptionStack: ExceptionEntry[] = [];
   Array.from(func.blocks.values()).forEach((block, i, blocks) => {
     offsetMap.set(block.offset, offset);
+    exceptionStack.forEach((entry) => (entry.tryEnd = offset));
+    if (block.try) {
+      let i;
+      for (i = 0; i < block.try.length; i++) {
+        const entry = block.try[i];
+        if (exceptionStack[i]?.handler !== entry.handler) {
+          exceptionStack.length = i;
+          const newEntry: ExceptionEntry = {
+            tryStart: offset,
+            tryEnd: offset,
+            handler: entry.handler,
+          };
+          const e = updateInfo.exceptionsMap.get(offset);
+          if (!e) {
+            updateInfo.exceptionsMap.set(offset, [newEntry]);
+          } else {
+            e.push(newEntry);
+          }
+          exceptionStack.push(newEntry);
+        }
+      }
+      exceptionStack.splice(i);
+    } else {
+      exceptionStack.length = 0;
+    }
     block.bytecodes.forEach((bytecode) => {
       if (bytecode.op === Opcodes.goto) {
         return;
@@ -68,10 +95,6 @@ export function emitFunc(
       }
       offset = emitBytecode(bytecode, view, offset, linktable);
     });
-    if (block.try) {
-      const end = block.try[block.try.length - 1].tryEnd;
-      offsetMap.set(end, offset);
-    }
     if (block.next != null && block.next !== blocks[i + 1]?.offset) {
       const bc: Bytecode = {
         op: Opcodes.goto,
@@ -82,6 +105,7 @@ export function emitFunc(
       offset = emitBytecode(bc, view, offset, linktable);
     }
   });
+  assert(exceptionStack.length === 0);
 
   localsMap.forEach((item, slot) => {
     if (slot < numArgs) {
