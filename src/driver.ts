@@ -547,41 +547,37 @@ export async function driver() {
             }
             logger(line);
           };
-          const serializePromise = serializeSim.promise
-            .then(() =>
-              process.platform === "darwin"
-                ? spawnByLine(
-                    "pkill",
-                    ["-f", "Contents/MacOS/simulator"],
-                    [logger, logger]
-                  ).catch(() => {
-                    /**/
-                  })
-                : Promise.resolve()
-            )
-            .then(() => launchSimulator(pass !== undefined))
-            .then(() =>
-              simulateProgram(
-                res.program,
-                res.product!,
-                pass === undefined ? testBuild : false,
-                [handler, handler]
-              )
-                .catch(() => null)
-                .then(() => {
-                  if (!pass) {
-                    const e: Error & { products?: string[] } = new Error(
-                      pass === false
-                        ? "Tests failed!"
-                        : "Tests didn't report their status!"
-                    );
-                    if (res.product) {
-                      e.products = [res.product];
-                    }
-                    throw e;
-                  }
-                })
+          const sim = () =>
+            trySim(
+              res.program,
+              res.product!,
+              pass === undefined ? testBuild : false,
+              handler
             );
+          const serializePromise = serializeSim.promise
+            .then(sim)
+            .catch((e) => {
+              handler(`\n\n\nSimulate program failed: ${e}\n\n\nRetrying...\n`);
+              return sim();
+            })
+            .catch((e) => {
+              handler(`\n\n\nSimulate program failed: ${e}\n\n\nRetrying...\n`);
+              return sim();
+            })
+            .catch((e) => handler(`Simulate program failed: ${e}`))
+            .then(() => {
+              if (!pass) {
+                const e: Error & { products?: string[] } = new Error(
+                  pass === false
+                    ? "Tests failed!"
+                    : "Tests didn't report their status!"
+                );
+                if (res.product) {
+                  e.products = [res.product];
+                }
+                throw e;
+              }
+            });
 
           serializeSim.promise = serializePromise.catch(() => {
             // swallow the failure so the next simulator
@@ -711,4 +707,27 @@ function reportDiagnostics(
     throw new Error("'ERROR' level diagnostics were reported");
   }
   return null;
+}
+
+function trySim(
+  program: string,
+  product: string,
+  runTests: boolean | string,
+  handler: (line: string) => void
+) {
+  return (
+    process.platform === "darwin"
+      ? spawnByLine(
+          "pkill",
+          ["-f", "Contents/MacOS/simulator"],
+          [handler, handler]
+        ).catch(() => {
+          /**/
+        })
+      : Promise.resolve()
+  )
+    .then(() => launchSimulator(!runTests))
+    .then(() =>
+      simulateProgram(program, product!, runTests, [handler, handler])
+    );
 }

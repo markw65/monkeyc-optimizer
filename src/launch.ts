@@ -25,7 +25,7 @@ export async function launchSimulator(force = true): Promise<void> {
     child.unref();
     for (let i = 0; ; i++) {
       if (await checkIfSimulatorRunning()) return;
-      if (i === 5) return;
+      if (i === 10) return;
       await new Promise((r) => setTimeout(r, 200));
     }
   } catch (e) {
