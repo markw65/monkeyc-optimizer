@@ -1,9 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { fileURLToPath } from "url";
 import { globa, promiseAll, spawnByLine } from "./util";
 import { BuildConfig } from "./optimizer-types";
-//const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export type RemoteProject =
   | string
@@ -226,7 +224,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/myneur/late",
     options: { compilerOptions: "--Eno-invalid-symbol" },
-    include: "monkey.jungle",
+    include: "test.jungle",
     test: true,
   },
   { root: "https://github.com/okdar/smartarcs", test: true },
