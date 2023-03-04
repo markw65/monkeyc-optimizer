@@ -1,14 +1,18 @@
 import assert from "node:assert";
 import { log, logger, setBanner, wouldLog } from "../util";
 import {
+  addPred,
   Block,
+  blockToString,
   bytecodeToString,
   Context,
+  countFallthroughPreds,
   FuncEntry,
   functionBanner,
   makeArgless,
   offsetToString,
   redirect,
+  removeBlock,
 } from "./bytecode";
 import { localDCE } from "./dce";
 import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
@@ -223,54 +227,115 @@ export function cleanCfg(func: FuncEntry, context: Context) {
       deadBlocks.set(block.offset, block.next!);
     }
   });
-  deadBlocks.forEach((target, key) => {
-    let next = deadBlocks.get(target);
-    if (next != null) {
-      do {
-        deadBlocks.set(key, next);
-        next = deadBlocks.get(next);
-      } while (next);
-    }
-  });
+  if (deadBlocks.size) {
+    deadBlocks.forEach((target, key) => {
+      let next = deadBlocks.get(target);
+      if (next != null) {
+        do {
+          deadBlocks.set(key, next);
+          next = deadBlocks.get(next);
+        } while (next);
+      }
+    });
+    func.blocks.forEach((block) => {
+      if (block.next) {
+        const fixed = deadBlocks.get(block.next);
+        if (fixed) {
+          redirect(func, block, block.next, fixed);
+        }
+      }
+      if (block.taken) {
+        const fixed = deadBlocks.get(block.taken);
+        if (fixed) {
+          redirect(func, block, block.taken, fixed);
+        }
+      }
+      if (block.exsucc) {
+        const fixed = deadBlocks.get(block.exsucc);
+        if (fixed) {
+          redirect(func, block, block.exsucc, fixed);
+        }
+      }
+    });
+    deadBlocks.forEach((target, offset) => {
+      removeBlock(func, offset);
+    });
+  }
   func.blocks.forEach((block) => {
-    if (block.next) {
-      const fixed = deadBlocks.get(block.next);
-      if (fixed) {
-        redirect(func, block, block.next, fixed);
-      }
-    }
-    if (block.taken) {
-      const fixed = deadBlocks.get(block.taken);
-      if (fixed) {
-        redirect(func, block, block.taken, fixed);
-      }
-      if (block.taken === block.next) {
-        const last = block.bytecodes[block.bytecodes.length - 1];
-        switch (last.op) {
-          case Opcodes.bf:
-          case Opcodes.bt:
-            logger(
-              "cfg",
-              1,
-              `${func.name}: killing no-op ${bytecodeToString(
-                last,
-                context.symbolTable
-              )}`
-            );
-            makeArgless(last, Opcodes.popv);
-            delete block.taken;
-            break;
-          default:
-            assert(false);
+    if (block.next && !block.taken && block.next !== block.offset) {
+      const next = func.blocks.get(block.next)!;
+      if (block.try === next.try) {
+        if (next.preds!.size === 1) {
+          logger(
+            "cfg",
+            1,
+            `${func.name}: ${offsetToString(
+              block.offset
+            )}: Merging linear blocks: ${blockToString(next, context)}`
+          );
+
+          block.bytecodes.push(...next.bytecodes);
+          redirect(func, block, next.offset, next.next);
+          if (next.taken) {
+            block.taken = next.taken;
+            addPred(func, next.taken, block.offset);
+          }
+          if (next.exsucc) {
+            assert(!block.exsucc || block.exsucc === next.exsucc);
+            if (!block.exsucc) {
+              block.exsucc = next.exsucc;
+              addPred(func, next.exsucc, block.offset);
+            }
+          }
+          delete next.preds;
+          removeBlock(func, next.offset);
+        } else if (
+          next.next == null &&
+          next.bytecodes.length < 3 &&
+          next.bytecodes.reduce((size, bc) => size + bc.size, 0) < 3 &&
+          countFallthroughPreds(func, next) > 1
+        ) {
+          logger(
+            "cfg",
+            1,
+            `${func.name}: ${offsetToString(
+              block.offset
+            )}: Merging short fallthrough block: ${blockToString(
+              next,
+              context
+            )}`
+          );
+          let offset = context.nextOffset;
+          next.bytecodes.forEach((bc) => {
+            block.bytecodes.push({ ...bc, offset });
+            offset += bc.size;
+          });
+          context.nextOffset = offset;
+          redirect(func, block, next.offset, null);
         }
       }
     }
-    if (block.exsucc) {
-      const fixed = deadBlocks.get(block.exsucc);
-      if (fixed) {
-        redirect(func, block, block.exsucc, fixed);
+    if (block.taken && block.taken === block.next) {
+      const last = block.bytecodes[block.bytecodes.length - 1];
+      switch (last.op) {
+        case Opcodes.bf:
+        case Opcodes.bt:
+          logger(
+            "cfg",
+            1,
+            `${func.name}: killing no-op ${bytecodeToString(
+              last,
+              context.symbolTable
+            )}`
+          );
+          makeArgless(last, Opcodes.popv);
+          delete block.taken;
+          break;
+        default:
+          assert(false);
       }
-    } else if (block.try) {
+    }
+    if (block.try && !block.exsucc) {
       for (let i = block.try.length; i--; ) {
         const handler = block.try[i].handler;
         if (!func.blocks.get(handler)!.preds?.size) {

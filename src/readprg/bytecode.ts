@@ -33,6 +33,7 @@ export type Context = {
   bytecodes: Bytecode[];
   key?: crypto.KeyObject;
   debugXml: xmlUtil.Document;
+  nextOffset: number;
 };
 
 export type Block = {
@@ -540,28 +541,37 @@ export function redirect(
   func: FuncEntry,
   block: Block,
   from: number,
-  to: number
+  to: number | null | undefined
 ) {
   let changes = false;
   if (block.next === from) {
-    block.next = to;
+    if (to) {
+      block.next = to;
+    } else {
+      delete block.next;
+    }
     changes = true;
   }
   if (block.taken === from) {
-    block.taken = to;
-    const last = block.bytecodes[block.bytecodes.length - 1];
-    switch (last.op) {
-      case Opcodes.bt:
-      case Opcodes.bf:
-      case Opcodes.jsr:
-        last.arg = to;
-        break;
-      default:
-        assert(false);
+    if (to) {
+      block.taken = to;
+      const last = block.bytecodes[block.bytecodes.length - 1];
+      switch (last.op) {
+        case Opcodes.bt:
+        case Opcodes.bf:
+        case Opcodes.jsr:
+          last.arg = to;
+          break;
+        default:
+          assert(false);
+      }
+    } else {
+      delete block.taken;
     }
     changes = true;
   }
   if (block.exsucc === from) {
+    assert(to);
     assert(block.try);
     block.try[block.try.length - 1].handler = to;
     block.exsucc = to;
@@ -569,7 +579,9 @@ export function redirect(
   }
   if (changes) {
     removePred(func, from, block.offset);
-    addPred(func, to, block.offset);
+    if (to) {
+      addPred(func, to, block.offset);
+    }
   }
   return changes;
 }
