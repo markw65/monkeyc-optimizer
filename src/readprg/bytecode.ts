@@ -354,7 +354,7 @@ export function findFunctions({
         bytecodes: bytecodes.slice(start, i + 1),
         offset,
       };
-      if (i && bytecode.op === Opcodes.goto) {
+      if (bytecode.op === Opcodes.goto) {
         block.bytecodes.pop();
       }
       if (next != null) {
