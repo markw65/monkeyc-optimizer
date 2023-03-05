@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { log, logger, setBanner, wouldLog } from "../util";
+import { optimizeArrayInit } from "./array-init";
 import {
   addPred,
   Block,
@@ -28,7 +29,7 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
   } while (changes);
 }
 
-function simpleOpts(func: FuncEntry, _context: Context) {
+function simpleOpts(func: FuncEntry, context: Context) {
   const logging = wouldLog("optimize", 5);
   return Array.from(func.blocks.values()).reduce((changes, block) => {
     for (let i = block.bytecodes.length; i--; ) {
@@ -47,6 +48,8 @@ function simpleOpts(func: FuncEntry, _context: Context) {
             );
           }
         }
+      } else if (cur.op === Opcodes.newa) {
+        changes = optimizeArrayInit(func, block, i, context) || changes;
       } else if (i && cur.op === Opcodes.shlv) {
         const prev = block.bytecodes[i - 1];
         if (prev.op === Opcodes.ipush || prev.op === Opcodes.lpush) {
