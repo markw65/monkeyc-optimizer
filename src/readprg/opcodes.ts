@@ -711,6 +711,8 @@ export function isBoolOp(op: Opcodes) {
     case Opcodes.lte:
     case Opcodes.gt:
     case Opcodes.gte:
+    case Opcodes.isa:
+    case Opcodes.canhazplz:
       return true;
   }
   return false;
