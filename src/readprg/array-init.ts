@@ -1,7 +1,8 @@
 import assert from "node:assert";
-import { logger } from "../util";
+import { log, logger, wouldLog } from "../util";
 import {
   Block,
+  blockToString,
   Context,
   FuncEntry,
   offsetToString,
@@ -123,7 +124,8 @@ export function optimizeArrayInit(
 ) {
   assert(block.bytecodes[index].op === Opcodes.newa);
   const putvStarts: number[] = [];
-  for (let i = index; ++i < block.bytecodes.length - 1; ) {
+  let i: number;
+  for (i = index; ++i < block.bytecodes.length - 1; ) {
     const dup = block.bytecodes[i];
     if (dup.op !== Opcodes.dup || dup.arg !== 0) {
       break;
@@ -150,9 +152,45 @@ export function optimizeArrayInit(
     putvStarts.push(i);
     i = found;
   }
+  if (block.bytecodes[i]?.op === Opcodes.popv) {
+    // dce can't quite handle this case on its own,
+    // so delete all the array dups, and ipushes,
+    // and convert the aputvs to popv.
+    const convertAputv = (i: number) => {
+      const bc = block.bytecodes[i];
+      const op = bc.op;
+      bc.op = Opcodes.popv;
+      bc.size = 1;
+      delete bc.arg;
+      assert(op === Opcodes.aputv);
+    };
+    convertAputv(i - 1);
+    for (i = putvStarts.length; i--; ) {
+      const offset = putvStarts[i];
+      block.bytecodes.splice(offset, 2);
+      if (i) {
+        convertAputv(offset - 1);
+      }
+    }
+    logger(
+      "array-init",
+      1,
+      `Optimizing unused ${
+        putvStarts.length
+      } element array init at block ${offsetToString(
+        block.offset
+      )}, starting at index ${index}, at offset ${offsetToString(
+        block.bytecodes[index].offset
+      )}`
+    );
+    if (wouldLog("array-init", 5)) {
+      log(blockToString(block, context));
+    }
+    return true;
+  }
   if (putvStarts.length < 4) return false;
   // delete each "dup 0; ipush <n>" pair except the first one
-  for (let i = putvStarts.length; i-- > 1; ) {
+  for (i = putvStarts.length; i-- > 1; ) {
     block.bytecodes.splice(putvStarts[i], 2);
   }
   logger(
