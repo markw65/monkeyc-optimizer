@@ -452,7 +452,7 @@ export async function driver() {
                     ]);
                   }
                 )
-                .then(([res]) => showInfoFn(res))
+                .then(([res]) => (postOptimize ? showInfoFn(res) : res))
                 .then((res) => {
                   return Promise.all([
                     postOptimize
