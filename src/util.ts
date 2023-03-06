@@ -196,7 +196,6 @@ export async function promiseAll<T>(
   parallelism: number
 ) {
   parallelism = parallelism || 4;
-  const serializer = [];
   const results: T[] = [];
   let done = false;
   let i = 0;
@@ -214,6 +213,7 @@ export async function promiseAll<T>(
       })
       .then(next);
   };
+  const serializer: ReturnType<typeof next>[] = [];
   while (i < parallelism) {
     serializer.push(next());
   }
