@@ -737,3 +737,24 @@ Bug Fixes
 
 - Source to Source Optimizer improvements
   - Adds an `Iterate Optimizer` option that causes the optimizer to keep re-running until it finds nothing to remove. Defaults to false.
+
+### 1.1.16
+
+- Project infrastructure
+
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.46](https://github.com/markw65/prettier-plugin-monkeyc#1046)
+    - no functional change.
+  - switch from webpack to esbuild, for faster builds, and better packaging.
+  - mark the package as `commonjs` so that prettier-extension-monkeyc can set `moduleResolution: nodenext`
+
+- Optimizations
+  - Make local dce smarter
+    - all locals are dead at function exits
+  - Make block sharing smarter
+    - allow partial blocks to be merged
+    - better heuristics for when its advantageous to merge small blocks
+  - Better control flow optimizations
+    - Merge "linear" blocks, where the first has a single successor, and the second has a single predecessor
+    - Avoid `goto` when the target is fewer than 3 bytes
+  - Optimize array initialization by using a loop
+  - Identify arrays that are unused, and make it possible for dce to clean up their initializers.
