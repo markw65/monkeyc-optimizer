@@ -1,7 +1,7 @@
 import * as path from "path";
-import { getSdkPath, isWin } from "./sdk-util";
-import { spawnByLine } from "./util";
 import { BuildConfig } from "./optimizer-types";
+import { getSdkPath } from "./sdk-util";
+import { spawnByLine } from "./util";
 
 export async function build_project(
   product: string | null,
@@ -62,8 +62,11 @@ export async function build_project(
   if (!program || !jungleFiles || !developerKeyPath || !workspace) {
     throw new Error("Required arguments were missing!");
   }
-  const exe = path.resolve(sdk, "bin", isWin ? "monkeyc.bat" : "monkeyc");
+  const exe = "java";
   const args = [
+    ["-Xms1g", "-Dfile.encoding=UTF-8", "-Dapple.awt.UIElement=true"],
+    ["-cp", path.resolve(sdk, "bin", "monkeybrains.jar")],
+    ["com.garmin.monkeybrains.Monkeybrains"],
     ["-o", program],
     ["-f", jungleFiles],
     ["-y", developerKeyPath],
