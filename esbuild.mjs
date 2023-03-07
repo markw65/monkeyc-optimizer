@@ -201,13 +201,14 @@ function spawnByLine(command, args, lineHandler, options) {
   });
 }
 
+const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const tscCommand = ["tsc", "--emitDeclarationOnly", "--outDir", "build/src"];
 
 if (process.argv.includes("--watch")) {
   const ctx = await esbuild.context(esmConfig);
   await Promise.all([
     ctx.watch(),
-    spawnByLine("npx", tscCommand.concat("--watch"), (line) =>
+    spawnByLine(npx, tscCommand.concat("--watch"), (line) =>
       // tsc in watch mode does ESC-c to clear the screen
       // eslint-disable-next-line no-control-regex
       console.log(line.replace(/[\x1b]c/g, ""))
@@ -216,7 +217,7 @@ if (process.argv.includes("--watch")) {
 } else {
   await Promise.all([
     esbuild.build(esmConfig),
-    spawnByLine("npx", tscCommand, (line) => console.log(line)).then(() => {
+    spawnByLine(npx, tscCommand, (line) => console.log(line)).then(() => {
       console.log(`${new Date().toLocaleString()} - tsc end`);
     }),
   ]);
