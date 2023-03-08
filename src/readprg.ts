@@ -60,10 +60,11 @@ export async function optimizeProgram(
   if (/\.iq$/i.test(filepath)) {
     return optimizePackage(filepath, devKey, output);
   }
+  const removeExt = (filepath: string, ext: string) =>
+    path.join(path.dirname(filepath), path.basename(filepath, ext));
+
   if (!output) {
-    output =
-      path.join(path.dirname(filepath), path.basename(filepath, ".prg")) +
-      ".opt.prg";
+    output = removeExt(filepath, ".prg") + ".opt.prg";
   }
 
   const xmlBytes = await fs.readFile(filepath + ".debug.xml").catch(() => "");
@@ -78,12 +79,29 @@ export async function optimizeProgram(
     debugXml,
     key
   );
-  await fs.writeFile(output, buffer);
+  const promises: Promise<unknown>[] = [];
+  promises.push(fs.writeFile(output, buffer));
 
   if (!(debugXml.body instanceof Error)) {
     const contents = Buffer.from(xmlUtil.writeXml(debugXml));
-    await fs.writeFile(output + ".debug.xml", contents);
+    promises.push(fs.writeFile(output + ".debug.xml", contents));
   }
+  const jsonIn = removeExt(filepath, ".prg");
+  const jsonOut = removeExt(output, ".prg");
+  promises.push(
+    fs
+      .readFile(jsonIn + "-settings.json")
+      .then((data) => fs.writeFile(jsonOut + "-settings.json", data))
+      .catch(() => "")
+  );
+  promises.push(
+    fs
+      .readFile(jsonIn + "-fit_contributions.json")
+      .then((data) => fs.writeFile(jsonOut + "-fit_contributions.json", data))
+      .catch(() => "")
+  );
+
+  await Promise.all(promises);
 
   return { signature, output };
 }
