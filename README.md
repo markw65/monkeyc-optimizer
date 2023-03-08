@@ -759,7 +759,7 @@ Bug Fixes
   - Optimize array initialization by using a loop
   - Identify arrays that are unused, and make it possible for dce to clean up their initializers.
 
-### 1.1.16
+### 1.1.17 (this package is missing two files)
 
 - Project infrastructure
 
@@ -767,3 +767,7 @@ Bug Fixes
 
 - Bug fixes
   - When running the post build optimizer, the `*-settings.json` and `*-fit_contributions.json` need to be generated too.
+
+### 1.1.18
+
+- add missing `worker-thread.cjs` and `worker-pool.cjs` files to the package.
