@@ -60,7 +60,7 @@ More fixes found via open source projects.
 
 - Improvements
 
-  - Update to @markw65/prettier-plugin-monkeyc:1.0.14
+  - Update to `@markw65/prettier-plugin-monkeyc:1.0.14`
   - Parse and respect \<build\> instructions in resource files
   - Add minimal barrel support
   - Better checking for whether the optimized source is up to date
@@ -87,7 +87,7 @@ More fixes found via open source projects.
 
 - Only generate the parts of the jungle we're going to use
 - Also publish sdk-util.cjs
-- Bump to @markw65/prettier-plugin-monkeyc:1.0.15
+- Bump to `@markw65/prettier-plugin-monkeyc:1.0.15`
   - Fixes a bug that dropped attributes on modules
 - LiteralIntegerRe should be case insensitive
 - Proper fix for promiseAll
@@ -98,7 +98,7 @@ More fixes found via open source projects.
 - Add --execute option to test.js to run the projects after building them
 - Add support for optimizing barrels
 - Add some typing via jsdoc, and turn on ts validation in vscode
-- Bump to @markw65/prettier-plugin-monkeyc:1.0.16 so ts recognizes its exports
+- Bump to `@markw65/prettier-plugin-monkeyc:1.0.16` so ts recognizes its exports
 - Add [garmin/connectiq-apps](https://github.com/garmin/connectiq-apps) and fix some minor issues it revealed
 
 ### 1.0.11
@@ -106,7 +106,7 @@ More fixes found via open source projects.
 - Improvements
 
   - Add option to run tests (for projects that have them)
-  - Add getProjectAnalysis api, to support various language features in @markw65/prettier-extension-monkeyc
+  - Add getProjectAnalysis api, to support various language features in `@markw65/prettier-extension-monkeyc`
 
 - Bug fixes
 
@@ -118,7 +118,7 @@ More fixes found via open source projects.
     - The project was becoming hard to maintain due to too much ad-hoc dynamic typing. This should allow easier/safer refactors and code cleanup.
   - Refactoring to make analysis available in prettier-extension-monkeyc
   - Generate .d.ts, and drop unneeded paths/resolve.alias
-  - Pull in a typed version of @markw65/prettier-plugin-monkeyc
+  - Pull in a typed version of `@markw65/prettier-plugin-monkeyc`
 
 ### 1.0.12
 
@@ -134,7 +134,7 @@ More fixes found via open source projects.
 
 - Code cleanup
 
-  - Update to @markw65/prettier-plugin-monkeyc@1.0.20 for mctree fixes
+  - Update to `@markw65/prettier-plugin-monkeyc@1.0.20` for mctree fixes
   - Enable typescript strict checks
   - Turn off synthetic default imports, and fix issues
   - Better manifest typing
@@ -151,7 +151,7 @@ More fixes found via open source projects.
   - Remove comments that are completely contained within removed nodes
 
 - Code cleanup
-  - Upgrade to @markw65/prettier-plugin-monkeyc@1.0.21 for some typescript fixes
+  - Upgrade to `@markw65/prettier-plugin-monkeyc@1.0.21` for some typescript fixes
   - npm upgrade to pickup ts 4.7.2
   - Add types to package exports for ts 4.7.2
   - Better handling of program-logic errors
@@ -201,7 +201,7 @@ More fixes found via open source projects.
 
 ### 1.0.19
 
-- Upgrade to @markw65/prettier-plugin-monkeyc@1.0.22
+- Upgrade to `@markw65/prettier-plugin-monkeyc@1.0.22`
 
   - fixes some minor typing issues for mctree
   - special handling for certain parenthesized expressions.
@@ -219,7 +219,7 @@ More fixes found via open source projects.
 
 - Code cleanup
   - Properly type the results of JSON.parse
-  - Switch over to using ParenthesizedExpression for formatAst (depends on @markw65/prettier-plugin-monkeyc@1.0.22)
+  - Switch over to using ParenthesizedExpression for formatAst (depends on `@markw65/prettier-plugin-monkeyc@1.0.22`)
 
 ### 1.0.20
 
@@ -241,7 +241,7 @@ More fixes found via open source projects.
 - Bug fixes
 
   - Parameters from the calling function should be treated just line locals when inlining
-  - Upgrade to @markw65/prettier-plugin-monkeyc@1.0.24
+  - Upgrade to `@markw65/prettier-plugin-monkeyc@1.0.24`
     - fixes crash with comments following an attribute: `(:foo) /* comment */ function foo() {}`
   - Fix issues with recursive inlining
 
@@ -306,7 +306,7 @@ More fixes found via open source projects.
 
 ### 1.0.29
 
-- Update to @markw65/prettier-plugin-monkeyc@1.0.32
+- Update to `@markw65/prettier-plugin-monkeyc@1.0.32`
 
   - Fixes a parser issue where `x as Type ? a : b` would be parsed as `(x as Type?) a : b` which would then be reported as a syntax error.
 
@@ -758,3 +758,12 @@ Bug Fixes
     - Avoid `goto` when the target is fewer than 3 bytes
   - Optimize array initialization by using a loop
   - Identify arrays that are unused, and make it possible for dce to clean up their initializers.
+
+### 1.1.16
+
+- Project infrastructure
+
+  - Use worker threads to speed up exporting a .iq file. With an 8 core (16 with hyperthreading) system, my project goes from taking 28 seconds to generate the optimized source to less than 10. It still takes garmin's compiler nearly 3 minutes to compile though.
+
+- Bug fixes
+  - When running the post build optimizer, the `*-settings.json` and `*-fit_contributions.json` need to be generated too.
