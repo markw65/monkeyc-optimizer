@@ -55,6 +55,7 @@ import {
   globa,
   last_modified,
 } from "./util";
+import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
@@ -345,6 +346,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
     };
   }
   let dropBarrels = false;
+  let configsToBuild = 0;
   const configKey = (p: Target) =>
     p.group!.key + (config.releaseBuild ? "-release" : "-debug");
   targets.forEach((p) => {
@@ -378,6 +380,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
       if (!buildConfigs[key]) {
         buildConfigs[key] = p.group.optimizerConfig;
         products[key] = [];
+        configsToBuild++;
       }
       products[key].push(p.product);
     }
@@ -398,187 +401,212 @@ export async function generateOptimizedProject(options: BuildConfig) {
     !dropBarrels;
   let hasTests = false;
   let diagnostics: NonNullable<ProgramState["diagnostics"]> = {};
-  const promises = Object.keys(buildConfigs)
-    .sort()
-    .map((key) => {
-      const buildConfig = buildConfigs[key];
-      const outputPath = path.join(config.outputPath!, key);
-
-      return buildConfig
-        ? generateOneConfig(buildConfig, xml, dependencyFiles, {
-            ...config,
-            outputPath,
-          })
-            .catch((e) => {
-              if (!e.stack) {
-                e = new Error(e.toString());
-              }
-              e.products = products[key];
-              throw e;
-            })
-            .then((t) => {
-              if (t.hasTests) hasTests = true;
-              if (t.diagnostics) {
-                diagnostics = { ...diagnostics, ...t.diagnostics };
-              }
-            })
-        : fs.rm(path.resolve(workspace, outputPath), {
-            recursive: true,
-            force: true,
-          });
-    });
-
-  if (!manifestOk) {
-    if (dropBarrels) {
-      manifestDropBarrels(xml);
-    }
-    const manifestFile = path.join(jungle_dir, "manifest.xml");
-    promises.push(writeManifest(manifestFile, xml));
-    relative_manifest = "manifest.xml";
-  }
-
-  const parts = [`project.manifest=${relative_manifest}`];
-  const map_field = <T extends string>(
-    base: { [k in T]?: string[] },
-    name: T,
-    mapper: ((s: string) => string) | null = null
-  ) => {
-    const obj = base[name];
-    if (!obj) return null;
-    const map_one = (s: string) => (mapper ? mapper(s) : s);
-    const map = (s: string | string[]) =>
-      Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
-    return `${obj.map(map).join(";")}`;
-  };
-  const process_field = <T extends string>(
-    prefix: string,
-    base: { [k in T]?: string[] },
-    name: T,
-    mapper: ((s: string) => string) | null = null
-  ) => {
-    const mapped = map_field(base, name, mapper);
-    if (!mapped) return;
-    parts.push(`${prefix}${name} = ${mapped}`);
-  };
-  const languagesToInclude = Object.fromEntries(
-    (manifestLanguages(xml) || []).map((lang) => [lang, true] as const)
-  );
-  const unsupportedLangsCache: Record<string, string> = {};
-  let availableDefaults: string[] | null = null;
-  const nextAvailableDefault = () => {
-    if (!availableDefaults) {
-      availableDefaults = Object.keys(
-        Object.values(devices).reduce((m, d) => {
-          m[d.deviceFamily] = true;
-          const match = d.deviceFamily.match(/^(\w+)-\d+x\d+/);
-          if (match) m[match[1]] = true;
-          return m;
-        }, {} as Record<string, true>)
-      ).sort();
-      availableDefaults.unshift("base");
-    }
-    return availableDefaults.shift();
-  };
-  targets.forEach((target) => {
-    if (!buildConfigs[configKey(target)]) return;
-    const { product, qualifier, group } = target;
-    if (!group) {
-      throw new Error(`Missing group in target ${target.product}`);
-    }
-    const prefix = `${product}.`;
-    process_field(prefix, qualifier, "sourcePath", (s) =>
-      path
-        .join(
-          group.dir!,
-          "source",
-          relative_path_no_dotdot(path.relative(workspace, s))
-        )
-        .replace(/([\\/]\*\*)[\\/]\*/g, "$1")
-    );
-    if (group.optimizerConfig.optBarrels) {
-      parts.push(
-        `${prefix}barrelPath = ${Object.values(group.optimizerConfig.optBarrels)
-          .map(
-            (value) =>
-              `[${value.jungleFiles
-                .map((j) => relative_path(path.join(value.optBarrelDir, j)))
-                .join(";")}]`
-          )
-          .join(";")}`
-      );
-    }
-    if (group.optimizerConfig.barrelMap) {
-      parts.push(
-        `${prefix}sourcePath = ${[`$(${prefix}sourcePath)`]
-          .concat(
-            Object.entries(group.optimizerConfig.barrelMap)
-              .map(([barrel, resolvedBarrel]) => {
-                const root = path.dirname(resolvedBarrel.jungles[0]);
-                return (resolvedBarrel.qualifier.sourcePath || []).map((s) =>
-                  path
-                    .join(group.dir!, "barrels", barrel, path.relative(root, s))
-                    .replace(/([\\/]\*\*)[\\/]\*/g, "$1")
-                );
-              })
-              .flat()
-              .sort()
-              .filter((s, i, arr) => !i || s !== arr[i - 1])
-          )
-          .join(";")}`
-      );
-    }
-    // annotations were handled via source transformations.
-    process_field(prefix, qualifier, "resourcePath", relative_path);
-    process_field(prefix, qualifier, "excludeAnnotations");
-    const qlang = qualifier.lang;
-    if (qlang) {
-      const devLang = devices[product].languages;
-      const unsupportedLangs = Object.keys(qlang)
-        .sort()
-        .map((key) => {
-          if (
-            hasProperty(devLang, key) ||
-            !hasProperty(languagesToInclude, key)
-          ) {
-            return null;
-          }
-          const mapped = map_field(qlang, key, relative_path);
-          if (!mapped) return null;
-          return [key, mapped] as const;
-        })
-        .filter((a): a is NonNullable<typeof a> => a != null);
-      let keysToSkip: Record<string, string> | null = null;
-      if (unsupportedLangs.length) {
-        const key = JSON.stringify(unsupportedLangs);
-        if (!hasProperty(unsupportedLangsCache, key)) {
-          const base = nextAvailableDefault();
-          if (base) {
-            unsupportedLangs.forEach(([key, value]) =>
-              parts.push(`${base}.lang.${key} = ${value}`)
-            );
-            unsupportedLangsCache[key] = `${base}.lang`;
-          }
-        }
-        if (hasProperty(unsupportedLangsCache, key)) {
-          keysToSkip = Object.fromEntries(unsupportedLangs);
-          parts.push(`${prefix}lang = $(${unsupportedLangsCache[key]})`);
-        }
-      }
-      Object.keys(qlang).forEach((key) => {
-        hasProperty(keysToSkip, key) ||
-          !hasProperty(languagesToInclude, key) ||
-          process_field(`${prefix}lang.`, qlang, key, relative_path);
-      });
-    }
-  });
-
   const jungleFiles = path.join(
     jungle_dir,
     `${config.releaseBuild ? "release" : "debug"}.jungle`
   );
-  promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
+  let poolStarted;
+  try {
+    if (configsToBuild > 1) {
+      poolStarted = startPool();
+    }
+    const promises = Object.keys(buildConfigs)
+      .sort()
+      .map((key) => {
+        const buildConfig = buildConfigs[key];
+        const outputPath = path.join(config.outputPath!, key);
 
-  await Promise.all(promises);
+        return buildConfig
+          ? runTaskInPool({
+              type: "generateOneConfig",
+              data: {
+                buildConfig,
+                manifestXML: xml,
+                dependencyFiles,
+                config: {
+                  ...config,
+                  outputPath,
+                },
+              },
+            })
+              .catch((e) => {
+                if (!e.stack) {
+                  e = new Error(e.toString());
+                }
+                e.products = products[key];
+                throw e;
+              })
+              .then((t) => {
+                if (t.hasTests) hasTests = true;
+                if (t.diagnostics) {
+                  diagnostics = { ...diagnostics, ...t.diagnostics };
+                }
+              })
+          : fs.rm(path.resolve(workspace, outputPath), {
+              recursive: true,
+              force: true,
+            });
+      });
+
+    if (!manifestOk) {
+      if (dropBarrels) {
+        manifestDropBarrels(xml);
+      }
+      const manifestFile = path.join(jungle_dir, "manifest.xml");
+      promises.push(writeManifest(manifestFile, xml));
+      relative_manifest = "manifest.xml";
+    }
+
+    const parts = [`project.manifest=${relative_manifest}`];
+    const map_field = <T extends string>(
+      base: { [k in T]?: string[] },
+      name: T,
+      mapper: ((s: string) => string) | null = null
+    ) => {
+      const obj = base[name];
+      if (!obj) return null;
+      const map_one = (s: string) => (mapper ? mapper(s) : s);
+      const map = (s: string | string[]) =>
+        Array.isArray(s) ? `[${s.map(map_one).join(";")}]` : map_one(s);
+      return `${obj.map(map).join(";")}`;
+    };
+    const process_field = <T extends string>(
+      prefix: string,
+      base: { [k in T]?: string[] },
+      name: T,
+      mapper: ((s: string) => string) | null = null
+    ) => {
+      const mapped = map_field(base, name, mapper);
+      if (!mapped) return;
+      parts.push(`${prefix}${name} = ${mapped}`);
+    };
+    const languagesToInclude = Object.fromEntries(
+      (manifestLanguages(xml) || []).map((lang) => [lang, true] as const)
+    );
+    const unsupportedLangsCache: Record<string, string> = {};
+    let availableDefaults: string[] | null = null;
+    const nextAvailableDefault = () => {
+      if (!availableDefaults) {
+        availableDefaults = Object.keys(
+          Object.values(devices).reduce((m, d) => {
+            m[d.deviceFamily] = true;
+            const match = d.deviceFamily.match(/^(\w+)-\d+x\d+/);
+            if (match) m[match[1]] = true;
+            return m;
+          }, {} as Record<string, true>)
+        ).sort();
+        availableDefaults.unshift("base");
+      }
+      return availableDefaults.shift();
+    };
+    targets.forEach((target) => {
+      if (!buildConfigs[configKey(target)]) return;
+      const { product, qualifier, group } = target;
+      if (!group) {
+        throw new Error(`Missing group in target ${target.product}`);
+      }
+      const prefix = `${product}.`;
+      process_field(prefix, qualifier, "sourcePath", (s) =>
+        path
+          .join(
+            group.dir!,
+            "source",
+            relative_path_no_dotdot(path.relative(workspace, s))
+          )
+          .replace(/([\\/]\*\*)[\\/]\*/g, "$1")
+      );
+      if (group.optimizerConfig.optBarrels) {
+        parts.push(
+          `${prefix}barrelPath = ${Object.values(
+            group.optimizerConfig.optBarrels
+          )
+            .map(
+              (value) =>
+                `[${value.jungleFiles
+                  .map((j) => relative_path(path.join(value.optBarrelDir, j)))
+                  .join(";")}]`
+            )
+            .join(";")}`
+        );
+      }
+      if (group.optimizerConfig.barrelMap) {
+        parts.push(
+          `${prefix}sourcePath = ${[`$(${prefix}sourcePath)`]
+            .concat(
+              Object.entries(group.optimizerConfig.barrelMap)
+                .map(([barrel, resolvedBarrel]) => {
+                  const root = path.dirname(resolvedBarrel.jungles[0]);
+                  return (resolvedBarrel.qualifier.sourcePath || []).map((s) =>
+                    path
+                      .join(
+                        group.dir!,
+                        "barrels",
+                        barrel,
+                        path.relative(root, s)
+                      )
+                      .replace(/([\\/]\*\*)[\\/]\*/g, "$1")
+                  );
+                })
+                .flat()
+                .sort()
+                .filter((s, i, arr) => !i || s !== arr[i - 1])
+            )
+            .join(";")}`
+        );
+      }
+      // annotations were handled via source transformations.
+      process_field(prefix, qualifier, "resourcePath", relative_path);
+      process_field(prefix, qualifier, "excludeAnnotations");
+      const qlang = qualifier.lang;
+      if (qlang) {
+        const devLang = devices[product].languages;
+        const unsupportedLangs = Object.keys(qlang)
+          .sort()
+          .map((key) => {
+            if (
+              hasProperty(devLang, key) ||
+              !hasProperty(languagesToInclude, key)
+            ) {
+              return null;
+            }
+            const mapped = map_field(qlang, key, relative_path);
+            if (!mapped) return null;
+            return [key, mapped] as const;
+          })
+          .filter((a): a is NonNullable<typeof a> => a != null);
+        let keysToSkip: Record<string, string> | null = null;
+        if (unsupportedLangs.length) {
+          const key = JSON.stringify(unsupportedLangs);
+          if (!hasProperty(unsupportedLangsCache, key)) {
+            const base = nextAvailableDefault();
+            if (base) {
+              unsupportedLangs.forEach(([key, value]) =>
+                parts.push(`${base}.lang.${key} = ${value}`)
+              );
+              unsupportedLangsCache[key] = `${base}.lang`;
+            }
+          }
+          if (hasProperty(unsupportedLangsCache, key)) {
+            keysToSkip = Object.fromEntries(unsupportedLangs);
+            parts.push(`${prefix}lang = $(${unsupportedLangsCache[key]})`);
+          }
+        }
+        Object.keys(qlang).forEach((key) => {
+          hasProperty(keysToSkip, key) ||
+            !hasProperty(languagesToInclude, key) ||
+            process_field(`${prefix}lang.`, qlang, key, relative_path);
+        });
+      }
+    });
+
+    promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
+
+    await Promise.all(promises);
+  } finally {
+    if (poolStarted) {
+      stopPool();
+    }
+  }
   return {
     jungleFiles,
     xml,
@@ -707,7 +735,7 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
  * @param {string[]} dependencyFiles
  * @returns
  */
-async function generateOneConfig(
+export async function generateOneConfig(
   buildConfig: JungleQualifier,
   manifestXML: xmlUtil.Document,
   dependencyFiles: string[],

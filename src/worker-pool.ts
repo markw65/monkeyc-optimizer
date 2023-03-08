@@ -99,12 +99,16 @@ class WorkerPool extends EventEmitter {
 let pool: WorkerPool | null = null;
 
 export function startPool(parallelism?: number) {
-  if (!pool) {
-    const workers = Math.ceil(parallelism ?? os.cpus().length / 4);
-    if (workers > 1) {
-      pool = new WorkerPool(workers);
-    }
+  if (pool) return false;
+  if (!parallelism) {
+    parallelism = os.cpus().length;
+    parallelism = os.cpus().length / (parallelism > 4 ? 4 : 2);
   }
+  const workers = Math.ceil(parallelism);
+  if (workers > 1) {
+    pool = new WorkerPool(workers);
+  }
+  return true;
 }
 
 export function stopPool() {

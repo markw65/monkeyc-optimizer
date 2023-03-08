@@ -1,8 +1,11 @@
+import { JungleQualifier } from "./jungles";
 import {
   BuildConfig,
   buildOptimizedProject,
+  generateOneConfig,
   generateOptimizedProject,
 } from "./optimizer";
+import { xmlUtil } from "./sdk-util";
 
 interface BaseNode {
   type: string;
@@ -14,12 +17,25 @@ interface BuildOptimizedProject extends BaseNode {
   data: { product: string | null; options: BuildConfig };
 }
 
+interface GenerateOneConfig extends BaseNode {
+  type: "generateOneConfig";
+  data: {
+    buildConfig: JungleQualifier;
+    manifestXML: xmlUtil.Document;
+    dependencyFiles: string[];
+    config: BuildConfig;
+  };
+}
+
 interface GenerateOptimizedProject extends BaseNode {
   type: "generateOptimizedProject";
   data: { options: BuildConfig };
 }
 
-export type WorkerTask = BuildOptimizedProject | GenerateOptimizedProject;
+export type WorkerTask =
+  | BuildOptimizedProject
+  | GenerateOptimizedProject
+  | GenerateOneConfig;
 
 export const workerTaskHandlers = {
   buildOptimizedProject(data: BuildOptimizedProject["data"]) {
@@ -27,6 +43,22 @@ export const workerTaskHandlers = {
   },
   generateOptimizedProject(data: GenerateOptimizedProject["data"]) {
     return generateOptimizedProject(data.options);
+  },
+  generateOneConfig(data: GenerateOneConfig["data"]) {
+    if (data.buildConfig.resourceMap) {
+      Object.values(data.buildConfig.resourceMap).forEach((doc) =>
+        Object.setPrototypeOf(doc, xmlUtil.Document.prototype)
+      );
+    }
+    if (data.manifestXML) {
+      Object.setPrototypeOf(data.manifestXML, xmlUtil.Document.prototype);
+    }
+    return generateOneConfig(
+      data.buildConfig,
+      data.manifestXML,
+      data.dependencyFiles,
+      data.config
+    );
   },
 } as const;
 
