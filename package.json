@@ -35,6 +35,8 @@
     "build/util.cjs",
     "build/sdk-util.cjs",
     "build/api.cjs",
+    "build/worker-thread.cjs",
+    "build/worker-pool.cjs",
     "build/chunk-*.cjs",
     "build/src/**/*.d.ts"
   ],
