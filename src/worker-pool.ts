@@ -102,12 +102,11 @@ export function startPool(parallelism?: number) {
   if (pool) return false;
   if (!parallelism) {
     parallelism = os.cpus().length;
-    parallelism = os.cpus().length / (parallelism > 4 ? 4 : 2);
+    parallelism = parallelism / (parallelism > 4 ? 4 : 2);
   }
   const workers = Math.ceil(parallelism);
-  if (workers > 1) {
-    pool = new WorkerPool(workers);
-  }
+  if (workers <= 1) return false;
+  pool = new WorkerPool(workers);
   return true;
 }
 
