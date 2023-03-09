@@ -30,6 +30,8 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
 }
 
 function simpleOpts(func: FuncEntry, context: Context) {
+  const equalsSym = 8388787;
+
   const logging = wouldLog("optimize", 5);
   return Array.from(func.blocks.values()).reduce((changes, block) => {
     for (let i = block.bytecodes.length; i--; ) {
@@ -48,6 +50,8 @@ function simpleOpts(func: FuncEntry, context: Context) {
             );
           }
         }
+      } else if (i && cur.op === Opcodes.spush && cur.arg === equalsSym) {
+        changes = equalSymbolToEq(block, i) || changes;
       } else if (cur.op === Opcodes.newa) {
         changes = optimizeArrayInit(func, block, i, context) || changes;
       } else if (i && cur.op === Opcodes.shlv) {
@@ -212,6 +216,62 @@ function simpleOpts(func: FuncEntry, context: Context) {
   }, false);
 }
 
+/**
+ * We're looking for a sequence like
+ *
+ *              dup n    | lgetv m
+ * equalsIndex: spush equals
+ *              getv
+ *              dup n+1  | lgetv m
+ *              spush HROptions
+ *              invokem 2
+ *
+ * and we're going to replace it by
+ *
+ *              dup n    | lgetv m
+ * equalsIndex: spush HROptions
+ *              eq
+ *
+ * Precondition: block.bytecodes[equalsIndex].op === Opcodes.spush
+ */
+function equalSymbolToEq(block: Block, equalsIndex: number) {
+  if (equalsIndex < 1 || equalsIndex + 4 >= block.bytecodes.length) {
+    return false;
+  }
+  const getv = block.bytecodes[equalsIndex + 1];
+  if (getv.op !== Opcodes.getv) return false;
+  const lhs1 = block.bytecodes[equalsIndex - 1];
+  if (lhs1.op !== Opcodes.dup && lhs1.op !== Opcodes.lgetv) {
+    return false;
+  }
+  const lhs2 = block.bytecodes[equalsIndex + 2];
+  if (
+    lhs2.op !== lhs1.op ||
+    lhs2.arg !== lhs1.arg + (lhs2.op === Opcodes.dup ? 1 : 0)
+  ) {
+    return false;
+  }
+  const spush = block.bytecodes[equalsIndex + 3];
+  if (spush.op !== Opcodes.spush) return false;
+  const invokem = block.bytecodes[equalsIndex + 4];
+  if (invokem.op !== Opcodes.invokem || invokem.arg !== 2) {
+    return false;
+  }
+  block.bytecodes.splice(equalsIndex, 5, spush, {
+    op: Opcodes.eq,
+    offset: invokem.offset,
+    size: 1,
+  });
+  logger(
+    "optimize",
+    1,
+    `Replacing <thing>.equals(:symbol) with <thing> eq :symbol at ${offsetToString(
+      block.offset
+    )}:${equalsIndex}`
+  );
+  return true;
+}
+
 function isNopBlock(block: Block) {
   return (
     block.bytecodes.length === 0 ||
@@ -220,6 +280,7 @@ function isNopBlock(block: Block) {
         block.bytecodes[0].op === Opcodes.nop))
   );
 }
+
 export function cleanCfg(func: FuncEntry, context: Context) {
   if (wouldLog("cfg", 10)) {
     setBanner(functionBanner(func, context, "sharing"));
