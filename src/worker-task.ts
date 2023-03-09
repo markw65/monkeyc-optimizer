@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import { JungleQualifier } from "./jungles";
 import {
   BuildConfig,
@@ -5,6 +6,7 @@ import {
   generateOneConfig,
   generateOptimizedProject,
 } from "./optimizer";
+import { optimizePrgAndDebug } from "./readprg";
 import { xmlUtil } from "./sdk-util";
 
 interface BaseNode {
@@ -32,10 +34,26 @@ interface GenerateOptimizedProject extends BaseNode {
   data: { options: BuildConfig };
 }
 
+interface OptimizePrgAndDebug extends BaseNode {
+  type: "optimizePrgAndDebug";
+  data: {
+    prgName: string;
+    prgBuffer: ArrayBuffer;
+    prgOffset: number;
+    prgLength: number;
+    xmlName: string;
+    xmlBuffer: ArrayBuffer;
+    xmlOffset: number;
+    xmlLength: number;
+    key: crypto.KeyObject;
+  };
+}
+
 export type WorkerTask =
   | BuildOptimizedProject
   | GenerateOptimizedProject
-  | GenerateOneConfig;
+  | GenerateOneConfig
+  | OptimizePrgAndDebug;
 
 export const workerTaskHandlers = {
   buildOptimizedProject(data: BuildOptimizedProject["data"]) {
@@ -58,6 +76,19 @@ export const workerTaskHandlers = {
       data.manifestXML,
       data.dependencyFiles,
       data.config
+    );
+  },
+  optimizePrgAndDebug(data: OptimizePrgAndDebug["data"]) {
+    return optimizePrgAndDebug(
+      data.prgName,
+      data.prgBuffer,
+      data.prgOffset,
+      data.prgLength,
+      data.xmlName,
+      data.xmlBuffer,
+      data.xmlOffset,
+      data.xmlLength,
+      data.key
     );
   },
 } as const;

@@ -19,6 +19,7 @@ import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
 import { SymbolTable } from "./readprg/symbols";
 import { xmlUtil } from "./sdk-util";
 import { logger } from "./util";
+import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
 export async function readPrg(path: string) {
   const { sections } = await readPrgFromFile(path);
@@ -178,177 +179,246 @@ function optimizePackage(
       ? path.join(path.dirname(name), outName)
       : name;
 
-  return getDevKey(devKey).then(
-    (key) =>
-      new Promise((resolve, reject) => {
-        let manifest: string | null = null;
-        const sigs: Map<string, Buffer> = new Map();
-        const zipfile = new yazl.ZipFile();
-        const pending: Map<
-          string,
-          {
-            name: string;
-            buffer: Buffer;
-          }
-        > = new Map();
-        zipfile.outputStream
-          .pipe(fscb.createWriteStream(output!))
-          .on("close", () => {
-            resolve({ output });
-          });
+  const poolStarted = startPool();
+  return getDevKey(devKey)
+    .then(
+      (key) =>
+        new Promise((resolve, reject) => {
+          let manifest: string | null = null;
+          const sigs: Map<string, Buffer> = new Map();
+          const zipfile = new yazl.ZipFile();
+          const pending: Map<
+            string,
+            {
+              name: string;
+              buffer: Buffer;
+            }
+          > = new Map();
+          zipfile.outputStream
+            .pipe(fscb.createWriteStream(output!))
+            .on("close", () => {
+              resolve({ output });
+            });
 
-        yauzl.open(filepath, { lazyEntries: true }, function (err, unzip) {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          const doOptimize = (
-            prgName: string,
-            prgBuffer: Buffer,
-            xmlName: string,
-            xmlBuffer: Buffer
-          ) => {
-            const debugXml = xmlUtil.parseXml(xmlBuffer.toString(), xmlName);
-            if (debugXml.body instanceof Error) {
-              reject(debugXml.body);
-              unzip.close();
+          yauzl.open(filepath, { lazyEntries: true }, function (err, unzip) {
+            if (err) {
+              reject(err);
               return;
             }
-            const { buffer: outbuf, signature } = optimizeProgramBuffer(
-              prgName,
-              new DataView(prgBuffer.buffer),
-              debugXml,
-              key
-            );
-            if (!signature) {
-              reject(new Error(`Unable to generate signature for ${prgName}`));
-              unzip.close();
-              return;
-            }
-            const name = rename(prgName);
-            sigs.set(name, signature);
-            zipfile.addBuffer(outbuf, name);
-            const contents = Buffer.from(xmlUtil.writeXml(debugXml));
-            zipfile.addBuffer(contents, xmlName);
-          };
 
-          unzip.readEntry();
-
-          unzip.on("entry", function (entry) {
-            if (/\/$/.test(entry.fileName)) {
-              unzip.readEntry();
-            } else {
-              if (entry.fileName === "manifest.sig") {
-                unzip.readEntry();
-                return;
-              }
-              unzip.openReadStream(entry, (err, readStream) => {
-                if (err) {
-                  reject(err);
-                  unzip.close();
-                  return;
-                }
-                const buffers: Buffer[] = [];
-                readStream.on("end", function () {
-                  unzip.readEntry();
-                  const buffer = Buffer.concat(buffers);
-                  if (entry.fileName === "manifest.xml") {
-                    manifest = buffer.toString("utf-8");
-                    return;
-                  }
-                  if (/\.prg$/i.test(entry.fileName)) {
-                    const p = pending.get(path.dirname(entry.fileName));
-                    if (p) {
-                      doOptimize(entry.fileName, buffer, p.name, p.buffer);
-                    } else {
-                      pending.set(path.dirname(entry.fileName), {
-                        name: entry.fileName,
-                        buffer,
-                      });
+            const promises: Promise<unknown>[] = [];
+            const doOptimize = (
+              prgName: string,
+              prgBuffer: Buffer,
+              xmlName: string,
+              xmlBuffer: Buffer
+            ) => {
+              promises.push(
+                runTaskInPool({
+                  type: "optimizePrgAndDebug",
+                  data: {
+                    prgName,
+                    prgBuffer: prgBuffer.buffer,
+                    prgOffset: prgBuffer.byteOffset,
+                    prgLength: prgBuffer.byteLength,
+                    xmlName,
+                    xmlBuffer: xmlBuffer.buffer,
+                    xmlOffset: xmlBuffer.byteOffset,
+                    xmlLength: xmlBuffer.byteLength,
+                    key,
+                  },
+                }).then(
+                  ({
+                    prgBuffer,
+                    prgOffset,
+                    prgLength,
+                    sigBuffer,
+                    sigOffset,
+                    sigLength,
+                    debugXml,
+                  }) => {
+                    if (
+                      sigBuffer == null ||
+                      sigOffset == null ||
+                      sigLength == null
+                    ) {
+                      reject(
+                        new Error(`Unable to generate signature for ${prgName}`)
+                      );
+                      unzip.close();
+                      return;
                     }
-                    return;
-                  }
-                  if (/debug.xml$/i.test(entry.fileName)) {
-                    const p = pending.get(path.dirname(entry.fileName));
-                    if (p) {
-                      doOptimize(p.name, p.buffer, entry.fileName, buffer);
-                    } else {
-                      pending.set(path.dirname(entry.fileName), {
-                        name: entry.fileName,
-                        buffer,
-                      });
-                    }
-                    return;
-                  }
-                  zipfile.addBuffer(buffer, entry.fileName);
-                });
-                readStream.on("data", (data: Buffer) => {
-                  buffers.push(data);
-                });
-              });
-            }
-          });
-
-          unzip.on("end", () => {
-            try {
-              if (!manifest) {
-                throw new Error("No manifest file found");
-              }
-              const xml = xmlUtil.parseXml(manifest);
-              if (xml.body instanceof Error) {
-                throw xml.body;
-              }
-              xml.body
-                .children("iq:application")
-                .children("iq:products")
-                .children("iq:product")
-                .attrs()
-                .forEach((attr) => {
-                  const id = attr.id?.value.value;
-                  if (!id) {
-                    throw new Error(
-                      `Product with missing id found in manifest`
+                    const name = rename(prgName);
+                    sigs.set(
+                      name,
+                      Buffer.from(sigBuffer, sigOffset, sigLength)
                     );
-                  }
-                  const filename = attr.filename?.value.value;
-                  if (!filename) {
-                    throw new Error(
-                      `Product ${id} was missing a filename in the manifest`
+                    zipfile.addBuffer(
+                      Buffer.from(prgBuffer, prgOffset, prgLength),
+                      name
                     );
+                    zipfile.addBuffer(Buffer.from(debugXml), xmlName);
                   }
-                  const newName = rename(filename);
-                  const sig = sigs.get(newName);
-                  if (!sig) {
-                    throw new Error(
-                      `${newName}, listed in the manifest for product ${id}, was not found`
-                    );
-                  }
-                  if (!attr.sig) {
-                    throw new Error(
-                      `${newName}, listed in the manifest had no signature`
-                    );
-                  }
-                  attr.filename!.value.value = newName;
-                  attr.sig.value.value = sig.toString("hex").toUpperCase();
-                });
-              const contents = Buffer.from(xmlUtil.writeXml(xml));
-              zipfile.addBuffer(contents, "manifest.xml");
-              const sig = signView(
-                key,
-                new DataView(
-                  contents.buffer,
-                  contents.byteOffset,
-                  contents.byteLength
                 )
               );
-              zipfile.addBuffer(sig, "manifest.sig");
-            } catch (e) {
-              reject(e);
-            }
-            zipfile.end();
+            };
+
+            unzip.readEntry();
+
+            unzip.on("entry", function (entry) {
+              if (/\/$/.test(entry.fileName)) {
+                unzip.readEntry();
+              } else {
+                if (entry.fileName === "manifest.sig") {
+                  unzip.readEntry();
+                  return;
+                }
+                unzip.openReadStream(entry, (err, readStream) => {
+                  if (err) {
+                    reject(err);
+                    unzip.close();
+                    return;
+                  }
+                  const buffers: Buffer[] = [];
+                  readStream.on("end", function () {
+                    unzip.readEntry();
+                    const buffer = Buffer.concat(buffers);
+                    if (entry.fileName === "manifest.xml") {
+                      manifest = buffer.toString("utf-8");
+                      return;
+                    }
+                    const dirname = path.dirname(entry.fileName);
+                    if (/\.prg$/i.test(entry.fileName)) {
+                      const p = pending.get(dirname);
+                      if (p) {
+                        doOptimize(entry.fileName, buffer, p.name, p.buffer);
+                        pending.delete(dirname);
+                      } else {
+                        pending.set(dirname, {
+                          name: entry.fileName,
+                          buffer,
+                        });
+                      }
+                      return;
+                    }
+                    if (/debug.xml$/i.test(entry.fileName)) {
+                      const p = pending.get(dirname);
+                      if (p) {
+                        doOptimize(p.name, p.buffer, entry.fileName, buffer);
+                        pending.delete(dirname);
+                      } else {
+                        pending.set(dirname, {
+                          name: entry.fileName,
+                          buffer,
+                        });
+                      }
+                      return;
+                    }
+                    zipfile.addBuffer(buffer, entry.fileName);
+                  });
+                  readStream.on("data", (data: Buffer) => {
+                    buffers.push(data);
+                  });
+                });
+              }
+            });
+
+            unzip.on("end", () => {
+              try {
+                if (!manifest) {
+                  throw new Error("No manifest file found");
+                }
+                const xml = xmlUtil.parseXml(manifest);
+                const body = xml.body;
+                if (body instanceof Error) {
+                  throw body;
+                }
+                Promise.all(promises).then(() => {
+                  body
+                    .children("iq:application")
+                    .children("iq:products")
+                    .children("iq:product")
+                    .attrs()
+                    .forEach((attr) => {
+                      const id = attr.id?.value.value;
+                      if (!id) {
+                        throw new Error(
+                          `Product with missing id found in manifest`
+                        );
+                      }
+                      const filename = attr.filename?.value.value;
+                      if (!filename) {
+                        throw new Error(
+                          `Product ${id} was missing a filename in the manifest`
+                        );
+                      }
+                      const newName = rename(filename);
+                      const sig = sigs.get(newName);
+                      if (!sig) {
+                        throw new Error(
+                          `${newName}, listed in the manifest for product ${id}, was not found`
+                        );
+                      }
+                      if (!attr.sig) {
+                        throw new Error(
+                          `${newName}, listed in the manifest had no signature`
+                        );
+                      }
+                      attr.filename!.value.value = newName;
+                      attr.sig.value.value = sig.toString("hex").toUpperCase();
+                    });
+                  const contents = Buffer.from(xmlUtil.writeXml(xml));
+                  zipfile.addBuffer(contents, "manifest.xml");
+                  const sig = signView(
+                    key,
+                    new DataView(
+                      contents.buffer,
+                      contents.byteOffset,
+                      contents.byteLength
+                    )
+                  );
+                  zipfile.addBuffer(sig, "manifest.sig");
+                  zipfile.end();
+                });
+              } catch (e) {
+                reject(e);
+              }
+            });
           });
-        });
-      })
+        })
+    )
+    .finally(() => poolStarted && stopPool());
+}
+
+export function optimizePrgAndDebug(
+  prgName: string,
+  prgBuffer: ArrayBuffer,
+  prgOffset: number,
+  prgLength: number,
+  xmlName: string,
+  xmlBuffer: ArrayBuffer,
+  xmlOffset: number,
+  xmlLength: number,
+  key: crypto.KeyObject
+) {
+  const xmlString = Buffer.from(xmlBuffer, xmlOffset, xmlLength).toString();
+  const debugXml = xmlUtil.parseXml(xmlString, xmlName);
+  if (debugXml.body instanceof Error) {
+    return Promise.reject(debugXml.body);
+  }
+  const result = optimizeProgramBuffer(
+    prgName,
+    new DataView(prgBuffer, prgOffset, prgLength),
+    debugXml,
+    key
   );
+  return Promise.resolve({
+    sigBuffer: result.signature?.buffer,
+    sigOffset: result.signature?.byteOffset,
+    sigLength: result.signature?.byteLength,
+    prgBuffer: result.buffer.buffer,
+    prgOffset: result.buffer.byteOffset,
+    prgLength: result.buffer.byteLength,
+    debugXml: Buffer.from(xmlUtil.writeXml(debugXml)).toString(),
+  });
 }
