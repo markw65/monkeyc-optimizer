@@ -13,6 +13,7 @@ import {
 } from "./readprg/bytecode";
 import { parseData } from "./readprg/data";
 import { parseExceptions } from "./readprg/exceptions";
+import { parseHeader } from "./readprg/header";
 import { parseLineNum } from "./readprg/linenum";
 import { parseCode } from "./readprg/opcodes";
 import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
@@ -120,6 +121,7 @@ export function optimizeProgramBuffer(
     symbolTable.parse(sections[SectionKinds.SYMBOLS].view);
   }
   symbolTable.parseXml(debugXml);
+  const header = parseHeader(sections[SectionKinds.HEADER].view);
   parseData(sections[SectionKinds.DATA].view, symbolTable);
   const lineTable = parseLineNum(sections[SectionKinds.LINENUM].view, debugXml);
   const exceptionsMap = parseExceptions(sections[SectionKinds.EXCEPTIONS].view);
@@ -129,6 +131,7 @@ export function optimizeProgramBuffer(
     filepath,
     sections,
     bytecodes,
+    header,
     lineTable,
     symbolTable,
     exceptionsMap,

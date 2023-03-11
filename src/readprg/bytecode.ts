@@ -6,12 +6,14 @@ import { bumpLogging, log, logger, wouldLog } from "../util";
 import { fixupData } from "./data";
 import { emitFunc, UpdateInfo } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
+import { fixupHeader, Header } from "./header";
 import { fixupLineNum, LineNumber } from "./linenum";
 import { Bytecode, isCondBranch, Opcodes } from "./opcodes";
 import { optimizeFunc } from "./optimize";
 import { SymbolTable } from "./symbols";
 
 export const enum SectionKinds {
+  HEADER = 0xd000d000 | 0,
   TEXT = 0xc0debabe | 0,
   DATA = 0xda7ababe | 0,
   SYMBOLS = 0x5717b015 | 0,
@@ -27,6 +29,7 @@ export type Logger = (module: string, level: number, message: string) => void;
 export type Context = {
   filepath: string;
   sections: Record<number, SectionInfo>;
+  header: Header;
   symbolTable: SymbolTable;
   lineTable: Map<number, LineNumber>;
   exceptionsMap: ExceptionsMap;
@@ -140,6 +143,7 @@ export function optimizeBytecode(context: Context) {
     );
   }
 
+  fixupHeader(context, updateInfo);
   fixupExceptions(context, updateInfo);
   fixupData(context, offsetMap);
   fixupLineNum(context, updateInfo);
