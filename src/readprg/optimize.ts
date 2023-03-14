@@ -27,6 +27,15 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     changes = blockSharing(func, context) || changes;
     changes = simpleOpts(func, context) || changes;
   } while (changes);
+
+  func.blocks.forEach((block) => {
+    for (let i = block.bytecodes.length; i--; ) {
+      const cur = block.bytecodes[i];
+      if (cur.op === Opcodes.newa) {
+        optimizeArrayInit(func, block, i, false, context);
+      }
+    }
+  });
 }
 
 function simpleOpts(func: FuncEntry, context: Context) {
@@ -53,7 +62,7 @@ function simpleOpts(func: FuncEntry, context: Context) {
       } else if (i && cur.op === Opcodes.spush && cur.arg === equalsSym) {
         changes = equalSymbolToEq(block, i) || changes;
       } else if (cur.op === Opcodes.newa) {
-        changes = optimizeArrayInit(func, block, i, context) || changes;
+        changes = optimizeArrayInit(func, block, i, true, context) || changes;
       } else if (i && cur.op === Opcodes.shlv) {
         const prev = block.bytecodes[i - 1];
         if (prev.op === Opcodes.ipush || prev.op === Opcodes.lpush) {

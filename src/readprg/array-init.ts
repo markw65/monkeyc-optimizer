@@ -136,6 +136,7 @@ export function optimizeArrayInit(
   func: FuncEntry,
   block: Block,
   index: number,
+  stackPreserving: boolean,
   context: Context
 ) {
   assert(block.bytecodes[index].op === Opcodes.newa);
@@ -277,7 +278,7 @@ export function optimizeArrayInit(
     loop.taken = loopOffset;
     return true;
   }
-  if (putvStarts.length < 4) return false;
+  if (stackPreserving || putvStarts.length < 4) return false;
   // delete each "dup 0; ipush <n>" pair except the first one
   for (i = putvStarts.length; i-- > 1; ) {
     block.bytecodes.splice(putvStarts[i], 2);

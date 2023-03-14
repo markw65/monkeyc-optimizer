@@ -643,6 +643,7 @@ export function getOpInfo(bytecode: Bytecode) {
     case Opcodes.throw:
     case Opcodes.bt:
     case Opcodes.bf:
+    case Opcodes.lputv:
       return { pop: 1, push: 0 };
     case Opcodes.addv:
     case Opcodes.subv:
@@ -676,7 +677,6 @@ export function getOpInfo(bytecode: Bytecode) {
     case Opcodes.newa:
     case Opcodes.newba:
     case Opcodes.newd:
-    case Opcodes.lputv:
       return { pop: 1, push: 1 };
     case Opcodes.frpush:
     case Opcodes.npush:
