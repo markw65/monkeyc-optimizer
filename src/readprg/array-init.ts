@@ -3,6 +3,7 @@ import { log, logger, wouldLog } from "../util";
 import {
   Block,
   blockToString,
+  bytecodeToString,
   Context,
   FuncEntry,
   offsetToString,
@@ -114,6 +115,21 @@ end    // but now there's no way to pick the return address
        // with the A N pairs. But now the caller has to pop
        // all of them. So we only save 6 bytes per element,
        // with an overhead of 4.
+
+Finally, if all the initializers are the same:
+
+        ipush 9       9
+        newa          A
+        ipush 9       A 9
+loop    ipush 1
+        subv          A 8
+        dup 1         A 8 A
+        dup 1         A 8 A 8
+        ipush initVal A 8 A 8 I
+        aputv         A 8
+        dup 0         A 8 8
+        bt <loop>     A 8
+        popv
 */
 
 export function optimizeArrayInit(
@@ -125,6 +141,7 @@ export function optimizeArrayInit(
   assert(block.bytecodes[index].op === Opcodes.newa);
   const putvStarts: number[] = [];
   let i: number;
+  let initVal: Bytecode | false | null = null;
   for (i = index; ++i < block.bytecodes.length - 1; ) {
     const dup = block.bytecodes[i];
     if (dup.op !== Opcodes.dup || dup.arg !== 0) {
@@ -149,6 +166,18 @@ export function optimizeArrayInit(
       }
     }
     if (found === i) break;
+    if (initVal !== false) {
+      if (found === i + 3) {
+        const bc = block.bytecodes[i + 2];
+        if (initVal === null) {
+          initVal = bc;
+        } else if (initVal.op !== bc.op || initVal.arg !== bc.arg) {
+          initVal = false;
+        }
+      } else {
+        initVal = false;
+      }
+    }
     putvStarts.push(i);
     i = found;
   }
@@ -188,6 +217,66 @@ export function optimizeArrayInit(
     }
     return true;
   }
+  const bytecode = <T extends Opcodes>(
+    op: T,
+    arg: Extract<Bytecode, { op: T }>["arg"]
+  ) => {
+    const bc = { op, arg, size: opcodeSize(op), offset: context.nextOffset++ };
+    if (arg == null) delete bc.arg;
+    return bc;
+  };
+
+  if (initVal) {
+    if (putvStarts.length < 3) return false;
+    logger(
+      "array-init",
+      1,
+      `Optimizing ${
+        putvStarts.length
+      } element array init with constant initializer ${bytecodeToString(
+        initVal,
+        null
+      )} at block ${offsetToString(
+        block.offset
+      )}, starting at index ${index}, at offset ${offsetToString(
+        block.bytecodes[index].offset
+      )}`
+    );
+
+    // delete everything except the first element assignment
+    block.bytecodes.splice(
+      putvStarts[1],
+      putvStarts[putvStarts.length - 1] - putvStarts[0]
+    );
+    // delete the leading "dup 0"
+    block.bytecodes.splice(putvStarts[0], 1);
+    // change the initial "ipush 0" to "ipush length"
+    block.bytecodes[putvStarts[0]].arg = putvStarts.length;
+    const loopOffset = context.nextOffset;
+    block.bytecodes.splice(
+      index + 2,
+      0,
+      bytecode(Opcodes.ipush, 1),
+      bytecode(Opcodes.subv, undefined),
+      bytecode(Opcodes.dup, 1),
+      bytecode(Opcodes.dup, 1)
+    );
+    // index+6 is the init value, and index+7
+    // is the aputv
+    block.bytecodes.splice(
+      index + 8,
+      0,
+      bytecode(Opcodes.dup, 0),
+      bytecode(Opcodes.bt, loopOffset),
+      bytecode(Opcodes.popv, undefined)
+    );
+    splitBlock(func, block, index + 10);
+    splitBlock(func, block, index + 2);
+    const loop = func.blocks.get(loopOffset)!;
+    loop.preds!.add(loopOffset);
+    loop.taken = loopOffset;
+    return true;
+  }
   if (putvStarts.length < 4) return false;
   // delete each "dup 0; ipush <n>" pair except the first one
   for (i = putvStarts.length; i-- > 1; ) {
@@ -205,14 +294,6 @@ export function optimizeArrayInit(
     )}`
   );
   block.bytecodes[index + 2].arg = putvStarts.length - 1;
-  const bytecode = <T extends Opcodes>(
-    op: T,
-    arg: Extract<Bytecode, { op: T }>["arg"]
-  ) => {
-    const bc = { op, arg, size: opcodeSize(op), offset: context.nextOffset++ };
-    if (arg == null) delete bc.arg;
-    return bc;
-  };
   const loopOffset = context.nextOffset;
   block.bytecodes.splice(
     index + 3,
