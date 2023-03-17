@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import PriorityQueue from "priorityqueuejs";
 import { formatAst, isLocal, isStateNode, lookupNext } from "./api";
 import { getNodeValue, isExpression } from "./ast";
 import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
@@ -16,7 +15,7 @@ import {
   VariableStateNode,
 } from "./optimizer-types";
 import { declIsLocal } from "./type-flow/type-flow-util";
-import { every, some } from "./util";
+import { every, GenericQueue, some } from "./util";
 
 /*
  * This is the set of nodes that are of interest to data flow.
@@ -730,23 +729,8 @@ function getFlowEvent(
   return null;
 }
 
-export class DataflowQueue {
-  private enqueued = new Set<DataFlowBlock>();
-  private queue = new PriorityQueue<DataFlowBlock>(
-    (b, a) => (a.order || 0) - (b.order || 0)
-  );
-  enqueue(block: DataFlowBlock) {
-    if (!this.enqueued.has(block)) {
-      this.enqueued.add(block);
-      this.queue.enq(block);
-    }
-  }
-  dequeue() {
-    const block = this.queue.deq();
-    this.enqueued.delete(block);
-    return block;
-  }
-  empty() {
-    return this.queue.isEmpty();
+export class DataflowQueue extends GenericQueue<DataFlowBlock> {
+  constructor() {
+    super((b, a) => (a.order || 0) - (b.order || 0));
   }
 }

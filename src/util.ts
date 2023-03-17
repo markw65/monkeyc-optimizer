@@ -4,6 +4,7 @@ import * as fs from "fs/promises";
 import glob from "fast-glob";
 import * as path from "path";
 import * as readline from "readline";
+import PriorityQueue from "priorityqueuejs";
 
 export { logger, log, wouldLog, setBanner, bumpLogging } from "./logger";
 
@@ -259,4 +260,26 @@ export function popcount(x: number) {
   x += x >> 16;
 
   return x & 0x7f;
+}
+
+export class GenericQueue<Block> {
+  private enqueued = new Set<Block>();
+  private queue;
+  constructor(sort: (a: Block, b: Block) => number) {
+    this.queue = new PriorityQueue<Block>(sort);
+  }
+  enqueue(block: Block) {
+    if (!this.enqueued.has(block)) {
+      this.enqueued.add(block);
+      this.queue.enq(block);
+    }
+  }
+  dequeue() {
+    const block = this.queue.deq();
+    this.enqueued.delete(block);
+    return block;
+  }
+  empty() {
+    return this.queue.isEmpty();
+  }
 }
