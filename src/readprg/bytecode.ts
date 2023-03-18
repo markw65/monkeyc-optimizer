@@ -231,23 +231,33 @@ export function optimizeBytecode(context: Context) {
 export function functionBanner(
   func: FuncEntry,
   context: Context | null,
-  pass: string
+  pass: string,
+  footer?: (block: Block) => string
 ) {
   return () =>
     `================ ${pass} : ${
       func.name
-    } ================\n${functionToString(func, context)}\n---------------- ${
-      func.name
-    } ----------------`;
+    } ================\n${functionToString(
+      func,
+      context,
+      footer
+    )}\n---------------- ${func.name} ----------------`;
 }
 export function printFunction(func: FuncEntry, context: Context | null) {
   log(functionToString(func, context));
 }
 
-export function functionToString(func: FuncEntry, context: Context | null) {
+export function functionToString(
+  func: FuncEntry,
+  context: Context | null,
+  footer?: (block: Block) => string
+) {
   const parts: string[] = [];
   parts.push(`${func.name ?? "<unknown>"}:`);
-  func.blocks.forEach((block) => parts.push(blockToString(block, context)));
+  func.blocks.forEach((block) => {
+    parts.push(blockToString(block, context));
+    if (footer) parts.push(footer(block));
+  });
   parts.push(`${func.name ?? "<unknown>"}_end`);
   return parts.join("\n");
 }

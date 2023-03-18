@@ -1,53 +1,27 @@
-import assert from "node:assert";
-import { log, logger, setBanner, wouldLog } from "../util";
+import { GenericQueue, log, logger, setBanner, wouldLog } from "../util";
 import {
+  Block,
   bytecodeToString,
   Context,
   FuncEntry,
   functionBanner,
   makeArgless,
+  offsetToString,
 } from "./bytecode";
+import { postOrderTraverse } from "./cflow";
 import { Bytecode, getOpInfo, Opcodes } from "./opcodes";
 
 export function localDCE(func: FuncEntry, context: Context) {
-  let numArgs = 0;
-  let numLocals = 0;
-  const locals: { read?: true; write?: true }[] = [];
-  func.blocks.forEach((block) =>
-    block.bytecodes.forEach((bytecode) => {
-      switch (bytecode.op) {
-        case Opcodes.argc:
-          numArgs = bytecode.arg;
-          assert(numLocals === 0);
-          numLocals = numArgs;
-          break;
-        case Opcodes.incsp:
-          numArgs = bytecode.arg;
-          break;
-        case Opcodes.lgetv: {
-          const local = locals[bytecode.arg];
-          if (!local) {
-            locals[bytecode.arg] = { read: true };
-          } else {
-            local.read = true;
-          }
-          break;
-        }
-        case Opcodes.lputv: {
-          const local = locals[bytecode.arg];
-          if (!local) {
-            locals[bytecode.arg] = { write: true };
-          } else {
-            local.write = true;
-          }
-        }
-      }
-    })
-  );
-
   if (wouldLog("dce", 5)) {
-    setBanner(functionBanner(func, context, "local-dce-start"));
+    setBanner(
+      functionBanner(func, context, "local-dce-start", (block) => {
+        return `liveLocals: ${Array.from(
+          liveLocals.get(block.offset) ?? []
+        ).join(" ")}\n`;
+      })
+    );
   }
+  const liveLocals = computeLiveLocals(func);
 
   let anyChanges = false;
   let changes = false;
@@ -64,7 +38,7 @@ export function localDCE(func: FuncEntry, context: Context) {
   type DceStackItem = DceLiveItem | DceDeadItem;
   type DceInfo = {
     stack: DceStackItem[];
-    locals: typeof locals;
+    locals: Set<number>;
   };
   func.blocks.forEach((block) => {
     const reportPopv = (i: number, item: DceDeadItem, kill: boolean) => {
@@ -95,27 +69,8 @@ export function localDCE(func: FuncEntry, context: Context) {
       );
     };
     changes = false;
-    /*
-     * For local dce, we don't know what's live on exit from
-     * the block, except that all locals are dead on exit
-     * from the function. So if this block has no successors
-     * (including a try handler) we can assume everything is
-     * dead.
-     * There's a special case for "ret", because although it
-     * has no successors, it returns to the body of the function
-     * so locals aren't necessarily dead there.
-     */
-    const resetLocal = () =>
-      locals.map(
-        (l) =>
-          l &&
-          (block.next ||
-          block.taken ||
-          block.exsucc ||
-          block.bytecodes[block.bytecodes.length - 1]?.op === Opcodes.ret
-            ? { ...l }
-            : {})
-      );
+
+    const resetLocal = (offset: number) => new Set(liveLocals.get(offset));
 
     /*
      * We're going to do a backward walk through each
@@ -153,26 +108,28 @@ export function localDCE(func: FuncEntry, context: Context) {
      */
     const dceInfo: DceInfo = {
       stack: [],
-      locals: resetLocal(),
+      locals: resetLocal(block.offset),
     };
 
     for (let i = block.bytecodes.length; i--; ) {
       const bytecode = block.bytecodes[i];
       switch (bytecode.op) {
         case Opcodes.lputv: {
-          const local = dceInfo.locals[bytecode.arg];
-          if (!local.read) {
+          const liveLocal = dceInfo.locals.has(bytecode.arg);
+          if (!liveLocal) {
             logger(
               "dce",
               2,
-              `${func.name}: Killing store to unused local ${bytecode.arg} at ${i}`
+              `${func.name}: Killing store to unused local ${
+                bytecode.arg
+              } at ${offsetToString(block.offset)}:${i}`
             );
             makePopv(bytecode);
             dceInfo.stack.push({ dead: true, deps: [i] });
           } else {
             dceInfo.stack.push({ dead: false });
           }
-          delete local.read;
+          dceInfo.locals.delete(bytecode.arg);
           break;
         }
         case Opcodes.popv:
@@ -208,7 +165,7 @@ export function localDCE(func: FuncEntry, context: Context) {
             reportNop(item);
             item.deps.forEach((index) => makeNop(block.bytecodes[index]));
           } else if (bytecode.op === Opcodes.lgetv) {
-            dceInfo.locals[bytecode.arg].read = true;
+            dceInfo.locals.add(bytecode.arg);
           }
           break;
         }
@@ -262,11 +219,20 @@ export function localDCE(func: FuncEntry, context: Context) {
           }
           break;
         }
+
+        // There's no need to deal with Opcodes.throw, because
+        // it breaks the block, so we already have the correct
+        // set of live locals.
+        // case Opcodes.throw:
         case Opcodes.invokem:
           // A call might throw, so if there's an exsucc
-          // we need to mark all the locals live again
+          // we need to mark all the locals live again.
+          //
+          // This is sub-optimal. Instead of keeping a single
+          // live-out set for each block, we could keep a
+          // normal live-out and an exceptional live-out
           if (block.exsucc) {
-            dceInfo.locals = resetLocal();
+            dceInfo.locals = resetLocal(block.offset);
           }
         // fallthrough
         default: {
@@ -290,4 +256,89 @@ export function localDCE(func: FuncEntry, context: Context) {
   });
   setBanner(null);
   return anyChanges;
+}
+
+function computeJsrMap(func: FuncEntry) {
+  const jsrMap: Map<number, Set<number>> = new Map();
+  const findRets = (
+    offset: number,
+    rets: Set<number>,
+    visited: Set<number>
+  ) => {
+    if (visited.has(offset)) return;
+    visited.add(offset);
+    const block = func.blocks.get(offset)!;
+    const last = block.bytecodes[block.bytecodes.length - 1];
+    if (last?.op === Opcodes.ret) {
+      rets.add(offset);
+      return;
+    }
+    if (block.next != null) {
+      findRets(block.next, rets, visited);
+    }
+    if (block.taken != null) {
+      findRets(block.taken, rets, visited);
+    }
+  };
+  func.blocks.forEach((block) => {
+    const last = block.bytecodes[block.bytecodes.length - 1];
+    if (last && last.op === Opcodes.jsr) {
+      const rets: Set<number> = new Set();
+      jsrMap.set(block.offset, rets);
+      findRets(block.offset, rets, new Set());
+    }
+  });
+  return jsrMap;
+}
+
+export function computeLiveLocals(func: FuncEntry) {
+  const order: Map<Block, number> = new Map();
+  const queue = new GenericQueue<Block>(
+    (b, a) => order.get(a)! - order.get(b)!
+  );
+  postOrderTraverse(func, (block) => {
+    order.set(block, order.size);
+    queue.enqueue(block);
+  });
+  const jsrMap = computeJsrMap(func);
+  const liveLocals: Map<number, Set<number>> = new Map();
+  const merge = (locals: Set<number>, pred: number) => {
+    const predLocals = liveLocals.get(pred);
+    if (!predLocals) {
+      liveLocals.set(pred, new Set(locals));
+      queue.enqueue(func.blocks.get(pred)!);
+      return;
+    }
+    const size = predLocals.size;
+    locals.forEach((local) => predLocals.add(local));
+    if (size !== predLocals.size) {
+      queue.enqueue(func.blocks.get(pred)!);
+    }
+  };
+  while (!queue.empty()) {
+    const top = queue.dequeue();
+    const locals = new Set(liveLocals.get(top.offset));
+    for (let i = top.bytecodes.length; i--; ) {
+      const bc = top.bytecodes[i];
+      switch (bc.op) {
+        case Opcodes.lgetv:
+          locals.add(bc.arg);
+          break;
+        case Opcodes.lputv:
+          locals.delete(bc.arg);
+          break;
+      }
+    }
+    top.preds?.forEach((pred) => {
+      merge(locals, pred);
+      const jsrPreds = jsrMap.get(pred);
+      if (jsrPreds) {
+        const predBlock = func.blocks.get(pred)!;
+        if (predBlock.next === top.offset) {
+          jsrPreds.forEach((jsrPred) => merge(locals, jsrPred));
+        }
+      }
+    });
+  }
+  return liveLocals;
 }
