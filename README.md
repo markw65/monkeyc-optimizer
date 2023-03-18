@@ -771,3 +771,16 @@ Bug Fixes
 ### 1.1.18
 
 - add missing `worker-thread.cjs` and `worker-pool.cjs` files to the package.
+
+### 1.1.19
+
+- Bug fixes
+
+  - Fix "Minimize Modules" in background/glance scopes
+    - due to a [bug in the monkeyc compiler](https://forums.garmin.com/developer/connect-iq/i/bug-reports/import-rez-or-using-rez-breaks-background-resources), adding "using Rez;" when a resource may be loaded by a background or glance app causes it to crash. This release won't import Rez into anything marked :background or :glance. This fixes [prettier-extension-monkeyc#7](https://github.com/markw65/prettier-extension-monkeyc/issues/7)
+  - Update background and glance offsets in the program header. I had assumed these offsets were obtained from the symbols, which already get updated, but it turns out they're stored as offsets in the header. This didn't break anything, but it did mean that the background and glance code sizes were unchanged, even though the post build optimizer had in fact made them smaller.
+
+- Optimizations
+  - better optimization for arrays whose elements are all initialized to the same value (eg `[42, 42, 42, 42]`)
+  - more efficient tests for symbols in case statements (ie `case: :foo`)
+  - parallelize the post build optimizer when exporting a project
