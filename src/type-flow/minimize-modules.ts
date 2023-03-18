@@ -1,13 +1,17 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import assert from "node:assert";
-import { makeIdentifier, makeScopedName, withLocDeep } from "../ast";
 import {
   collectNamespaces,
   findUsingForNode,
   formatAstLongLines,
   lookupNext,
 } from "../api";
-import { ModuleStateNode, ProgramStateAnalysis } from "../optimizer-types";
+import { makeIdentifier, makeScopedName, withLocDeep } from "../ast";
+import {
+  ModuleStateNode,
+  ProgramStateAnalysis,
+  ProgramStateStack,
+} from "../optimizer-types";
 
 export function minimizeModules(
   ast: mctree.Program,
@@ -72,7 +76,7 @@ export function minimizeModules(
             if (
               current.type === "Identifier" &&
               results[0].results[0].type === "ModuleDeclaration" &&
-              isImportCandidate(results[0].results[0])
+              isImportCandidate(results[0].results[0], state.stack)
             ) {
               const directResults = i
                 ? state.lookupValue(current, null)
@@ -183,9 +187,35 @@ export function minimizeModules(
  * importing it, because the parent module might not get initialized
  * in time.
  */
-function isImportCandidate(module: ModuleStateNode) {
+function isImportCandidate(module: ModuleStateNode, stack: ProgramStateStack) {
   if (module.fullName.startsWith("$.Toybox.")) return true;
   if (module.fullName.startsWith("$.Rez.")) return false;
+  if (module.fullName === "$.Rez") {
+    // $.Rez can refer to different modules in different scopes in background
+    // scope, its globals/BackgroundRez, and in glance scope its
+    // globals/GlanceRez. If we "import Rez" though, it will be bound to
+    // globals/Rez at compile time.
+    //
+    // Also, some code runs in multiple contexts, so even though we could
+    // determine that Rez.Strings.Foo has background scope, and bind *that* Rez
+    // to globals/BackgroundRez (and it would work), it would mean that we
+    // pulled the background resources into the foreground scope; costing us
+    // memory (much more than we would) save through the import.
+    for (let i = stack.length; i--; ) {
+      const sn = stack[i].sn;
+      if (
+        sn.node &&
+        "attrs" in sn.node &&
+        sn.node.attrs?.attributes?.elements.some(
+          (attr) =>
+            attr.type === "UnaryExpression" &&
+            attr.argument.name.match(/^background|glance$/i)
+        )
+      ) {
+        return false;
+      }
+    }
+  }
   assert(module.stack);
   if (module.stack.length === 1) return true;
   return module.stack.every((elem) => {
