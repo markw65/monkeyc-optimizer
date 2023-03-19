@@ -1540,6 +1540,11 @@ function propagateTypes(
             ? event.node.left
             : null;
         if (lval) {
+          if (nodeEquivs.has(lval)) {
+            // if this is an update, we add a "ref" for the lhs.
+            // but that should never be equivalent to anything else
+            nodeEquivs.delete(lval);
+          }
           const before = getStateEntry(curState, event.decl);
           if (before.curType) {
             typeMap.set(lval, before.curType);
