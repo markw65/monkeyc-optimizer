@@ -784,3 +784,12 @@ Bug Fixes
   - better optimization for arrays whose elements are all initialized to the same value (eg `[42, 42, 42, 42]`)
   - more efficient tests for symbols in case statements (ie `case: :foo`)
   - parallelize the post build optimizer when exporting a project
+
+### 1.1.20
+
+- Bug fixes
+
+  - Fix a bug that could cause the optimizer to incorrectly substitute one local for another.
+
+- Optimizations
+  - Improve dce in the post build optimizer a little, by computing which locals are live out of each block.
