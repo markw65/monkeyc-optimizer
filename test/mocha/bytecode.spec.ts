@@ -243,6 +243,7 @@ function createContext(incodes: PreBytecode[]): Context {
     lineTable: new Map(),
     debugXml,
     config: {},
+    nextLocalId: 0,
     nextOffset: 0x10000,
   };
 }

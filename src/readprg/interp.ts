@@ -703,7 +703,11 @@ export function interpFunc(func: FuncEntry, context: Context) {
     }
   });
   if (interpLogging) setBanner(null);
-  return { liveInState, equivSets };
+  return {
+    liveInState,
+    equivSets,
+    changes: selfStores.size || replacements.size,
+  };
 }
 
 export function instForType(

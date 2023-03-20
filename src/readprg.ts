@@ -146,6 +146,7 @@ export function optimizeProgramBuffer(
     nextOffset:
       (bytecodes[bytecodes.length - 1]?.offset ?? 0) +
       (bytecodes[bytecodes.length - 1]?.size ?? 0),
+    nextLocalId: 0,
   };
   optimizeBytecode(context);
 

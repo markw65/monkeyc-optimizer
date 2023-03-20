@@ -39,6 +39,7 @@ export type Context = {
   key?: crypto.KeyObject;
   debugXml: xmlUtil.Document;
   nextOffset: number;
+  nextLocalId: number;
 };
 
 export type Block = {
@@ -87,7 +88,7 @@ function markLocals(context: Context) {
     range: number;
   };
   const localMap: Map<number, LocalInfo[]> = new Map();
-  let range = 0;
+  let range = context.nextLocalId;
   context.debugXml.body
     .children("localVars")
     .children("entry")
@@ -112,6 +113,7 @@ function markLocals(context: Context) {
       });
     });
 
+  context.nextLocalId = range;
   // map from stackId to LocalInfo
   const live: Map<number, LocalInfo> = new Map();
   const ends: Map<number, number[]> = new Map();

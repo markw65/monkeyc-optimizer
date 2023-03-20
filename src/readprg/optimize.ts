@@ -17,20 +17,29 @@ import {
 } from "./bytecode";
 import { localDCE } from "./dce";
 import { cloneState, interpBytecode, interpFunc, InterpState } from "./interp";
+import { minimizeLocals } from "./locals";
 import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
 import { blockSharing } from "./sharing";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
-  let changes;
-  let liveInState: Map<number, InterpState>;
-  do {
+  while (true) {
+    let changes;
     cleanCfg(func, context);
     changes = localDCE(func, context);
     changes = blockSharing(func, context) || changes;
     changes = simpleOpts(func, context) || changes;
-    ({ liveInState } = interpFunc(func, context));
+    const {
+      liveInState,
+      equivSets,
+      changes: interpChanges,
+    } = interpFunc(func, context);
+    changes = interpChanges || changes;
     changes = doArrayInits(func, liveInState, context) || changes;
-  } while (changes);
+    if (changes) continue;
+    if (!minimizeLocals(func, equivSets, context)) {
+      return;
+    }
+  }
 }
 
 function doArrayInits(
