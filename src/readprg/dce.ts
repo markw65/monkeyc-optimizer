@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { GenericQueue, log, logger, setBanner, wouldLog } from "../util";
 import {
   Block,
@@ -15,13 +16,13 @@ export function localDCE(func: FuncEntry, context: Context) {
   if (wouldLog("dce", 5)) {
     setBanner(
       functionBanner(func, context, "local-dce-start", (block) => {
-        return `liveLocals: ${Array.from(
-          liveLocals.get(block.offset) ?? []
+        return `liveOutLocals: ${Array.from(
+          liveOutLocals.get(block.offset) ?? []
         ).join(" ")}\n`;
       })
     );
   }
-  const liveLocals = computeLiveLocals(func);
+  const { liveInLocals, liveOutLocals } = computeLiveLocals(func);
 
   let anyChanges = false;
   let changes = false;
@@ -70,8 +71,6 @@ export function localDCE(func: FuncEntry, context: Context) {
     };
     changes = false;
 
-    const resetLocal = (offset: number) => new Set(liveLocals.get(offset));
-
     /*
      * We're going to do a backward walk through each
      * block.
@@ -108,7 +107,7 @@ export function localDCE(func: FuncEntry, context: Context) {
      */
     const dceInfo: DceInfo = {
       stack: [],
-      locals: resetLocal(block.offset),
+      locals: new Set(liveOutLocals.get(block.offset)),
     };
 
     for (let i = block.bytecodes.length; i--; ) {
@@ -220,19 +219,15 @@ export function localDCE(func: FuncEntry, context: Context) {
           break;
         }
 
-        // There's no need to deal with Opcodes.throw, because
-        // it breaks the block, so we already have the correct
-        // set of live locals.
-        // case Opcodes.throw:
+        case Opcodes.throw:
         case Opcodes.invokem:
           // A call might throw, so if there's an exsucc
-          // we need to mark all the locals live again.
-          //
-          // This is sub-optimal. Instead of keeping a single
-          // live-out set for each block, we could keep a
-          // normal live-out and an exceptional live-out
+          // we need to mark all the locals that are live
+          // into the exsucc as live here.
           if (block.exsucc) {
-            dceInfo.locals = resetLocal(block.offset);
+            liveInLocals
+              .get(block.exsucc)
+              ?.forEach((local) => dceInfo.locals.add(local));
           }
         // fallthrough
         default: {
@@ -301,11 +296,12 @@ export function computeLiveLocals(func: FuncEntry) {
     queue.enqueue(block);
   });
   const jsrMap = computeJsrMap(func);
-  const liveLocals: Map<number, Set<number>> = new Map();
+  const liveOutLocals: Map<number, Set<number>> = new Map();
+  const liveInLocals: Map<number, Set<number>> = new Map();
   const merge = (locals: Set<number>, pred: number) => {
-    const predLocals = liveLocals.get(pred);
+    const predLocals = liveOutLocals.get(pred);
     if (!predLocals) {
-      liveLocals.set(pred, new Set(locals));
+      liveOutLocals.set(pred, new Set(locals));
       queue.enqueue(func.blocks.get(pred)!);
       return;
     }
@@ -317,7 +313,7 @@ export function computeLiveLocals(func: FuncEntry) {
   };
   while (!queue.empty()) {
     const top = queue.dequeue();
-    const locals = new Set(liveLocals.get(top.offset));
+    const locals = new Set(liveOutLocals.get(top.offset));
     for (let i = top.bytecodes.length; i--; ) {
       const bc = top.bytecodes[i];
       switch (bc.op) {
@@ -327,18 +323,30 @@ export function computeLiveLocals(func: FuncEntry) {
         case Opcodes.lputv:
           locals.delete(bc.arg);
           break;
+        case Opcodes.throw:
+        case Opcodes.invokem:
+          if (top.exsucc) {
+            liveInLocals.get(top.exsucc)?.forEach((local) => locals.add(local));
+          }
+          break;
       }
     }
+    liveInLocals.set(top.offset, locals);
     top.preds?.forEach((pred) => {
+      const predBlock = func.blocks.get(pred)!;
+      if (predBlock.next !== top.offset && predBlock.taken !== top.offset) {
+        assert(predBlock.exsucc === top.offset);
+        // if this is (only) an exceptional predecessor, we handle it separately
+        return;
+      }
       merge(locals, pred);
       const jsrPreds = jsrMap.get(pred);
       if (jsrPreds) {
-        const predBlock = func.blocks.get(pred)!;
         if (predBlock.next === top.offset) {
           jsrPreds.forEach((jsrPred) => merge(locals, jsrPred));
         }
       }
     });
   }
-  return liveLocals;
+  return { liveInLocals, liveOutLocals };
 }
