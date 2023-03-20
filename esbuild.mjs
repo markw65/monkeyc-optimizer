@@ -158,7 +158,6 @@ const esmConfig = {
     "src/api.ts",
     "src/driver.ts",
     "src/worker-thread.ts",
-    "src/worker-pool.ts",
     { in: "test/mocha/root.spec.ts", out: "mocha" },
   ],
   chunkNames: "chunk-[hash]",
