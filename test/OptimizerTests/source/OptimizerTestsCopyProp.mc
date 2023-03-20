@@ -169,3 +169,62 @@ function testCopyProp(logger as Logger) as Boolean {
     check(x, 3, logger);
     return ok;
 }
+
+function mayThrow(flag as Boolean) as Void {
+    if (flag) {
+        throw new Lang.Exception();
+    }
+}
+
+(:test)
+function testPostBuildDce1(logger as Logger) as Boolean {
+    // x is live on both the exceptional and normal paths
+    // None of the assignments can be deleted (assuming we
+    // don't know which calls to mayThrow actually throw).
+    var x = 1;
+    try {
+        mayThrow(false);
+        x = 2;
+        mayThrow(false);
+        x = 3;
+        mayThrow(true);
+        x = 4;
+    } catch (ex) {}
+    return x == 3;
+}
+
+(:test)
+function testPostBuildDce2(logger as Logger) as Boolean {
+    // x is only live on the exceptional path.
+    // We still can't delete any of the assignments
+    var x = 1;
+    try {
+        mayThrow(false);
+        x = 2;
+        mayThrow(false);
+        x = 3;
+        mayThrow(true);
+        x = 4;
+    } catch (ex) {
+        return x == 3;
+    }
+    return false;
+}
+
+(:test)
+function testPostBuildDce3(logger as Logger) as Boolean {
+    // x is only live on the non-exceptional path.
+    // We can delete all the updates to x except for the last
+    var x = 1;
+    try {
+        mayThrow(false);
+        x = 2;
+        mayThrow(false);
+        x = 3;
+        mayThrow(false);
+        x = 4;
+    } catch (ex) {
+        return false;
+    }
+    return x == 4;
+}

@@ -171,14 +171,12 @@ export function findDeadStores(
       for (let i = top.events.length; i--; ) {
         const event = top.events[i];
         if (top.exsucc && event.mayThrow) {
-          const from = blockStates[(top.exsucc as TypeFlowBlock).order!];
-          if (!from) {
-            throw new Error(`exsucc was not visited`);
-          }
-          mergeStates(
-            curState,
-            blockStates[(top.exsucc as TypeFlowBlock).order!]
-          );
+          // Suboptimal. Currently we merge both the regular and exceptional
+          // successors back into each block's state. Instead, we could keep
+          // them separate and merge from the exceptional state here. Or only
+          // merge the regular state, and keep an inState for each block, and
+          // merge from top.exsucc's inState here.
+          mergeStates(curState, blockStates[(top as TypeFlowBlock).order!]);
         }
         switch (event.type) {
           case "ref":
@@ -288,7 +286,12 @@ export function findDeadStores(
       }
     }
     const doMerge = (pred: TypeFlowBlock) => {
-      const pi = pred.order || 0;
+      if (pred.order == null) {
+        // this block is unreachable on a forward walk, so don't try to merge
+        // into it, or enqueue it
+        return;
+      }
+      const pi = pred.order;
       if (!blockStates[pi]) {
         blockStates[pi] = cloneState(curState);
         queue.enqueue(pred);
@@ -297,6 +300,7 @@ export function findDeadStores(
       }
     };
     top.preds?.forEach(doMerge);
+    top.expreds?.forEach(doMerge);
     if (top.bogopred) {
       // Make sure we don't kill stores that would result in
       // garmin's (incorrect) "variable may be uninitialized"
