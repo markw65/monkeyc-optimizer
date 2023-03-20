@@ -1,5 +1,7 @@
+import assert from "node:assert";
 import { GenericQueue } from "../util";
 import { Block, FuncEntry } from "./bytecode";
+import { Bytecode, Opcodes } from "./opcodes";
 
 export function postOrderTraverse(
   func: FuncEntry,
@@ -60,4 +62,81 @@ export function computePostDominators(func: FuncEntry): DomLike {
   // every block post-dominates itself
   states.forEach((pd, offset) => pd.add(offset));
   return states;
+}
+
+function computeJsrMap(func: FuncEntry) {
+  const jsrMap: Map<number, Set<number>> = new Map();
+  const findRets = (
+    offset: number,
+    rets: Set<number>,
+    visited: Set<number>
+  ) => {
+    if (visited.has(offset)) return;
+    visited.add(offset);
+    const block = func.blocks.get(offset)!;
+    const last = block.bytecodes[block.bytecodes.length - 1];
+    if (last?.op === Opcodes.ret) {
+      rets.add(offset);
+      return;
+    }
+    if (block.next != null) {
+      findRets(block.next, rets, visited);
+    }
+    if (block.taken != null) {
+      findRets(block.taken, rets, visited);
+    }
+  };
+  func.blocks.forEach((block) => {
+    const last = block.bytecodes[block.bytecodes.length - 1];
+    if (last && last.op === Opcodes.jsr) {
+      const rets: Set<number> = new Set();
+      jsrMap.set(block.offset, rets);
+      findRets(block.offset, rets, new Set());
+    }
+  });
+  return jsrMap;
+}
+
+export function postOrderPropagate<T>(
+  func: FuncEntry,
+  preBlock: (block: Block) => T,
+  processBc: (block: Block, bc: Bytecode, state: T) => void,
+  postBlock: (block: Block, state: T) => void,
+  merge: (state: T, predBlock: Block, isExPred: boolean) => boolean
+) {
+  const order: Map<Block, number> = new Map();
+  const queue = new GenericQueue<Block>(
+    (b, a) => order.get(a)! - order.get(b)!
+  );
+  postOrderTraverse(func, (block) => {
+    order.set(block, order.size);
+    queue.enqueue(block);
+  });
+  const jsrMap = computeJsrMap(func);
+  while (!queue.empty()) {
+    const top = queue.dequeue();
+    const localState = preBlock(top);
+    for (let i = top.bytecodes.length; i--; ) {
+      const bc = top.bytecodes[i];
+      processBc(top, bc, localState);
+    }
+    postBlock(top, localState);
+    top.preds?.forEach((pred) => {
+      const predBlock = func.blocks.get(pred)!;
+      const isExPred =
+        predBlock.next !== top.offset && predBlock.taken !== top.offset;
+      assert(!isExPred || predBlock.exsucc === top.offset);
+      merge(localState, predBlock, isExPred) && queue.enqueue(predBlock);
+      const jsrPreds = jsrMap.get(pred);
+      if (jsrPreds) {
+        if (predBlock.next === top.offset) {
+          jsrPreds.forEach((jsrPred) => {
+            const jsrPredBlock = func.blocks.get(jsrPred)!;
+            merge(localState, jsrPredBlock, false) &&
+              queue.enqueue(jsrPredBlock);
+          });
+        }
+      }
+    });
+  }
 }

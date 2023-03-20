@@ -1,7 +1,5 @@
-import assert from "node:assert";
-import { GenericQueue, log, logger, setBanner, wouldLog } from "../util";
+import { log, logger, setBanner, wouldLog } from "../util";
 import {
-  Block,
   bytecodeToString,
   Context,
   FuncEntry,
@@ -9,7 +7,7 @@ import {
   makeArgless,
   offsetToString,
 } from "./bytecode";
-import { postOrderTraverse } from "./cflow";
+import { postOrderPropagate } from "./cflow";
 import { Bytecode, getOpInfo, Opcodes } from "./opcodes";
 
 export function localDCE(func: FuncEntry, context: Context) {
@@ -255,69 +253,13 @@ export function localDCE(func: FuncEntry, context: Context) {
   return anyChanges;
 }
 
-function computeJsrMap(func: FuncEntry) {
-  const jsrMap: Map<number, Set<number>> = new Map();
-  const findRets = (
-    offset: number,
-    rets: Set<number>,
-    visited: Set<number>
-  ) => {
-    if (visited.has(offset)) return;
-    visited.add(offset);
-    const block = func.blocks.get(offset)!;
-    const last = block.bytecodes[block.bytecodes.length - 1];
-    if (last?.op === Opcodes.ret) {
-      rets.add(offset);
-      return;
-    }
-    if (block.next != null) {
-      findRets(block.next, rets, visited);
-    }
-    if (block.taken != null) {
-      findRets(block.taken, rets, visited);
-    }
-  };
-  func.blocks.forEach((block) => {
-    const last = block.bytecodes[block.bytecodes.length - 1];
-    if (last && last.op === Opcodes.jsr) {
-      const rets: Set<number> = new Set();
-      jsrMap.set(block.offset, rets);
-      findRets(block.offset, rets, new Set());
-    }
-  });
-  return jsrMap;
-}
-
 export function computeLiveLocals(func: FuncEntry) {
-  const order: Map<Block, number> = new Map();
-  const queue = new GenericQueue<Block>(
-    (b, a) => order.get(a)! - order.get(b)!
-  );
-  postOrderTraverse(func, (block) => {
-    order.set(block, order.size);
-    queue.enqueue(block);
-  });
-  const jsrMap = computeJsrMap(func);
   const liveOutLocals: Map<number, Set<number>> = new Map();
   const liveInLocals: Map<number, Set<number>> = new Map();
-  const merge = (locals: Set<number>, pred: number) => {
-    const predLocals = liveOutLocals.get(pred);
-    if (!predLocals) {
-      liveOutLocals.set(pred, new Set(locals));
-      queue.enqueue(func.blocks.get(pred)!);
-      return;
-    }
-    const size = predLocals.size;
-    locals.forEach((local) => predLocals.add(local));
-    if (size !== predLocals.size) {
-      queue.enqueue(func.blocks.get(pred)!);
-    }
-  };
-  while (!queue.empty()) {
-    const top = queue.dequeue();
-    const locals = new Set(liveOutLocals.get(top.offset));
-    for (let i = top.bytecodes.length; i--; ) {
-      const bc = top.bytecodes[i];
+  postOrderPropagate(
+    func,
+    (block) => new Set(liveOutLocals.get(block.offset)),
+    (block, bc, locals) => {
       switch (bc.op) {
         case Opcodes.lgetv:
           locals.add(bc.arg);
@@ -327,28 +269,28 @@ export function computeLiveLocals(func: FuncEntry) {
           break;
         case Opcodes.throw:
         case Opcodes.invokem:
-          if (top.exsucc) {
-            liveInLocals.get(top.exsucc)?.forEach((local) => locals.add(local));
+          if (block.exsucc) {
+            liveInLocals
+              .get(block.exsucc)
+              ?.forEach((local) => locals.add(local));
           }
           break;
       }
+    },
+    (block, locals) => {
+      liveInLocals.set(block.offset, locals);
+    },
+    (locals, predBlock, isExPred) => {
+      if (isExPred) return false;
+      const predLocals = liveOutLocals.get(predBlock.offset);
+      if (!predLocals) {
+        liveOutLocals.set(predBlock.offset, new Set(locals));
+        return true;
+      }
+      const size = predLocals.size;
+      locals.forEach((local) => predLocals.add(local));
+      return size !== predLocals.size;
     }
-    liveInLocals.set(top.offset, locals);
-    top.preds?.forEach((pred) => {
-      const predBlock = func.blocks.get(pred)!;
-      if (predBlock.next !== top.offset && predBlock.taken !== top.offset) {
-        assert(predBlock.exsucc === top.offset);
-        // if this is (only) an exceptional predecessor, we handle it separately
-        return;
-      }
-      merge(locals, pred);
-      const jsrPreds = jsrMap.get(pred);
-      if (jsrPreds) {
-        if (predBlock.next === top.offset) {
-          jsrPreds.forEach((jsrPred) => merge(locals, jsrPred));
-        }
-      }
-    });
-  }
+  );
   return { liveInLocals, liveOutLocals };
 }
