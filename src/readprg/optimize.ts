@@ -16,6 +16,7 @@ import {
   removeBlock,
 } from "./bytecode";
 import { localDCE } from "./dce";
+import { interpFunc } from "./interp";
 import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
 import { blockSharing } from "./sharing";
 
@@ -26,6 +27,7 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     changes = localDCE(func, context);
     changes = blockSharing(func, context) || changes;
     changes = simpleOpts(func, context) || changes;
+    interpFunc(func, context);
   } while (changes);
 
   func.blocks.forEach((block) => {

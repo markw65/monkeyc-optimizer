@@ -12,9 +12,9 @@ export function postOrderTraverse(
     if (visited.has(offset)) return;
     visited.add(offset);
     const cur = func.blocks.get(offset)!;
-    if (cur.next != null) helper(cur.next);
-    if (cur.taken != null) helper(cur.taken);
     if (cur.exsucc != null) helper(cur.exsucc);
+    if (cur.taken != null) helper(cur.taken);
+    if (cur.next != null) helper(cur.next);
     visitor(cur);
   };
   helper(func.offset);
@@ -138,5 +138,68 @@ export function postOrderPropagate<T>(
         }
       }
     });
+  }
+}
+
+function computeRetMap(func: FuncEntry) {
+  const jsrMap = computeJsrMap(func);
+  const retMap: Map<number, Set<number>> = new Map();
+  jsrMap.forEach((retBlocks, jsrBlock) => {
+    const jsrNext = func.blocks.get(jsrBlock)!.next;
+    assert(jsrNext);
+    retBlocks.forEach((retBlock) => {
+      const retSuccs = retMap.get(retBlock);
+      if (retSuccs) {
+        retSuccs.add(jsrNext);
+      } else {
+        retMap.set(retBlock, new Set([jsrNext]));
+      }
+    });
+  });
+  return retMap;
+}
+
+export function rpoPropagate<T>(
+  func: FuncEntry,
+  preBlock: (block: Block) => T,
+  processBc: (block: Block, bc: Bytecode, state: T) => void,
+  postBlock: (block: Block, state: T) => void,
+  merge: (from: Block, state: T, predBlock: Block, isExSucc: boolean) => boolean
+) {
+  const order: Map<Block, number> = new Map();
+  {
+    const blocks: Block[] = [];
+    postOrderTraverse(func, (block) => {
+      blocks.push(block);
+    });
+    blocks.reverse().forEach((block, i) => order.set(block, i));
+  }
+  const queue = new GenericQueue<Block>(
+    (b, a) => order.get(a)! - order.get(b)!
+  );
+  queue.enqueue(func.blocks.get(func.offset)!);
+  const retMap = computeRetMap(func);
+  while (!queue.empty()) {
+    const top = queue.dequeue();
+    const localState = preBlock(top);
+    const doMerge = (to: number | undefined, isExSucc: boolean) => {
+      if (to == null) return;
+      const toBlock = func.blocks.get(to)!;
+      merge(top, localState, toBlock, isExSucc) && queue.enqueue(toBlock);
+    };
+    top.bytecodes.forEach((bc) => {
+      processBc(top, bc, localState);
+      if (
+        top.exsucc &&
+        (bc.op === Opcodes.invokem || bc.op === Opcodes.throw)
+      ) {
+        doMerge(top.exsucc, true);
+      }
+    });
+    postBlock(top, localState);
+
+    doMerge(top.next, false);
+    doMerge(top.taken, false);
+    retMap.get(top.offset)?.forEach((retSucc) => doMerge(retSucc, false));
   }
 }

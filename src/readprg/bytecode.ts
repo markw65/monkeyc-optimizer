@@ -285,15 +285,7 @@ export function blockToString(block: Block, context: Context | null) {
     const lineInfo = bytecode.lineNum;
     if (lineInfo && (!lineNum || lineInfo.line !== lineNum.line)) {
       lineNum = lineInfo;
-      const file =
-        lineInfo.fileStr ??
-        context?.symbolTable.symbols.get(lineInfo.file)?.str ??
-        "<unknown>";
-      log(
-        `${file}:${lineInfo.line}${
-          lineInfo.symbolStr ? ` - ${lineInfo.symbolStr}` : ""
-        }`
-      );
+      log(lineInfoToString(lineInfo, context));
     }
     log(`    ${bytecodeToString(bytecode, context?.symbolTable)}`);
   });
@@ -304,6 +296,19 @@ export function blockToString(block: Block, context: Context | null) {
     log(`  -> ${offsetToString(block.taken)}`);
   }
   return parts.join("");
+}
+
+export function lineInfoToString(
+  lineInfo: LineNumber,
+  context: Context | null
+) {
+  const file =
+    lineInfo.fileStr ??
+    context?.symbolTable.symbols.get(lineInfo.file)?.str ??
+    "<unknown>";
+  return `${file}:${lineInfo.line}${
+    lineInfo.symbolStr ? ` - ${lineInfo.symbolStr}` : ""
+  }`;
 }
 
 export function bytecodeToString(
