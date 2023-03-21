@@ -15,11 +15,13 @@ import { Bytecode, getOpInfo, Opcodes } from "./opcodes";
 export function localDCE(func: FuncEntry, context: Context) {
   if (wouldLog("dce", 5)) {
     setBanner(
-      functionBanner(func, context, "local-dce-start", (block) => {
-        return `liveOutLocals: ${Array.from(
-          liveOutLocals.get(block.offset) ?? []
-        ).join(" ")}\n`;
-      })
+      functionBanner(func, context, "local-dce-start", (block, footer) =>
+        footer
+          ? `liveOutLocals: ${Array.from(
+              liveOutLocals.get(block.offset) ?? []
+            ).join(" ")}\n`
+          : ""
+      )
     );
   }
   const { liveInLocals, liveOutLocals } = computeLiveLocals(func);

@@ -232,7 +232,7 @@ export function functionBanner(
   func: FuncEntry,
   context: Context | null,
   pass: string,
-  footer?: (block: Block) => string
+  extra?: (block: Block, footer: boolean) => string
 ) {
   return () =>
     `================ ${pass} : ${
@@ -240,7 +240,7 @@ export function functionBanner(
     } ================\n${functionToString(
       func,
       context,
-      footer
+      extra
     )}\n---------------- ${func.name} ----------------`;
 }
 export function printFunction(func: FuncEntry, context: Context | null) {
@@ -250,13 +250,14 @@ export function printFunction(func: FuncEntry, context: Context | null) {
 export function functionToString(
   func: FuncEntry,
   context: Context | null,
-  footer?: (block: Block) => string
+  extra?: (block: Block, footer: boolean) => string
 ) {
   const parts: string[] = [];
   parts.push(`${func.name ?? "<unknown>"}:`);
   func.blocks.forEach((block) => {
+    if (extra) parts.push(extra(block, false));
     parts.push(blockToString(block, context));
-    if (footer) parts.push(footer(block));
+    if (extra) parts.push(extra(block, true));
   });
   parts.push(`${func.name ?? "<unknown>"}_end`);
   return parts.join("\n");
