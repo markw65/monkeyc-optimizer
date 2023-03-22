@@ -68,7 +68,7 @@ import {
 import { minimizeModules } from "./type-flow/minimize-modules";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
-import { typeFromLiteral } from "./type-flow/types";
+import { mcExprFromType, typeFromLiteral, TypeTag } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { pushUnique } from "./util";
 import { renameIdentifier, renameVariable } from "./variable-renamer";
@@ -1073,8 +1073,22 @@ export async function optimizeMonkeyC(
           return unused(state, node.expression, true);
         }
         break;
+      case "UpdateExpression": {
+        // convert ++/-- to +=1/-=1, so that pre can "see" the 1
+        const n = node as unknown as mctree.AssignmentExpression & {
+          prefix?: boolean;
+        };
+        n.type = "AssignmentExpression";
+        n.left = node.argument;
+        n.right = withLoc(
+          mcExprFromType({ type: TypeTag.Number, value: 1 })!,
+          n.left
+        );
+        n.operator = node.operator === "++" ? "+=" : "-=";
+        delete n.prefix;
+        // fall through
+      }
       case "AssignmentExpression":
-      case "UpdateExpression":
         if (state.currentFunction) {
           const lhs =
             node.type === "AssignmentExpression" ? node.left : node.argument;

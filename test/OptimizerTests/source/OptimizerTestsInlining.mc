@@ -435,9 +435,10 @@ module Wrapper {
     }
 }
 
+var gAlwaysZero as Number = 0;
 function wrapper(x as Number) as Number {
-    x++;
-    return x - 1;
+    x += gAlwaysZero;
+    return x;
 }
 
 (:test) // foo
@@ -498,11 +499,11 @@ function inlineAssignContext(logger as Logger) as Boolean {
     arr[z] = A.B.s3(1);
     check(arr[0] as Number, 1, logger);
 
-    /* @match /^\{ z = \$\.z; self.z\+\+;/ /check\(x,/ */
+    /* @match /^\{ z = \$\.z; self.z \+= @1;/ /check\(x,/ */
     x = argInterference1(A.B.x, A.x, $.z);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
-    /* @match /^\{ y = A\.x; A.x\+\+;/ /check/ */
+    /* @match /^\{ y = A\.x; A.x \+= @1;/ /check/ */
     x = argInterference2($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
@@ -535,7 +536,7 @@ function inlineIfContext(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 4;
 
-    /* @match /\{ \w+x\w+ = wrapper\(1\);/ */
+    /* @match /if \(wrapper\(@1\) \+ @1 == @2\)/ */
     if (ifContext1(wrapper(1))) {
     } else {
         logger.debug("Failed: ifContext1(1) should return true");
@@ -551,14 +552,14 @@ function inlineIfContext(logger as Logger) as Boolean {
         z++;
     }
 
-    /* @match /\{ \w+x\w+ = wrapper\(@1\);/ */
+    /* @match /if \(wrapper\(@1\) \+ @1 == @2\)/ */
     if (ifContext2(wrapper(1)) == 2) {
     } else {
         logger.debug("Failed: ifContext2(1) should return 2");
         ok = false;
     }
 
-    /* @match /\{ \w+x\w+ = wrapper\(@2\);/ */
+    /* @match /if \(\(wrapper\(@2\) \+ @1 == @2\) == true\)/ */
     if (ifContext1(wrapper(2)) == true ? false : true) {
     } else {
         logger.debug("Failed: ifContext1(2) should return false");
