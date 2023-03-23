@@ -5,6 +5,7 @@ import { roundToFloat } from "../type-flow/interp";
 import { cloneType, display, ExactTypes, TypeTag } from "../type-flow/types";
 import { unionInto } from "../type-flow/union-type";
 import {
+  Block,
   blockToString,
   bytecodeToString,
   Context,
@@ -235,12 +236,49 @@ function mergeInto(from: InterpState, to: InterpState) {
   return changes;
 }
 
+function findEquivalent(
+  localState: InterpState,
+  type: ExactTypes["type"],
+  value?: ExactTypes["value"]
+) {
+  const find = (elems: InterpItemInfo[]) => {
+    let alternate = null;
+    for (let i = elems.length; i--; ) {
+      const t = elems[i];
+      if (t && t.type.type === type) {
+        if (t.type.value === value) {
+          return i;
+        } else if (
+          (t.type.type === TypeTag.Long || t.type.type === TypeTag.Number) &&
+          t.type.value != null &&
+          ~t.type.value === value
+        ) {
+          alternate = i + elems.length;
+        }
+      }
+    }
+    return alternate;
+  };
+  const stackIndex = find(localState.stack);
+  if (stackIndex != null && stackIndex < localState.stack.length) {
+    return ~stackIndex;
+  }
+  const localIndex = find(localState.locals);
+  if (localIndex != null && localIndex < localState.locals.length) {
+    return localIndex;
+  }
+  return stackIndex != null ? ~stackIndex : localIndex;
+}
+
 export function interpFunc(func: FuncEntry, context: Context) {
   const { symbolTable } = context;
   const equivSets: Map<Lputv, Set<number>> = new Map();
   const selfStores: Set<Bytecode> = new Set();
   const liveInState: Map<number, InterpState> = new Map();
-  const replacements: Map<Bytecode, Bytecode> = new Map();
+  const replacements: Map<
+    Block,
+    Map<Bytecode, Bytecode & { invert?: boolean }>
+  > = new Map();
   const interpLogging = wouldLog("interp", 1);
   if (interpLogging) {
     if (wouldLog("interp", 7)) {
@@ -251,8 +289,10 @@ export function interpFunc(func: FuncEntry, context: Context) {
       );
     }
   }
+
   const xpush = <T extends ExactTypes["type"]>(
     localState: InterpState,
+    block: Block,
     bc: Bytecode,
     type: T,
     value?: Extract<ExactTypes, { type: T }>["value"]
@@ -262,29 +302,38 @@ export function interpFunc(func: FuncEntry, context: Context) {
       tt.value = value;
     }
     if (bc.size > 2) {
-      let index = localState.stack.findIndex(
-        (t) => t && t.type.type === type && t.type.value === value
-      );
-      if (index >= 0) {
-        replacements.set(bc, {
-          op: Opcodes.dup,
-          arg: localState.stack.length - index - 1,
-          offset: bc.offset,
-          size: 2,
-        });
-      } else {
-        index = localState.locals.findIndex(
-          (t) => t && t.type.type === type && t.type.value === value
-        );
-        if (index >= 0) {
-          replacements.set(bc, {
-            op: Opcodes.lgetv,
-            arg: index,
+      const index = findEquivalent(localState, type, value);
+      let blockReps = replacements.get(block);
+
+      if (index != null) {
+        if (!blockReps) {
+          blockReps = new Map();
+          replacements.set(block, blockReps);
+        }
+        if (index < 0) {
+          const arg =
+            localState.stack.length - (~index % localState.stack.length) - 1;
+          blockReps.set(bc, {
+            op: Opcodes.dup,
+            arg,
             offset: bc.offset,
             size: 2,
+            invert: localState.stack.length <= ~index,
           });
         } else {
-          replacements.delete(bc);
+          const arg = index % localState.locals.length;
+          blockReps.set(bc, {
+            op: Opcodes.lgetv,
+            arg,
+            offset: bc.offset,
+            size: 2,
+            invert: localState.locals.length <= index,
+          });
+        }
+      } else if (blockReps) {
+        blockReps.delete(bc);
+        if (!blockReps.size) {
+          replacements.delete(block);
         }
       }
     }
@@ -360,25 +409,31 @@ export function interpFunc(func: FuncEntry, context: Context) {
           break;
         }
         case Opcodes.ipush:
-          xpush(localState, bc, TypeTag.Number, bc.arg);
+          xpush(localState, block, bc, TypeTag.Number, bc.arg);
           break;
         case Opcodes.lpush:
-          xpush(localState, bc, TypeTag.Long, bc.arg);
+          xpush(localState, block, bc, TypeTag.Long, bc.arg);
           break;
         case Opcodes.fpush:
-          xpush(localState, bc, TypeTag.Float, roundToFloat(bc.arg));
+          xpush(localState, block, bc, TypeTag.Float, roundToFloat(bc.arg));
           break;
         case Opcodes.dpush:
-          xpush(localState, bc, TypeTag.Double, bc.arg);
+          xpush(localState, block, bc, TypeTag.Double, bc.arg);
           break;
         case Opcodes.cpush:
-          xpush(localState, bc, TypeTag.Char, String.fromCharCode(bc.arg));
+          xpush(
+            localState,
+            block,
+            bc,
+            TypeTag.Char,
+            String.fromCharCode(bc.arg)
+          );
           break;
         case Opcodes.bpush:
-          xpush(localState, bc, bc.arg ? TypeTag.True : TypeTag.False);
+          xpush(localState, block, bc, bc.arg ? TypeTag.True : TypeTag.False);
           break;
         case Opcodes.npush:
-          xpush(localState, bc, TypeTag.Null);
+          xpush(localState, block, bc, TypeTag.Null);
           break;
         case Opcodes.spush: {
           const argSym = symbolTable?.symbolToLabelMap.get(bc.arg);
@@ -386,7 +441,7 @@ export function interpFunc(func: FuncEntry, context: Context) {
             (argSym && symbolTable?.symbols.get(argSym)?.str) ||
             `symbol<${bc.arg}>`;
 
-          xpush(localState, bc, TypeTag.Symbol, value);
+          xpush(localState, block, bc, TypeTag.Symbol, value);
           break;
         }
 
@@ -464,25 +519,44 @@ export function interpFunc(func: FuncEntry, context: Context) {
     }
     if (replacements.size) {
       log(`====== replacements =====`);
-      replacements.forEach((rep, bc) =>
-        log(
-          `${bytecodeToString(bc, symbolTable)} => ${bytecodeToString(
-            rep,
-            symbolTable
-          )} ${bc.lineNum ? lineInfoToString(bc.lineNum, context) : ""}`
+      replacements.forEach((blockRep) =>
+        blockRep.forEach((rep, bc) =>
+          log(
+            `${bytecodeToString(bc, symbolTable)} => ${
+              rep.invert ? "~" : ""
+            }${bytecodeToString(rep, symbolTable)} ${
+              bc.lineNum ? lineInfoToString(bc.lineNum, context) : ""
+            }`
+          )
         )
       );
     }
   }
   selfStores.forEach((bc) => makeArgless(bc, Opcodes.popv));
-  replacements.forEach((rep, orig) => {
-    orig.op = rep.op;
-    if (rep.arg != null) {
-      orig.arg = rep.arg;
-    } else {
-      delete orig.arg;
+  replacements.forEach((blockRep, block) => {
+    for (let i = block.bytecodes.length; i--; ) {
+      const orig = block.bytecodes[i];
+      const rep = blockRep.get(orig);
+      if (!rep) continue;
+      orig.op = rep.op;
+      if (rep.arg != null) {
+        orig.arg = rep.arg;
+      } else {
+        delete orig.arg;
+      }
+      orig.size = rep.size;
+      if (rep.invert) {
+        const invv = { ...orig };
+        invv.op = Opcodes.invv;
+        invv.size = 1;
+        // the original byte code was 5 or 9 bytes long, so
+        // we can certainly use the next offset as a unique
+        // identifier for the invv
+        invv.offset++;
+        delete invv.arg;
+        block.bytecodes.splice(i + 1, 0, invv);
+      }
     }
-    orig.size = rep.size;
   });
   if (interpLogging) setBanner(null);
   return { liveInState, equivSets };
