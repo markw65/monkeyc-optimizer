@@ -250,6 +250,9 @@ export async function driver() {
       case "execute":
         execute = !value || /^true|1$/i.test(value);
         break;
+      case "testBuild":
+        testBuild = !value || /^true|1$/i.test(value);
+        break;
       case "run-tests":
         if (!value || /^true|1$/i.test(value)) {
           testBuild = true;
@@ -258,6 +261,7 @@ export async function driver() {
         } else {
           testBuild = value;
         }
+        if (testBuild) execute = true;
         break;
       case "showInfo":
         showInfo = !value || /^true|1$/i.test(value);
@@ -296,9 +300,7 @@ export async function driver() {
     if (postProcess) return;
     throw new Error("No inputs!");
   }
-  if (testBuild) {
-    execute = true;
-  } else if (products) {
+  if (!testBuild && !execute && products) {
     products.splice(1);
   }
   if (execute) {
