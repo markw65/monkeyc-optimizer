@@ -16,28 +16,73 @@ import {
   removeBlock,
 } from "./bytecode";
 import { localDCE } from "./dce";
-import { interpFunc } from "./interp";
+import { cloneState, interpBytecode, interpFunc, InterpState } from "./interp";
 import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
 import { blockSharing } from "./sharing";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
   let changes;
+  let liveInState: Map<number, InterpState>;
   do {
     cleanCfg(func, context);
     changes = localDCE(func, context);
     changes = blockSharing(func, context) || changes;
     changes = simpleOpts(func, context) || changes;
-    interpFunc(func, context);
+    ({ liveInState } = interpFunc(func, context));
+    changes = doArrayInits(func, true, liveInState, context) || changes;
   } while (changes);
+  doArrayInits(func, false, liveInState, context) || changes;
+}
 
+function doArrayInits(
+  func: FuncEntry,
+  stackPreserving: boolean,
+  liveInState: Map<number, InterpState>,
+  context: Context
+) {
+  // we can run into issues if we create new blocks while iterating them
+  // (because the new blocks have no state), so find all the blocks that need
+  // processing, and then process them
+  const newAToProcess: Map<Block, Map<number, InterpState>> = new Map();
   func.blocks.forEach((block) => {
-    for (let i = block.bytecodes.length; i--; ) {
-      const cur = block.bytecodes[i];
-      if (cur.op === Opcodes.newa || cur.op === Opcodes.newba) {
-        optimizeArrayInit(func, block, i, false, context);
-      }
+    if (
+      !block.bytecodes.some(
+        (bc) => bc.op === Opcodes.newa || bc.op === Opcodes.newba
+      )
+    ) {
+      return;
     }
+    const blockState = cloneState(liveInState.get(block.offset));
+    const newAStates: Map<number, InterpState> = new Map();
+    block.bytecodes.forEach((bc, index) => {
+      interpBytecode(bc, blockState, context);
+      if (bc.op === Opcodes.newa || bc.op === Opcodes.newba) {
+        newAStates.set(index, cloneState(blockState));
+      }
+    });
+    newAToProcess.set(block, newAStates);
   });
+
+  let changes = false;
+  newAToProcess.forEach((newAStates, block) =>
+    Array.from(newAStates.keys())
+      .reverse()
+      .forEach((i) => {
+        if (
+          optimizeArrayInit(
+            func,
+            block,
+            i,
+            stackPreserving,
+            context,
+            newAStates.get(i)!
+          )
+        ) {
+          changes = true;
+        }
+      })
+  );
+  return changes;
 }
 
 function simpleOpts(func: FuncEntry, context: Context) {
@@ -58,8 +103,6 @@ function simpleOpts(func: FuncEntry, context: Context) {
         }
       } else if (i && cur.op === Opcodes.spush && cur.arg === equalsSym) {
         changes = equalSymbolToEq(block, i) || changes;
-      } else if (cur.op === Opcodes.newa) {
-        changes = optimizeArrayInit(func, block, i, true, context) || changes;
       } else if (i && cur.op === Opcodes.shlv) {
         const prev = block.bytecodes[i - 1];
         if (prev.op === Opcodes.ipush || prev.op === Opcodes.lpush) {
