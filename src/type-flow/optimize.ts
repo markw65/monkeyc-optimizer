@@ -639,6 +639,36 @@ function tryCommuteAndAssociate(
     return null;
   }
   switch (node.operator) {
+    case "-":
+      if (
+        (left.value.type === TypeTag.Number &&
+          left.value.value === -1 &&
+          (right.value.type & (TypeTag.Number | TypeTag.Long)) ===
+            right.value.type) ||
+        (left.value.type === TypeTag.Long &&
+          left.value.value === -1n &&
+          right.value.type === TypeTag.Long)
+      ) {
+        const rep = withLoc<mctree.UnaryExpression>(
+          {
+            type: "UnaryExpression",
+            operator: "~",
+            argument: node.right,
+            prefix: true,
+          },
+          node
+        );
+        istate.stack.splice(-2, 2, {
+          node: rep,
+          value: evaluateBinaryTypes("-", left.value, right.value),
+          embeddedEffects: right.embeddedEffects,
+        });
+        return rep;
+      }
+      if (tryReAssociate(istate, node, left, right)) {
+        [left, right] = istate.stack.slice(-2);
+      }
+      break;
     case "+":
       // Addition is only commutative/associative if both arguments
       // are numeric, or one argument is Number, and the other is Char
@@ -676,8 +706,6 @@ function tryCommuteAndAssociate(
         right = left;
         left = r;
       }
-    // fallthrough
-    case "-":
       if (tryReAssociate(istate, node, left, right)) {
         [left, right] = istate.stack.slice(-2);
       }
