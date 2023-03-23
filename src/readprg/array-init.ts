@@ -139,7 +139,10 @@ export function optimizeArrayInit(
   stackPreserving: boolean,
   context: Context
 ) {
-  assert(block.bytecodes[index].op === Opcodes.newa);
+  assert(
+    block.bytecodes[index].op === Opcodes.newa ||
+      block.bytecodes[index].op === Opcodes.newba
+  );
   const putvStarts: number[] = [];
   let i: number;
   let initVal: Bytecode | false | null = null;

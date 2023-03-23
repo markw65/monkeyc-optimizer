@@ -33,7 +33,7 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
   func.blocks.forEach((block) => {
     for (let i = block.bytecodes.length; i--; ) {
       const cur = block.bytecodes[i];
-      if (cur.op === Opcodes.newa) {
+      if (cur.op === Opcodes.newa || cur.op === Opcodes.newba) {
         optimizeArrayInit(func, block, i, false, context);
       }
     }
