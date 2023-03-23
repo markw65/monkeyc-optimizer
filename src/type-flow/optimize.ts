@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { unused } from "../inliner";
 import {
   getLiteralNode,
   hasProperty,
@@ -7,6 +6,7 @@ import {
   withLoc,
   wrap,
 } from "../ast";
+import { unused } from "../inliner";
 import {
   FunctionStateNode,
   ProgramStateAnalysis,
@@ -29,6 +29,7 @@ import {
   mcExprFromType,
   mustBeFalse,
   mustBeTrue,
+  typeFromLiteral,
   TypeTag,
 } from "./types";
 
@@ -494,6 +495,26 @@ function zero(
   return null;
 }
 
+function isNegatedNode(node: mctree.Expression) {
+  if (node.type === "UnaryExpression") {
+    if (node.operator === "-") {
+      return node.argument;
+    }
+  } else if (node.type === "BinaryExpression") {
+    if (node.operator === "-" && node.left.type === "Literal") {
+      // we have to be conservative here. 0L - x could be promoting x to Long
+      // (similarly for Float and Double)
+      if (
+        node.left.value === 0 &&
+        typeFromLiteral(node.left).type === TypeTag.Number
+      ) {
+        return node.right;
+      }
+    }
+  }
+  return null;
+}
+
 function tryIdentity(
   istate: InterpState,
   node: Extract<mctree.Node, { type: "BinaryExpression" }>,
@@ -505,10 +526,8 @@ function tryIdentity(
     case "-": {
       const rep = identity(istate, node, left, right, TypeTag.Numeric, 0);
       if (rep) return rep;
-      if (
-        node.right.type === "UnaryExpression" &&
-        node.right.operator === "-"
-      ) {
+      const negated = isNegatedNode(node.right);
+      if (negated) {
         // We can convert a +/- -b to a -/+ b, but we have to know
         // something about the types. eg if b is Number, with the
         // value -2^31, negating b will leave the value as -2^31.
@@ -531,8 +550,7 @@ function tryIdentity(
             { type: TypeTag.Number, value: 0 },
             right.value
           );
-          right.node = node.right.argument;
-          node.right = right.node;
+          node.right = right.node = negated;
           node.operator = node.operator === "+" ? "-" : "+";
         }
       }
