@@ -204,6 +204,34 @@ export function beforeEvaluate(
       istate.stack.push(test);
       break;
     }
+    case "UnaryExpression":
+      if (node.operator === "-") {
+        const [arg] = istate.stack.slice(-1);
+        if (
+          (arg.value.type & (TypeTag.Number | TypeTag.Long)) ===
+            arg.value.type &&
+          arg.value.value == null
+        ) {
+          const leftType = { type: TypeTag.Number, value: 0 } as const;
+          const rep = withLoc<mctree.BinaryExpression>(
+            {
+              type: "BinaryExpression",
+              operator: "-",
+              left: withLoc(mcExprFromType(leftType)!, node.argument, false),
+              right: node.argument,
+            },
+            node
+          );
+          popIstate(istate, node.argument);
+          istate.stack.push({
+            value: evaluateBinaryTypes("-", leftType, arg.value),
+            embeddedEffects: arg.embeddedEffects,
+            node: rep,
+          });
+          return rep;
+        }
+      }
+      break;
     case "BinaryExpression":
       if (
         node.operator === "has" &&
