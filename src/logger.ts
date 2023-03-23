@@ -12,7 +12,10 @@ export function wouldLog(module: string, level: number) {
   if (!loggerSettings) {
     loggerSettings = getLoggerSettings();
   }
-  return (loggerSettings.get(module) ?? 0) >= level + loggerLevelOffset;
+  return (
+    (loggerSettings.get(module) ?? loggerSettings.get("*") ?? 0) >=
+    level + loggerLevelOffset
+  );
 }
 
 export function bumpLogging(module: string | null, amount: number) {
