@@ -721,9 +721,48 @@ function tryReAssociate(
     return false;
   }
 
-  const lr = getLiteralNode(node.left.right);
-  if (!lr) return false;
-  const leftRight = evaluate(istate, lr);
+  let leftLit = getLiteralNode(node.left.right);
+  if (!leftLit) {
+    if (node.left.operator !== "-") return false;
+    leftLit = getLiteralNode(node.left.left);
+    if (!leftLit) return false;
+    const leftLeft = evaluate(istate, leftLit);
+    if (!hasValue(leftLeft.value)) return false;
+    if (!hasValue(right.value)) return false;
+    // (K - x) + C => (K + C) - x
+    // (K - x) - C => (K - C) - x
+    if (
+      leftLeft.value.type & (TypeTag.Float | TypeTag.Double) ||
+      right.value.type & (TypeTag.Float | TypeTag.Double)
+    ) {
+      // we don't want to fold constants of differing signs because it could be
+      // there for rounding purposes
+      const rsign =
+        (right.value.value as number) < 0 === (node.operator === "+");
+      const lsign = (leftLeft.value.value as number) < 0;
+      if (lsign !== rsign) return false;
+    }
+
+    const tmpNode: mctree.BinaryExpression = {
+      type: "BinaryExpression",
+      operator: node.operator,
+      left: node.left.left,
+      right: node.right,
+    };
+    const repType = evaluate(istate, tmpNode);
+    if (!hasValue(repType.value)) return false;
+    const repNode = mcExprFromType(repType.value);
+    if (!repNode) return false;
+
+    node.right = node.left.right;
+    node.left = repNode;
+    node.operator = "-";
+    istate.stack.splice(-2, 2, repType, left);
+    left.node = node.right;
+    repType.node = repNode;
+    return true;
+  }
+  const leftRight = evaluate(istate, leftLit);
   if (!hasValue(leftRight.value)) return false;
 
   if (hasValue(right.value)) {
