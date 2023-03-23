@@ -794,7 +794,7 @@ Bug Fixes
 - Optimizations
   - Improve dce in the post build optimizer a little, by computing which locals are live out of each block.
 
-### 1.1.20
+### 1.1.21
 
 - Bug fixes
 
