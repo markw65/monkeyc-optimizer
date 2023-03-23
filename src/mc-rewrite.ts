@@ -499,7 +499,11 @@ function optimizeNode(istate: InterpState, node: mctree.Node) {
       break;
   }
   const before = beforeEvaluate(istate, node);
-  if (before != null) return before;
+  if (before != null) {
+    if (!before) return false;
+    const ret = afterEvaluate(istate, before);
+    return ret ?? before;
+  }
 
   evaluateNode(istate, node);
 
