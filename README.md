@@ -793,3 +793,21 @@ Bug Fixes
 
 - Optimizations
   - Improve dce in the post build optimizer a little, by computing which locals are live out of each block.
+
+### 1.1.20
+
+- Bug fixes
+
+  - fixed a bug that could cause dead-store elimination to delete stores that might be used if an exception was thrown. eg `try { x=1; foo(); x=2; } catch (ex) { System.println(x); x=3; }` could delete the first store to `x`, breaking the println if `foo` actually throws.
+
+- Source to Source Optimizations
+
+  - convert `++` and `--` to `+= 1` and `-= 1`. Garmin's compiler generates exactly the same code for both, but when the `1` is written explicitly, its available for `sizeBasedPRE` to optimize.
+  - convert `-x` to `0 - x`. Again, Garmin's compiler generates exactly the same code, but being explicit makes the `0` available to `sizeBasedPRE`.
+  - rewrite some optimizations so that `-x` and `0-x` are treated identically. eg `(0-x) + y` => `y - x` (for suitably typed `x` and `y`).
+  - optimize `-1 - x` to `~x` (for suitably typed x), saving 5 bytes (or 2 if pre was going to replace the -1 with a local)
+
+- Post Build Optimizations
+  - Keep better track of exceptional edges in dce, allowing it to be more aggressive.
+  - Add a (very simple) bytecode interpreter which keeps track of the values in locals, and on the stack. This allows us to opportunistically replace constants (typically 5+ bytes) with a 2 byte load from a register, or from a stack location. This (together with dce) will form the infrastructure for a future minimize-locals pass.
+  - when replacing constants with locals/stack accesses, look for uses of `~`. Eg if the value `2` is in the local `x`, and we need to produce the value `-3`, we can use `~x` (costing 3 bytes, instead of 5).
