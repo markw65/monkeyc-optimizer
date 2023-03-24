@@ -2,7 +2,13 @@ import assert from "node:assert";
 import { log, logger, setBanner, wouldLog } from "../logger";
 import { ExactOrUnion } from "../optimizer";
 import { roundToFloat } from "../type-flow/interp";
-import { cloneType, display, ExactTypes, TypeTag } from "../type-flow/types";
+import {
+  cloneType,
+  display,
+  ExactTypes,
+  isExact,
+  TypeTag,
+} from "../type-flow/types";
 import { unionInto } from "../type-flow/union-type";
 import {
   Block,
@@ -28,7 +34,7 @@ interface InterpStackElem extends InterpItemInfo {
   dup?: number;
 }
 
-type InterpState = {
+export type InterpState = {
   stack: InterpStackElem[];
   locals: InterpItemInfo[];
 };
@@ -129,7 +135,7 @@ function removeEquiv(state: InterpState, a: number) {
   }
 }
 
-function cloneState(state: InterpState | undefined): InterpState {
+export function cloneState(state: InterpState | null | undefined): InterpState {
   if (!state) {
     return { stack: [], locals: [] };
   }
@@ -241,9 +247,9 @@ function findEquivalent(
   type: ExactTypes["type"],
   value?: ExactTypes["value"]
 ) {
-  const find = (elems: InterpItemInfo[]) => {
+  const find = (elems: InterpItemInfo[], d: number) => {
     let alternate = null;
-    for (let i = elems.length; i--; ) {
+    for (let i = elems.length - d; i--; ) {
       const t = elems[i];
       if (t && t.type.type === type) {
         if (t.type.value === value) {
@@ -259,15 +265,117 @@ function findEquivalent(
     }
     return alternate;
   };
-  const stackIndex = find(localState.stack);
+  const stackIndex = find(localState.stack, 1);
   if (stackIndex != null && stackIndex < localState.stack.length) {
     return ~stackIndex;
   }
-  const localIndex = find(localState.locals);
+  const localIndex = find(localState.locals, 0);
   if (localIndex != null && localIndex < localState.locals.length) {
     return localIndex;
   }
   return stackIndex != null ? ~stackIndex : localIndex;
+}
+
+export function interpBytecode(
+  bc: Bytecode,
+  localState: InterpState,
+  context: Context
+) {
+  const xpush = <T extends ExactTypes["type"]>(
+    type: T,
+    value?: Extract<ExactTypes, { type: T }>["value"]
+  ) => {
+    const tt: ExactTypes = { type };
+    if (value != null) {
+      tt.value = value;
+    }
+    localState.stack.push({
+      type: tt,
+    });
+  };
+
+  switch (bc.op) {
+    case Opcodes.lgetv: {
+      let local = localState.locals[bc.arg];
+      if (local) {
+        local = { ...local };
+        delete local.equivs;
+      } else {
+        local = { type: { type: TypeTag.Any } };
+      }
+      localState.stack.push(local);
+      addEquiv(localState, -localState.stack.length, bc.arg);
+      break;
+    }
+    case Opcodes.lputv: {
+      let curItem = localState.locals[bc.arg];
+      if (!curItem) {
+        curItem = localState.locals[bc.arg] = {
+          type: { type: TypeTag.Any },
+        };
+      }
+      const { dup: _dup, ...value } =
+        localState.stack[localState.stack.length - 1];
+      if (value.equivs) {
+        if (curItem.equivs?.has(-localState.stack.length)) {
+          // this is a self store
+          removeEquiv(localState, -localState.stack.length);
+          localState.stack.pop();
+          break;
+        }
+        removeEquiv(localState, bc.arg);
+        addEquiv(localState, bc.arg, -localState.stack.length);
+        removeEquiv(localState, -localState.stack.length);
+      } else if (curItem.equivs) {
+        removeEquiv(localState, bc.arg);
+      }
+      localState.stack.pop();
+      localState.locals[bc.arg].type = value.type;
+      break;
+    }
+    case Opcodes.ipush:
+      xpush(TypeTag.Number, bc.arg);
+      break;
+    case Opcodes.lpush:
+      xpush(TypeTag.Long, bc.arg);
+      break;
+    case Opcodes.fpush:
+      xpush(TypeTag.Float, roundToFloat(bc.arg));
+      break;
+    case Opcodes.dpush:
+      xpush(TypeTag.Double, bc.arg);
+      break;
+    case Opcodes.cpush:
+      xpush(TypeTag.Char, String.fromCharCode(bc.arg));
+      break;
+    case Opcodes.bpush:
+      xpush(bc.arg ? TypeTag.True : TypeTag.False);
+      break;
+    case Opcodes.npush:
+      xpush(TypeTag.Null);
+      break;
+    case Opcodes.spush: {
+      const argSym = context.symbolTable.symbolToLabelMap.get(bc.arg);
+      const value =
+        (argSym && context.symbolTable.symbols.get(argSym)?.str) ||
+        `symbol<${bc.arg}>`;
+
+      xpush(TypeTag.Symbol, value);
+      break;
+    }
+
+    default: {
+      const { pop, push } = getOpInfo(bc);
+      for (let i = 0; i < pop; i++) {
+        removeEquiv(localState, -localState.stack.length);
+        localState.stack.pop();
+      }
+      for (let i = 0; i < push; i++) {
+        localState.stack.push({ type: { type: TypeTag.Any } });
+      }
+      break;
+    }
+  }
 }
 
 export function interpFunc(func: FuncEntry, context: Context) {
@@ -290,58 +398,6 @@ export function interpFunc(func: FuncEntry, context: Context) {
     }
   }
 
-  const xpush = <T extends ExactTypes["type"]>(
-    localState: InterpState,
-    block: Block,
-    bc: Bytecode,
-    type: T,
-    value?: Extract<ExactTypes, { type: T }>["value"]
-  ) => {
-    const tt: ExactTypes = { type };
-    if (value != null) {
-      tt.value = value;
-    }
-    if (bc.size > 2) {
-      const index = findEquivalent(localState, type, value);
-      let blockReps = replacements.get(block);
-
-      if (index != null) {
-        if (!blockReps) {
-          blockReps = new Map();
-          replacements.set(block, blockReps);
-        }
-        if (index < 0) {
-          const arg =
-            localState.stack.length - (~index % localState.stack.length) - 1;
-          blockReps.set(bc, {
-            op: Opcodes.dup,
-            arg,
-            offset: bc.offset,
-            size: 2,
-            invert: localState.stack.length <= ~index,
-          });
-        } else {
-          const arg = index % localState.locals.length;
-          blockReps.set(bc, {
-            op: Opcodes.lgetv,
-            arg,
-            offset: bc.offset,
-            size: 2,
-            invert: localState.locals.length <= index,
-          });
-        }
-      } else if (blockReps) {
-        blockReps.delete(bc);
-        if (!blockReps.size) {
-          replacements.delete(block);
-        }
-      }
-    }
-    localState.stack.push({
-      type: tt,
-    });
-  };
-
   rpoPropagate(
     func,
     (block) => {
@@ -361,101 +417,77 @@ export function interpFunc(func: FuncEntry, context: Context) {
     },
     (block, bc, localState) => {
       switch (bc.op) {
-        case Opcodes.lgetv: {
-          let local = localState.locals[bc.arg];
-          if (local) {
-            local = { ...local };
-            delete local.equivs;
-          } else {
-            local = { type: { type: TypeTag.Any } };
-          }
-          localState.stack.push(local);
-          addEquiv(localState, -localState.stack.length, bc.arg);
-          break;
-        }
         case Opcodes.lputv: {
           selfStores.delete(bc);
           equivSets.delete(bc);
-          let curItem = localState.locals[bc.arg];
-          if (!curItem) {
-            curItem = localState.locals[bc.arg] = {
-              type: { type: TypeTag.Any },
-            };
+          const curItem = localState.locals[bc.arg];
+          const curEquivs = curItem?.equivs;
+          const selfStore =
+            curEquivs?.has(bc.arg) && curEquivs.has(-localState.stack.length);
+          interpBytecode(bc, localState, context);
+          if (selfStore) {
+            selfStores.add(bc);
+            break;
           }
-          const { dup: _dup, ...value } =
-            localState.stack[localState.stack.length - 1];
-          if (value.equivs) {
-            if (curItem.equivs?.has(-localState.stack.length)) {
-              // this is a self store
-              selfStores.add(bc);
-              removeEquiv(localState, -localState.stack.length);
-              localState.stack.pop();
-              break;
-            }
-            removeEquiv(localState, bc.arg);
-            addEquiv(localState, bc.arg, -localState.stack.length);
-            removeEquiv(localState, -localState.stack.length);
-            if (curItem.equivs) {
-              equivSets.set(
-                bc,
-                new Set(Array.from(curItem.equivs).filter((e) => e >= 0))
-              );
-            }
-          } else if (curItem.equivs) {
-            removeEquiv(localState, bc.arg);
+          const postItem = curItem ?? localState.locals[bc.arg];
+          if (postItem.equivs) {
+            equivSets.set(
+              bc,
+              new Set(Array.from(postItem.equivs).filter((e) => e >= 0))
+            );
           }
-          localState.stack.pop();
-          localState.locals[bc.arg].type = value.type;
           break;
         }
         case Opcodes.ipush:
-          xpush(localState, block, bc, TypeTag.Number, bc.arg);
-          break;
         case Opcodes.lpush:
-          xpush(localState, block, bc, TypeTag.Long, bc.arg);
-          break;
         case Opcodes.fpush:
-          xpush(localState, block, bc, TypeTag.Float, roundToFloat(bc.arg));
-          break;
         case Opcodes.dpush:
-          xpush(localState, block, bc, TypeTag.Double, bc.arg);
-          break;
         case Opcodes.cpush:
-          xpush(
-            localState,
-            block,
-            bc,
-            TypeTag.Char,
-            String.fromCharCode(bc.arg)
-          );
-          break;
-        case Opcodes.bpush:
-          xpush(localState, block, bc, bc.arg ? TypeTag.True : TypeTag.False);
-          break;
-        case Opcodes.npush:
-          xpush(localState, block, bc, TypeTag.Null);
-          break;
         case Opcodes.spush: {
-          const argSym = symbolTable?.symbolToLabelMap.get(bc.arg);
-          const value =
-            (argSym && symbolTable?.symbols.get(argSym)?.str) ||
-            `symbol<${bc.arg}>`;
+          interpBytecode(bc, localState, context);
+          const topType = localState.stack[localState.stack.length - 1].type;
+          assert(isExact(topType));
+          const index = findEquivalent(localState, topType.type, topType.value);
+          let blockReps = replacements.get(block);
 
-          xpush(localState, block, bc, TypeTag.Symbol, value);
+          if (index != null) {
+            if (!blockReps) {
+              blockReps = new Map();
+              replacements.set(block, blockReps);
+            }
+            if (index < 0) {
+              const arg =
+                localState.stack.length -
+                (~index % localState.stack.length) -
+                2;
+              blockReps.set(bc, {
+                op: Opcodes.dup,
+                arg,
+                offset: bc.offset,
+                size: 2,
+                invert: localState.stack.length <= ~index,
+              });
+            } else {
+              const arg = index % localState.locals.length;
+              blockReps.set(bc, {
+                op: Opcodes.lgetv,
+                arg,
+                offset: bc.offset,
+                size: 2,
+                invert: localState.locals.length <= index,
+              });
+            }
+          } else if (blockReps) {
+            blockReps.delete(bc);
+            if (!blockReps.size) {
+              replacements.delete(block);
+            }
+          }
           break;
         }
 
-        default: {
-          const { pop, push } = getOpInfo(bc);
-          for (let i = 0; i < pop; i++) {
-            removeEquiv(localState, -localState.stack.length);
-            localState.stack.pop();
-          }
-          for (let i = 0; i < push; i++) {
-            localState.stack.push({ type: { type: TypeTag.Any } });
-          }
-          break;
-        }
+        default:
+          interpBytecode(bc, localState, context);
       }
     },
     () => {
