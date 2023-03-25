@@ -138,7 +138,6 @@ export function optimizeArrayInit(
   func: FuncEntry,
   block: Block,
   index: number,
-  stackPreserving: boolean,
   context: Context,
   interpState: InterpState | null
 ) {
@@ -439,7 +438,6 @@ export function optimizeArrayInit(
     loop.taken = loopOffset;
     return true;
   }
-  if (stackPreserving) return false;
   if (!tryLocal(3) && putvStarts.length < 4) return false;
   if (local >= 0) {
     block.bytecodes.splice(i, 0, bytecode(Opcodes.popv, undefined));

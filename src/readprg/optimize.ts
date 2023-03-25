@@ -29,14 +29,12 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     changes = blockSharing(func, context) || changes;
     changes = simpleOpts(func, context) || changes;
     ({ liveInState } = interpFunc(func, context));
-    changes = doArrayInits(func, true, liveInState, context) || changes;
+    changes = doArrayInits(func, liveInState, context) || changes;
   } while (changes);
-  doArrayInits(func, false, liveInState, context) || changes;
 }
 
 function doArrayInits(
   func: FuncEntry,
-  stackPreserving: boolean,
   liveInState: Map<number, InterpState>,
   context: Context
 ) {
@@ -68,16 +66,7 @@ function doArrayInits(
     Array.from(newAStates.keys())
       .reverse()
       .forEach((i) => {
-        if (
-          optimizeArrayInit(
-            func,
-            block,
-            i,
-            stackPreserving,
-            context,
-            newAStates.get(i)!
-          )
-        ) {
+        if (optimizeArrayInit(func, block, i, context, newAStates.get(i)!)) {
           changes = true;
         }
       })

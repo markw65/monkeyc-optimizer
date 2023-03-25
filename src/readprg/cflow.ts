@@ -159,10 +159,22 @@ function computeRetMap(func: FuncEntry) {
   return retMap;
 }
 
+export enum RpoFlags {
+  EnqueueTaken = 1,
+  EnqueueNext = 2,
+  SkipTaken = 4,
+  SkipNext = 8,
+  RestartBlock = 16,
+}
+
 export function rpoPropagate<T>(
   func: FuncEntry,
   preBlock: (block: Block) => T,
-  processBc: (block: Block, bc: Bytecode, state: T) => void,
+  processBc: (
+    block: Block,
+    bc: Bytecode,
+    state: T
+  ) => RpoFlags | null | undefined | void,
   postBlock: (block: Block, state: T) => void,
   merge: (from: Block, state: T, predBlock: Block, isExSucc: boolean) => boolean
 ) {
@@ -182,24 +194,43 @@ export function rpoPropagate<T>(
   while (!queue.empty()) {
     const top = queue.dequeue();
     const localState = preBlock(top);
-    const doMerge = (to: number | undefined, isExSucc: boolean) => {
-      if (to == null) return;
+    const doMerge = (to: number, isExSucc: boolean) => {
       const toBlock = func.blocks.get(to)!;
       merge(top, localState, toBlock, isExSucc) && queue.enqueue(toBlock);
     };
-    top.bytecodes.forEach((bc) => {
-      processBc(top, bc, localState);
+    let flags: RpoFlags | null | undefined | void;
+    for (let i = 0; i < top.bytecodes.length; i++) {
+      const bc = top.bytecodes[i];
+      flags = processBc(top, bc, localState);
+      if (flags != null && flags & RpoFlags.RestartBlock) {
+        i = -1;
+        continue;
+      }
       if (
         top.exsucc &&
         (bc.op === Opcodes.invokem || bc.op === Opcodes.throw)
       ) {
         doMerge(top.exsucc, true);
       }
-    });
+    }
     postBlock(top, localState);
-
-    doMerge(top.next, false);
-    doMerge(top.taken, false);
+    if (flags == null) flags = 0;
+    if (top.next != null) {
+      if (!(flags & RpoFlags.SkipNext)) {
+        doMerge(top.next, false);
+      }
+      if (flags & RpoFlags.EnqueueNext) {
+        queue.enqueue(func.blocks.get(top.next)!);
+      }
+    }
+    if (top.taken) {
+      if (!(flags & RpoFlags.SkipTaken)) {
+        doMerge(top.taken, false);
+      }
+      if (flags & RpoFlags.EnqueueTaken) {
+        queue.enqueue(func.blocks.get(top.taken)!);
+      }
+    }
     retMap.get(top.offset)?.forEach((retSucc) => doMerge(retSucc, false));
   }
 }

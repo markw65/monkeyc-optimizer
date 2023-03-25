@@ -9,6 +9,8 @@ import {
   ExactTypes,
   hasValue,
   isExact,
+  mustBeFalse,
+  mustBeTrue,
   TypeTag,
 } from "../type-flow/types";
 import { unionInto } from "../type-flow/union-type";
@@ -23,7 +25,7 @@ import {
   makeArgless,
   offsetToString,
 } from "./bytecode";
-import { rpoPropagate } from "./cflow";
+import { RpoFlags, rpoPropagate } from "./cflow";
 import { Bytecode, getOpInfo, Lputv, Opcodes } from "./opcodes";
 
 interface InterpItemInfo {
@@ -39,6 +41,10 @@ interface InterpStackElem extends InterpItemInfo {
 export type InterpState = {
   stack: InterpStackElem[];
   locals: InterpItemInfo[];
+  // set if we're reprocessing a special loop block that unbalances the stack
+  // (eg array-init loops). This is used to prevent optimizations that appear to
+  // be valid on the last iteration of the loop, but in fact are not
+  loopBlock?: true;
 };
 
 function interpItemToString(item: InterpStackElem) {
@@ -451,7 +457,6 @@ export function interpBytecode(
     case Opcodes.gte:
       binary(">=");
       break;
-
     default: {
       const { pop, push } = getOpInfo(bc);
       for (let i = 0; i < pop; i++) {
@@ -513,16 +518,18 @@ export function interpFunc(func: FuncEntry, context: Context) {
           const selfStore =
             curEquivs?.has(bc.arg) && curEquivs.has(-localState.stack.length);
           interpBytecode(bc, localState, context);
-          if (selfStore) {
-            selfStores.add(bc);
-            break;
-          }
-          const postItem = curItem ?? localState.locals[bc.arg];
-          if (postItem.equivs) {
-            equivSets.set(
-              bc,
-              new Set(Array.from(postItem.equivs).filter((e) => e >= 0))
-            );
+          if (!localState.loopBlock) {
+            if (selfStore) {
+              selfStores.add(bc);
+              break;
+            }
+            const postItem = curItem ?? localState.locals[bc.arg];
+            if (postItem.equivs) {
+              equivSets.set(
+                bc,
+                new Set(Array.from(postItem.equivs).filter((e) => e >= 0))
+              );
+            }
           }
           break;
         }
@@ -535,7 +542,9 @@ export function interpFunc(func: FuncEntry, context: Context) {
           interpBytecode(bc, localState, context);
           const topType = localState.stack[localState.stack.length - 1].type;
           assert(isExact(topType));
-          const index = findEquivalent(localState, topType.type, topType.value);
+          const index = localState.loopBlock
+            ? null
+            : findEquivalent(localState, topType.type, topType.value);
           let blockReps = replacements.get(block);
 
           if (index != null) {
@@ -573,10 +582,35 @@ export function interpFunc(func: FuncEntry, context: Context) {
           }
           break;
         }
+        case Opcodes.bt:
+        case Opcodes.bf:
+          if (block.taken === block.offset) {
+            const inState = liveInState.get(block.offset);
+            assert(inState);
+            if (inState.stack.length !== localState.stack.length - 1) {
+              // this is a loop we inserted for array initialization. We have to
+              // re-process this block until the loop terminates in order to
+              // keep the stack balanced.
+              const condition = localState.stack[localState.stack.length - 1];
+              const isTrue = mustBeTrue(condition.type);
+              const isFalse = mustBeFalse(condition.type);
+              assert(isTrue || isFalse);
+              interpBytecode(bc, localState, context);
+              if (isTrue === (bc.op === Opcodes.bt)) {
+                localState.loopBlock = true;
+                inState.loopBlock = true;
+                return RpoFlags.RestartBlock;
+              }
+              return RpoFlags.SkipTaken;
+            }
+          }
+          interpBytecode(bc, localState, context);
+          break;
 
         default:
           interpBytecode(bc, localState, context);
       }
+      return null;
     },
     () => {
       /*nothing to do*/
