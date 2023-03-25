@@ -261,6 +261,28 @@ export function optimizeArrayInit(
     putvStarts.push(i);
     i = found;
   }
+  if (
+    initType &&
+    (block.bytecodes[index].op === Opcodes.newa
+      ? initType.type === TypeTag.Null
+      : initType.type === TypeTag.Number && initType.value === 0)
+  ) {
+    // Every element is initialized with its default value.
+    logger(
+      "array-init",
+      1,
+      `${func.name}: Removing initialization of default initialized ${
+        putvStarts.length
+      } element array init at block ${offsetToString(
+        block.offset
+      )}, starting at index ${index}, at offset ${offsetToString(
+        block.bytecodes[index].offset
+      )}`
+    );
+    block.bytecodes.splice(index + 1, i - index - 1);
+    return true;
+  }
+
   const terminal = block.bytecodes[i];
   if (terminal?.op === Opcodes.popv) {
     // dce can't quite handle this case on its own,
