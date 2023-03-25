@@ -1,11 +1,13 @@
 import assert from "node:assert";
+import { evaluateBinaryTypes } from "../type-flow/interp-binary";
 import { log, logger, setBanner, wouldLog } from "../logger";
-import { ExactOrUnion } from "../optimizer";
+import { ExactOrUnion, mctree } from "../optimizer";
 import { roundToFloat } from "../type-flow/interp";
 import {
   cloneType,
   display,
   ExactTypes,
+  hasValue,
   isExact,
   TypeTag,
 } from "../type-flow/types";
@@ -294,6 +296,26 @@ export function interpBytecode(
     });
   };
 
+  const binary = <T extends mctree.BinaryOperator>(op: T) => {
+    const args = localState.stack.slice(-2);
+    if (args.length !== 2) {
+      args.splice(
+        0,
+        2,
+        { type: { type: TypeTag.Any } },
+        { type: { type: TypeTag.Any } }
+      );
+    }
+    const type = evaluateBinaryTypes(op, args[0].type, args[1].type);
+    if (args[0].equivs) {
+      removeEquiv(localState, 1 - localState.stack.length);
+    }
+    if (args[1].equivs) {
+      removeEquiv(localState, 0 - localState.stack.length);
+    }
+    localState.stack.splice(-2, 2, { type });
+  };
+
   switch (bc.op) {
     case Opcodes.lgetv: {
       let local = localState.locals[bc.arg];
@@ -305,6 +327,21 @@ export function interpBytecode(
       }
       localState.stack.push(local);
       addEquiv(localState, -localState.stack.length, bc.arg);
+      break;
+    }
+    case Opcodes.dup: {
+      const dup = localState.stack.length - bc.arg - 1;
+      let other = localState.stack[dup];
+      if (other) {
+        other = { ...other };
+        delete other.equivs;
+      } else {
+        other = { type: { type: TypeTag.Any } };
+      }
+      localState.stack.push(other);
+      if (dup >= 0) {
+        addEquiv(localState, -localState.stack.length, ~dup);
+      }
       break;
     }
     case Opcodes.lputv: {
@@ -356,13 +393,64 @@ export function interpBytecode(
       break;
     case Opcodes.spush: {
       const argSym = context.symbolTable.symbolToLabelMap.get(bc.arg);
-      const value =
-        (argSym && context.symbolTable.symbols.get(argSym)?.str) ||
-        `symbol<${bc.arg}>`;
-
+      const name = argSym && context.symbolTable.symbols.get(argSym)?.str;
+      const value = `${name ?? "symbol"}<${bc.arg}>`;
       xpush(TypeTag.Symbol, value);
       break;
     }
+    case Opcodes.news: {
+      const symbol = context.symbolTable?.symbols.get(bc.arg);
+      xpush(TypeTag.Symbol, symbol?.str);
+      break;
+    }
+    case Opcodes.addv:
+      binary("+");
+      break;
+    case Opcodes.subv:
+      binary("-");
+      break;
+    case Opcodes.mulv:
+      binary("*");
+      break;
+    case Opcodes.divv:
+      binary("/");
+      break;
+    case Opcodes.modv:
+      binary("%");
+      break;
+    case Opcodes.shlv:
+      binary("<<");
+      break;
+    case Opcodes.shrv:
+      binary(">>");
+      break;
+    case Opcodes.andv:
+      binary("&");
+      break;
+    case Opcodes.orv:
+      binary("|");
+      break;
+    case Opcodes.xorv:
+      binary("^");
+      break;
+    case Opcodes.eq:
+      binary("==");
+      break;
+    case Opcodes.ne:
+      binary("!=");
+      break;
+    case Opcodes.lt:
+      binary("<");
+      break;
+    case Opcodes.lte:
+      binary("<=");
+      break;
+    case Opcodes.gt:
+      binary(">");
+      break;
+    case Opcodes.gte:
+      binary(">=");
+      break;
 
     default: {
       const { pop, push } = getOpInfo(bc);
@@ -592,4 +680,49 @@ export function interpFunc(func: FuncEntry, context: Context) {
   });
   if (interpLogging) setBanner(null);
   return { liveInState, equivSets };
+}
+
+export function instForType(
+  type: ExactOrUnion,
+  offset: number
+): Bytecode | null {
+  if (!hasValue(type)) return null;
+  switch (type.type) {
+    case TypeTag.Null:
+      return { op: Opcodes.npush, offset, size: 1 };
+    case TypeTag.False:
+    case TypeTag.True:
+      return {
+        op: Opcodes.bpush,
+        arg: type.type === TypeTag.False ? 0 : 1,
+        offset,
+        size: 1,
+      };
+    case TypeTag.Number:
+      return { op: Opcodes.ipush, arg: type.value, offset, size: 1 };
+    case TypeTag.Long:
+      return { op: Opcodes.lpush, arg: type.value, offset, size: 1 };
+    case TypeTag.Float:
+      return { op: Opcodes.fpush, arg: type.value, offset, size: 1 };
+    case TypeTag.Double:
+      return { op: Opcodes.dpush, arg: type.value, offset, size: 1 };
+    case TypeTag.Char:
+      return {
+        op: Opcodes.cpush,
+        arg: type.value.charCodeAt(0),
+        offset,
+        size: 1,
+      };
+    case TypeTag.Symbol: {
+      const match = type.value.match(/<(\d+)>$/);
+      assert(match);
+      return {
+        op: Opcodes.ipush,
+        arg: parseInt(match[1], 10),
+        offset,
+        size: 1,
+      };
+    }
+  }
+  return null;
 }
