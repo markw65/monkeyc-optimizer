@@ -363,6 +363,7 @@ export function cleanCfg(func: FuncEntry, context: Context) {
       removeBlock(func, offset);
     });
   }
+  const deadCatches: Set<number> = new Set();
   func.blocks.forEach((block) => {
     if (
       block.next &&
@@ -455,11 +456,32 @@ export function cleanCfg(func: FuncEntry, context: Context) {
           );
 
           block.try.splice(i, 1);
+          deadCatches.add(handler);
         }
       }
       if (!block.try.length) {
         delete block.try;
       }
+    }
+  });
+  deadCatches.forEach((cb) => {
+    const todo: number[] = [cb];
+    for (let i = 0; i < todo.length; i++) {
+      const offset = todo[i];
+      const block = func.blocks.get(offset);
+      if (!block) {
+        todo.splice(i--, 1);
+        continue;
+      }
+      if (block.preds?.size) {
+        continue;
+      }
+      if (block.next != null) todo.push(block.next);
+      if (block.taken != null) todo.push(block.taken);
+      if (block.exsucc != null) todo.push(block.exsucc);
+      removeBlock(func, offset);
+      todo.splice(i, 1);
+      i = -1;
     }
   });
   setBanner(null);
