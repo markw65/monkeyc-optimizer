@@ -46,6 +46,7 @@ interface OptimizePrgAndDebug extends BaseNode {
     xmlOffset: number;
     xmlLength: number;
     key: crypto.KeyObject;
+    config: BuildConfig | undefined;
   };
 }
 
@@ -88,7 +89,8 @@ export const workerTaskHandlers = {
       data.xmlBuffer,
       data.xmlOffset,
       data.xmlLength,
-      data.key
+      data.key,
+      data.config
     );
   },
 } as const;

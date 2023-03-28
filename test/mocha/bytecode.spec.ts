@@ -228,6 +228,13 @@ function createContext(incodes: PreBytecode[]): Context {
   const exceptionsMap: ExceptionsMap = new Map();
   const debugXml = xmlUtil.parseXml("<debugInfo></<debugInfo>");
   return {
+    header: {
+      ciqVersion: 0,
+      backgroundOffsets: { code: 0, data: 0 },
+      appLock: false,
+      glanceOffsets: { code: 0, data: 0 },
+      flags: 0,
+    },
     bytecodes: Array.from(processBytecode(incodes).values()),
     symbolTable,
     exceptionsMap,
@@ -235,5 +242,7 @@ function createContext(incodes: PreBytecode[]): Context {
     sections: {},
     lineTable: new Map(),
     debugXml,
+    config: {},
+    nextOffset: 0x10000,
   };
 }

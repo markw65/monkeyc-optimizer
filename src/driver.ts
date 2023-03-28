@@ -278,11 +278,48 @@ export async function driver() {
     return null;
   }, null);
   if (prev) error(`Missing arg for '${prev}'`);
+  const getOptions = (options: BuildConfig) => {
+    options = {
+      developerKeyPath,
+      outputPath,
+      products,
+      releaseBuild,
+      testBuild: testBuild !== false,
+      compilerWarnings,
+      typeCheckLevel,
+      skipOptimization,
+      checkInvalidSymbols,
+      trustDeclaredTypes,
+      propagateTypes,
+      singleUseCopyProp,
+      minimizeLocals,
+      minimizeModules,
+      checkTypes,
+      checkCompilerLookupRules,
+      sizeBasedPRE,
+      returnCommand: true,
+      checkManifest: true,
+      checkBuildPragmas,
+      covarianceWarnings,
+      iterateOptimizer,
+      ...options,
+    };
+    Object.entries(options).forEach(
+      ([k, v]) => v === undefined && delete options[k as keyof typeof options]
+    );
+    return options;
+  };
+
   if (!developerKeyPath) {
     developerKeyPath = (await getConfig({})).developerKeyPath;
   }
   if (postProcess) {
-    await optimizeProgram(postProcess, developerKeyPath, postProcessTarget);
+    await optimizeProgram(
+      postProcess,
+      developerKeyPath,
+      postProcessTarget,
+      getOptions({})
+    );
   }
   if (remoteProjects) {
     const rp = remoteProjects;
@@ -343,42 +380,17 @@ export async function driver() {
       .join(";");
     const workspace = path.dirname(jungleFiles.split(";")[0]);
     if (!outputPath) outputPath = defaultConfig.outputPath;
-    const options: BuildConfig = {
+    const options = getOptions({
       jungleFiles,
       workspace,
-      developerKeyPath,
-      outputPath,
-      products,
-      releaseBuild,
-      testBuild: testBuild !== false,
-      compilerWarnings,
-      typeCheckLevel,
-      skipOptimization,
-      checkInvalidSymbols,
-      trustDeclaredTypes,
-      propagateTypes,
-      singleUseCopyProp,
-      minimizeLocals,
-      minimizeModules,
-      checkTypes,
-      checkCompilerLookupRules,
-      sizeBasedPRE,
       ...jungleOptions,
-      returnCommand: true,
-      checkManifest: true,
-      checkBuildPragmas,
-      covarianceWarnings,
-      iterateOptimizer,
-    };
+    });
     let extraArgs = extraMonkeycArgs;
     if (jungleInfo.garminOptLevel != null && supportsCompiler2) {
       extraArgs = extraArgs
         .filter((arg) => !arg.startsWith("-O"))
         .concat(`-O${jungleInfo.garminOptLevel}`);
     }
-    Object.entries(options).forEach(
-      ([k, v]) => v === undefined && delete options[k as keyof typeof options]
-    );
     const showInfoFn = <
       T extends {
         program: string;
@@ -469,7 +481,12 @@ export async function driver() {
                         }
                       : res,
                     postOptimize &&
-                      optimizeProgram(res.program, developerKeyPath),
+                      optimizeProgram(
+                        res.program,
+                        developerKeyPath,
+                        undefined,
+                        options
+                      ),
                   ]).then(([res]) => res);
                 })
         )

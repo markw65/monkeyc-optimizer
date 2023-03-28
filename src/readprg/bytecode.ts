@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import * as crypto from "node:crypto";
+import { BuildConfig } from "src/optimizer-types";
 import { hasProperty } from "../ast";
 import { xmlUtil } from "../sdk-util";
 import { bumpLogging, log, logger, wouldLog } from "../util";
@@ -27,6 +28,7 @@ export type SectionInfo = { offset: number; length: number; view: DataView };
 export type Logger = (module: string, level: number, message: string) => void;
 
 export type Context = {
+  config: BuildConfig;
   filepath: string;
   sections: Record<number, SectionInfo>;
   header: Header;

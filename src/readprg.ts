@@ -5,6 +5,7 @@ import * as path from "path";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { hasProperty } from "./ast";
+import { BuildConfig } from "./optimizer-types";
 import {
   Context,
   optimizeBytecode,
@@ -57,10 +58,11 @@ export function readPrgWithOffsets(view: DataView) {
 export async function optimizeProgram(
   filepath: string,
   devKey?: string | undefined,
-  output?: string
+  output?: string,
+  config?: BuildConfig
 ) {
   if (/\.iq$/i.test(filepath)) {
-    return optimizePackage(filepath, devKey, output);
+    return optimizePackage(filepath, devKey, output, config);
   }
   const removeExt = (filepath: string, ext: string) =>
     path.join(path.dirname(filepath), path.basename(filepath, ext));
@@ -79,7 +81,8 @@ export async function optimizeProgram(
     filepath,
     view,
     debugXml,
-    key
+    key,
+    config
   );
   const promises: Promise<unknown>[] = [];
   promises.push(fs.writeFile(output, buffer));
@@ -112,7 +115,8 @@ export function optimizeProgramBuffer(
   filepath: string,
   view: DataView,
   debugXml: xmlUtil.Document,
-  key: crypto.KeyObject | undefined
+  key: crypto.KeyObject | undefined,
+  config: BuildConfig | undefined
 ) {
   const { sections } = readPrgWithOffsets(view);
   logger("readprg", 5, sections);
@@ -127,7 +131,9 @@ export function optimizeProgramBuffer(
   const exceptionsMap = parseExceptions(sections[SectionKinds.EXCEPTIONS].view);
   const bytecodes = parseCode(sections[SectionKinds.TEXT].view, lineTable);
 
+  if (!config) config = {};
   const context: Context = {
+    config,
     filepath,
     sections,
     bytecodes,
@@ -162,7 +168,8 @@ export function optimizeProgramBuffer(
 function optimizePackage(
   filepath: string,
   devKey?: string | undefined,
-  output?: string
+  output?: string,
+  config?: BuildConfig
 ) {
   if (!devKey) {
     throw new Error(`Can't sign ${filepath} without a developer key`);
@@ -229,6 +236,7 @@ function optimizePackage(
                     xmlOffset: xmlBuffer.byteOffset,
                     xmlLength: xmlBuffer.byteLength,
                     key,
+                    config,
                   },
                 }).then(
                   ({
@@ -402,7 +410,8 @@ export function optimizePrgAndDebug(
   xmlBuffer: ArrayBuffer,
   xmlOffset: number,
   xmlLength: number,
-  key: crypto.KeyObject
+  key: crypto.KeyObject,
+  config: BuildConfig | undefined
 ) {
   const xmlString = Buffer.from(xmlBuffer, xmlOffset, xmlLength).toString();
   const debugXml = xmlUtil.parseXml(xmlString, xmlName);
@@ -413,7 +422,8 @@ export function optimizePrgAndDebug(
     prgName,
     new DataView(prgBuffer, prgOffset, prgLength),
     debugXml,
-    key
+    key,
+    config
   );
   return Promise.resolve({
     sigBuffer: result.signature?.buffer,
