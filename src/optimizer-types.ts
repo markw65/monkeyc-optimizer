@@ -46,6 +46,8 @@ export type BuildConfig = {
   iterateOptimizer?: boolean;
   covarianceWarnings?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
+  // post build optimizer
+  removeArgc?: boolean;
 };
 export type StateNodeDecl =
   | StateNode

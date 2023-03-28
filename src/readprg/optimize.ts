@@ -47,19 +47,14 @@ function simpleOpts(func: FuncEntry, context: Context) {
   return Array.from(func.blocks.values()).reduce((changes, block) => {
     for (let i = block.bytecodes.length; i--; ) {
       const cur = block.bytecodes[i];
-      if (cur.op === Opcodes.nop) {
+      if (
+        cur.op === Opcodes.nop ||
+        (context.config.removeArgc && cur.op === Opcodes.argc)
+      ) {
         block.bytecodes.splice(i, 1);
         changes = true;
         if (logging) {
-          log(`${func.name}: deleting nop`);
-          if (i > 0) {
-            log(
-              ` - previous bytecode was ${bytecodeToString(
-                block.bytecodes[i - 1],
-                null
-              )}`
-            );
-          }
+          log(`${func.name}: deleting ${bytecodeToString(cur, null)}`);
         }
       } else if (i && cur.op === Opcodes.spush && cur.arg === equalsSym) {
         changes = equalSymbolToEq(block, i) || changes;
@@ -298,7 +293,7 @@ export function cleanCfg(func: FuncEntry, context: Context) {
   }
   const deadBlocks = new Map<number, number>();
   func.blocks.forEach((block) => {
-    if (isNopBlock(block)) {
+    if (isNopBlock(block) && block.offset !== func.offset) {
       deadBlocks.set(block.offset, block.next!);
     }
   });
@@ -337,7 +332,12 @@ export function cleanCfg(func: FuncEntry, context: Context) {
     });
   }
   func.blocks.forEach((block) => {
-    if (block.next && !block.taken && block.next !== block.offset) {
+    if (
+      block.next &&
+      !block.taken &&
+      block.next !== block.offset &&
+      block.next !== func.offset
+    ) {
       const next = func.blocks.get(block.next)!;
       if (block.try === next.try) {
         if (next.preds!.size === 1) {

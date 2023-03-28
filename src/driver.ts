@@ -65,6 +65,7 @@ export async function driver() {
   let iterateOptimizer = false;
   let postProcess: string | null = null;
   let postProcessTarget: string | undefined;
+  let removeArgc: boolean | undefined = true;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -272,6 +273,9 @@ export async function driver() {
       case "covarianceWarnings":
         covarianceWarnings = !value || /^true|1$/i.test(value);
         break;
+      case "removeArgc":
+        removeArgc = /^false|0$/i.test(value) ? false : true;
+        break;
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -302,6 +306,7 @@ export async function driver() {
       checkBuildPragmas,
       covarianceWarnings,
       iterateOptimizer,
+      removeArgc,
       ...options,
     };
     Object.entries(options).forEach(
