@@ -34,12 +34,8 @@ interface InterpItemInfo {
   equivs?: Set<number>;
 }
 
-interface InterpStackElem extends InterpItemInfo {
-  dup?: number;
-}
-
 export type InterpState = {
-  stack: InterpStackElem[];
+  stack: InterpItemInfo[];
   locals: InterpItemInfo[];
   // set if we're reprocessing a special loop block that unbalances the stack
   // (eg array-init loops). This is used to prevent optimizations that appear to
@@ -47,9 +43,8 @@ export type InterpState = {
   loopBlock?: true;
 };
 
-function interpItemToString(item: InterpStackElem) {
+function interpItemToString(item: InterpItemInfo) {
   let str = display(item.type);
-  if (item.dup != null) str += ` dup<${item.dup}>`;
   if (item.equivs) {
     str += ` equivs: ${Array.from(item.equivs).join(", ")}`;
   }
@@ -167,15 +162,11 @@ export function cloneState(state: InterpState | null | undefined): InterpState {
   return clone;
 }
 
-function mergeElems(fromElem: InterpStackElem, toElem: InterpStackElem) {
+function mergeElems(fromElem: InterpItemInfo, toElem: InterpItemInfo) {
   let changes = false;
   toElem.type = cloneType(toElem.type);
   if (unionInto(toElem.type, fromElem.type)) {
     changes = true;
-  }
-  if (toElem.dup !== fromElem.dup) {
-    changes = true;
-    delete toElem.dup;
   }
   return changes;
 }
@@ -357,8 +348,7 @@ export function interpBytecode(
           type: { type: TypeTag.Any },
         };
       }
-      const { dup: _dup, ...value } =
-        localState.stack[localState.stack.length - 1];
+      const value = localState.stack[localState.stack.length - 1];
       if (value.equivs) {
         if (curItem.equivs?.has(-localState.stack.length)) {
           // this is a self store
