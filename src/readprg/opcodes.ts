@@ -178,13 +178,34 @@ export interface Aputv extends Argless {
   op: Opcodes.aputv;
 }
 
+/*
+ * Information about which "user" local a particular Lgetv or Lputv refers to.
+ * On input, this info is acquired from the debug.xml file, so can't be entirely
+ * trusted (eg in theory debug.xml could say that two Lgetvs belong to different
+ * ranges, but in fact both are fed by the same Lputv - so must be the same). In
+ * addition, some Lgetvs and Lputvs are entirely left out.
+ *
+ * The final minimize locals pass will determine the actual groups (and assuming
+ * a single name per group, will preserve those names, while adding names to
+ * unnamed locals)
+ */
+export type LocalRange = {
+  name: string;
+  id: number;
+  isParam?: true | undefined;
+};
+
+export interface LocalInst extends ByteArg {
+  range?: LocalRange;
+}
+
 // get local value
-export interface Lgetv extends ByteArg {
+export interface Lgetv extends LocalInst {
   op: Opcodes.lgetv;
 }
 
 // put local value
-export interface Lputv extends ByteArg {
+export interface Lputv extends LocalInst {
   op: Opcodes.lputv;
 }
 

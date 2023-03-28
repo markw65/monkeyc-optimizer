@@ -9,7 +9,7 @@ import { emitFunc, UpdateInfo } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
 import { fixupHeader, Header } from "./header";
 import { fixupLineNum, LineNumber } from "./linenum";
-import { Bytecode, isCondBranch, Opcodes } from "./opcodes";
+import { Bytecode, isCondBranch, LocalRange, Opcodes } from "./opcodes";
 import { optimizeFunc } from "./optimize";
 import { SymbolTable } from "./symbols";
 
@@ -74,7 +74,85 @@ export function fixSectionSize(
   sectionInfo.view = new DataView(view.buffer, view.byteOffset, newSize);
 }
 
+function markLocals(context: Context) {
+  if (context.debugXml.body instanceof Error) {
+    return;
+  }
+
+  type LocalInfo = {
+    name: string;
+    arg: boolean;
+    sid: number;
+    epc: number;
+    range: number;
+  };
+  const localMap: Map<number, LocalInfo[]> = new Map();
+  let range = 0;
+  context.debugXml.body
+    .children("localVars")
+    .children("entry")
+    .elements.forEach((entry) => {
+      const { startPc, endPc, stackId, name, arg } = entry.attr;
+      assert(startPc && endPc && stackId && name);
+      const spc = Number(startPc.value.value) & 0xffffff;
+      const epc = (Number(endPc.value.value) & 0xffffff) + 1;
+      const sid = Number(stackId.value.value);
+      let locals = localMap.get(spc);
+      if (!locals) {
+        locals = [];
+        localMap.set(spc, locals);
+      }
+      range++;
+      locals.push({
+        name: name.value.value,
+        arg: arg?.value.value === "true",
+        epc,
+        sid,
+        range,
+      });
+    });
+
+  // map from stackId to LocalInfo
+  const live: Map<number, LocalInfo> = new Map();
+  const ends: Map<number, number[]> = new Map();
+  context.bytecodes.forEach((bc) => {
+    const end = ends.get(bc.offset);
+    if (end) {
+      end.forEach((sid) => {
+        assert(live.has(sid));
+        live.delete(sid);
+      });
+      ends.delete(bc.offset);
+    }
+
+    const locals = localMap.get(bc.offset);
+    locals?.forEach((localInfo) => {
+      if (live.has(localInfo.sid)) {
+        assert(!live.has(localInfo.sid));
+      }
+      live.set(localInfo.sid, localInfo);
+      const e = ends.get(localInfo.epc);
+      if (e == null) {
+        ends.set(localInfo.epc, [localInfo.sid]);
+      } else {
+        e.push(localInfo.sid);
+      }
+    });
+    if (bc.op === Opcodes.lgetv || bc.op === Opcodes.lputv) {
+      const local = live.get(bc.arg);
+      if (local) {
+        const range: LocalRange = { name: local.name, id: local.range };
+        if (local.arg) {
+          range.isParam = true;
+        }
+        bc.range = range;
+      }
+    }
+  });
+}
+
 export function optimizeBytecode(context: Context) {
+  markLocals(context);
   const functions = findFunctions(context);
 
   const loggerFunc = process.env["MC_LOGGER_FUNC"]
@@ -319,6 +397,14 @@ export function bytecodeToString(
 ) {
   let arg: string | null = null;
   switch (bytecode.op) {
+    case Opcodes.lgetv:
+    case Opcodes.lputv:
+      if (bytecode.range) {
+        arg = `${bytecode.range.name} ${bytecode.arg}${
+          bytecode.range.isParam ? " (param)" : ""
+        }`;
+      }
+      break;
     case Opcodes.spush: {
       const argSym = symbolTable?.symbolToLabelMap.get(bytecode.arg);
       if (argSym) {
