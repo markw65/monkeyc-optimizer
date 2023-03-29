@@ -228,3 +228,14 @@ function testPostBuildDce3(logger as Logger) as Boolean {
     }
     return x == 4;
 }
+
+(:test)
+function testSingleCopyPropWithUpdateExpression(logger as Logger) as Boolean {
+    var i = wrapper(42);
+    i += 1;
+    if (i != wrapper(43)) {
+        return false;
+    }
+    i++;
+    return i == 44;
+}

@@ -4,7 +4,7 @@ import { NodeEquivMap } from "../type-flow";
 import { formatAst, traverseAst } from "../api";
 import { withLoc } from "../ast";
 import { getPostOrder } from "../control-flow";
-import { DataflowQueue, DefEvent } from "../data-flow";
+import { DataflowQueue, DefEvent, RefNode } from "../data-flow";
 import { unused } from "../inliner";
 import { FunctionStateNode, ProgramStateAnalysis } from "../optimizer-types";
 import { variableCleanup } from "./minimize-locals";
@@ -146,6 +146,29 @@ export function findDeadStores(
   const deadStores = new Set<mctree.Node>();
   const copyPropStores: CopyPropStores = new Map();
 
+  const copyPropRef = (
+    curState: DeadState,
+    key: TypeStateKey,
+    node: RefNode
+  ) => {
+    if (findCopyPropCandidates && declIsLocal(key)) {
+      if (!curState.anticipated) {
+        curState.anticipated = new Map();
+      }
+      addAnt(curState.anticipated, key, node);
+      if (!curState.partiallyAnticipated) {
+        curState.partiallyAnticipated = new Map();
+      }
+      addAnt(curState.partiallyAnticipated, key, node);
+      if (logThisRun) {
+        console.log(
+          `  antrefs: ${curState.partiallyAnticipated.get(key) !== false} ${
+            curState.anticipated.get(key) !== false
+          }`
+        );
+      }
+    }
+  };
   order.forEach((block) => {
     if (!block.succs) {
       queue.enqueue(block);
@@ -182,26 +205,12 @@ export function findDeadStores(
           case "ref":
             if (isTypeStateKey(event.decl)) {
               if (logThisRun) {
-                console.log(describeEvent(event));
+                console.log(
+                  `${describeEvent(event)} (${sourceLocation(event.node.loc)})`
+                );
                 console.log(`  kill => ${tsKey(event.decl)}`);
               }
-              if (findCopyPropCandidates && declIsLocal(event.decl)) {
-                if (!curState.anticipated) {
-                  curState.anticipated = new Map();
-                }
-                addAnt(curState.anticipated, event.decl, event.node);
-                if (!curState.partiallyAnticipated) {
-                  curState.partiallyAnticipated = new Map();
-                }
-                addAnt(curState.partiallyAnticipated, event.decl, event.node);
-                if (logThisRun) {
-                  console.log(
-                    `  antrefs: ${
-                      curState.partiallyAnticipated.get(event.decl) !== false
-                    } ${curState.anticipated.get(event.decl) !== false}`
-                  );
-                }
-              }
+              copyPropRef(curState, event.decl, event.node);
               curState.dead.delete(event.decl);
             }
             break;
@@ -211,7 +220,9 @@ export function findDeadStores(
               (event.node.type !== "VariableDeclarator" || event.node.init)
             ) {
               if (logThisRun) {
-                console.log(describeEvent(event));
+                console.log(
+                  `${describeEvent(event)} (${sourceLocation(event.node.loc)})`
+                );
               }
               const assignNode =
                 (event.node.type === "AssignmentExpression" &&
@@ -264,6 +275,8 @@ export function findDeadStores(
                 if (logThisRun) {
                   console.log(`  anticipated => ${tsKey(event.decl)}`);
                 }
+              } else if (event.node.type === "UpdateExpression") {
+                copyPropRef(curState, event.decl, event.node.argument);
               }
             }
             break;
