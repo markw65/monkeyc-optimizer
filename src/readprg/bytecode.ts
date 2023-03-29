@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import * as crypto from "node:crypto";
-import { BuildConfig } from "src/optimizer-types";
+import { BuildConfig } from "../optimizer-types";
 import { hasProperty } from "../ast";
 import { xmlUtil } from "../sdk-util";
 import { bumpLogging, log, logger, wouldLog } from "../util";
