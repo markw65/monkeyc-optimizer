@@ -824,3 +824,7 @@ Bug Fixes
   - Handle more bytecodes in interp
   - If an array is initialized to its default value, drop the initializers
   - Add an option to [remove argc bytecodes](https://github.com/markw65/monkeyc-optimizer/wiki/Post-Build-Optimizer#remove-argc)
+
+### 1.1.23
+
+No functional change, just fixes a typo that broke the typescript exports.
