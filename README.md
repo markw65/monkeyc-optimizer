@@ -811,3 +811,16 @@ Bug Fixes
   - Keep better track of exceptional edges in dce, allowing it to be more aggressive.
   - Add a (very simple) bytecode interpreter which keeps track of the values in locals, and on the stack. This allows us to opportunistically replace constants (typically 5+ bytes) with a 2 byte load from a register, or from a stack location. This (together with dce) will form the infrastructure for a future minimize-locals pass.
   - when replacing constants with locals/stack accesses, look for uses of `~`. Eg if the value `2` is in the local `x`, and we need to produce the value `-3`, we can use `~x` (costing 3 bytes, instead of 5).
+
+### 1.1.22
+
+- Bug fixes
+
+  - [Fixes a bug in Single Use Copy Prop](https://github.com/markw65/prettier-extension-monkeyc/issues/8)
+
+- Post Build Optimizations
+  - Updates the array-init optimizations to include `ByteArray`s
+  - Integrate the array-init optimization with the new interp pass, so that changes made by interp don't interfere with array-init
+  - Handle more bytecodes in interp
+  - If an array is initialized to its default value, drop the initializers
+  - Add an option to [remove argc bytecodes](https://github.com/markw65/monkeyc-optimizer/wiki/Post-Build-Optimizer#remove-argc)
