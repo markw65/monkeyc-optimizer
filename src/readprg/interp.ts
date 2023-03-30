@@ -693,10 +693,7 @@ export function interpFunc(func: FuncEntry, context: Context) {
         const invv = { ...orig };
         invv.op = Opcodes.invv;
         invv.size = 1;
-        // the original byte code was 5 or 9 bytes long, so
-        // we can certainly use the next offset as a unique
-        // identifier for the invv
-        invv.offset++;
+        invv.offset = context.nextOffset++;
         delete invv.arg;
         block.bytecodes.splice(i + 1, 0, invv);
       }
