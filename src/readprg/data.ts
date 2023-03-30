@@ -51,7 +51,7 @@ function skipClassDef(view: DataView, current: number, symbols: SymbolTable) {
           `method_${pc}`;
         //symbols.symbols.set(pc, { str: label, label });
       }
-      symbols.methods.set(pc, { name: label, id: f1 >>> 8 });
+      symbols.methods.set(pc, { name: label, id: f1 >>> 8, argc: null });
     }
   }
   return current;

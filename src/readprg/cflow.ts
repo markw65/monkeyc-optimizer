@@ -22,8 +22,8 @@ export function postOrderTraverse(
 
 export function intersect<T>(a: Set<T>, b: Set<T>): Set<T> {
   if (a.size > b.size) return intersect(b, a);
-  const result = new Set(a);
-  result.forEach((x) => b.has(x) || a.delete(x));
+  const result: Set<T> = new Set();
+  a.forEach((x) => b.has(x) && result.add(x));
   return result;
 }
 
@@ -50,7 +50,7 @@ export function computePostDominators(func: FuncEntry): DomLike {
         states.set(pred, new Set(postDoms));
         changes = true;
       } else {
-        const newState = intersect(postDoms!, predState);
+        const newState = intersect(postDoms, predState);
         states.set(pred, newState);
         changes = newState.size !== predState.size;
       }
@@ -61,6 +61,41 @@ export function computePostDominators(func: FuncEntry): DomLike {
   }
   // every block post-dominates itself
   states.forEach((pd, offset) => pd.add(offset));
+  return states;
+}
+
+export function computeDominators(func: FuncEntry): DomLike {
+  const states: DomLike = new Map();
+  rpoPropagate(
+    func,
+    (block) => {
+      let state = states.get(block.offset);
+      if (!state) {
+        state = new Set();
+        states.set(block.offset, state);
+      }
+      return new Set(state).add(block.offset);
+    },
+    null,
+    () => {
+      /* */
+    },
+    (from, state, succBlock) => {
+      const succState = states.get(succBlock.offset);
+      if (!succState) {
+        states.set(succBlock.offset, new Set(state));
+        return true;
+      }
+      const newState = intersect(state, succState);
+      if (newState.size !== succState.size) {
+        states.set(succBlock.offset, newState);
+        return true;
+      }
+      return false;
+    }
+  );
+  // we computed the in-states, but want the out-states
+  states.forEach((state, offset) => state.add(offset));
   return states;
 }
 
@@ -170,13 +205,15 @@ export enum RpoFlags {
 export function rpoPropagate<T>(
   func: FuncEntry,
   preBlock: (block: Block) => T,
-  processBc: (
-    block: Block,
-    bc: Bytecode,
-    state: T
-  ) => RpoFlags | null | undefined | void,
+  processBc:
+    | ((
+        block: Block,
+        bc: Bytecode,
+        state: T
+      ) => RpoFlags | null | undefined | void)
+    | null,
   postBlock: (block: Block, state: T) => void,
-  merge: (from: Block, state: T, predBlock: Block, isExSucc: boolean) => boolean
+  merge: (from: Block, state: T, succBlock: Block, isExSucc: boolean) => boolean
 ) {
   const order: Map<Block, number> = new Map();
   {
@@ -199,18 +236,20 @@ export function rpoPropagate<T>(
       merge(top, localState, toBlock, isExSucc) && queue.enqueue(toBlock);
     };
     let flags: RpoFlags | null | undefined | void;
-    for (let i = 0; i < top.bytecodes.length; i++) {
-      const bc = top.bytecodes[i];
-      flags = processBc(top, bc, localState);
-      if (flags != null && flags & RpoFlags.RestartBlock) {
-        i = -1;
-        continue;
-      }
-      if (
-        top.exsucc &&
-        (bc.op === Opcodes.invokem || bc.op === Opcodes.throw)
-      ) {
-        doMerge(top.exsucc, true);
+    if (processBc) {
+      for (let i = 0; i < top.bytecodes.length; i++) {
+        const bc = top.bytecodes[i];
+        flags = processBc(top, bc, localState);
+        if (flags != null && flags & RpoFlags.RestartBlock) {
+          i = -1;
+          continue;
+        }
+        if (
+          top.exsucc &&
+          (bc.op === Opcodes.invokem || bc.op === Opcodes.throw)
+        ) {
+          doMerge(top.exsucc, true);
+        }
       }
     }
     postBlock(top, localState);
@@ -230,6 +269,9 @@ export function rpoPropagate<T>(
       if (flags & RpoFlags.EnqueueTaken) {
         queue.enqueue(func.blocks.get(top.taken)!);
       }
+    }
+    if (!processBc && top.exsucc) {
+      doMerge(top.exsucc, true);
     }
     retMap.get(top.offset)?.forEach((retSucc) => doMerge(retSucc, false));
   }

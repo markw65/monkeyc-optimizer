@@ -6,7 +6,10 @@ export class SymbolTable {
   // name
   symbolToLabelMap = new Map<number, number>();
   symbols = new Map<number, { str: string; label: string }>();
-  methods = new Map<number, { name: string; id: number | null }>();
+  methods = new Map<
+    number,
+    { name: string; id: number | null; argc: number | null }
+  >();
   decoder = new TextDecoder();
 
   parseSymbolTable(view: DataView) {
@@ -35,11 +38,19 @@ export class SymbolTable {
       .elements.forEach((functionEntry) => {
         const { startPc, name, parent } = functionEntry.attr;
         if (!startPc || !name) return;
+        const argc =
+          functionEntry.children?.filter(
+            (node) => node.type === "element" && node.name === "param"
+          ).length || null;
         const fullName =
           (parent ? debugXml.processRefs(parent.value.value) + "." : "") +
           debugXml.processRefs(name.value.value);
         const pc = Number(startPc.value.value) & 0xffffff;
-        this.methods.set(pc, { name: fullName, id: null });
+        this.methods.set(pc, {
+          name: fullName,
+          id: null,
+          argc: argc == null ? null : argc + 1,
+        });
       });
     debugXml.body
       .children("symbolTable")

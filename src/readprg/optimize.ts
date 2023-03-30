@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { sizeBasedPRE } from "./pre";
 import { log, logger, setBanner, wouldLog } from "../util";
 import { optimizeArrayInit } from "./array-init";
 import {
@@ -36,7 +37,10 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     changes = interpChanges || changes;
     changes = doArrayInits(func, liveInState, context) || changes;
     if (changes) continue;
-    if (!minimizeLocals(func, equivSets, context)) {
+    if (context.config.postBuildPRE !== false) {
+      if (sizeBasedPRE(func, context)) continue;
+    }
+    if (!minimizeLocals(func, equivSets, context) && !changes) {
       return;
     }
   }

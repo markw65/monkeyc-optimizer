@@ -55,6 +55,7 @@ export type Block = {
 export type FuncEntry = {
   name?: string;
   offset: number;
+  argc?: number;
   blocks: Map<number, Block>;
 };
 
@@ -551,6 +552,7 @@ export function findFunctions({
   while (blocks.size) {
     const func = new Map<number, Block>();
 
+    let argc = null;
     const queue = [blocks.keys().next().value as number];
     while (queue.length) {
       const next = queue.pop()!;
@@ -559,6 +561,13 @@ export function findFunctions({
         continue;
       }
       func.set(next, block);
+      if (
+        func.size === 1 &&
+        block.bytecodes.length &&
+        block.bytecodes[0].op === Opcodes.argc
+      ) {
+        argc = block.bytecodes[0].arg;
+      }
       blocks.delete(next);
       exceptionsMap.get(block.offset)?.forEach((exInfo) => {
         queue.push(exInfo.tryEnd);
@@ -576,9 +585,16 @@ export function findFunctions({
       .map((key) => [key, func.get(key)!] as const);
     const offset = funcSorted[0][0];
     const f: FuncEntry = { offset, blocks: new Map(funcSorted) };
-    const name = symbolTable.methods.get(offset)?.name;
+    const method = symbolTable.methods.get(offset);
+    const name = method?.name;
     if (!name) continue;
     f.name = name;
+    if (argc == null && method.argc != null) {
+      argc = method.argc;
+    }
+    if (argc != null) {
+      f.argc = argc;
+    }
     functions.set(offset, f);
   }
 

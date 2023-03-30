@@ -48,6 +48,7 @@ export type BuildConfig = {
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
   // post build optimizer
   removeArgc?: boolean;
+  postBuildPRE?: boolean;
 };
 export type StateNodeDecl =
   | StateNode
