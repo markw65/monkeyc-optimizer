@@ -118,7 +118,6 @@ export function emitFunc(
           updateInfo.lineMap.push(lineNum);
         }
       }
-      offsetMap.set(bytecode.offset, offset);
       if (bytecode.op === Opcodes.lputv) {
         const range = bytecode.range;
         if (range) {
