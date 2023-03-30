@@ -208,8 +208,7 @@ export function beforeEvaluate(
       if (node.operator === "-") {
         const [arg] = istate.stack.slice(-1);
         if (
-          (arg.value.type & (TypeTag.Number | TypeTag.Long)) ===
-            arg.value.type &&
+          (arg.value.type & TypeTag.Numeric) === arg.value.type &&
           arg.value.value == null
         ) {
           const leftType = { type: TypeTag.Number, value: 0 } as const;
