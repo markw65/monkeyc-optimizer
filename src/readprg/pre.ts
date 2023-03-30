@@ -16,7 +16,7 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
   const canonicalMap: Map<bigint, Set<Bytecode>> = new Map();
   let states: Map<number, Map<bigint, Set<Bytecode>>> = new Map();
   let incSp = null as Incsp | false | null;
-  const getBigInt = (bc: Bytecode) => {
+  const getBigInt = (bc: Bytecode, index: number, bcs: Bytecode[]) => {
     switch (bc.op) {
       case Opcodes.dpush: {
         const buffer = new ArrayBuffer(Float64Array.BYTES_PER_ELEMENT);
@@ -30,10 +30,14 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
         view.setFloat32(0, bc.arg);
         return (BigInt(view.getInt32(0)) << 8n) | BigInt(bc.op);
       }
+      case Opcodes.spush:
+        if (bcs[index + 1]?.op === Opcodes.getm) {
+          break;
+        }
+      // fall through
       case Opcodes.ipush:
       case Opcodes.lpush:
       case Opcodes.cpush:
-      case Opcodes.spush:
       case Opcodes.news:
         return (BigInt(bc.arg) << 8n) | BigInt(bc.op);
       case Opcodes.incsp:
@@ -42,6 +46,11 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
         }
         incSp = bc;
         return null;
+      case Opcodes.getm:
+        if (index && bcs[index - 1].op === Opcodes.spush) {
+          return (BigInt(bcs[index - 1].arg as number) << 8n) | BigInt(bc.op);
+        }
+        break;
     }
     return null;
   };
@@ -54,8 +63,8 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
     const block = func.blocks.get(offset);
     assert(block);
     const state: Map<bigint, Set<Bytecode>> = new Map();
-    block.bytecodes.forEach((bc) => {
-      const id = getBigInt(bc);
+    block.bytecodes.forEach((bc, i, bcs) => {
+      const id = getBigInt(bc, i, bcs);
       if (id == null) return;
       let canon = canonicalMap.get(id);
       if (!canon) {
@@ -146,17 +155,50 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
     }
     const bc: Bytecode = bcs.values().next().value;
     const slot = nextSlot++;
-    block.bytecodes.splice(
-      index,
-      0,
-      bytecode(bc.op, bc.arg),
-      bytecode(Opcodes.lputv, slot)
-    );
-    bcs.forEach((bc) => {
-      bc.op = Opcodes.lgetv;
-      bc.arg = slot;
-      bc.size = 2;
-    });
+    if (bc.op === Opcodes.getm) {
+      assert(index !== 0);
+      let spush = null as Bytecode | null;
+      func.blocks.forEach(
+        (b) =>
+          states.get(b.offset)?.get(key) &&
+          b.bytecodes.forEach((bc, i) => {
+            if (bcs.has(bc)) {
+              assert(i > 0);
+              const prev = b.bytecodes[i - 1];
+              if (!spush) {
+                spush = { ...prev };
+              }
+              bc.op = Opcodes.nop;
+              prev.op = Opcodes.lgetv;
+              prev.arg = slot;
+              prev.size = 2;
+            }
+          })
+      );
+      assert(spush);
+      if (index >= 0 && index < block.bytecodes.length) {
+        index--;
+      }
+      block.bytecodes.splice(
+        index,
+        0,
+        bytecode(spush.op, spush.arg),
+        bytecode(Opcodes.getm, undefined),
+        bytecode(Opcodes.lputv, slot)
+      );
+    } else {
+      block.bytecodes.splice(
+        index,
+        0,
+        bytecode(bc.op, bc.arg),
+        bytecode(Opcodes.lputv, slot)
+      );
+      bcs.forEach((bc) => {
+        bc.op = Opcodes.lgetv;
+        bc.arg = slot;
+        bc.size = 2;
+      });
+    }
   });
   if (incSp) {
     incSp.arg += insertionBlocks.size;
