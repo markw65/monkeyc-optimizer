@@ -189,7 +189,7 @@ export function optimizeBytecode(context: Context) {
   let offset = 0;
   const updateInfo: UpdateInfo = {
     offsetMap: new Map(),
-    localsMap: new Map(),
+    localRanges: [],
     lineMap: [],
     exceptionsMap: new Map(),
   };
@@ -267,35 +267,40 @@ export function optimizeBytecode(context: Context) {
     return [s + 0x10000000, e + 0x10000000];
   };
 
-  let func = funcArray[0];
-  let fend = funcArray[1].offset;
-  context.debugXml.body
-    .children("localVars")
-    .children("entry")
-    .elements.forEach((entry) => {
-      const { startPc, endPc, stackId } = entry.attr;
-      assert(startPc && endPc && stackId);
-      const spc = Number(startPc.value.value) & 0xffffff;
-      const epc = Number(endPc.value.value) & 0xffffff;
-      const sid = Number(stackId.value.value);
-      if (spc < func.offset || epc > fend) {
-        const index = funcIndex(Number(startPc.value.value));
-        func = funcArray[index];
-        fend = funcArray[index + 1].offset;
-      }
-      const info = updateInfo.localsMap.get(func);
-      assert(info);
-      const local = info.get(sid);
-      if (!local) {
-        entry.attr = {};
+  const localVars = context.debugXml.body.children("localVars");
+  const addAttr = (
+    element: xmlUtil.Element,
+    attrName: string,
+    attrValue: string
+  ) => {
+    element.attr[attrName] = xmlUtil.makeAttribute(attrName, attrValue);
+  };
+  localVars.elements.forEach((element, i) => {
+    delete element.children;
+    if (i) return;
+    element.children = [];
+    const children = element.children;
+    updateInfo.localRanges.forEach((localRange) => {
+      if (localRange.endPc === localRange.startPc) {
         return;
       }
-      startPc.value.value = (local.startPc + 0x10000000).toString();
-      endPc.value.value = (local.endPc + 0xfffffff).toString();
+      children.push({ type: "chardata", value: "\n" });
+      const element: xmlUtil.Element = {
+        type: "element",
+        name: "entry",
+        attr: {},
+      };
+      addAttr(element, "name", localRange.name);
+      if (localRange.isParam) {
+        addAttr(element, "arg", "true");
+      }
+      addAttr(element, "startPc", (localRange.startPc + 0x10000000).toString());
+      addAttr(element, "endPc", (localRange.endPc + 0x10000000).toString());
+      addAttr(element, "stackId", localRange.slot.toString());
+      children.push(element);
     });
-  context.debugXml.body
-    .children("localVars")
-    .deleteChildren((entry) => !entry.attr.startPc);
+    children.push({ type: "chardata", value: "\n" });
+  });
 
   context.debugXml.body
     .children("functions")

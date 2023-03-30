@@ -1,15 +1,24 @@
 import assert from "node:assert";
 import { hasProperty } from "../ast";
 import { Block, Context, FuncEntry } from "./bytecode";
+import { postOrderPropagate } from "./cflow";
 import { ExceptionEntry, ExceptionsMap } from "./exceptions";
 import { LineNumber } from "./linenum";
 import { Bytecode, emitBytecode, Opcodes } from "./opcodes";
 import { cleanCfg } from "./optimize";
 
+type LocalXmlInfo = {
+  name: string;
+  startPc: number;
+  endPc: number;
+  isParam: boolean;
+  slot: number;
+  id: number;
+};
 export type LocalsMap = Map<number, { startPc: number; endPc: number }>;
 export type UpdateInfo = {
   offsetMap: Map<number, number>;
-  localsMap: Map<FuncEntry, LocalsMap>;
+  localRanges: LocalXmlInfo[];
   lineMap: LineNumber[];
   exceptionsMap: ExceptionsMap;
 };
@@ -24,10 +33,10 @@ export function emitFunc(
   cleanCfg(func, context);
   groupBlocks(func);
 
-  const { offsetMap } = updateInfo;
-  const localsMap: LocalsMap = new Map();
-  let numArgs = 0;
-  updateInfo.localsMap.set(func, localsMap);
+  const { liveInLocals } = getLocalsInfo(func);
+  const liveLocalRanges: Map<number, LocalXmlInfo> = new Map();
+
+  const { localRanges, offsetMap } = updateInfo;
   const linktable = new Map<number, number>();
   let offset = start;
   let lineNum: LineNumber | null = null;
@@ -39,6 +48,32 @@ export function emitFunc(
       a.fileStr === b.fileStr &&
       a.symbolStr === b.symbolStr
     );
+  };
+  const startLocalRange = (
+    slot: number,
+    id: number,
+    name: string,
+    isParam: boolean
+  ) => {
+    const liveRange = liveLocalRanges.get(slot);
+    if (liveRange) {
+      if (liveRange.id === id) {
+        return;
+      }
+      liveRange.endPc = offset - 1;
+      liveLocalRanges.delete(slot);
+    }
+    if (id < 0) return;
+    const newRange: LocalXmlInfo = {
+      startPc: offset,
+      endPc: offset,
+      id,
+      isParam,
+      name,
+      slot,
+    };
+    liveLocalRanges.set(slot, newRange);
+    localRanges.push(newRange);
   };
   const exceptionStack: ExceptionEntry[] = [];
   Array.from(func.blocks.values()).forEach((block, i, blocks) => {
@@ -68,6 +103,10 @@ export function emitFunc(
     } else {
       exceptionStack.length = 0;
     }
+    const liveInState = liveInLocals.get(block.offset);
+    liveInState?.forEach((local) =>
+      startLocalRange(local.slot, local.id, local.name, local.isParam)
+    );
     block.bytecodes.forEach((bytecode) => {
       if (bytecode.op === Opcodes.goto) {
         return;
@@ -80,17 +119,17 @@ export function emitFunc(
         }
       }
       offsetMap.set(bytecode.offset, offset);
-      if (bytecode.op === Opcodes.argc) {
-        numArgs = bytecode.arg;
-      } else if (
-        bytecode.op === Opcodes.lputv ||
-        bytecode.op === Opcodes.lgetv
-      ) {
-        const li = localsMap.get(bytecode.arg);
-        if (!li) {
-          localsMap.set(bytecode.arg, { startPc: offset, endPc: offset });
+      if (bytecode.op === Opcodes.lputv) {
+        const range = bytecode.range;
+        if (range) {
+          startLocalRange(
+            bytecode.arg,
+            range.id,
+            range.name,
+            range.isParam === true
+          );
         } else {
-          li.endPc = offset + bytecode.size;
+          startLocalRange(bytecode.arg, -1, "", false);
         }
       }
       offset = emitBytecode(bytecode, view, offset, linktable);
@@ -106,14 +145,9 @@ export function emitFunc(
     }
   });
   assert(exceptionStack.length === 0);
-
-  localsMap.forEach((item, slot) => {
-    if (slot < numArgs) {
-      item.startPc = start;
-    }
-    item.endPc = offset;
+  liveLocalRanges.forEach((liveRange) => {
+    liveRange.endPc = offset - 1;
   });
-
   // fixup all the relative branches within the function
   linktable.forEach((target, from) => {
     const newOffset = offsetMap.get(target);
@@ -225,4 +259,91 @@ function groupBlocks(func: FuncEntry) {
       .reverse()
       .map((offset) => [offset, func.blocks.get(offset)!] as const)
   );
+}
+
+// compute the live ranges for all locals with a "range" field. These are the
+// ones that were listed in the debug.xml, and we want to be able to spit out a
+// new version.
+//
+// For each stack slot, we need to know which local (if any) is live in and out
+// of each block. We will want to extend the live ends of the live ranges as far
+// as possible, so that you can still see the value in the debugger even after
+// the last reference (ie we don't want to mark the range as over immediately
+// after the last reference to a variable), but we do need to stop the range if
+// a different variable takes over the slot.
+function getLocalsInfo(func: FuncEntry) {
+  type LocalInfo = { name: string; id: number; isParam: boolean; slot: number };
+  type LocalState = Map<number, LocalInfo>;
+  const liveOutLocals: Map<number, LocalState> = new Map();
+  const liveInLocals: Map<number, LocalState> = new Map();
+
+  function mergeInto(from: LocalState, to: LocalState) {
+    let changed = false;
+    from.forEach((local, key) => {
+      const curr = to.get(key);
+      if (!curr) {
+        to.set(key, local);
+        changed = true;
+        return;
+      }
+      // if the minimize locals pass ran, it should be guaranteed that to and
+      // from refer to the same local, but if we skipped it, we're just trusting
+      // what debug.xml told us, and its not guaranteed.
+      //
+      // Either way, its not safe to assert here, and there's no good solution
+      // if to and from refer to different locals. So we'll just keep to.
+
+      // assert(curr.id === local.id);
+    });
+    return changed;
+  }
+
+  postOrderPropagate(
+    func,
+    (block) => new Map(liveOutLocals.get(block.offset)),
+    (block, bc, locals) => {
+      switch (bc.op) {
+        case Opcodes.lgetv: {
+          const range = bc.range;
+          if (range) {
+            locals.set(bc.arg, {
+              name: range.name,
+              id: range.id,
+              isParam: range.isParam === true,
+              slot: bc.arg,
+            });
+          }
+          break;
+        }
+
+        case Opcodes.lputv:
+          locals.delete(bc.arg);
+          break;
+
+        case Opcodes.throw:
+        case Opcodes.invokem:
+          if (block.exsucc) {
+            const from = liveInLocals.get(block.exsucc);
+            if (from) {
+              mergeInto(from, locals);
+            }
+          }
+          break;
+      }
+    },
+    (block, locals) => {
+      liveInLocals.set(block.offset, locals);
+    },
+    (locals, predBlock, isExPred) => {
+      if (isExPred) return false;
+      const predLocals = liveOutLocals.get(predBlock.offset);
+      if (!predLocals) {
+        liveOutLocals.set(predBlock.offset, new Map(locals));
+        return true;
+      }
+      return mergeInto(locals, predLocals);
+    }
+  );
+
+  return { liveInLocals, liveOutLocals };
 }
