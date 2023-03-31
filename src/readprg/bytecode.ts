@@ -426,7 +426,7 @@ export function bytecodeToString(
     case Opcodes.news: {
       const symbol = symbolTable?.symbols.get(bytecode.arg);
       if (symbol) {
-        arg = symbol.str;
+        arg = `${JSON.stringify(symbol.str)} (${bytecode.arg})`;
       }
       break;
     }
