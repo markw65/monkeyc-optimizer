@@ -24,9 +24,10 @@ import {
   lineInfoToString,
   makeArgless,
   offsetToString,
+  redirect,
 } from "./bytecode";
 import { RpoFlags, rpoPropagate } from "./cflow";
-import { Bytecode, getOpInfo, Lputv, Opcodes } from "./opcodes";
+import { Bytecode, getOpInfo, isCondBranch, Lputv, Opcodes } from "./opcodes";
 
 interface InterpItemInfo {
   type: ExactOrUnion;
@@ -470,6 +471,7 @@ export function interpBytecode(
 
 export function interpFunc(func: FuncEntry, context: Context) {
   const { symbolTable } = context;
+  const resolvedBranches: Map<Block, boolean> = new Map();
   const equivSets: Map<Lputv, Set<number>> = new Map();
   const selfStores: Set<Bytecode> = new Set();
   const liveInState: Map<number, InterpState> = new Map();
@@ -580,7 +582,7 @@ export function interpFunc(func: FuncEntry, context: Context) {
           break;
         }
         case Opcodes.bt:
-        case Opcodes.bf:
+        case Opcodes.bf: {
           if (block.taken === block.offset) {
             const inState = liveInState.get(block.offset);
             assert(inState);
@@ -601,9 +603,20 @@ export function interpFunc(func: FuncEntry, context: Context) {
               return RpoFlags.SkipTaken;
             }
           }
+          resolvedBranches.delete(block);
+          let flags = 0 as RpoFlags;
+          const top = localState.stack[localState.stack.length - 1];
+          if (top) {
+            const isTrue = mustBeTrue(top.type);
+            if (isTrue || mustBeFalse(top.type)) {
+              const isTaken = isTrue === (bc.op === Opcodes.bt);
+              flags = isTaken ? RpoFlags.SkipNext : RpoFlags.SkipTaken;
+              resolvedBranches.set(block, isTaken);
+            }
+          }
           interpBytecode(bc, localState, context);
-          break;
-
+          return flags;
+        }
         default:
           interpBytecode(bc, localState, context);
       }
@@ -698,6 +711,16 @@ export function interpFunc(func: FuncEntry, context: Context) {
         )
       );
     }
+    if (resolvedBranches.size) {
+      log(`====== resolved branches =====`);
+      resolvedBranches.forEach((isTaken, block) =>
+        log(
+          `block ${offsetToString(block.offset)} is ${
+            isTaken ? "always" : "never"
+          } taken`
+        )
+      );
+    }
   }
   selfStores.forEach((bc) => makeArgless(bc, Opcodes.popv));
   replacements.forEach((blockRep, block) => {
@@ -721,6 +744,17 @@ export function interpFunc(func: FuncEntry, context: Context) {
         block.bytecodes.splice(i + 1, 0, invv);
       }
     }
+  });
+  resolvedBranches.forEach((isTaken, block) => {
+    const branch = block.bytecodes[block.bytecodes.length - 1];
+    assert(branch && isCondBranch(branch.op));
+    if (isTaken) {
+      redirect(func, block, block.next!, block.taken);
+    } else {
+      redirect(func, block, block.taken!, block.next);
+    }
+    delete block.taken;
+    makeArgless(branch, Opcodes.popv);
   });
   if (interpLogging) setBanner(null);
   return {
