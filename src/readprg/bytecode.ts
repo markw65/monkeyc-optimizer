@@ -656,9 +656,7 @@ export function removeBlock(func: FuncEntry, offset: number) {
 
 export function removePred(func: FuncEntry, target: number, pred: number) {
   const targetBlock = func.blocks.get(target)!;
-  if (!targetBlock.preds?.has(pred)) {
-    assert(targetBlock.preds?.has(pred));
-  }
+  assert(targetBlock.preds?.has(pred));
   targetBlock.preds!.delete(pred);
 }
 

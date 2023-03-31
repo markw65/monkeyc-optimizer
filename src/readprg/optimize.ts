@@ -15,12 +15,14 @@ import {
   offsetToString,
   redirect,
   removeBlock,
+  removePred,
 } from "./bytecode";
 import { localDCE } from "./dce";
 import { cloneState, interpBytecode, interpFunc, InterpState } from "./interp";
 import { minimizeLocals } from "./locals";
 import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
 import { blockSharing } from "./sharing";
+import { postOrderTraverse } from "./cflow";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
   while (true) {
@@ -332,51 +334,50 @@ function isNopBlock(block: Block) {
   );
 }
 
-export function cleanCfg(func: FuncEntry, context: Context) {
-  if (wouldLog("cfg", 10)) {
-    setBanner(functionBanner(func, context, "sharing"));
-  }
-  const deadBlocks = new Map<number, number>();
+function removeNoOpBlocks(func: FuncEntry) {
+  const noOpBlocks = new Map<number, number>();
   func.blocks.forEach((block) => {
     if (isNopBlock(block) && block.offset !== func.offset) {
-      deadBlocks.set(block.offset, block.next!);
+      noOpBlocks.set(block.offset, block.next!);
     }
   });
-  if (deadBlocks.size) {
-    deadBlocks.forEach((target, key) => {
-      let next = deadBlocks.get(target);
+  if (noOpBlocks.size) {
+    noOpBlocks.forEach((target, key) => {
+      let next = noOpBlocks.get(target);
       if (next != null) {
         do {
-          deadBlocks.set(key, next);
-          next = deadBlocks.get(next);
+          noOpBlocks.set(key, next);
+          next = noOpBlocks.get(next);
         } while (next);
       }
     });
     func.blocks.forEach((block) => {
       if (block.next) {
-        const fixed = deadBlocks.get(block.next);
+        const fixed = noOpBlocks.get(block.next);
         if (fixed) {
           redirect(func, block, block.next, fixed);
         }
       }
       if (block.taken) {
-        const fixed = deadBlocks.get(block.taken);
+        const fixed = noOpBlocks.get(block.taken);
         if (fixed) {
           redirect(func, block, block.taken, fixed);
         }
       }
       if (block.exsucc) {
-        const fixed = deadBlocks.get(block.exsucc);
+        const fixed = noOpBlocks.get(block.exsucc);
         if (fixed) {
           redirect(func, block, block.exsucc, fixed);
         }
       }
     });
-    deadBlocks.forEach((target, offset) => {
+    noOpBlocks.forEach((target, offset) => {
       removeBlock(func, offset);
     });
   }
-  const deadCatches: Set<number> = new Set();
+}
+
+function removeUnreachableCatches(func: FuncEntry, context: Context) {
   func.blocks.forEach((block) => {
     if (
       block.next &&
@@ -459,7 +460,7 @@ export function cleanCfg(func: FuncEntry, context: Context) {
     if (block.try && !block.exsucc) {
       for (let i = block.try.length; i--; ) {
         const handler = block.try[i].handler;
-        if (!func.blocks.get(handler)!.preds?.size) {
+        if (!func.blocks.get(handler)?.preds?.size) {
           logger(
             "cfg",
             1,
@@ -469,7 +470,6 @@ export function cleanCfg(func: FuncEntry, context: Context) {
           );
 
           block.try.splice(i, 1);
-          deadCatches.add(handler);
         }
       }
       if (!block.try.length) {
@@ -477,25 +477,24 @@ export function cleanCfg(func: FuncEntry, context: Context) {
       }
     }
   });
-  deadCatches.forEach((cb) => {
-    const todo: number[] = [cb];
-    for (let i = 0; i < todo.length; i++) {
-      const offset = todo[i];
-      const block = func.blocks.get(offset);
-      if (!block) {
-        todo.splice(i--, 1);
-        continue;
-      }
-      if (block.preds?.size) {
-        continue;
-      }
-      if (block.next != null) todo.push(block.next);
-      if (block.taken != null) todo.push(block.taken);
-      if (block.exsucc != null) todo.push(block.exsucc);
-      removeBlock(func, offset);
-      todo.splice(i, 1);
-      i = -1;
-    }
+}
+
+export function cleanCfg(func: FuncEntry, context: Context) {
+  if (wouldLog("cfg", 10)) {
+    setBanner(functionBanner(func, context, "sharing"));
+  }
+  removeNoOpBlocks(func);
+  removeUnreachableCatches(func, context);
+  const deadBlocks = new Set(func.blocks.values());
+  postOrderTraverse(func, (block) => deadBlocks.delete(block));
+  deadBlocks.forEach((block) => {
+    block.next && removePred(func, block.next, block.offset);
+    block.taken && removePred(func, block.taken, block.offset);
+    block.exsucc && removePred(func, block.exsucc, block.offset);
+  });
+  deadBlocks.forEach((block) => {
+    assert(!block.preds?.size);
+    func.blocks.delete(block.offset);
   });
   setBanner(null);
 }
