@@ -260,7 +260,7 @@ export function evaluate(istate: InterpState, node: mctree.Node) {
   return ret;
 }
 
-function evaluateUnaryTypes(
+export function evaluateUnaryTypes(
   op: mctree.UnaryOperator,
   argument: ExactOrUnion
 ): ExactOrUnion {

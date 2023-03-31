@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { evaluateBinaryTypes } from "../type-flow/interp-binary";
 import { log, logger, setBanner, wouldLog } from "../logger";
 import { ExactOrUnion, mctree } from "../optimizer";
-import { roundToFloat } from "../type-flow/interp";
+import { evaluateUnaryTypes, roundToFloat } from "../type-flow/interp";
 import {
   cloneType,
   display,
@@ -447,6 +447,13 @@ export function interpBytecode(
     case Opcodes.gte:
       binary(">=");
       break;
+    case Opcodes.invv: {
+      removeEquiv(localState, -localState.stack.length);
+      const arg = localState.stack.pop()?.type ?? { type: TypeTag.Any };
+      const result = evaluateUnaryTypes("~", arg);
+      localState.stack.push({ type: result });
+      break;
+    }
     default: {
       const { pop, push } = getOpInfo(bc);
       for (let i = 0; i < pop; i++) {
