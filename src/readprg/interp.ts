@@ -611,6 +611,22 @@ export function interpFunc(func: FuncEntry, context: Context) {
         // on entry to the try plus one. Note that the stack is normally empty
         // on entry to the try; but if the try is inside a switch, catch or
         // finally block there will be elements on the stack
+        //
+        // Note that in reality, the runtime doesn't seem to get this right. See
+        // https://forums.garmin.com/developer/connect-iq/i/bug-reports/try-catch-breaks-finally-blocks
+        // An explicit throw does seem to preserve the state of the stack, while
+        // a call that throws appears to enter the catch block with an empty
+        // stack (apart from the exception). This makes (some) sense - there's
+        // no information in garmin's exception tables that would tell the
+        // unwinder how deep the stack should be on entry to the handler, so it
+        // just clears the stack, and pushes the exception.
+        //
+        // In any case, modeling it as if the stack were preserved seems to make
+        // most sense. Apart from the crash on exit from the finally block
+        // (which we can't do anything about), and possibly changing the result
+        // of a return with no argument, it shouldn't really matter, and doing
+        // this makes the stack consistent.
+
         const tryEntry = from.try![from.try!.length - 1].tryStart;
         const entryDepth = liveInState.get(tryEntry)?.stack.length ?? 0;
         localState = cloneState(localState);
