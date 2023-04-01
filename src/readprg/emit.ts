@@ -4,7 +4,7 @@ import { Block, Context, FuncEntry } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
 import { ExceptionEntry, ExceptionsMap } from "./exceptions";
 import { LineNumber } from "./linenum";
-import { Bytecode, emitBytecode, Opcodes } from "./opcodes";
+import { Bytecode, emitBytecode, isCondBranch, Opcodes } from "./opcodes";
 import { cleanCfg } from "./optimize";
 
 type LocalXmlInfo = {
@@ -130,6 +130,19 @@ export function emitFunc(
         } else {
           startLocalRange(bytecode.arg, -1, "", false);
         }
+      }
+      if (
+        isCondBranch(bytecode.op) &&
+        block.taken != null &&
+        block.taken === blocks[i + 1]?.offset
+      ) {
+        // flip the sense of the branch if we were going to branch to the next
+        // (in bytecode order) block. This will avoid a goto
+        const taken = block.next;
+        block.next = block.taken;
+        block.taken = taken;
+        bytecode.arg = taken;
+        bytecode.op = bytecode.op === Opcodes.bt ? Opcodes.bf : Opcodes.bt;
       }
       offset = emitBytecode(bytecode, view, offset, linktable);
     });
