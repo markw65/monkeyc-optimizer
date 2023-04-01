@@ -828,3 +828,18 @@ Bug Fixes
 ### 1.1.23
 
 No functional change, just fixes a typo that broke the typescript exports.
+
+### 1.1.24
+
+- Bug fixes
+
+  - Conversion of unary `-x` to `0 - x` was too restrictive, causing some missed optimization opportunities
+
+- Post Build Optimizations
+  - Added a pass equivalent to `Minimize Locals` in the source-to-source optimizer. This pass can see and re-assign all the locals, so it does better than the source-to-source optimizer. In addition, it maintains the variable mapping, so the debugger still sees the original names. As a result, its probably best to disable the `Minimize Locals` pass if the post build optimizer is enabled.
+  - Added a pass similar to `Size Based PRE` in the source-to-source optimizer. Currently this only optimizes constants and Symbols, but it has visibility to a lot of things the source-to-source optimizer can't see; so the two passes are complementary. I've added an option in case it causes problems, but it's enabled by default when the post build optimizer is enabled.
+  - Added various new optimizations to the interp pass:
+    - Handles a few more byte codes
+    - Conditional branches that are known to be taken, or known to be not taken are converted to gotos (and the gotos will often be eliminated by re-ordering blocks)
+    - Conditional branches that would be known to be taken, or known to be not taken if evalated at the end of one of their predecessors will be bypassed from that predecessor. Amongst other things, this converts for and while loops, that can be proven to iterate at least once, into do-while loops.
+  - Improved the emitter's algorithm for ordering blocks to avoid some more gotos
