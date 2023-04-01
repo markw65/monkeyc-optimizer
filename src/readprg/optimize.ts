@@ -29,7 +29,6 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     let changes;
     cleanCfg(func, context);
     changes = localDCE(func, context);
-    changes = blockSharing(func, context) || changes;
     changes = simpleOpts(func, context) || changes;
     const {
       liveInState,
@@ -38,6 +37,8 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     } = interpFunc(func, context);
     changes = interpChanges || changes;
     changes = doArrayInits(func, liveInState, context) || changes;
+    if (changes) continue;
+    changes = blockSharing(func, context) || changes;
     if (changes) continue;
     if (context.config.postBuildPRE !== false) {
       if (sizeBasedPRE(func, context)) continue;
