@@ -4,7 +4,7 @@ let theLogger = console.log;
 
 export function logger(module: string, level: number, message: unknown) {
   if (wouldLog(module, level)) {
-    log(message);
+    log(typeof message === "function" ? message() : message);
   }
 }
 

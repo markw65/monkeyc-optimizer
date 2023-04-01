@@ -54,9 +54,8 @@ export function minimizeLocals(
   const locals = mergeSplitRanges(splitRanges);
   const numLocals = Math.max(...Array.from(splitRanges.keys())) + 1;
 
-  if (wouldLog("locals", 10)) {
-    log(functionBanner(func, context, "Minimize Locals")());
-  }
+  logger("locals", 10, functionBanner(func, context, "Minimize Locals"));
+
   const colors = new Map<Bytecode, number>();
   const merge: Array<LocalKey[]> = [];
   // Locals keyed by an lgetv were live in; ie they're arguments, so we can't
@@ -102,7 +101,7 @@ export function minimizeLocals(
   if (merge.length >= numLocals) return false;
   if (wouldLog("locals", 1)) {
     if (!wouldLog("locals", 10)) {
-      logger("locals", 5, functionBanner(func, context, "Minimize Locals")());
+      logger("locals", 5, functionBanner(func, context, "Minimize Locals"));
     }
     log(
       `>>> Merging locals in ${func.name} (in: ${numLocals} => out: ${merge.length})`
@@ -111,7 +110,7 @@ export function minimizeLocals(
       .slice()
       .sort((a, b) => (colors.get(a[0]) ?? 0) - (colors.get(b[0]) ?? 0))
       .forEach((merged) =>
-        console.log(
+        log(
           ` ${colors.get(merged[0])} - ${merged
             .map((k) => bytecodeToString(k, context.symbolTable))
             .join(" | ")}`

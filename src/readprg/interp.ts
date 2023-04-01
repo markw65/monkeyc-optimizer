@@ -503,7 +503,7 @@ export function interpFunc(func: FuncEntry, context: Context) {
               : ""
           }\n ${interpStateToString(liveInState.get(block.offset))}`
         );
-        logger("interp", 9, blockToString(block, context));
+        logger("interp", 9, () => blockToString(block, context));
       }
       return cloneState(liveInState.get(block.offset));
     },

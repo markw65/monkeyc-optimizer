@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { log, wouldLog } from "../logger";
+import { log, logger, wouldLog } from "../logger";
 import {
   bytecodeToString,
   Context,
@@ -215,8 +215,6 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
       bytecode(Opcodes.incsp, insertionBlocks.size)
     );
   }
-  if (wouldLog("pre", 5)) {
-    log(functionBanner(func, context, "post-PRE")());
-  }
+  logger("pre", 5, functionBanner(func, context, "post-PRE"));
   return true;
 }

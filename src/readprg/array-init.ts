@@ -270,13 +270,14 @@ export function optimizeArrayInit(
     logger(
       "array-init",
       1,
-      `${func.name}: Removing initialization of default initialized ${
-        putvStarts.length
-      } element array init at block ${offsetToString(
-        block.offset
-      )}, starting at index ${index}, at offset ${offsetToString(
-        block.bytecodes[index].offset
-      )}`
+      () =>
+        `${func.name}: Removing initialization of default initialized ${
+          putvStarts.length
+        } element array init at block ${offsetToString(
+          block.offset
+        )}, starting at index ${index}, at offset ${offsetToString(
+          block.bytecodes[index].offset
+        )}`
     );
     block.bytecodes.splice(index + 1, i - index - 1);
     return true;
@@ -306,13 +307,14 @@ export function optimizeArrayInit(
     logger(
       "array-init",
       1,
-      `${func.name}: Optimizing unused ${
-        putvStarts.length
-      } element array init at block ${offsetToString(
-        block.offset
-      )}, starting at index ${index}, at offset ${offsetToString(
-        block.bytecodes[index].offset
-      )}`
+      () =>
+        `${func.name}: Optimizing unused ${
+          putvStarts.length
+        } element array init at block ${offsetToString(
+          block.offset
+        )}, starting at index ${index}, at offset ${offsetToString(
+          block.bytecodes[index].offset
+        )}`
     );
     if (wouldLog("array-init", 5)) {
       log(blockToString(block, context));
@@ -368,16 +370,17 @@ export function optimizeArrayInit(
     logger(
       "array-init",
       1,
-      `${func.name}: Optimizing ${
-        putvStarts.length
-      } element array init with constant initializer ${bytecodeToString(
-        initInst,
-        null
-      )} at block ${offsetToString(
-        block.offset
-      )}, starting at index ${index}, at offset ${offsetToString(
-        block.bytecodes[index].offset
-      )}`
+      () =>
+        `${func.name}: Optimizing ${
+          putvStarts.length
+        } element array init with constant initializer ${bytecodeToString(
+          initInst!,
+          null
+        )} at block ${offsetToString(
+          block.offset
+        )}, starting at index ${index}, at offset ${offsetToString(
+          block.bytecodes[index].offset
+        )}`
     );
     // delete everything except the first element assignment
     block.bytecodes.splice(index + 5, i - index - 5);
@@ -410,7 +413,7 @@ export function optimizeArrayInit(
     logger(
       "array-init",
       5,
-      `index: ${index}, i: ${i}\n${blockToString(block, context)}`
+      () => `index: ${index}, i: ${i}\n${blockToString(block, context)}`
     );
 
     const loopOffset = context.nextOffset;
@@ -449,13 +452,14 @@ export function optimizeArrayInit(
   logger(
     "array-init",
     1,
-    `${func.name}: Optimizing ${
-      putvStarts.length
-    } element array init at block ${offsetToString(
-      block.offset
-    )}, starting at index ${index}, at offset ${offsetToString(
-      block.bytecodes[index].offset
-    )}`
+    () =>
+      `${func.name}: Optimizing ${
+        putvStarts.length
+      } element array init at block ${offsetToString(
+        block.offset
+      )}, starting at index ${index}, at offset ${offsetToString(
+        block.bytecodes[index].offset
+      )}`
   );
   let loopOffset;
   if (local >= 0) {

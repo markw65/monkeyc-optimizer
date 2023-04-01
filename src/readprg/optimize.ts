@@ -391,9 +391,10 @@ function removeUnreachableCatches(func: FuncEntry, context: Context) {
           logger(
             "cfg",
             1,
-            `${func.name}: ${offsetToString(
-              block.offset
-            )}: Merging linear blocks: ${blockToString(next, context)}`
+            () =>
+              `${func.name}: ${offsetToString(
+                block.offset
+              )}: Merging linear blocks: ${blockToString(next, context)}`
           );
 
           block.bytecodes.push(...next.bytecodes);
@@ -420,12 +421,13 @@ function removeUnreachableCatches(func: FuncEntry, context: Context) {
           logger(
             "cfg",
             1,
-            `${func.name}: ${offsetToString(
-              block.offset
-            )}: Merging short fallthrough block: ${blockToString(
-              next,
-              context
-            )}`
+            () =>
+              `${func.name}: ${offsetToString(
+                block.offset
+              )}: Merging short fallthrough block: ${blockToString(
+                next,
+                context
+              )}`
           );
           let offset = context.nextOffset;
           next.bytecodes.forEach((bc) => {
@@ -445,10 +447,11 @@ function removeUnreachableCatches(func: FuncEntry, context: Context) {
           logger(
             "cfg",
             1,
-            `${func.name}: killing no-op ${bytecodeToString(
-              last,
-              context.symbolTable
-            )}`
+            () =>
+              `${func.name}: killing no-op ${bytecodeToString(
+                last,
+                context.symbolTable
+              )}`
           );
           makeArgless(last, Opcodes.popv);
           delete block.taken;

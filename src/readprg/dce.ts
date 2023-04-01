@@ -1,4 +1,4 @@
-import { log, logger, setBanner, wouldLog } from "../util";
+import { logger, setBanner, wouldLog } from "../util";
 import {
   bytecodeToString,
   Context,
@@ -46,27 +46,31 @@ export function localDCE(func: FuncEntry, context: Context) {
       logger(
         "dce",
         2,
-        `${func.name}: Convert ${i}:${bytecodeToString(
-          block.bytecodes[i],
-          context.symbolTable
-        )} to popv for ${item.deps
-          .map(
-            (i) =>
-              `${i}:${bytecodeToString(
-                block.bytecodes[i],
-                context.symbolTable
-              )}${kill ? "=>nop" : ""}`
-          )
-          .join(", ")} }`
+        () =>
+          `${func.name}: Convert ${i}:${bytecodeToString(
+            block.bytecodes[i],
+            context.symbolTable
+          )} to popv for ${item.deps
+            .map(
+              (i) =>
+                `${i}:${bytecodeToString(
+                  block.bytecodes[i],
+                  context.symbolTable
+                )}${kill ? "=>nop" : ""}`
+            )
+            .join(", ")} }`
       );
     };
     const reportNop = (item: DceDeadItem) => {
       logger(
         "dce",
         2,
-        `${func.name}: Kill ${item.deps
-          .map((i) => bytecodeToString(block.bytecodes[i], context.symbolTable))
-          .join(", ")}`
+        () =>
+          `${func.name}: Kill ${item.deps
+            .map((i) =>
+              bytecodeToString(block.bytecodes[i], context.symbolTable)
+            )
+            .join(", ")}`
       );
     };
     changes = false;
@@ -119,9 +123,10 @@ export function localDCE(func: FuncEntry, context: Context) {
             logger(
               "dce",
               2,
-              `${func.name}: Killing store to unused local ${
-                bytecode.arg
-              } at ${offsetToString(block.offset)}:${i}`
+              () =>
+                `${func.name}: Killing store to unused local ${
+                  bytecode.arg
+                } at ${offsetToString(block.offset)}:${i}`
             );
             makePopv(bytecode);
             dceInfo.stack.push({ dead: true, deps: [i] });
@@ -244,9 +249,7 @@ export function localDCE(func: FuncEntry, context: Context) {
     if (changes) {
       anyChanges = true;
       block.bytecodes = block.bytecodes.filter((bc) => bc.op !== Opcodes.nop);
-      if (wouldLog("dce", 3)) {
-        log(functionBanner(func, context, "local-dce-end")());
-      }
+      logger("dce", 3, functionBanner(func, context, "local-dce-end"));
     }
   });
   setBanner(null);
