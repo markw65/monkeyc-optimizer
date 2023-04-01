@@ -538,13 +538,17 @@ export function findFunctions({
         exnStack.length &&
         exnStack[exnStack.length - 1].tryEnd === nextBcOffset
       ) {
+        // block.try refers to exnStack, so never modify it in place
         exnStack = exnStack.slice(0, -1);
       }
       start = i + 1;
       mayThrow = false;
-      const exnEntry = exceptionsMap.get(nextBcOffset);
-      if (exnEntry) {
-        exnStack = exnStack.concat(exnEntry);
+      const exnEntries = exceptionsMap.get(nextBcOffset);
+      if (exnEntries) {
+        // block.try refers to exnStack, so never modify it in place
+        exnStack = exnStack.concat(
+          exnEntries.filter((exnEntry) => exnEntry.tryEnd > nextBcOffset)
+        );
       }
     }
   });
@@ -569,10 +573,9 @@ export function findFunctions({
         argc = block.bytecodes[0].arg;
       }
       blocks.delete(next);
-      exceptionsMap.get(block.offset)?.forEach((exInfo) => {
-        queue.push(exInfo.tryEnd);
-        queue.push(exInfo.handler);
-      });
+      if (block.exsucc != null) {
+        queue.push(block.exsucc);
+      }
       if (block.next != null) {
         queue.push(block.next);
       }
