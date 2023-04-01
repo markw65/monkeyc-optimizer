@@ -723,6 +723,86 @@ export function getOpInfo(bytecode: Bytecode) {
   }
 }
 
+export const enum Effects {
+  None = 0,
+  Local = 1,
+  Global = 2,
+  ArrayLike = 4,
+  Call = 8,
+}
+
+export function getOpEffects(bytecode: Bytecode) {
+  switch (bytecode.op) {
+    case Opcodes.lputv:
+      return Effects.Local;
+    case Opcodes.putv:
+      return Effects.Global;
+    case Opcodes.aputv:
+      return Effects.ArrayLike;
+    case Opcodes.newc:
+      // calls the class <init> method, which can write to members - but only
+      // members of the newly created class, so maybe we don't need this.
+      return Effects.Global | Effects.ArrayLike;
+    case Opcodes.invokem:
+      return Effects.Call | Effects.Global | Effects.ArrayLike;
+
+    case Opcodes.nop:
+    case Opcodes.ret:
+    case Opcodes.incsp:
+    case Opcodes.argc:
+    case Opcodes.goto:
+    case Opcodes.jsr:
+    case Opcodes.popv:
+    case Opcodes.return:
+    case Opcodes.throw:
+    case Opcodes.bt:
+    case Opcodes.bf:
+    case Opcodes.addv:
+    case Opcodes.subv:
+    case Opcodes.mulv:
+    case Opcodes.divv:
+    case Opcodes.andv:
+    case Opcodes.orv:
+    case Opcodes.modv:
+    case Opcodes.shlv:
+    case Opcodes.shrv:
+    case Opcodes.xorv:
+    case Opcodes.eq:
+    case Opcodes.lt:
+    case Opcodes.lte:
+    case Opcodes.gt:
+    case Opcodes.gte:
+    case Opcodes.ne:
+    case Opcodes.canhazplz:
+    case Opcodes.isa:
+    case Opcodes.getv:
+    case Opcodes.agetv:
+    case Opcodes.isnull:
+    case Opcodes.invv:
+    case Opcodes.getm:
+    case Opcodes.newa:
+    case Opcodes.newba:
+    case Opcodes.newd:
+    case Opcodes.frpush:
+    case Opcodes.npush:
+    case Opcodes.bpush:
+    case Opcodes.lgetv:
+    case Opcodes.dup:
+    case Opcodes.news:
+    case Opcodes.ipush:
+    case Opcodes.fpush:
+    case Opcodes.spush:
+    case Opcodes.cpush:
+    case Opcodes.lpush:
+    case Opcodes.dpush:
+      return Effects.None;
+    case Opcodes.ts:
+      throw new Error(`Unknown opcode ${bytecode.op}`);
+    default:
+      unhandledType(bytecode);
+  }
+}
+
 export function isBoolOp(op: Opcodes) {
   switch (op) {
     case Opcodes.isnull:

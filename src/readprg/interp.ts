@@ -27,7 +27,14 @@ import {
   redirect,
 } from "./bytecode";
 import { RpoFlags, rpoPropagate } from "./cflow";
-import { Bytecode, getOpInfo, isCondBranch, Lputv, Opcodes } from "./opcodes";
+import {
+  Bytecode,
+  getOpEffects,
+  getOpInfo,
+  isCondBranch,
+  Lputv,
+  Opcodes,
+} from "./opcodes";
 
 interface InterpItemInfo {
   type: ExactOrUnion;
@@ -490,6 +497,46 @@ export function interpFunc(func: FuncEntry, context: Context) {
     }
   }
 
+  const branchRedirects: Map<Block, { from: number; to: number }> = new Map();
+  // Map from block offset, to number of elements the block pops (currently 0 or
+  // 1, see comment in the forEach below), for suitable candidate blocks
+  const safeBranchBlocks: Map<number, number> = new Map();
+  func.blocks.forEach((block) => {
+    // We're looking for blocks that end with a conditional branch, have
+    // multiple predecessors, and have no side effects. We will evaluate the
+    // block in the context of each of its predecessors, to see if we can
+    // determine which way it goes when approached from that predecessor. Note
+    // that this also requires that nothing new is left on the stack. We *could*
+    // allow it to consume arbitrarily many stack slots; but for each one we
+    // need to add a popv, so we restrict it to popping at most one.
+    //
+    // So eg in 'for (i = 0; i < 10; i++) { ... }', when approached from the
+    // "i=0" direction, the condition will always be true, and the body of the
+    // for will always be entered, so we can redirect the 'i=0;' block to the
+    // loop body. This in turn moves the condition to the end of the loop, and
+    // avoids an unconditional branch - effectively turning the loop into a 'do
+    // {...} while ()'
+    if (block.taken == null || block.next == null) return;
+    if ((block.preds?.size ?? 0) <= 1) return;
+    const maxpops = 1;
+    let depth = maxpops;
+    let mindepth = maxpops;
+    if (
+      block.bytecodes.every((bc) => {
+        if (getOpEffects(bc)) return false;
+        const { push, pop } = getOpInfo(bc);
+        depth -= pop;
+        if (depth < 0) return false;
+        if (depth < mindepth) mindepth = depth;
+        depth += push;
+        return true;
+      }) &&
+      depth === mindepth
+    ) {
+      safeBranchBlocks.set(block.offset, maxpops - depth);
+    }
+  });
+
   rpoPropagate(
     func,
     (block) => {
@@ -622,8 +669,49 @@ export function interpFunc(func: FuncEntry, context: Context) {
       }
       return null;
     },
-    () => {
-      /*nothing to do*/
+    (block, localState) => {
+      const branchRedirect = (
+        block: Block,
+        localState: InterpState,
+        next: number | undefined
+      ) => {
+        if (
+          next != null &&
+          !resolvedBranches.has(block) &&
+          safeBranchBlocks.has(next) &&
+          (block.taken == null || safeBranchBlocks.get(next) === 0)
+        ) {
+          const state = cloneState(localState);
+          const branchBlock = func.blocks.get(next)!;
+          return branchBlock.bytecodes.every((bc) => {
+            if (isCondBranch(bc.op)) {
+              const top = state.stack[state.stack.length - 1];
+              const isTrue = mustBeTrue(top.type);
+              if (isTrue || mustBeFalse(top.type)) {
+                branchRedirects.set(block, {
+                  from: next,
+                  to:
+                    isTrue === (bc.op === Opcodes.bt)
+                      ? branchBlock.taken!
+                      : branchBlock.next!,
+                });
+                return true;
+              }
+              return false;
+            }
+            interpBytecode(bc, state, context);
+            return true;
+          });
+        }
+        return false;
+      };
+      if (
+        localState.loopBlock ||
+        (!branchRedirect(block, localState, block.next) &&
+          !branchRedirect(block, localState, block.taken))
+      ) {
+        branchRedirects.delete(block);
+      }
     },
     (from, localState, succBlock, isExSucc) => {
       if (isExSucc) {
@@ -721,6 +809,20 @@ export function interpFunc(func: FuncEntry, context: Context) {
         )
       );
     }
+    if (branchRedirects.size) {
+      log(`====== redirected branches =====`);
+      branchRedirects.forEach(({ to, from }, block) =>
+        log(
+          `block ${offsetToString(
+            block.offset
+          )} redirects from ${offsetToString(from)} to ${offsetToString(to)}${
+            safeBranchBlocks.get(from)
+              ? ` popping ${safeBranchBlocks.get(from)}`
+              : ""
+          }`
+        )
+      );
+    }
   }
   selfStores.forEach((bc) => makeArgless(bc, Opcodes.popv));
   replacements.forEach((blockRep, block) => {
@@ -756,11 +858,29 @@ export function interpFunc(func: FuncEntry, context: Context) {
     delete block.taken;
     makeArgless(branch, Opcodes.popv);
   });
+  branchRedirects.forEach(({ from, to }, block) => {
+    const pops = safeBranchBlocks.get(from);
+    redirect(func, block, from, to);
+    if (pops) {
+      assert(block.next && !block.taken);
+      for (let i = 0; i < pops; i++) {
+        block.bytecodes.push({
+          op: Opcodes.popv,
+          size: 1,
+          offset: context.nextOffset++,
+        });
+      }
+    }
+  });
   if (interpLogging) setBanner(null);
   return {
     liveInState,
     equivSets,
-    changes: selfStores.size || replacements.size,
+    changes:
+      selfStores.size ||
+      replacements.size ||
+      resolvedBranches.size ||
+      branchRedirects.size,
   };
 }
 
