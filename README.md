@@ -843,3 +843,8 @@ No functional change, just fixes a typo that broke the typescript exports.
     - Conditional branches that are known to be taken, or known to be not taken are converted to gotos (and the gotos will often be eliminated by re-ordering blocks)
     - Conditional branches that would be known to be taken, or known to be not taken if evalated at the end of one of their predecessors will be bypassed from that predecessor. Amongst other things, this converts for and while loops, that can be proven to iterate at least once, into do-while loops.
   - Improved the emitter's algorithm for ordering blocks to avoid some more gotos
+
+### 1.1.25
+
+- Bug fixes
+  - fixes a copy paste error that could cause strange results in the interpreter, possibly leading to incorrect optimizations.
