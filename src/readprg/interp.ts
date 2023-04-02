@@ -404,7 +404,7 @@ export function interpBytecode(
     }
     case Opcodes.news: {
       const symbol = context.symbolTable?.symbols.get(bc.arg);
-      xpush(TypeTag.Symbol, symbol?.str);
+      xpush(TypeTag.String, symbol?.str);
       break;
     }
     case Opcodes.addv:
@@ -555,6 +555,16 @@ export function interpFunc(func: FuncEntry, context: Context) {
       return cloneState(liveInState.get(block.offset));
     },
     (block, bc, localState) => {
+      if (interpLogging) {
+        if (wouldLog("interp", 8)) {
+          log(
+            `${interpStateToString(localState)}\n    ${bytecodeToString(
+              bc,
+              context.symbolTable
+            )}`
+          );
+        }
+      }
       switch (bc.op) {
         case Opcodes.lputv: {
           selfStores.delete(bc);
