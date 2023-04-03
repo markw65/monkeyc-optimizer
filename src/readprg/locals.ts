@@ -55,6 +55,7 @@ export function minimizeLocals(
   const numLocals = Math.max(...Array.from(splitRanges.keys())) + 1;
 
   logger("locals", 10, functionBanner(func, context, "Minimize Locals"));
+  let argc: number | null = func.argc ?? null;
 
   const colors = new Map<Bytecode, number>();
   const merge: Array<LocalKey[]> = [];
@@ -67,11 +68,13 @@ export function minimizeLocals(
     if (key.op === Opcodes.lgetv || key.arg === 0) {
       colors.set(key, key.arg);
       const merged = merge[key.arg];
-      if (merged) {
-        assert(!key.arg);
-        merged.push(key);
-      } else {
-        merge[key.arg] = [key];
+      if (argc == null || key.arg < argc) {
+        if (merged) {
+          assert(!key.arg);
+          merged.push(key);
+        } else {
+          merge[key.arg] = [key];
+        }
       }
     }
   });
@@ -99,6 +102,30 @@ export function minimizeLocals(
     }
   });
   if (merge.length >= numLocals) return false;
+  // preserve as many locals as possible, to prevent unnecessary churn
+  for (let i = merge.length; i--; ) {
+    if (argc != null && i <= argc) break;
+    const merged = merge[i];
+    // if there's a single range mapped to this stack slot, and its original
+    // stack slot was a smaller one, and *that* stack slot either has multiple
+    // ranges, or doesn't match its original stack slot, then swap them.
+    if (
+      merged &&
+      merged[0].arg < i &&
+      (argc == null || merged[0].arg >= argc) &&
+      merged.every((elem) => elem.arg === merged[0].arg)
+    ) {
+      const j = merged[0].arg;
+      const other = merge[j];
+      if (other.every((elem) => elem.arg !== j)) {
+        merge[i] = other;
+        merge[j] = merged;
+        merged.forEach((elem) => colors.set(elem, j));
+        other.forEach((elem) => colors.set(elem, i));
+        i++;
+      }
+    }
+  }
   if (wouldLog("locals", 1)) {
     if (!wouldLog("locals", 10)) {
       logger("locals", 5, functionBanner(func, context, "Minimize Locals"));
@@ -147,7 +174,6 @@ export function minimizeLocals(
     }
     value.live.forEach((bc) => fixupMap.set(bc, { color, range }));
   });
-  let argc: number | null = null;
   func.blocks.forEach((block) => {
     let filter = false;
     block.bytecodes.forEach((bc) => {
