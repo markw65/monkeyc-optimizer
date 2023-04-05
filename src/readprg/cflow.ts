@@ -194,7 +194,8 @@ function computeRetMap(func: FuncEntry) {
   return retMap;
 }
 
-export enum RpoFlags {
+export const enum RpoFlags {
+  Nothing = 0,
   EnqueueTaken = 1,
   EnqueueNext = 2,
   SkipTaken = 4,
@@ -253,7 +254,7 @@ export function rpoPropagate<T>(
       }
     }
     postBlock(top, localState);
-    if (flags == null) flags = 0;
+    if (flags == null) flags = RpoFlags.Nothing;
     if (top.next != null) {
       if (!(flags & RpoFlags.SkipNext)) {
         doMerge(top.next, false);

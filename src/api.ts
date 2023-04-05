@@ -704,7 +704,7 @@ function stateFuncs() {
                       name: undefined,
                       node: node.body,
                       decls: { [id.name]: [id] },
-                      attributes: 0,
+                      attributes: StateNodeAttributes.NONE,
                     },
                   });
                 }
@@ -717,7 +717,7 @@ function stateFuncs() {
                       fullName: this.top().sn.fullName,
                       name: undefined,
                       node: node,
-                      attributes: 0,
+                      attributes: StateNodeAttributes.NONE,
                     },
                   });
                 }
@@ -1019,7 +1019,7 @@ export function collectNamespaces(
           name: "$",
           fullName: "$",
           node: undefined,
-          attributes: 0,
+          attributes: StateNodeAttributes.NONE,
         },
       },
     ];

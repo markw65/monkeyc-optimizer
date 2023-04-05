@@ -64,7 +64,8 @@ export type ImportUsing = {
   module?: ModuleStateNode | null | undefined;
 };
 
-export enum StateNodeAttributes {
+export const enum StateNodeAttributes {
+  NONE = 0,
   PUBLIC = 1,
   PROTECTED = 2,
   PRIVATE = 4,
