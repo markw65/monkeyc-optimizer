@@ -144,7 +144,11 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
     assert(bcs);
     // if the one of the target bytecodes is in the target block,
     // then we want to insert just before it
-    let index = block.bytecodes.findIndex((bc) => bcs.has(bc));
+    let index = block.bytecodes.findIndex(
+      (bc) =>
+        bcs.has(bc) ||
+        (block.exsucc && (bc.op === Opcodes.invokem || bc.op === Opcodes.throw))
+    );
     if (index < 0) {
       // if its not there, we want to insert at the end; except we can't insert
       // after a conditional branch, or a throw (or a return, but that should
