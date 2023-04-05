@@ -1,0 +1,6 @@
+<layout id="SectionThreeLayout">
+
+    <label id="ActivityLevelLabel" personality="row1_of_2 fontinfo" />
+    <label id="BirthYearLabel" personality="row2_of_2 fontinfo" />
+
+</layout>

@@ -1,0 +1,8 @@
+<layout id="SectionTwoLayout">
+
+    <label id="SleepTimeLabel" personality="row1_of_4 fontinfo"/>
+    <label id="RunStepLengthLabel" personality="row2_of_4 fontinfo" />
+    <label id="WalkStepLengthLabel" personality="row3_of_4 fontinfo"/>
+    <label id="RestingHeartRateLabel" personality="row4_of_4 fontinfo" />
+
+</layout>

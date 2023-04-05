@@ -1,0 +1,8 @@
+<layout id="SectionOneLayout">
+
+    <label id="WeightLabel" personality="row1_of_4 fontinfo" />
+    <label id="GenderLabel" personality="row2_of_4 fontinfo" />
+    <label id="HeightLabel" personality="row3_of_4 fontinfo" />
+    <label id="WakeTimeLabel" personality="row4_of_4 fontinfo" />
+
+</layout>

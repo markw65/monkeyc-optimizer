@@ -1,0 +1,14 @@
+project.manifest = manifest.xml
+base.sourcePath = source
+
+base.excludeAnnotations = personality
+venu2.excludeAnnotations = no_personality
+
+base.personality = personality
+round.personality = $(base.personality);personality-round
+semiround.personality = $(base.personality);personality-semiround
+rectangle-148x205.personality = $(base.personality);personality-rectangle-148x205
+rectangle-200x265.personality = $(base.personality);personality-rectangle-200x265
+rectangle-205x148.personality = $(base.personality);personality-rectangle-205x148
+rectangle-240x400.personality = $(base.personality);personality-rectangle-240x400
+rectangle-282x470.personality = $(base.personality);personality-rectangle-282x470
