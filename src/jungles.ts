@@ -83,6 +83,7 @@ async function default_jungle() {
       assign(id, [qname(base)]);
     }
     rassign(`${id}.resourcePath`, [literal(rez)], base);
+    rassign(`${id}.personality`, [literal(rez)], base);
 
     languages.forEach((l: { id: string; name: string }) =>
       rassign(`${id}.lang.${l.id}`, [literal(`${rez}-${l.id}`)], base)
@@ -430,6 +431,7 @@ async function resolve_literals(
 
   await resolve_one_file_list(qualifier, "sourcePath");
   await resolve_one_file_list(qualifier, "resourcePath");
+  await resolve_one_file_list(qualifier, "personality");
   await resolve_one_file_list(qualifier, "barrelPath");
   const lang = qualifier["lang"] as RawJungle;
   if (lang) {
@@ -730,6 +732,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       annotations,
       resourceMap,
       resourcePath,
+      personality,
     } = target.qualifier;
     if (excludeAnnotations && ignoredExcludeAnnotations) {
       excludeAnnotations = getStrsWithIgnore(
@@ -758,6 +761,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       excludeAnnotations,
       annotations,
       resourceMap,
+      personality,
     };
 
     const toSortedEntries = <T>(value: Record<string, T>) =>
@@ -857,6 +861,7 @@ export type JungleQualifier = {
   sourceExcludes?: string[]; // array of files to exclude from the build (from resource build instructions)
   excludeAnnotations?: string[]; // array of excludeAnnotations
   resourcePath?: string[]; // locations to find resource files
+  personality?: string[]; // locations to find personality (.mss) files
   lang?: LangResourcePaths; // locations to find resource files
   barrelPath?: (string | string[])[]; // locations to find barrels
   annotations?: BarrelAnnotations; // map from barrel names to arrays of annotations

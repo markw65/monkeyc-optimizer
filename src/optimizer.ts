@@ -571,6 +571,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
       }
       // annotations were handled via source transformations.
       process_field(prefix, qualifier, "resourcePath", relative_path);
+      process_field(prefix, qualifier, "personality", relative_path);
       process_field(prefix, qualifier, "excludeAnnotations");
       const qlang = qualifier.lang;
       if (qlang) {
