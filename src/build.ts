@@ -19,6 +19,7 @@ export async function build_project(
     compilerOptions,
     compilerWarnings,
     typeCheckLevel,
+    optimizationLevel,
     returnCommand,
   } = options;
   const sdk = await getSdkPath();
@@ -49,6 +50,20 @@ export async function build_project(
       break;
     case "strict":
       extraArgs.push("-l", "3");
+      break;
+  }
+  switch (optimizationLevel?.toLowerCase()) {
+    case "none":
+      extraArgs.push("-O0");
+      break;
+    case "basic":
+      extraArgs.push("-O1");
+      break;
+    case "fast":
+      extraArgs.push("-O2");
+      break;
+    case "slow":
+      extraArgs.push("-O3");
       break;
   }
   if (product) {

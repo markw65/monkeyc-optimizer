@@ -38,6 +38,7 @@ export async function driver() {
   let releaseBuild: boolean | undefined;
   let compilerWarnings: boolean | undefined;
   let typeCheckLevel = "Off";
+  let optimizationLevel: string | undefined;
   let promise = Promise.resolve();
   let remoteProjects: RemoteProject[] | undefined;
   let generateOnly: boolean | undefined;
@@ -140,6 +141,13 @@ export async function driver() {
       case "typeCheckLevel":
         if (value == null) return key;
         typeCheckLevel = value;
+        break;
+      case "optimizationLevel":
+        if (!supportsCompiler2) {
+          error("optimizationLevel requires a more recent sdk");
+        }
+        if (value == null) return key;
+        optimizationLevel = value;
         break;
       case "skipOptimization":
         skipOptimization = !value || /^true|1$/i.test(value);
@@ -295,6 +303,7 @@ export async function driver() {
       testBuild: testBuild !== false,
       compilerWarnings,
       typeCheckLevel,
+      optimizationLevel,
       skipOptimization,
       checkInvalidSymbols,
       trustDeclaredTypes,

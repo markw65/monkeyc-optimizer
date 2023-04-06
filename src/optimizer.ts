@@ -121,6 +121,7 @@ export function getConfig(options: BuildConfig) {
     "jungleFiles",
     "developerKeyPath",
     "typeCheckLevel",
+    "optimizationLevel",
     "compilerOptions",
     "compilerWarnings",
     "ignoredExcludeAnnotations",

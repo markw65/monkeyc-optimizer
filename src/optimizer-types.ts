@@ -12,6 +12,7 @@ export type BuildConfig = {
   jungleFiles?: string; // Semicolon separated list of jungle files
   developerKeyPath?: string; // Path to the developer key file to be used by the garmin tools
   typeCheckLevel?: string; // monkeyC.typeCheckLevel
+  optimizationLevel?: string; // monkeyC.optimizationLevel
   compilerOptions?: string; // monkeyC.compilerOptions
   compilerWarnings?: boolean; // monkeyC.compilerWarnings
   simulatorBuild?: boolean; // build for the simulator
