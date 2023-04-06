@@ -1170,7 +1170,7 @@ export async function createDocumentationMap(
           decl.fullName,
           info.doc
             .replace(
-              /@example\s*(.*?)<br\/>(.*?)(@|$)/g,
+              /@example\s*(.*?)<br\/>(.*?)(@|<div class|$)/g,
               (match, title, m1, m2) =>
                 `\n#### Example: ${title}\n\`\`\`${m1.replace(
                   /<br\/>/g,
