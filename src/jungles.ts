@@ -881,6 +881,8 @@ export type JungleResourceMap = Record<string, xmlUtil.Document>;
 // The result of parsing an application's jungle file
 export type ResolvedJungle = JungleInfoBase & {
   targets: Target[];
+  typeCheckLevel?: string;
+  optimizationLevel?: string;
 };
 
 // The result of parsing a barrel's jungle file for a particular product
@@ -1189,7 +1191,18 @@ async function get_jungle_and_barrels(
       cache
     );
     await find_build_instructions(targets, resourceGroups, buildDependencies);
-    return {
+    const typeCheckNode = resolve_node(
+      state,
+      resolve_node_by_path(state, ["project", "typecheck"])
+    ) as Literal[] | null;
+    const optimizationNode = resolve_node(
+      state,
+      resolve_node_by_path(state, ["project", "optimization"])
+    ) as Literal[] | null;
+    const typeCheckLevel = typeCheckNode?.[0]?.value;
+    const optimizationLevel = optimizationNode?.[0]?.value;
+
+    const result: ResolvedJungle = {
       manifest,
       targets,
       xml,
@@ -1199,6 +1212,13 @@ async function get_jungle_and_barrels(
       buildDependencies,
       devices,
     };
+    if (typeCheckLevel != null) {
+      result.typeCheckLevel = typeCheckLevel;
+    }
+    if (optimizationLevel != null) {
+      result.optimizationLevel = optimizationLevel;
+    }
+    return result;
   } catch (e) {
     const err: JungleError =
       e instanceof Error ? e : new Error("An unknown error occurred");

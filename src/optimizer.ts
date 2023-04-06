@@ -310,8 +310,16 @@ export async function generateOptimizedProject(options: BuildConfig) {
   const config = await getConfig(options);
   const workspace = config.workspace!;
 
-  const { manifest, targets, xml, devices, resources, buildDependencies } =
-    await get_jungle(config.jungleFiles!, config);
+  const {
+    manifest,
+    typeCheckLevel,
+    optimizationLevel,
+    targets,
+    xml,
+    devices,
+    resources,
+    buildDependencies,
+  } = await get_jungle(config.jungleFiles!, config);
   if (xml.body instanceof Error) {
     throw xml.body;
   }
@@ -458,6 +466,12 @@ export async function generateOptimizedProject(options: BuildConfig) {
     }
 
     const parts = [`project.manifest=${relative_manifest}`];
+    if (typeCheckLevel != null) {
+      parts.push(`project.typecheck = ${typeCheckLevel}`);
+    }
+    if (optimizationLevel != null) {
+      parts.push(`project.optimization = ${optimizationLevel}`);
+    }
     const map_field = <T extends string>(
       base: { [k in T]?: string[] },
       name: T,
