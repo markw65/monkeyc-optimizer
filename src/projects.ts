@@ -447,6 +447,14 @@ function fetchAndClean(projDir: string, root: string, skipRemote: boolean) {
   const output = [`Updating project ${root}`];
   const logger = (line: string) => output.push(` - ${line}`);
   const loggers = [logger, logger];
+  const fetch = () =>
+    spawnByLine("git", ["fetch", "origin"], loggers, {
+      cwd: projDir,
+    }).then(() =>
+      spawnByLine("git", ["diff", "FETCH_HEAD", "origin/HEAD"], loggers, {
+        cwd: projDir,
+      })
+    );
   return fs
     .stat(gitDir)
     .catch(() => null)
@@ -466,17 +474,7 @@ function fetchAndClean(projDir: string, root: string, skipRemote: boolean) {
         }
       );
     })
-    .then(() =>
-      skipRemote
-        ? undefined
-        : spawnByLine("git", ["fetch", "origin"], loggers, {
-            cwd: projDir,
-          }).then(() =>
-            spawnByLine("git", ["diff", "FETCH_HEAD", "origin/HEAD"], loggers, {
-              cwd: projDir,
-            })
-          )
-    )
+    .then(() => (skipRemote ? undefined : fetch().catch(fetch)))
     .then(() =>
       spawnByLine("git", ["reset", "--hard", "origin/HEAD"], loggers, {
         cwd: projDir,
