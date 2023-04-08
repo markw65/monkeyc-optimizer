@@ -304,6 +304,8 @@ export type FilesToOptimizeMap = {
   [key: string]: {
     // Name of the optimized file
     output: string;
+    // The name of the barrel this file belongs to, or ""
+    barrel: string;
     // ExcludeAnnotations to apply to this file
     excludeAnnotations: ExcludeAnnotationsMap;
     // - On input to analyze, if provided, use this, rather than reading `key`

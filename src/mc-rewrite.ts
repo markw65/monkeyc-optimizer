@@ -234,13 +234,17 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
   return getFileSources(fnMap).then(() =>
     Object.entries(fnMap).reduce((ok, [name, value]) => {
       if (!value.ast) {
+        const options: Record<string, unknown> = {
+          filepath: name,
+        };
+        if (/\.mss$/i.test(name)) {
+          options.mss = value.barrel;
+        }
         try {
           value.ast = MonkeyC.parsers.monkeyc.parse(
             value.monkeyCSource!,
             null,
-            {
-              filepath: name,
-            }
+            options
           ) as mctree.Program;
         } catch (e) {
           ok = false;

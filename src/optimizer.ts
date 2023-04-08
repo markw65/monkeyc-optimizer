@@ -648,37 +648,55 @@ export type Analysis = {
   typeMap?: TypeMap | null | undefined;
 };
 
+async function filesFromPaths(
+  workspace: string,
+  paths: string[] | null | undefined,
+  extension: string
+) {
+  paths = (
+    await Promise.all(
+      paths?.map((pattern) => globa(pattern, { cwd: workspace, mark: true })) ||
+        []
+    )
+  ).flat();
+
+  const files = await Promise.all(
+    paths.map((path) =>
+      path.endsWith("/")
+        ? globa(`${path}**/*${extension}`, { cwd: workspace, mark: true })
+        : path
+    )
+  );
+  return {
+    files: files
+      .flat()
+      .filter(
+        (file) =>
+          file.endsWith(extension) &&
+          !path.relative(workspace, file).startsWith("bin")
+      ),
+    paths,
+  };
+}
+
 async function fileInfoFromConfig(
   workspace: string,
   output: string,
   buildConfig: JungleQualifier,
-  extraExcludes: ExcludeAnnotationsMap
+  extraExcludes: ExcludeAnnotationsMap,
+  barrel: string
 ): Promise<PreAnalysis> {
-  const paths = (
-    await Promise.all(
-      buildConfig.sourcePath?.map((pattern) =>
-        globa(pattern, { cwd: workspace, mark: true })
-      ) || []
-    )
-  ).flat();
+  const { files, paths } = await filesFromPaths(
+    workspace,
+    buildConfig.sourcePath,
+    ".mc"
+  );
 
-  const files = (
-    await Promise.all(
-      paths.map((path) =>
-        path.endsWith("/")
-          ? globa(`${path}**/*.mc`, { cwd: workspace, mark: true })
-          : path
-      )
-    )
-  )
-    .flat()
-    .filter(
-      (file) =>
-        file.endsWith(".mc") &&
-        !path.relative(workspace, file).startsWith("bin") &&
-        (!buildConfig.sourceExcludes ||
-          !buildConfig.sourceExcludes.includes(file))
-    );
+  const { files: personalityFiles } = await filesFromPaths(
+    workspace,
+    buildConfig.personality,
+    ".mss"
+  );
 
   const excludeAnnotations = Object.assign(
     buildConfig.excludeAnnotations
@@ -691,16 +709,24 @@ async function fileInfoFromConfig(
 
   return {
     fnMap: Object.fromEntries(
-      files.map((file) => [
-        file,
-        {
-          output: path.join(
-            output,
-            relative_path_no_dotdot(path.relative(workspace, file))
-          ),
-          excludeAnnotations,
-        },
-      ])
+      files
+        .filter(
+          (file) =>
+            !buildConfig.sourceExcludes ||
+            !buildConfig.sourceExcludes.includes(file)
+        )
+        .concat(personalityFiles)
+        .map((file) => [
+          file,
+          {
+            output: path.join(
+              output,
+              relative_path_no_dotdot(path.relative(workspace, file))
+            ),
+            barrel,
+            excludeAnnotations,
+          },
+        ])
     ),
     paths: paths.filter((path) => path.endsWith("/")),
   };
@@ -779,7 +805,8 @@ export async function generateOneConfig(
     workspace!,
     path.join(output, "source"),
     buildConfig,
-    buildModeExcludes
+    buildModeExcludes,
+    ""
   );
 
   if (buildConfig.barrelMap) {
@@ -804,7 +831,8 @@ export async function generateOneConfig(
                 buildConfig.annotations,
                 resolvedBarrel
               ),
-            }
+            },
+            barrel
           ).then(({ fnMap }) => fnMap);
         })
         .flat()
@@ -835,14 +863,15 @@ export async function generateOneConfig(
   // set of files we're going to generate (in case eg a jungle file change
   // might have altered it), and that the options we care about haven't
   // changed
+  const mcFiles = Object.values(fnMap).filter((f) => /\.mc/i.test(f.output));
   if (
     hasTests != null &&
     !config.checkBuildPragmas &&
     configOptionsToCheck.every(
       (option) => prevOptions[option] === config[option]
     ) &&
-    actualOptimizedFiles.length === Object.values(fnMap).length &&
-    Object.values(fnMap)
+    actualOptimizedFiles.length === mcFiles.length &&
+    mcFiles
       .map((v) => v.output)
       .sort()
       .every((f, i) => f === actualOptimizedFiles[i])
@@ -872,7 +901,7 @@ export async function generateOneConfig(
     (diagnostics) => {
       const options = { ...prettierConfig, ...(config.prettier || {}) };
       return Promise.all(
-        Object.values(fnMap).map(async (info) => {
+        mcFiles.map(async (info) => {
           const name = info.output;
           const dir = path.dirname(name);
           await fs.mkdir(dir, { recursive: true });
@@ -908,26 +937,60 @@ export async function getProjectAnalysis(
   manifestXML: xmlUtil.Document,
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
-  const sourcePath = targets
-    .map(({ qualifier: { sourcePath, barrelMap } }) => {
-      let sp = sourcePath ? sourcePath : [];
-      if (barrelMap) {
-        Object.values(barrelMap).forEach(
-          (bm) =>
-            bm.qualifier.sourcePath && (sp = sp.concat(bm.qualifier.sourcePath))
-        );
-      }
-      return sp;
-    })
-    .flat()
-    .sort()
-    .filter((s, i, arr) => !i || s !== arr[i - 1]);
+  const qualifiers: Record<string, JungleQualifier> = {};
 
-  const { fnMap, paths } = await fileInfoFromConfig(
-    options.workspace!,
-    options.workspace!,
-    { sourcePath },
-    {}
+  const addQualifier = (name: string, qualifier: JungleQualifier) => {
+    const sp = qualifier.sourcePath;
+    const pp = qualifier.personality;
+    if (sp || pp) {
+      let q = qualifiers[name];
+      if (!q) {
+        q = qualifiers[name] = { sourcePath: [], personality: [] };
+      }
+      if (sp) q.sourcePath!.push(...sp);
+      if (pp) q.personality!.push(...pp);
+    }
+  };
+  targets.forEach(({ qualifier }) => {
+    addQualifier("", qualifier);
+    if (qualifier.barrelMap) {
+      Object.entries(qualifier.barrelMap).forEach(([name, bm]) => {
+        addQualifier(name, bm.qualifier);
+      });
+    }
+  });
+
+  Object.values(qualifiers).forEach((v) => {
+    v.sourcePath = v
+      .sourcePath!.flat()
+      .sort()
+      .filter((s, i, arr) => !i || s !== arr[i - 1]);
+    v.personality = v
+      .personality!.flat()
+      .sort()
+      .filter((s, i, arr) => !i || s !== arr[i - 1]);
+  });
+
+  const { fnMap, paths } = await Promise.all(
+    Object.entries(qualifiers).map(([name, qualifier]) =>
+      fileInfoFromConfig(
+        options.workspace!,
+        options.workspace!,
+        qualifier,
+        {},
+        name
+      )
+    )
+  ).then(
+    (results) =>
+      results.reduce((cur, result) => {
+        if (!cur) return result;
+        Object.entries(result.fnMap).forEach(
+          ([key, value]) => (cur.fnMap[key] = value)
+        );
+        cur.paths.push(...result.paths);
+        return cur;
+      }, null as PreAnalysis | null)!
   );
 
   if (analysis) {
