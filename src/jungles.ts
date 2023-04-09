@@ -795,6 +795,10 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       key++;
     }
     target.group = groups[serialized];
+    if (!target.group.optimizerConfig.products) {
+      target.group.optimizerConfig.products = [];
+    }
+    target.group.optimizerConfig.products.push(target.product);
   });
 }
 
@@ -868,6 +872,7 @@ export type JungleQualifier = {
   barrelMap?: BarrelMap;
   optBarrels?: OptBarrelMap;
   resourceMap?: JungleResourceMap;
+  products?: string[];
 };
 
 // The result of parsing a jungle file, without resolving any products

@@ -44,7 +44,7 @@ import {
   ProgramStateAnalysis,
   StateNode,
 } from "./optimizer-types";
-import { appSupport, xmlUtil } from "./sdk-util";
+import { appSupport, connectiq, xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
 import { evaluate, InterpState, TypeMap } from "./type-flow/interp";
@@ -340,7 +340,6 @@ export async function generateOptimizedProject(options: BuildConfig) {
   await createLocalBarrels(targets, config);
 
   const buildConfigs: Record<string, JungleQualifier | null> = {};
-  const products: Record<string, string[]> = {};
   let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   if (config.skipOptimization) {
     if (pick_one >= 0) {
@@ -388,10 +387,8 @@ export async function generateOptimizedProject(options: BuildConfig) {
       }
       if (!buildConfigs[key]) {
         buildConfigs[key] = p.group.optimizerConfig;
-        products[key] = [];
         configsToBuild++;
       }
-      products[key].push(p.product);
     }
   });
 
@@ -442,7 +439,9 @@ export async function generateOptimizedProject(options: BuildConfig) {
                 if (!e.stack) {
                   e = new Error(e.toString());
                 }
-                e.products = products[key];
+                if (buildConfig.products) {
+                  e.products = buildConfig.products;
+                }
                 throw e;
               })
               .then((t) => {
@@ -692,9 +691,17 @@ async function fileInfoFromConfig(
     ".mc"
   );
 
+  let personality = buildConfig.personality;
+  if (buildConfig.products) {
+    personality = (personality ?? []).concat(
+      buildConfig.products.map(
+        (product) => `${connectiq}/Devices/${product}/personality.mss`
+      )
+    );
+  }
   const { files: personalityFiles } = await filesFromPaths(
     workspace,
-    buildConfig.personality,
+    personality,
     ".mss"
   );
 
@@ -937,46 +944,45 @@ export async function getProjectAnalysis(
   manifestXML: xmlUtil.Document,
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
-  const qualifiers: Record<string, JungleQualifier> = {};
+  const qualifiers: Map<
+    string,
+    { sourcePath: Set<string>; personality: Set<string> }
+  > = new Map();
 
   const addQualifier = (name: string, qualifier: JungleQualifier) => {
     const sp = qualifier.sourcePath;
     const pp = qualifier.personality;
     if (sp || pp) {
-      let q = qualifiers[name];
+      let q = qualifiers.get(name);
       if (!q) {
-        q = qualifiers[name] = { sourcePath: [], personality: [] };
+        q = { sourcePath: new Set(), personality: new Set() };
+        qualifiers.set(name, q);
       }
-      if (sp) q.sourcePath!.push(...sp);
-      if (pp) q.personality!.push(...pp);
+      sp?.forEach((s) => q!.sourcePath!.add(s));
+      pp?.forEach((p) => q!.personality!.add(p));
     }
   };
-  targets.forEach(({ qualifier }) => {
+
+  const products = targets.map(({ qualifier, product }) => {
     addQualifier("", qualifier);
     if (qualifier.barrelMap) {
       Object.entries(qualifier.barrelMap).forEach(([name, bm]) => {
         addQualifier(name, bm.qualifier);
       });
     }
-  });
-
-  Object.values(qualifiers).forEach((v) => {
-    v.sourcePath = v
-      .sourcePath!.flat()
-      .sort()
-      .filter((s, i, arr) => !i || s !== arr[i - 1]);
-    v.personality = v
-      .personality!.flat()
-      .sort()
-      .filter((s, i, arr) => !i || s !== arr[i - 1]);
+    return product;
   });
 
   const { fnMap, paths } = await Promise.all(
-    Object.entries(qualifiers).map(([name, qualifier]) =>
+    Array.from(qualifiers).map(([name, qualifier]) =>
       fileInfoFromConfig(
         options.workspace!,
         options.workspace!,
-        qualifier,
+        {
+          sourcePath: Array.from(qualifier.sourcePath),
+          personality: Array.from(qualifier.personality),
+          products: name === "" ? products : undefined,
+        },
         {},
         name
       )
