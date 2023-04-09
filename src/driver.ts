@@ -431,14 +431,21 @@ export async function driver() {
             ? get_jungle(options.jungleFiles!, options).then(
                 ({ targets, xml }) =>
                   getProjectAnalysis(targets, null, xml, options).then(
-                    (analysis) =>
-                      "state" in analysis
-                        ? reportDiagnostics(
-                            analysis.state.diagnostics,
-                            logger,
-                            extraArgs
-                          )
-                        : null
+                    (analysis) => {
+                      if ("state" in analysis) {
+                        reportDiagnostics(
+                          analysis.state.diagnostics,
+                          logger,
+                          extraArgs
+                        );
+                        return null;
+                      }
+                      throw new Error(
+                        `Analysis failed:\n${Object.values(analysis.fnMap)
+                          .filter((fn) => fn.parserError != null)
+                          .map((fn) => ` - ${fn.parserError!.toString()}\n`)}`
+                      );
+                    }
                   )
               )
             : genOnly
