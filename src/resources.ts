@@ -5,8 +5,10 @@ import {
   hasProperty,
   locRange,
   makeIdentifier,
+  makeMemberExpression,
   makeScopedName,
   traverseAst,
+  withLoc,
   wrap,
 } from "./ast";
 import { JungleResourceMap } from "./jungles";
@@ -380,6 +382,22 @@ function visit_resource_refs(
     if (dotted.startsWith("@")) {
       return parseArg(dotted, l);
     }
+    if (id === "personality") {
+      const elems = dotted.match(/\s+|\S+/g);
+      elems?.reduce((offset, name) => {
+        const end = offset + name.length;
+        if (!/\s/.test(name)) {
+          const base = makeScopedName(`Rez.Styles`);
+          const id = makeIdentifier(
+            name,
+            adjustLoc(l, offset, end - dotted.length)
+          );
+          result.push(makeMemberExpression(withLoc(base, id, false), id));
+        }
+        return end;
+      }, 0);
+      return;
+    }
     if (
       /^\s*(true|false|null|NaN|(0x|#)[0-9a-f]+|[-+]?\d+%?)\s*$/i.test(dotted)
     ) {
@@ -421,8 +439,7 @@ function visit_resource_refs(
       Object.values(node.attr).forEach((attr) => {
         if (!attr || !attr.value.loc) return;
         const loc = adjustLoc(attr.value.loc!);
-        attr &&
-          stringToScopedName(node, attr.name.value, attr.value.value, loc);
+        stringToScopedName(node, attr.name.value, attr.value.value, loc);
       });
       const content = doc.textContent(node);
       if (content) {
