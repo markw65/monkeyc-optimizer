@@ -848,3 +848,22 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Bug fixes
   - fixes a copy paste error that could cause strange results in the interpreter, possibly leading to incorrect optimizations.
+
+### 1.1.26
+
+- Bug fixes
+
+  - fixes an issue in the post build optimizer which could cause pre variables to be inserted too late in a block that could throw (so that if the variable was used in, or after the catch block, it might not have been set).
+  - fixes an issue with references in resource files, that could result in result in some references not being reported to the extension (only affects `Goto References` and `Goto Definition`)
+  - fixes some issues converting the system function documentation to markdown (for the Hover, Completion and Signature providers in the extension).
+
+- New features
+
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.49](https://github.com/markw65/prettier-plugin-monkeyc#1049) (including [#1.0.48](https://github.com/markw65/prettier-plugin-monkeyc#1048) and [#1.0.47](https://github.com/markw65/prettier-plugin-monkeyc#1047))
+    - adds support for parsing (but not formatting) .mss files
+  - Adds full support for personalities in `.jungle` and `.mss` files, including reading the per-device `personality.mss` files
+  - Adds support for `project.typecheck` in `.jungle` files
+  - Adds support for `project.optimization` in `.jungle` files
+
+- Tests
+  - Adds a new project to test `.mss` files, and references to personalities from `.mc` files
