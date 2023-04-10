@@ -305,7 +305,7 @@ export async function analyze(
           const scope = state.top().sn;
           scope.stack = state.stackClone().slice(0, -1);
           if (scope.type === "FunctionDeclaration") {
-            if (markApi) {
+            if (markApi && node.loc?.source === "api.mir") {
               node.body = null;
               scope.info = getApiFunctionInfo(state, scope);
             }
