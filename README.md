@@ -854,7 +854,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 - Bug fixes
 
   - fixes an issue in the post build optimizer which could cause pre variables to be inserted too late in a block that could throw (so that if the variable was used in, or after the catch block, it might not have been set).
-  - fixes an issue with references in resource files, that could result in result in some references not being reported to the extension (only affects `Goto References` and `Goto Definition`)
+  - fixes an issue with references in resource files, that could result in some references not being reported to the extension (only affects `Goto References` and `Goto Definition`)
   - fixes some issues converting the system function documentation to markdown (for the Hover, Completion and Signature providers in the extension).
 
 - New features
