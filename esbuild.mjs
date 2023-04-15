@@ -14,8 +14,14 @@ const sourcemap = !process.argv.includes("--release");
 
 const cjsConfig = async () => {
   const files = await glob(`${esmDir}/**/*.js`);
+
+  const entryPoints = files.map((file) => ({
+    in: file,
+    out: path.basename(file, ".js"),
+  }));
+
   return {
-    entryPoints: files,
+    entryPoints,
     bundle: false,
     platform: "node",
     outdir: `${cjsDir}`,
@@ -36,7 +42,7 @@ const fixImportsPlugin = {
       // Load the file from the file system
       const source = await fs.readFile(args.path, "utf8");
       const contents = source
-        .replace(/(\s(?:from|import)\s+".\/chunk-.*\.)(js")/g, "$1c$2")
+        .replace(/((?:^|\s)(?:from|import)\s+".\/chunk-.*\.)(js")/g, "$1c$2")
         .replace("lastModifiedSource", Date.now().toString())
         // yauzl includes a library that has this. There are years-old
         // bug reports, so we'll just fix it here (otherwise we get
@@ -159,6 +165,7 @@ const esmConfig = {
     "src/driver.ts",
     "src/worker-thread.ts",
     { in: "test/mocha/root.spec.ts", out: "mocha" },
+    "src/cftinfo.ts",
   ],
   chunkNames: "chunk-[hash]",
   bundle: true,

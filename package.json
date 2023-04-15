@@ -20,7 +20,7 @@
     "prettier-live": "test -z \"$(git status --untracked-files=no --porcelain || echo dirty)\" && npm install ../prettier-plugin-monkeyc && git commit -am 'prettier-plugin-monkeyc-live'",
     "build-debug": "node esbuild.mjs",
     "build-release": "node esbuild.mjs --release",
-    "prepack": "node esbuild.mjs --release",
+    "prepack": "node esbuild.mjs --release && mkdir -p bin && cp test/cft-font-info.js bin",
     "test": "npm run test-mocha && npm run test-optimized && npm run test-unopt && npm run test-post-only && npm run test-remote && npm run test-remote-tests && npm run test-personality",
     "test-mocha": "npx mocha --timeout 999999 build/mocha.cjs",
     "test-remote": "node ./test/test.js --showInfo --postOptimize --product=pick-one --github",
@@ -32,12 +32,16 @@
     "test-personality": "node test/test-personality.js",
     "eslint": "npx eslint ."
   },
+  "bin": {
+    "cft-font-info": "bin/cft-font-info.js"
+  },
   "files": [
     "build/optimizer.cjs",
     "build/util.cjs",
     "build/sdk-util.cjs",
     "build/api.cjs",
     "build/worker-thread.cjs",
+    "build/cftinfo.cjs",
     "build/chunk-*.cjs",
     "build/src/**/*.d.ts"
   ],
