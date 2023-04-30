@@ -867,3 +867,12 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Tests
   - Adds a new project to test `.mss` files, and references to personalities from `.mc` files
+
+### 1.1.27
+
+- Bug fixes
+
+  - Fixes an incorrect type check warning when an assignment to a local was incompatible with the type of a same-named non-local variable. This only affects the warning; it did not result in incorrect optimizations.
+
+- New features
+  - Adds a [standalone script](https://github.com/markw65/monkeyc-optimizer/wiki/Garmin-Font-Analyzer) to analyze .cft (font) files.
