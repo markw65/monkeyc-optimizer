@@ -59,6 +59,7 @@ export type InterpState = {
   state: ProgramStateAnalysis;
   stack: InterpStackElem[];
   typeMap?: TypeMap;
+  localLvals?: Set<mctree.Node>;
   func?: FunctionStateNode;
   pre?: (node: mctree.Node) => mctree.Node | false | null | void;
   post?: (node: mctree.Node) => mctree.Node | false | null | void;
@@ -313,6 +314,9 @@ function getLhsConstraint(
   istate: InterpState,
   node: mctree.MemberExpression | mctree.Identifier
 ) {
+  if (istate.localLvals?.has(node)) {
+    return null;
+  }
   let lookupDefs: LookupDefinition[] | null | false = null;
   if (node.type === "MemberExpression") {
     if (!istate.typeMap) {

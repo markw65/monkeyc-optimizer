@@ -1540,6 +1540,12 @@ function propagateTypes(
             ? event.node.left
             : null;
         if (lval) {
+          if (declIsLocal(event.decl)) {
+            if (!istate.localLvals) {
+              istate.localLvals = new Set();
+            }
+            istate.localLvals.add(lval);
+          }
           if (nodeEquivs.has(lval)) {
             // if this is an update, we add a "ref" for the lhs.
             // but that should never be equivalent to anything else
