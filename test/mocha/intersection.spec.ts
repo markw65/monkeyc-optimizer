@@ -210,12 +210,12 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
       check_restrict(
         { type: TypeTag.Float | TypeTag.Long },
         { type: TypeTag.Any },
-        { type: TypeTag.Numeric }
+        { type: TypeTag.Numeric | TypeTag.Char }
       );
       check_restrict(
         { type: TypeTag.Float | TypeTag.Double },
         { type: TypeTag.Any },
-        { type: TypeTag.Numeric }
+        { type: TypeTag.Numeric | TypeTag.Char }
       );
       check_restrict(
         { type: TypeTag.Float, value: 4.5 },
@@ -230,7 +230,7 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
       check_restrict(
         { type: TypeTag.Long, value: 0x1ffffffn },
         { type: TypeTag.Any },
-        { type: TypeTag.Number | TypeTag.Long | TypeTag.Double }
+        { type: TypeTag.Number | TypeTag.Long | TypeTag.Double | TypeTag.Char }
       );
       check_restrict(
         { type: TypeTag.Any },
@@ -296,6 +296,108 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
         { type: TypeTag.Any },
         four_as_number_enum,
         four_as_number_enum
+      );
+    });
+
+    it("Number vs Object restrictions", () => {
+      check_restrict(
+        { type: TypeTag.Number, value: 5 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 1 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.True }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 0 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.False }
+      );
+      check_restrict(
+        { type: TypeTag.Number },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char | TypeTag.Boolean }
+      );
+    });
+
+    it("Long vs Object restrictions", () => {
+      check_restrict(
+        { type: TypeTag.Long, value: 5n },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Long, value: 1n },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Long, value: 0n },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Long },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+    });
+
+    it("Float vs Object restrictions", () => {
+      check_restrict(
+        { type: TypeTag.Float, value: 5 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Float, value: 5.5 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Float | TypeTag.Double }
+      );
+      check_restrict(
+        { type: TypeTag.Float, value: 1 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Float, value: 0 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Float },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+    });
+
+    it("Double vs Object restrictions", () => {
+      check_restrict(
+        { type: TypeTag.Double, value: 5 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Double, value: 5.5 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Float | TypeTag.Double }
+      );
+      check_restrict(
+        { type: TypeTag.Double, value: 1 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Double, value: 0 },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
+      );
+      check_restrict(
+        { type: TypeTag.Double },
+        { type: TypeTag.Object },
+        { type: TypeTag.Numeric | TypeTag.Char }
       );
     });
   });

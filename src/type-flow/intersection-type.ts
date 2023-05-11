@@ -9,6 +9,7 @@ import { forEach, reduce, some } from "../util";
 import { couldBe } from "./could-be";
 import { roundToFloat } from "./interp";
 import {
+  CharType,
   ClassType,
   cloneType,
   DoubleType,
@@ -355,13 +356,18 @@ function restrictExactTypesByEquality(
     }
     case TypeTag.Number: {
       let extra_bits = 0;
-      if (b.type & TypeTag.False && (a.value == null || a.value === 0)) {
+      if (a.value == null || a.value === 0) {
         extra_bits |= TypeTag.False;
       }
-      if (b.type & TypeTag.True && (a.value == null || a.value === 1)) {
+      if (a.value == null || a.value === 1) {
         extra_bits |= TypeTag.True;
       }
       let value_bits = b.type & (TypeTag.Numeric | TypeTag.Char);
+      if (b.type & TypeTag.Object && !getObjectValue(b)) {
+        value_bits |= TypeTag.Numeric | TypeTag.Char;
+      } else {
+        extra_bits &= b.type;
+      }
       // Some Numbers don't fit exactly in a Float
       // We can eliminate Float from b's type in those cases.
       if (
@@ -395,13 +401,22 @@ function restrictExactTypesByEquality(
     }
 
     case TypeTag.Long: {
-      let value_bits = b.type & TypeTag.Numeric;
+      let value_bits = b.type & (TypeTag.Numeric | TypeTag.Char);
+      if (b.type & TypeTag.Object && !getObjectValue(b)) {
+        value_bits |= TypeTag.Numeric | TypeTag.Char;
+      }
       if (a.value != null) {
         if (
           value_bits & TypeTag.Number &&
           BigInt.asIntN(32, a.value) !== a.value
         ) {
           value_bits -= TypeTag.Number;
+        }
+        if (
+          value_bits & TypeTag.Char &&
+          BigInt.asIntN(32, a.value) !== a.value
+        ) {
+          value_bits -= TypeTag.Char;
         }
         if (
           value_bits & TypeTag.Float &&
@@ -436,24 +451,36 @@ function restrictExactTypesByEquality(
 
     case TypeTag.Double:
     case TypeTag.Float: {
-      let value_bits = TypeTag.Numeric;
+      let value_bits = b.type & (TypeTag.Numeric | TypeTag.Char);
+      if (b.type & TypeTag.Object && !getObjectValue(b)) {
+        value_bits |= TypeTag.Numeric | TypeTag.Char;
+      }
       if (a.value != null) {
         if (!Number.isInteger(a.value)) {
-          value_bits -= TypeTag.Number | TypeTag.Long;
+          value_bits &= ~(TypeTag.Number | TypeTag.Long | TypeTag.Char);
         } else {
           if (Number(BigInt.asIntN(32, BigInt(a.value))) !== a.value) {
-            value_bits -= TypeTag.Number;
+            value_bits &= ~(TypeTag.Number | TypeTag.Char);
           }
         }
       }
-      value_bits &= b.type;
       let v: ExactOrUnion = {
         type: value_bits,
-      } as NumberType | FloatType | LongType | DoubleType | NeverType;
+      } as
+        | NumberType
+        | FloatType
+        | LongType
+        | DoubleType
+        | NeverType
+        | CharType;
       if (value_bits && !(value_bits & (value_bits - 1))) {
         if (a.value != null) {
           v.value =
-            value_bits === TypeTag.Long ? BigInt(a.value) : Number(a.value);
+            value_bits === TypeTag.Long
+              ? BigInt(a.value)
+              : value_bits === TypeTag.Char
+              ? String.fromCharCode(Number(a.value))
+              : a.value;
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;
@@ -466,14 +493,30 @@ function restrictExactTypesByEquality(
     }
 
     case TypeTag.Char: {
-      const value_bits = b.type & (TypeTag.Number | TypeTag.Char);
+      let extra_bits = 0;
+      if (a.value == null || a.value.charCodeAt(0) === 0) {
+        extra_bits |= TypeTag.False;
+      }
+      if (a.value == null || a.value.charCodeAt(0) === 1) {
+        extra_bits |= TypeTag.True;
+      }
+      let value_bits = b.type & (TypeTag.Numeric | TypeTag.Char);
+      if (b.type & TypeTag.Object && !getObjectValue(b)) {
+        value_bits |= TypeTag.Numeric | TypeTag.Char;
+      } else {
+        extra_bits &= b.type;
+      }
       let v: ExactOrUnion = {
-        type: value_bits,
+        type: value_bits | extra_bits,
       };
       if (value_bits && !(value_bits & (value_bits - 1))) {
         if (a.value != null) {
           v.value =
-            value_bits === TypeTag.Number ? a.value.charCodeAt(0) : a.value;
+            value_bits === TypeTag.Long
+              ? BigInt(a.value.charCodeAt(0))
+              : value_bits & TypeTag.Numeric
+              ? a.value.charCodeAt(0)
+              : a.value;
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;
