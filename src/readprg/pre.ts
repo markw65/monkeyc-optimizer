@@ -180,7 +180,11 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
           })
       );
       assert(spush);
-      if (index >= 0 && index < block.bytecodes.length) {
+      if (
+        index >= 0 &&
+        index < block.bytecodes.length &&
+        bcs.has(block.bytecodes[index])
+      ) {
         index--;
       }
       block.bytecodes.splice(
