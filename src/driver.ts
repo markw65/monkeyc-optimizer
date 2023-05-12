@@ -21,6 +21,7 @@ type JungleInfo = {
   build: boolean | null;
   options: BuildConfig | null;
   garminOptLevel: number | null;
+  products: string[] | null;
 };
 
 function cleanPath(workspace: string | null | undefined, file: string) {
@@ -691,16 +692,23 @@ export async function driver() {
             build: null,
             options: null,
             garminOptLevel: null,
+            products: null,
           }
         : jungleFiles;
 
+    const curProducts =
+      jf.products &&
+      (!products || (products.length === 1 && products[0] === "pick-one"))
+        ? jf.products
+        : products || ["pick-one"];
+
     const promise = testBuild
-      ? products!.reduce(
+      ? curProducts.reduce(
           (promise, product) =>
             runOne(promise, serializeSim, logger, [product], jf),
           Promise.resolve()
         )
-      : runOne(Promise.resolve(), serializeSim, logger, products!, jf);
+      : runOne(Promise.resolve(), serializeSim, logger, curProducts, jf);
 
     return promise.then(() =>
       parts.forEach((part) =>

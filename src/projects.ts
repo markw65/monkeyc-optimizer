@@ -16,7 +16,7 @@ export type RemoteProject =
       sourcePath?: string;
       jungleContent?: string[];
       garminOptLevel?: number;
-      test?: boolean;
+      test?: boolean | string[];
     };
 
 export const githubProjects: RemoteProject[] = [
@@ -202,7 +202,7 @@ export const githubProjects: RemoteProject[] = [
   { root: "https://github.com/lukasz-duda/NormalizedPoolDistance", test: true },
   {
     root: "https://github.com/matco/badminton",
-    test: true,
+    test: ["fenix5", "fenix6", "fenix7"],
   },
   {
     root: "https://github.com/matmuc/SportMonitor",
@@ -424,12 +424,16 @@ export async function fetchGitProjects(
           const re = new RegExp(exclude);
           jungles = jungles.filter((j) => !re.test(j.replace(/\\/g, "/")));
         }
-        return options || build === false || garminOptLevel !== null
+        return options ||
+          build === false ||
+          garminOptLevel !== null ||
+          Array.isArray(test)
           ? jungles.map((jungle) => ({
               jungle,
               build,
               options,
               garminOptLevel,
+              products: Array.isArray(test) ? test : null,
             }))
           : jungles;
       })
