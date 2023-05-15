@@ -137,11 +137,15 @@ function equalsCheck(left: ValueTypes, right: ValueTypes): boolean | undefined {
   return left.type & TypeTag.Numeric && right.type & TypeTag.Numeric
     ? // eslint-disable-next-line eqeqeq
       left.value == right.value
-    : lrBits === (TypeTag.Number | TypeTag.Char)
-    ? // Char vs Number is true iff the number is the char-code of the char
-      left.type === TypeTag.Char
-      ? left.value.charCodeAt(0) === right.value
-      : left.value === (right.value as string).charCodeAt(0)
+    : // Char vs Numeric is true iff the number is the char-code of the char
+    left.type === TypeTag.Char && right.type & TypeTag.Numeric
+    ? left.value.charCodeAt(0) === Number(right.value)
+    : right.type === TypeTag.Char && left.type & TypeTag.Numeric
+    ? Number(left.value) === right.value.charCodeAt(0)
+    : left.type === TypeTag.Char && right.type & TypeTag.Boolean
+    ? left.value.charCodeAt(0) === (right.value ? 1 : 0)
+    : right.type === TypeTag.Char && left.type & TypeTag.Boolean
+    ? right.value.charCodeAt(0) === (left.value ? 1 : 0)
     : left.type === TypeTag.Number && right.type & TypeTag.Boolean
     ? left.value === (right.value ? 1 : 0)
     : right.type === TypeTag.Number && left.type & TypeTag.Boolean

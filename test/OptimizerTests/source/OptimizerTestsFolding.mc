@@ -5,6 +5,10 @@ import Toybox.Application;
 
 const NON_ZERO_CONST = 42;
 const ZERO_CONST = 0;
+const NON_ZERO_CHAR as Char = '*';
+const NON_ZERO_LONG as Long = 42l;
+const NON_ZERO_FLOAT as Float = 42f;
+const NON_ZERO_DOUBLE as Double = 42d;
 
 var gLogger as Logger?;
 
@@ -63,9 +67,32 @@ function testRelationalFolding1(logger as Logger) as Boolean {
     check(ZERO_CONST == 0d ? 42 : 24, 42, logger);
 
     /* @match /check\(@42, @42, logger\);/ */
-    check(NON_ZERO_CONST == '*' ? 42 : 24, 42, logger);
+    check(NON_ZERO_CONST == NON_ZERO_CHAR ? 42 : 24, 42, logger);
     /* @match /check\(@42, @42, logger\);/ */
-    check('*' == NON_ZERO_CONST ? 42 : 24, 42, logger);
+    check(NON_ZERO_CHAR == NON_ZERO_CONST ? 42 : 24, 42, logger);
+
+    return ok;
+}
+
+(:test)
+function testRelationalFoldingExpectedFail4_1_6_U(logger as Logger) as Boolean {
+    ok = true;
+
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_LONG == NON_ZERO_CHAR ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_CHAR == NON_ZERO_LONG ? 42 : 24, 42, logger);
+
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_FLOAT == NON_ZERO_CHAR ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_CHAR == NON_ZERO_FLOAT ? 42 : 24, 42, logger);
+
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_DOUBLE == NON_ZERO_CHAR ? 42 : 24, 42, logger);
+    /* @match /check\(@42, @42, logger\);/ */
+    check(NON_ZERO_CHAR == NON_ZERO_DOUBLE ? 42 : 24, 42, logger);
+
     return ok;
 }
 
@@ -768,7 +795,6 @@ function testInstanceofFolding(logger as Logger) as Boolean {
             return false;
         }
     }
-
 }
 
 (:inline)
