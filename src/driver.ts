@@ -111,13 +111,13 @@ export async function driver() {
           });
         break;
       case "release":
-        releaseBuild = !value || /^true|1$/i.test(value);
+        releaseBuild = !value || /^(true|1)$/i.test(value);
         break;
       case "postOptimize":
-        postOptimize = !value || /^true|1$/i.test(value);
+        postOptimize = !value || /^(true|1)$/i.test(value);
         break;
       case "iterateOptimizer":
-        iterateOptimizer = !value || /^true|1$/i.test(value);
+        iterateOptimizer = !value || /^(true|1)$/i.test(value);
         break;
       case "postProcess":
         if (value == null) return key;
@@ -128,16 +128,16 @@ export async function driver() {
         postProcessTarget = value;
         break;
       case "warnings":
-        compilerWarnings = !value || /^true|1$/i.test(value);
+        compilerWarnings = !value || /^(true|1)$/i.test(value);
         break;
       case "generate-only":
-        generateOnly = !value || /^true|1$/i.test(value);
+        generateOnly = !value || /^(true|1)$/i.test(value);
         break;
       case "jungle-only":
-        jungleOnly = !value || /^true|1$/i.test(value);
+        jungleOnly = !value || /^(true|1)$/i.test(value);
         break;
       case "analyze-only":
-        analyzeOnly = !value || /^true|1$/i.test(value);
+        analyzeOnly = !value || /^(true|1)$/i.test(value);
         break;
       case "typeCheckLevel":
         if (value == null) return key;
@@ -151,7 +151,7 @@ export async function driver() {
         optimizationLevel = value;
         break;
       case "skipOptimization":
-        skipOptimization = !value || /^true|1$/i.test(value);
+        skipOptimization = !value || /^(true|1)$/i.test(value);
         break;
       case "garminOptLevel":
         if (!supportsCompiler2) {
@@ -209,39 +209,39 @@ export async function driver() {
         break;
       case "sizeBasedPRE":
         if (value == null) return key;
-        sizeBasedPRE = /^true|1$/i.test(value)
+        sizeBasedPRE = /^(true|1)$/i.test(value)
           ? true
-          : /^false|0$/i.test(value)
+          : /^(false|0)$/i.test(value)
           ? false
           : value;
         break;
       case "trustDeclaredTypes":
         if (value == null) return key;
-        trustDeclaredTypes = /^false|0$/i.test(value) ? false : true;
+        trustDeclaredTypes = /^(false|0)$/i.test(value) ? false : true;
         break;
       case "propagateTypes":
         if (value == null) return key;
-        propagateTypes = /^false|0$/i.test(value) ? false : true;
+        propagateTypes = /^(false|0)$/i.test(value) ? false : true;
         break;
       case "singleUseCopyProp":
         if (value == null) return key;
-        singleUseCopyProp = /^false|0$/i.test(value) ? false : true;
+        singleUseCopyProp = /^(false|0)$/i.test(value) ? false : true;
         break;
       case "minimizeLocals":
         if (value == null) return key;
-        minimizeLocals = /^false|0$/i.test(value) ? false : true;
+        minimizeLocals = /^(false|0)$/i.test(value) ? false : true;
         break;
       case "minimizeModules":
         if (value == null) return key;
-        minimizeModules = /^false|0$/i.test(value) ? false : true;
+        minimizeModules = /^(false|0)$/i.test(value) ? false : true;
         break;
       case "ignoreInvalidSymbols":
-        if (!value || /^true|1$/i.test(value)) {
+        if (!value || /^(true|1)$/i.test(value)) {
           extraMonkeycArgs.push("--Eno-invalid-symbol");
         }
         break;
       case "checkBuildPragmas":
-        checkBuildPragmas = !value || /^true|1$/i.test(value);
+        checkBuildPragmas = !value || /^(true|1)$/i.test(value);
         break;
       case "product":
         if (value == null) return key;
@@ -259,15 +259,15 @@ export async function driver() {
         }
         break;
       case "execute":
-        execute = !value || /^true|1$/i.test(value);
+        execute = !value || /^(true|1)$/i.test(value);
         break;
       case "testBuild":
-        testBuild = !value || /^true|1$/i.test(value);
+        testBuild = !value || /^(true|1)$/i.test(value);
         break;
       case "run-tests":
-        if (!value || /^true|1$/i.test(value)) {
+        if (!value || /^(true|1)$/i.test(value)) {
           testBuild = true;
-        } else if (/^false|0$/i.test(value)) {
+        } else if (/^(false|0)$/i.test(value)) {
           testBuild = false;
         } else {
           testBuild = value;
@@ -275,19 +275,19 @@ export async function driver() {
         if (testBuild) execute = true;
         break;
       case "showInfo":
-        showInfo = !value || /^true|1$/i.test(value);
+        showInfo = !value || /^(true|1)$/i.test(value);
         break;
       case "skipRemote":
-        skipRemote = !value || /^true|1$/i.test(value);
+        skipRemote = !value || /^(true|1)$/i.test(value);
         break;
       case "covarianceWarnings":
-        covarianceWarnings = !value || /^true|1$/i.test(value);
+        covarianceWarnings = !value || /^(true|1)$/i.test(value);
         break;
       case "removeArgc":
-        removeArgc = /^false|0$/i.test(value) ? false : true;
+        removeArgc = /^(false|0)$/i.test(value) ? false : true;
         break;
       case "postBuildPRE":
-        postBuildPRE = /^false|0$/i.test(value) ? false : true;
+        postBuildPRE = /^(false|0)$/i.test(value) ? false : true;
         break;
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
@@ -537,6 +537,7 @@ export async function driver() {
           let expectedFailures = 0;
           const handler = (line: string) => {
             if (resultsSeen) {
+              line = line.replace(/(\S)(PASS|FAIL|ERROR)\s*$/, "$1 $2");
               const match = line.match(/^((\w|\.)+)\s*(PASS|FAIL|ERROR)\s*$/);
               if (match) {
                 if (match[1].match(/crashCompiler2/i)) {
