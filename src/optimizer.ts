@@ -416,6 +416,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
     if (configsToBuild > 1) {
       poolStarted = startPool();
     }
+    let hasPersonality = false;
     const promises = Object.keys(buildConfigs)
       .sort()
       .map((key) => {
@@ -448,6 +449,9 @@ export async function generateOptimizedProject(options: BuildConfig) {
                 if (t.hasTests) hasTests = true;
                 if (t.diagnostics) {
                   diagnostics = { ...diagnostics, ...t.diagnostics };
+                }
+                if (t.sdkVersion != null && t.sdkVersion >= 4002001) {
+                  hasPersonality = true;
                 }
               })
           : fs.rm(path.resolve(workspace, outputPath), {
@@ -614,9 +618,14 @@ export async function generateOptimizedProject(options: BuildConfig) {
       }
     });
 
-    promises.push(fs.writeFile(jungleFiles, parts.join("\n")));
-
     await Promise.all(promises);
+    await fs.writeFile(
+      jungleFiles,
+      (hasPersonality
+        ? parts
+        : parts.filter((part) => !/\.personality = /.test(part))
+      ).join("\n")
+    );
   } finally {
     if (poolStarted) {
       stopPool();
@@ -792,6 +801,7 @@ export async function generateOneConfig(
 ): Promise<{
   hasTests: boolean;
   diagnostics: ProgramState["diagnostics"];
+  sdkVersion: number | undefined;
 }> {
   const { workspace } = config;
   const output = path.join(workspace!, config.outputPath!);
@@ -856,6 +866,7 @@ export async function generateOneConfig(
   const {
     hasTests,
     diagnostics: prevDiagnostics,
+    sdkVersion: prevSdkVersion,
     ...prevOptions
   } = JSON.parse(
     await fs
@@ -864,6 +875,7 @@ export async function generateOneConfig(
   ) as {
     hasTests: boolean;
     diagnostics: NonNullable<ProgramState["diagnostics"]>;
+    sdkVersion: number | undefined;
   } & BuildConfig;
 
   // check that the set of files thats actually there is the same as the
@@ -892,7 +904,11 @@ export async function generateOneConfig(
       Object.values(fnMap).map((v) => v.output)
     );
     if (source_time < opt_time && lastModifiedSource < opt_time) {
-      return { hasTests, diagnostics: prevDiagnostics };
+      return {
+        hasTests,
+        diagnostics: prevDiagnostics,
+        sdkVersion: prevSdkVersion,
+      };
     }
   }
 
@@ -905,7 +921,7 @@ export async function generateOneConfig(
     }),
   ]);
   return optimizeMonkeyC(fnMap, resourcesMap, manifestXML, config).then(
-    (diagnostics) => {
+    ({ diagnostics, sdkVersion }) => {
       const options = { ...prettierConfig, ...(config.prettier || {}) };
       return Promise.all(
         mcFiles.map(async (info) => {
@@ -926,13 +942,14 @@ export async function generateOneConfig(
             JSON.stringify({
               hasTests,
               diagnostics,
+              sdkVersion,
               optimizerVersion: MONKEYC_OPTIMIZER_VERSION,
               ...Object.fromEntries(
                 configOptionsToCheck.map((option) => [option, config[option]])
               ),
             })
           )
-          .then(() => ({ hasTests, diagnostics }));
+          .then(() => ({ hasTests, diagnostics, sdkVersion }));
       });
     }
   );

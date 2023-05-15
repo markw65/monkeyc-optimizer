@@ -1,4 +1,6 @@
 const { spawnByLine, globa } = require("../build/util.cjs");
+const { getSdkPath } = require("../build/sdk-util.cjs");
+const { parseSdkVersion } = require("../build/api.cjs");
 const fs = require("node:fs/promises");
 
 const args = [
@@ -39,6 +41,19 @@ async function testOne(product, resources, locX) {
 }
 
 Promise.resolve()
+  .then(() => getSdkPath())
+  .then((sdk) => {
+    const match = sdk.match(/-(\d+\.\d+\.\d+)/);
+    if (match) {
+      const sdkVersion = parseSdkVersion(match[1]);
+      if (sdkVersion < 4002001) {
+        console.log(
+          `Skipping personality test because sdk-${match[1]} does not support them.`
+        );
+        process.exit(0);
+      }
+    }
+  })
   .then(() =>
     testOne(
       "venu2",

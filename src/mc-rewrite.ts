@@ -1180,7 +1180,7 @@ export async function optimizeMonkeyC(
     }
   });
 
-  return state.diagnostics;
+  return { diagnostics: state.diagnostics, sdkVersion: state.sdkVersion };
 }
 
 /*
