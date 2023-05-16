@@ -876,3 +876,14 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - New features
   - Adds a [standalone script](https://github.com/markw65/monkeyc-optimizer/wiki/Garmin-Font-Analyzer) to analyze .cft (font) files.
+
+### 1.1.28
+
+- Bug fixes
+
+  - Fixes an issue in the post build optimizer which could cause a pre-definition to be inserted just prior to an `frpush`, which could result in the wrong value of `self` being passed to a call
+  - Don't add personality paths to the generated jungle file if the sdk is prior to 4.2.1
+  - Fixes a bug in the source-to-source optimizer that could incorrectly infer that an `if` block was never entered when the if's comparison was between a primitive type, and a plain `Object`
+
+- Improved optimizations
+  - Constant folding between `Char` and types other than `Number` is now handled (previously such comparisons were just left for Garmin's compiler to handle). This works around a [bug in Garmin's optimizer](https://forums.garmin.com/developer/connect-iq/i/bug-reports/the-optimizer-constant-folds-char-comparisons-incorrectly) by (correctly) resolving the comparisons before Garmin's optimizer can do the wrong thing.
