@@ -169,6 +169,7 @@ function filterDecls(
 
   const result = decls.reduce<[Set<StateNode>, Set<StateNode>] | [null, null]>(
     (cur, decl) => {
+      let declSups: Set<StateNode> | null | undefined;
       const found = possible.reduce((flag, poss) => {
         if (
           decl === poss ||
@@ -185,8 +186,10 @@ function filterDecls(
           cur[1].add(poss);
           return true;
         } else if (
-          decl.type === "ClassDeclaration" &&
-          getSuperClasses(decl)?.has(poss)
+          declSups !== undefined
+            ? declSups?.has(poss)
+            : decl.type === "ClassDeclaration" &&
+              (declSups = getSuperClasses(decl))?.has(poss)
         ) {
           // decl extends poss, so decl remains unchanged
           // eg we know obj is Menu2, we call obj.toString
@@ -194,10 +197,31 @@ function filterDecls(
           // so poss is Object. But we still know that
           // obj is Menu2
           if (!cur[0]) {
-            cur = [new Set(), new Set()];
+            cur = [new Set([decl]), new Set([poss])];
+          } else {
+            cur[0].add(decl);
+            if (
+              Array.from(cur[1]).every((d) => {
+                if (decl === d) return false;
+                if (!declSups!.has(d)) return true;
+                if (
+                  d.type === "ClassDeclaration" &&
+                  getSuperClasses(d)?.has(poss)
+                ) {
+                  return false;
+                }
+                if (
+                  poss.type === "ClassDeclaration" &&
+                  getSuperClasses(poss)?.has(d)
+                ) {
+                  cur[1]!.delete(d);
+                }
+                return true;
+              })
+            ) {
+              cur[1].add(poss);
+            }
           }
-          cur[0].add(decl);
-          cur[1].add(poss);
           return true;
         }
         return flag;
