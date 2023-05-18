@@ -38,7 +38,7 @@ import { add_resources_to_ast, visit_resources } from "./resources";
 import { getSdkPath, xmlUtil } from "./sdk-util";
 import { TypeMap } from "./type-flow/interp";
 import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
-import { getStateNodeDeclsFromType } from "./type-flow/types";
+import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
 import { pushUnique, sameArrays } from "./util";
 
 export { visitorNode, visitReferences } from "./visitor";
@@ -565,6 +565,20 @@ export function lookupWithType(
         return [node.property.name, next];
       }
     }
+  } else if (node.type === "Literal") {
+    const type = typeFromLiteral(node);
+    const results = getStateNodeDeclsFromType(state, type);
+    return [node.raw, [{ parent: null, results }]];
+  } else if (node.type === "UnaryExpression" && node.operator === ":") {
+    return [
+      node.argument.name,
+      [
+        {
+          parent: null,
+          results: lookupByFullName(state, "Toybox.Lang.Symbol") as StateNode[],
+        },
+      ],
+    ];
   }
   return results;
 }
