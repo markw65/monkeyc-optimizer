@@ -1110,8 +1110,8 @@ export function formatAst(
 
 function findNamesInExactScope(decl: StateNode, regexp: RegExp) {
   if (!decl.decls) return [];
-  return Object.entries(decl.decls).flatMap(([key, value]) =>
-    regexp.test(key) ? value : []
+  return Object.entries(decl.decls).flatMap(([name, decls]) =>
+    regexp.test(name) ? { name, decls } : []
   );
 }
 
@@ -1124,18 +1124,25 @@ export function findNamesInScope(
       ? new RegExp(pattern.replace(/\W/g, "").split("").join(".*"), "i")
       : pattern;
   const results = new Map<
-    StateNodeDecl,
-    { parent: StateNode; depth: number }
+    string,
+    Map<number, Array<{ decl: StateNodeDecl; parent: StateNode }>>
   >();
   const helper = (decls: StateNode[], depth: number) => {
     decls.forEach((parent) => {
       if (parent.type === "ClassDeclaration") {
         if (parent.superClass && parent.superClass !== true) {
-          helper(parent.superClass, depth + 1);
+          helper(parent.superClass, depth);
         }
       }
-      findNamesInExactScope(parent, regex).forEach((sn) => {
-        results.set(sn, { parent, depth });
+      findNamesInExactScope(parent, regex).forEach(({ name, decls }) => {
+        let names = results.get(name);
+        if (!names) {
+          results.set(name, (names = new Map()));
+        }
+        names.set(
+          depth,
+          decls.map((decl) => ({ decl, parent }))
+        );
       });
     });
   };
@@ -1144,7 +1151,13 @@ export function findNamesInScope(
     helper(declStack[declStack.length - 1 - depth], depth);
     depth++;
   }
-  return Array.from(results);
+  return Array.from(results.values())
+    .map((m) =>
+      Array.from(m).map(([depth, entries]) =>
+        entries.map(({ decl, parent }) => [decl, { parent, depth }] as const)
+      )
+    )
+    .flat(2);
 }
 
 export function mapVarDeclsByType(
