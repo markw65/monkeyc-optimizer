@@ -846,7 +846,7 @@ export function castType(type: ExactOrUnion, target: UnionTypeTags) {
  */
 export const TruthyTypes =
   TypeTag.True |
-  TypeTag.Object |
+  // TypeTag.Object | // omit because of missing null on various Toybox types
   TypeTag.Module |
   TypeTag.Class |
   TypeTag.Function;

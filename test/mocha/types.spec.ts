@@ -22,7 +22,6 @@ export function typeTests() {
 
   describe("mustBeTrue/mustBeFalse tests", () => {
     it("things that must be true", () => {
-      check({ type: TypeTag.Object }, mustBeTrue);
       check({ type: TypeTag.Class }, mustBeTrue);
       check({ type: TypeTag.Function }, mustBeTrue);
       check({ type: TypeTag.Module }, mustBeTrue);
@@ -50,6 +49,7 @@ export function typeTests() {
     }
 
     it("things that must be neither", () => {
+      neither({ type: TypeTag.Object });
       neither({ type: TypeTag.Number });
       neither({ type: TypeTag.Long });
       neither({ type: TypeTag.Float });
