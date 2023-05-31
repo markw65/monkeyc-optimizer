@@ -887,3 +887,12 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Improved optimizations
   - Constant folding between `Char` and types other than `Number` is now handled (previously such comparisons were just left for Garmin's compiler to handle). This works around a [bug in Garmin's optimizer](https://forums.garmin.com/developer/connect-iq/i/bug-reports/the-optimizer-constant-folds-char-comparisons-incorrectly) by (correctly) resolving the comparisons before Garmin's optimizer can do the wrong thing.
+
+### 1.1.29
+
+- Bug fixes
+
+  - Fixes an issue where a value could incorrectly be inferred to be true-ish when its declared type was known to be an object of class type. This is not of itself incorrect, but some Toybox APIs are declared as returning an Object of a class, but may in fact return null - so we can't treat them as non-null.
+
+- Enhancements
+  - various methods used by the extension for completion and hover info have been updated to give more accurate results.
