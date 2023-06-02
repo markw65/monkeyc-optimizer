@@ -8,6 +8,7 @@ import {
   getObjectValue,
   getUnionComponent,
   ObjectLikeTagsConst,
+  SingletonTypeTagsConst,
   TypeTag,
   typeTagName,
   UnionDataTypeTagsConst,
@@ -30,6 +31,11 @@ export function couldBeHelper(
   const common = a.type & b.type & ~TypeTag.Typedef;
   if (common) {
     if (a.value == null || b.value == null || a.value === b.value) {
+      return true;
+    }
+    if (common & SingletonTypeTagsConst) {
+      // Singletons never have data, so if both types have singletons in common,
+      // the result is true.
       return true;
     }
     if (common & ValueTypeTagsConst && common & UnionDataTypeTagsConst) {

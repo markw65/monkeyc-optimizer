@@ -46,6 +46,25 @@ export function couldBeTests(statefn: () => ProgramStateAnalysis | null) {
       );
     });
 
+    it("Singletons with UnionData types", () => {
+      check(
+        { type: TypeTag.Null | TypeTag.Array, value: { type: TypeTag.Number } },
+        { type: TypeTag.Null | TypeTag.Array, value: { type: TypeTag.String } },
+        true
+      );
+      check(
+        {
+          type: TypeTag.False | TypeTag.Array,
+          value: { type: TypeTag.Number },
+        },
+        {
+          type: TypeTag.Boolean | TypeTag.Array,
+          value: { type: TypeTag.String },
+        },
+        true
+      );
+    });
+
     it("couldBe respects recursive types", () => {
       const state = statefn();
       assertNonNull(state);
