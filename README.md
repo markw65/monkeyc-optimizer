@@ -896,3 +896,9 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Enhancements
   - various methods used by the extension for completion and hover info have been updated to give more accurate results.
+
+### 1.1.30
+
+- Bug fixes
+  - Fixes an issue where exporting a project that uses barrels could fail.
+  - Fixes a type analysis bug that could result in the type checker incorrectly thinking two types were disjoint.
