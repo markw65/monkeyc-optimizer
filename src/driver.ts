@@ -389,7 +389,7 @@ export async function driver() {
     promise: Promise<unknown>,
     serializeSim: { promise: Promise<unknown> },
     logger: (line: unknown, err?: boolean) => void,
-    products: string[],
+    products: string[] | undefined,
     jungleInfo: JungleInfo
   ) => {
     const genOnly = jungleInfo.build === false || generateOnly;
@@ -674,7 +674,9 @@ export async function driver() {
   if (parallelism == null) {
     parallelism = Math.min(Math.ceil(os.cpus().length / 2), jungles.length);
   }
-  startPool(parallelism);
+  if (parallelism > 1) {
+    startPool(parallelism);
+  }
   await promiseAll((index: number) => {
     if (index >= jungles.length) return null;
     const jungleFiles = jungles[index];
@@ -701,15 +703,16 @@ export async function driver() {
       jf.products &&
       (!products || (products.length === 1 && products[0] === "pick-one"))
         ? jf.products
-        : products || ["pick-one"];
+        : products;
 
-    const promise = testBuild
-      ? curProducts.reduce(
-          (promise, product) =>
-            runOne(promise, serializeSim, logger, [product], jf),
-          Promise.resolve()
-        )
-      : runOne(Promise.resolve(), serializeSim, logger, curProducts, jf);
+    const promise =
+      testBuild && curProducts
+        ? curProducts.reduce(
+            (promise, product) =>
+              runOne(promise, serializeSim, logger, [product], jf),
+            Promise.resolve()
+          )
+        : runOne(Promise.resolve(), serializeSim, logger, curProducts, jf);
 
     return promise.then(() =>
       parts.forEach((part) =>

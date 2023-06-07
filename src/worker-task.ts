@@ -56,6 +56,28 @@ export type WorkerTask =
   | GenerateOneConfig
   | OptimizePrgAndDebug;
 
+function restoreQualifier(qualifier: JungleQualifier) {
+  if (qualifier.resourceMap) {
+    Object.values(qualifier.resourceMap).forEach((doc) => restoreDocument(doc));
+  }
+  if (qualifier.barrelMap) {
+    Object.values(qualifier.barrelMap).forEach((barrel) => {
+      restoreQualifier(barrel.qualifier);
+      restoreDocument(barrel.xml);
+    });
+  }
+}
+
+function restoreDocument(obj: unknown) {
+  Object.setPrototypeOf(obj, xmlUtil.Document.prototype);
+  const doc = obj as xmlUtil.Document;
+  if ((doc.body as { elements?: Array<xmlUtil.Element> }).elements) {
+    Object.setPrototypeOf(doc.body, xmlUtil.Nodes.prototype);
+  } else {
+    Object.setPrototypeOf(doc.body, Error.prototype);
+  }
+}
+
 export const workerTaskHandlers = {
   buildOptimizedProject(data: BuildOptimizedProject["data"]) {
     return buildOptimizedProject(data.product, data.options);
@@ -64,13 +86,9 @@ export const workerTaskHandlers = {
     return generateOptimizedProject(data.options);
   },
   generateOneConfig(data: GenerateOneConfig["data"]) {
-    if (data.buildConfig.resourceMap) {
-      Object.values(data.buildConfig.resourceMap).forEach((doc) =>
-        Object.setPrototypeOf(doc, xmlUtil.Document.prototype)
-      );
-    }
+    restoreQualifier(data.buildConfig);
     if (data.manifestXML) {
-      Object.setPrototypeOf(data.manifestXML, xmlUtil.Document.prototype);
+      restoreDocument(data.manifestXML);
     }
     return generateOneConfig(
       data.buildConfig,
@@ -98,7 +116,7 @@ export const workerTaskHandlers = {
 type RemovePromise<T> = T extends Promise<infer U> ? U : T;
 
 export type WorkerTaskResult<T> = T extends WorkerTask
-  ? RemovePromise<ReturnType<typeof workerTaskHandlers[T["type"]]>>
+  ? RemovePromise<ReturnType<(typeof workerTaskHandlers)[T["type"]]>>
   : never;
 
 export async function performTask<T extends WorkerTask>(
