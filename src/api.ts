@@ -96,7 +96,7 @@ export async function getApiMapping(
   state?: ProgramState,
   resourcesMap?: Record<string, JungleResourceMap>,
   manifestXML?: xmlUtil.Document
-): Promise<ProgramStateNode | null> {
+): Promise<ProgramStateNode> {
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
 
@@ -114,58 +114,54 @@ export async function getApiMapping(
     .replace(/\r\n/g, "\n")
     .replace(/^(\s*type)\s/gm, "$1def ");
 
-  try {
-    const ast = parser.parse(api, null, {
-      filepath: "api.mir",
-    }) as mctree.Program;
-    if (resourcesMap) {
-      const rezAst: mctree.Program = state
-        ? state.rezAst || { type: "Program", body: [] }
-        : ast;
-      add_resources_to_ast(state, rezAst, resourcesMap, manifestXML);
-      if (state) {
-        state.rezAst = rezAst;
-        state.manifestXML = manifestXML;
-      }
+  const ast = parser.parse(api, null, {
+    filepath: "api.mir",
+  }) as mctree.Program;
+
+  if (resourcesMap) {
+    const rezAst: mctree.Program = state
+      ? state.rezAst || { type: "Program", body: [] }
+      : ast;
+    add_resources_to_ast(state, rezAst, resourcesMap, manifestXML);
+    if (state) {
+      state.rezAst = rezAst;
+      state.manifestXML = manifestXML;
     }
-    const result = collectNamespaces(ast, state);
-    if (state && state.rezAst) {
-      collectNamespaces(state.rezAst, state);
-    }
-    negativeFixups.forEach((fixup) => {
-      const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
-        const decls = isStateNode(state) && state.decls?.[part];
-        if (!Array.isArray(decls) || decls.length !== 1 || !decls[0]) {
-          throw `Failed to find and fix negative constant ${fixup}`;
-        }
-        return decls[0];
-      }, result);
-      const value = isStateNode(vs) ? vs.node : vs;
-      if (
-        !value ||
-        (value.type !== "EnumStringMember" &&
-          (value.type !== "VariableDeclarator" || value.kind !== "const"))
-      ) {
-        throw `Negative constant ${fixup} did not refer to a constant`;
-      }
-      const init = getLiteralNode(value.init);
-      if (!init || init.type !== "Literal") {
-        throw `Negative constant ${fixup} was not a Literal`;
-      }
-      if (typeof init.value !== "number") {
-        console.log(`Negative fixup ${fixup} was not a number!`);
-      } else if (init.value > 0) {
-        init.value = -init.value;
-        init.raw = "-" + init.raw;
-      } else {
-        // console.log(`Negative fixup ${fixup} was already negative!`);
-      }
-    });
-    return result;
-  } catch (e) {
-    console.error(`${e}`);
-    return null;
   }
+  const result = collectNamespaces(ast, state);
+  if (state && state.rezAst) {
+    collectNamespaces(state.rezAst, state);
+  }
+  negativeFixups.forEach((fixup) => {
+    const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
+      const decls = isStateNode(state) && state.decls?.[part];
+      if (!Array.isArray(decls) || decls.length !== 1 || !decls[0]) {
+        throw `Failed to find and fix negative constant ${fixup}`;
+      }
+      return decls[0];
+    }, result);
+    const value = isStateNode(vs) ? vs.node : vs;
+    if (
+      !value ||
+      (value.type !== "EnumStringMember" &&
+        (value.type !== "VariableDeclarator" || value.kind !== "const"))
+    ) {
+      throw `Negative constant ${fixup} did not refer to a constant`;
+    }
+    const init = getLiteralNode(value.init);
+    if (!init || init.type !== "Literal") {
+      throw `Negative constant ${fixup} was not a Literal`;
+    }
+    if (typeof init.value !== "number") {
+      console.log(`Negative fixup ${fixup} was not a number!`);
+    } else if (init.value > 0) {
+      init.value = -init.value;
+      init.raw = "-" + init.raw;
+    } else {
+      // console.log(`Negative fixup ${fixup} was already negative!`);
+    }
+  });
+  return result;
 }
 
 export function isStateNode(node: { type: string }): node is StateNode {
