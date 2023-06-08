@@ -15,6 +15,7 @@ class TestPersonalityApp extends Application.AppBase {
     public function initialize() {
         AppBase.initialize();
         System.println(Rez.Styles.fontinfo.font);
+        System.println(TestBarrel.Rez.Styles.foobar.x);
         System.println(screenWidth());
     }
 

@@ -12,3 +12,5 @@ rectangle-200x265.personality = $(base.personality);personality-rectangle-200x26
 rectangle-205x148.personality = $(base.personality);personality-rectangle-205x148
 rectangle-240x400.personality = $(base.personality);personality-rectangle-240x400
 rectangle-282x470.personality = $(base.personality);personality-rectangle-282x470
+
+base.barrelPath = $(base.barrelPath);../TestBarrel/monkey.jungle

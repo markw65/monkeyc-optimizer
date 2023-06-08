@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "omonkeyc",
+      "device": "${command:prettiermonkeyc.getTargetDevice}",
+      "simulatorBuild": true,
+      "problemMatcher": [
+        "$monkeyc.error",
+        "$monkeyc.fileWarning",
+        "$monkeyc.genericWarning"
+      ],
+      "label": "barreltest: getdevice"
+    }
+  ]
+}
