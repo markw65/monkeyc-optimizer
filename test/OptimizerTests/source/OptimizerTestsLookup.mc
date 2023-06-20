@@ -389,7 +389,7 @@ module Statics {
         return C.fv1() == false;
     }
     (:test)
-    function staticConstCrash4_1_6U(logger as Logger) as Boolean {
+    function staticConstCrash6_2_0U(logger as Logger) as Boolean {
         return C.fK1() == 42;
     }
 }
@@ -647,7 +647,7 @@ module StaticInheritance {
             return self.foo();
         }
     }
-    (:test)
+    (:test,:typecheck(false))
     function test1(logger as Logger) as Boolean {
         logger.debug("K1=" + X.K1);
         logger.debug("K2=" + Y.K2);
