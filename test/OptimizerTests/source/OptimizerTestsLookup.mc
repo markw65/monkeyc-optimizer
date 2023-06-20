@@ -53,6 +53,7 @@ class TestClass extends X.Y.Base {
     function initialize() {
         Base.initialize();
     }
+    static const SFOO as Number = ENDIAN_BIG as Number;
     const FOO as Number = ENDIAN_BIG as Number;
     function noSystem() as Void {
         // works!
@@ -65,9 +66,10 @@ class TestClass extends X.Y.Base {
         return (
             (x instanceof Number ? ENDIAN_BIG : ENDIAN_LITTLE) +
             (x instanceof String ? YCONSTANT : XCONSTANT) +
-            (x instanceof Object ? Z.ZCONSTANT : 0) +
-            (x instanceof Dictionary ? 1 : 0) +
-            (x instanceof Array ? 1 : 0)
+            (x instanceof Dictionary ? 6 : 0) +
+            (x instanceof Array ? 1 : 0) +
+            (x instanceof Lang.Dictionary ? 5 : 0) +
+            (x instanceof Object ? Z.ZCONSTANT : 0)
         );
     }
     static function noNumberStatic(x as Number or String) as Boolean {
@@ -85,14 +87,15 @@ class TestClass extends X.Y.Base {
 
 (:test)
 function lookupTestsWorking(logger as Logger) as Boolean {
-    logger.debug(TestClass.FOO == null ? "Null" : "ERROR");
+    ok = true;
+    check(TestClass.SFOO, Lang.ENDIAN_BIG, logger);
     var x = new TestClass();
-    logger.debug(x.FOO.toString());
+    check(x.FOO, Lang.ENDIAN_BIG, logger);
     x.noSystem();
-    logger.debug(x.noNumber(1).toString());
-    logger.debug(x.noNumber(new $.Dictionary()).toString());
-    logger.debug(x.noNumber({ "a" => "b" }).toString());
-    return true;
+    check(x.noNumber(1), 3, logger);
+    check(x.noNumber(new $.Dictionary()), 8, logger);
+    check(x.noNumber({ "a" => "b" }), 7, logger);
+    return ok;
 }
 
 (:test,:typecheck(false))
