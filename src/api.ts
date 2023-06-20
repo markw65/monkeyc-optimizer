@@ -112,6 +112,7 @@ export async function getApiMapping(
   const api = (await fs.readFile(`${sdk}bin/api.mir`))
     .toString()
     .replace(/\r\n/g, "\n")
+    .replace(/^(\s*static)?\s*<init>\s*\{\s*\}\s*?\n/gm, "")
     .replace(/^(\s*type)\s/gm, "$1def ");
 
   const ast = parser.parse(api, null, {
