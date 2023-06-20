@@ -902,3 +902,10 @@ No functional change, just fixes a typo that broke the typescript exports.
 - Bug fixes
   - Fixes an issue where exporting a project that uses barrels could fail.
   - Fixes a type analysis bug that could result in the type checker incorrectly thinking two types were disjoint.
+
+### 1.1.31
+
+- Better error reporting when getApiMapping fails
+- Update getApiMapping to handle api.mir from sdk-6.2.0
+- Update various tests to work with sdk-6.2.0 (including marking one test as an expected failure)
+- Add a test to catch the export-project-using-barrels bug that was fixed in 1.1.30
