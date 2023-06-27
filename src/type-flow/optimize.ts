@@ -3,6 +3,7 @@ import {
   getLiteralNode,
   hasProperty,
   isExpression,
+  traverseAst,
   withLoc,
   wrap,
 } from "../ast";
@@ -196,9 +197,48 @@ export function beforeEvaluate(
     case "WhileStatement":
     case "DoWhileStatement": {
       const test = popIstate(istate, node.test);
-      if (!test.embeddedEffects) {
-        if (mustBeFalse(test.value)) {
-          return node.type === "WhileStatement" ? false : node.body;
+      if (!test.embeddedEffects && mustBeFalse(test.value)) {
+        if (node.type === "WhileStatement") {
+          return false;
+        }
+        let ok = true;
+        let switchDepth = 0;
+        traverseAst(
+          node.body,
+          (n) => {
+            if (!ok) return false;
+            switch (n.type) {
+              case "DoWhileStatement":
+              case "WhileStatement":
+              case "ForStatement":
+                return false;
+              case "SwitchStatement":
+                // prior to sdk-6.2.0, a continue in a switch statement
+                // would re-execute the switch
+                if ((istate.state.sdkVersion ?? 0) < 6002000) {
+                  return false;
+                }
+                switchDepth++;
+                break;
+              case "BreakStatement":
+                if (switchDepth) {
+                  break;
+                }
+              // fallthrough
+              case "ContinueStatement":
+                ok = false;
+                break;
+            }
+            return null;
+          },
+          (n) => {
+            if (n.type === "SwitchStatement") {
+              switchDepth--;
+            }
+          }
+        );
+        if (ok) {
+          return node.body;
         }
       }
       istate.stack.push(test);
