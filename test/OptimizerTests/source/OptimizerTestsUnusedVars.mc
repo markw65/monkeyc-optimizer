@@ -78,3 +78,18 @@ function testDeadVars(logger as Logger) as Boolean {
 
     return ok;
 }
+
+(:test)
+function testTryFinallyUnused(logger as Logger) as Boolean {
+    var x = 0;
+    try {
+        x = 1;
+        if (logger == gLogger) {
+            throw new Lang.Exception();
+        }
+    } finally {
+        logger.debug("x = " + x);
+        x = 2;
+    }
+    return x == 2;
+}

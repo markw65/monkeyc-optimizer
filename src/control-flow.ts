@@ -20,6 +20,7 @@ type LocalInfo<T extends EventConstraint<T>> = {
   throw?: Block<T>;
   finally?: Block<T>;
   posttry?: Block<T>;
+  postfinally?: Set<Block<T>>;
 };
 
 type TestContext<T extends EventConstraint<T>> =
@@ -113,13 +114,28 @@ class LocalState<T extends EventConstraint<T>> {
 
   terminal(type: keyof typeof Terminals) {
     const re = Terminals[type];
-    if (re) {
-      for (let i = this.stack.length; i--; ) {
-        const target = this.stack[i][re];
-        if (target) {
-          this.addEdge(this.curBlock, target);
-          break;
+    let finalies: Set<number> | null = null;
+    for (let i = this.stack.length; i--; ) {
+      const fin = this.stack[i].finally;
+      if (fin && (re !== "throw" || !this.stack[i].throw)) {
+        this.addEdge(this.curBlock, fin);
+        if (!finalies) {
+          finalies = new Set();
         }
+        finalies.add(i);
+      }
+      if (!re) continue;
+      const target = this.stack[i][re];
+      if (target) {
+        this.addEdge(this.curBlock, target);
+        finalies?.forEach((i) => {
+          const elm = this.stack[i];
+          if (!elm.postfinally) {
+            elm.postfinally = new Set();
+          }
+          elm.postfinally.add(target);
+        });
+        break;
       }
     }
     this.unreachable = true;
@@ -250,6 +266,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "TryStatement": {
           const top = localState.push(node);
           const catches = (top.throw = {});
+          if (node.finalizer) {
+            top.finally = {};
+          }
           // This edge shouldn't exist, but we can trigger
           // (incorrect) "variable may not be initialized" errors
           // in the monkey c compiler without it.
@@ -262,24 +281,13 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           delete top.throw;
           top.posttry = {};
           const tryFallsThrough = !localState.unreachable;
-          if (node.finalizer) {
-            tryActive++;
-            top.throw = top.finally = {};
-            // curBlock branches to finally, no matter how it exits.
-            localState.addEdge(localState.curBlock, top.finally);
-          } else {
-            if (!localState.unreachable) {
-              localState.addEdge(localState.curBlock, top.posttry);
-            }
+          if (tryFallsThrough) {
+            localState.addEdge(localState.curBlock, top.finally ?? top.posttry);
           }
           localState.unreachable = true;
           localState.newBlock(catches);
           if (node.handler) {
             state.traverse(node.handler);
-            if (top.throw) {
-              tryActive--;
-              delete top.throw;
-            }
             // Each "catch (ex instanceof Foo)" chains to the next,
             // but "catch (ex)" terminates the list. If the end
             // of the chain has a predecessor, its possible that
@@ -289,22 +297,26 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               localState.terminal("ThrowStatement");
             }
           }
-          if (top.throw) {
-            tryActive--;
-            delete top.throw;
-          }
           if (node.finalizer) {
             localState.unreachable = true;
             localState.newBlock(top.finally);
             delete top.finally;
             state.traverse(node.finalizer);
-            if (tryFallsThrough && !localState.unreachable) {
-              localState.addEdge(localState.curBlock, top.posttry);
+            if (!localState.unreachable) {
+              if (tryFallsThrough) {
+                localState.addEdge(localState.curBlock, top.posttry);
+              }
+              top.postfinally?.forEach((post) =>
+                localState.addEdge(localState.curBlock, post)
+              );
             }
             localState.terminal("ThrowStatement");
           }
           localState.unreachable = true;
           localState.newBlock(top.posttry);
+          if (!top.posttry.preds) {
+            localState.unreachable = true;
+          }
           return [];
         }
         case "CatchClause": {
@@ -319,14 +331,11 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             localState.newBlock();
           }
           state.traverse(node.body);
-
-          if (top.finally) {
-            // this edge exists even if this point is unreachable
-            localState.addEdge(localState.curBlock, top.finally);
-          }
           if (!localState.unreachable) {
-            if (!top.posttry) top.posttry = {};
-            localState.addEdge(localState.curBlock, top.posttry);
+            localState.addEdge(
+              localState.curBlock,
+              top.finally ?? top.posttry!
+            );
           }
           localState.unreachable = true;
           localState.newBlock(next);

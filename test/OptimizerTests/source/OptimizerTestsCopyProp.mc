@@ -239,3 +239,33 @@ function testSingleCopyPropWithUpdateExpression(logger as Logger) as Boolean {
     i++;
     return i == 44;
 }
+
+(:test)
+function testTryFinallyCopy(logger as Logger) as Boolean {
+    var x = 0;
+    try {
+        x = 1;
+        if (logger == gLogger) {
+            throw new Lang.Exception();
+        }
+    } finally {
+        x = 2;
+    }
+    return x == 2;
+}
+
+(:test)
+function testTryCatchFinallyCopy(logger as Logger) as Boolean {
+    var x = 0;
+    try {
+        x = 1;
+        if (logger == gLogger) {
+            throw new Lang.InvalidValueException("What?");
+        }
+    } catch (ex instanceof Lang.InvalidValueException) {
+        logger.debug("x = " + x);
+    } finally {
+        x = 2;
+    }
+    return x == 2;
+}
