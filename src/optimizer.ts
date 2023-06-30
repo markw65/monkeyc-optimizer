@@ -9,6 +9,7 @@ import {
   getApiMapping,
   hasProperty,
   isStateNode,
+  parseSdkVersion,
 } from "./api";
 import { build_project } from "./build";
 import {
@@ -44,7 +45,7 @@ import {
   ProgramStateAnalysis,
   StateNode,
 } from "./optimizer-types";
-import { appSupport, connectiq, xmlUtil } from "./sdk-util";
+import { appSupport, connectiq, getSdkPath, xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
 import { evaluate, InterpState, TypeMap } from "./type-flow/interp";
@@ -895,20 +896,24 @@ export async function generateOneConfig(
       .sort()
       .every((f, i) => f === actualOptimizedFiles[i])
   ) {
-    // now if the newest source file is older than
-    // the oldest optimized file, we don't need to regenerate
-    const source_time = await last_modified(
-      Object.keys(fnMap).concat(dependencyFiles)
-    );
-    const opt_time = await first_modified(
-      Object.values(fnMap).map((v) => v.output)
-    );
-    if (source_time < opt_time && lastModifiedSource < opt_time) {
-      return {
-        hasTests,
-        diagnostics: prevDiagnostics,
-        sdkVersion: prevSdkVersion,
-      };
+    const sdk = await getSdkPath();
+    const match = sdk.match(/-(\d+\.\d+\.\d+)/);
+    if ((match && parseSdkVersion(match[1])) === prevSdkVersion) {
+      // now if the newest source file is older than
+      // the oldest optimized file, we don't need to regenerate
+      const source_time = await last_modified(
+        Object.keys(fnMap).concat(dependencyFiles)
+      );
+      const opt_time = await first_modified(
+        Object.values(fnMap).map((v) => v.output)
+      );
+      if (source_time < opt_time && lastModifiedSource < opt_time) {
+        return {
+          hasTests,
+          diagnostics: prevDiagnostics,
+          sdkVersion: prevSdkVersion,
+        };
+      }
     }
   }
 
