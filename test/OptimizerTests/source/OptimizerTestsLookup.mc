@@ -389,7 +389,7 @@ module Statics {
         return C.fv1() == false;
     }
     (:test)
-    function staticConstCrash6_2_0U(logger as Logger) as Boolean {
+    function staticConstCrash6_2_0_U(logger as Logger) as Boolean {
         return C.fK1() == 42;
     }
 }
