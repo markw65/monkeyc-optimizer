@@ -400,5 +400,47 @@ export function intersectionTests(statefn: () => ProgramStateAnalysis | null) {
         { type: TypeTag.Numeric | TypeTag.Char }
       );
     });
+    it("Char restrictions", () => {
+      check_restrict(
+        { type: TypeTag.Number, value: 42 },
+        { type: TypeTag.Char },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Long, value: 42n },
+        { type: TypeTag.Char },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Float, value: 42 },
+        { type: TypeTag.Char },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Double, value: 42 },
+        { type: TypeTag.Char },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Number, value: 42 },
+        { type: TypeTag.Char, value: "*" },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Long, value: 42n },
+        { type: TypeTag.Char, value: "*" },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Float, value: 42 },
+        { type: TypeTag.Char, value: "*" },
+        { type: TypeTag.Char, value: "*" }
+      );
+      check_restrict(
+        { type: TypeTag.Double, value: 42 },
+        { type: TypeTag.Char, value: "*" },
+        { type: TypeTag.Char, value: "*" }
+      );
+    });
   });
 }

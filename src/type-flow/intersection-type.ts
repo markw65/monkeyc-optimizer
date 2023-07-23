@@ -437,7 +437,11 @@ function restrictExactTypesByEquality(
       if (value_bits && !(value_bits & (value_bits - 1))) {
         if (a.value != null) {
           v.value =
-            value_bits === TypeTag.Long ? BigInt(a.value) : Number(a.value);
+            value_bits === TypeTag.Char
+              ? String.fromCharCode(Number(a.value))
+              : value_bits === TypeTag.Long
+              ? BigInt(a.value)
+              : Number(a.value);
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;
