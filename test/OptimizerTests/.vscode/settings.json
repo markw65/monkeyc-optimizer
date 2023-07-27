@@ -1,5 +1,5 @@
 {
   "monkeyC.typeCheckLevel": "Strict",
   "editor.formatOnSave": true,
-  "prettier.prettierPath": "~/.vscode/extensions/esbenp.prettier-vscode-9.19.0/node_modules/prettier"
+  "prettier.prettierPath": "../../node_modules/prettier"
 }
