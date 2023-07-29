@@ -184,8 +184,11 @@ export function optimizeArrayInit(
       if (bc.op === Opcodes.lgetv) {
         usedLocals |= 1n << BigInt(bc.arg);
       }
-      // stop if it does unexpected stack manipulation.
       const delta = interpState.stack.length - depth;
+      // stop if it does unexpected stack manipulation.
+      if (delta < 0 || (bc.op === Opcodes.dup && bc.arg >= delta - 1)) {
+        break;
+      }
       if (delta === 3) {
         const t = interpState.stack[interpState.stack.length - 1].type;
         if (bc.op === Opcodes.lgetv) {
@@ -207,9 +210,6 @@ export function optimizeArrayInit(
           continue;
         }
         thisInit = null;
-      }
-      if (delta < 0 || (bc.op === Opcodes.dup && bc.arg >= delta - 1)) {
-        break;
       }
     }
     if (found === i) break;

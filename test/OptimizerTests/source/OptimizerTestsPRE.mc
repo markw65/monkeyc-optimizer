@@ -128,3 +128,34 @@ function testPreFailure2(logger as Logger) as Boolean {
 
     return $.gMaybeModified == 7;
 }
+
+function getArrayInitDict() as Lang.Dictionary<Number, Array<Array<Number> > > {
+    return (
+        {
+            // This triggered an array-init bug in the post build optimizer The key
+            // 2 is on the stack when the 2 element array [3,4] is constructed via
+            // `new [2]`. So an earlier optimization replaces the size of the array
+            // with a dup of the key. But the array-init optimization didn't adjust
+            // the dup's offset, so it ends up dup'ing the wrong element (as it
+            // happens, the outer array), which triggers a type error when
+            // constructing the inner array.
+            //
+            // the `5, 6, 7` are needed to trigger the array-init optimization (we
+            // need at least 4 elements to get a win).
+            2 => [[3, 4], [5], [6], [7]],
+        } as Lang.Dictionary<Number, Array<Array<Number> > >
+    );
+}
+
+(:test)
+function testPostBuildArrayInit(logger as Logger) as Boolean {
+    ok = true;
+    var arrayInitDict = getArrayInitDict();
+    var inner = arrayInitDict[2];
+    if (inner == null) {
+        return false;
+    }
+    check(inner[0][0], 3, logger);
+    check(inner[0][1], 4, logger);
+    return ok;
+}
