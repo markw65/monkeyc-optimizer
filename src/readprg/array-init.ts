@@ -393,7 +393,7 @@ export function optimizeArrayInit(
       block.bytecodes[index + 1].arg = putvStarts.length;
     } else {
       // we have:
-      // index-1: newv
+      // index-1: newa
       // index+0: lputv x
       // index+1: ipush 0
       if (
@@ -401,7 +401,7 @@ export function optimizeArrayInit(
         block.bytecodes[index - 2].op === Opcodes.ipush &&
         block.bytecodes[index - 2].arg === putvStarts.length
       ) {
-        // there's already a push of the correct length (for the newv), so drop
+        // there's already a push of the correct length (for the newa), so drop
         // the ipush 0, and insert a dup of the length
         block.bytecodes.splice(index + 1, 1);
         block.bytecodes.splice(index - 1, 0, bytecode(Opcodes.dup, 0));
@@ -464,7 +464,7 @@ export function optimizeArrayInit(
   let loopOffset;
   if (local >= 0) {
     // we have:
-    // index-1: newv
+    // index-1: newa
     // index+0: lputv x
     // index+1: dup 0
     // index+2: ipush 0
@@ -476,7 +476,7 @@ export function optimizeArrayInit(
       block.bytecodes[index - 2].op === Opcodes.ipush &&
       block.bytecodes[index - 2].arg === putvStarts.length
     ) {
-      // there's already a push of the correct length (for the newv), so drop
+      // there's already a push of the correct length (for the newa), so drop
       block.bytecodes.splice(index - 1, 0, bytecode(Opcodes.dup, 0));
     } else {
       block.bytecodes.splice(

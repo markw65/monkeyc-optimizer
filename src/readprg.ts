@@ -161,7 +161,7 @@ export function optimizeProgramBuffer(
       );
     });
 
-  // need 8 trailing zeros as a sentinal "section"
+  // need 8 trailing zeros as a sentinel "section"
   buffers.push(Buffer.from(new ArrayBuffer(8)));
   return { signature, buffer: Buffer.concat(buffers) };
 }
