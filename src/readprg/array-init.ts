@@ -149,6 +149,7 @@ export function optimizeArrayInit(
     interpState = cloneState(null);
   }
   const putvStarts: number[] = [];
+  const dupsToFix: number[] = [];
   let i: number;
   let initInst: Bytecode | null = null;
   let initType: ValueTypes | false | null = null;
@@ -186,8 +187,11 @@ export function optimizeArrayInit(
       }
       const delta = interpState.stack.length - depth;
       // stop if it does unexpected stack manipulation.
-      if (delta < 0 || (bc.op === Opcodes.dup && bc.arg >= delta - 1)) {
+      if (delta < 0) {
         break;
+      }
+      if (bc.op === Opcodes.dup && bc.arg >= delta - 1) {
+        dupsToFix[k] = putvStarts.length;
       }
       if (delta === 3) {
         const t = interpState.stack[interpState.stack.length - 1].type;
@@ -296,6 +300,13 @@ export function optimizeArrayInit(
       delete bc.arg;
       assert(op === Opcodes.aputv);
     };
+    // we just dropped two elements from the stack, so any dups
+    // that need fixing, need to be adjusted by 2.
+    dupsToFix.forEach((x, n) => {
+      const bc = block.bytecodes[n];
+      assert(bc.op === Opcodes.dup && bc.arg >= 2);
+      bc.arg -= 2;
+    });
     convertAputv(i - 1);
     for (let i = putvStarts.length; i--; ) {
       const offset = putvStarts[i];
@@ -445,6 +456,15 @@ export function optimizeArrayInit(
   if (local >= 0) {
     block.bytecodes.splice(i, 0, bytecode(Opcodes.popv, undefined));
   }
+  // We're going to push array/index pairs for each element ahead
+  // of the code to generate the values. Any dups that picked values
+  // off the stack prior to the start of the inits need to be adjusted
+  dupsToFix.forEach((x, n) => {
+    const bc = block.bytecodes[n];
+    assert(bc.op === Opcodes.dup && bc.arg >= 2);
+    bc.arg += (putvStarts.length - x - 1) * 2;
+  });
+
   // delete each "dup 0; ipush <n>" pair except the first one
   for (let i = putvStarts.length; i-- > 1; ) {
     block.bytecodes.splice(putvStarts[i], 2);
