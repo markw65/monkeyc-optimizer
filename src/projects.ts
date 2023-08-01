@@ -17,6 +17,7 @@ export type RemoteProject =
       jungleContent?: string[];
       garminOptLevel?: number;
       test?: boolean | string[];
+      branch?: string;
     };
 
 export const githubProjects: RemoteProject[] = [
@@ -213,6 +214,12 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/mettyw/activity_view",
   "https://github.com/miss-architect/garmin-squash",
   {
+    root: "https://github.com/mossprescott/moonface",
+    options: { checkCompilerLookupRules: "OFF" },
+    branch: "font-rendering",
+    test: false,
+  },
+  {
     root: "https://github.com/mrfoto/ForecastLine",
     options: {
       checkInvalidSymbols: "WARNING",
@@ -377,11 +384,12 @@ export async function fetchGitProjects(
       rename = null,
       garminOptLevel = null,
       test = false,
+      branch = null,
     } = typeof p === "string" ? { root: p } : p;
     if (testOnly && !test) return Promise.resolve([]);
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
-    return fetchAndClean(projDir, root, skipRemote)
+    return fetchAndClean(projDir, root, skipRemote, branch)
       .then((output) => {
         if (!rename) {
           return output;
@@ -446,18 +454,28 @@ export async function fetchGitProjects(
   return result.flat();
 }
 
-function fetchAndClean(projDir: string, root: string, skipRemote: boolean) {
+function fetchAndClean(
+  projDir: string,
+  root: string,
+  skipRemote: boolean,
+  branch: string | null
+) {
   const gitDir = path.resolve(projDir, ".git");
   const output = [`Updating project ${root}`];
   const logger = (line: string) => output.push(` - ${line}`);
   const loggers = [logger, logger];
   const fetch = () =>
-    spawnByLine("git", ["fetch", "origin"], loggers, {
+    spawnByLine("git", ["fetch", "origin"].concat(branch ?? []), loggers, {
       cwd: projDir,
     }).then(() =>
-      spawnByLine("git", ["diff", "FETCH_HEAD", "origin/HEAD"], loggers, {
-        cwd: projDir,
-      })
+      spawnByLine(
+        "git",
+        ["diff", "FETCH_HEAD", `origin/${branch ?? "HEAD"}`],
+        loggers,
+        {
+          cwd: projDir,
+        }
+      )
     );
   return fs
     .stat(gitDir)
