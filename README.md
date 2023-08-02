@@ -922,3 +922,17 @@ No functional change, just fixes a typo that broke the typescript exports.
   - sdk-6.2.x fixes [this finally bug](https://forums.garmin.com/developer/connect-iq/i/bug-reports/finally-doesn-t-work-as-expected), so that now all the examples work correctly (ie the `finally` block always executes, as expected, no matter how you exit the `try` or `catch` blocks). I've updated the way the control flow graph is built to match this behavior.
 
   - sdk-6.2.x fixes [this continue in switch issue](https://forums.garmin.com/developer/connect-iq/i/bug-reports/continue-in-a-switch-statement-behaves-surprisingly), by making `continue` in a `switch` continue the loop containing the switch (or its a compile time error if there's no loop). This matches the behavior of C and C++, for example. I've updated the optimizer to interpret `continue` appropriately, depending on the sdk version.
+
+### 1.1.33
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.51](https://github.com/markw65/prettier-plugin-monkeyc#1051)
+
+  - Makes it compatible with prettier@3.0.0
+
+- Bug fixes
+
+  - Fix a problem that could incorrectly optimize an array-init
+
+- Optimizations
+
+  - Enable the array-init optimization in a few more cases
