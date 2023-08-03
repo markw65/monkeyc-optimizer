@@ -49,11 +49,22 @@ module X {
         const ZCONSTANT = 2;
     }
 }
+(:typecheck(false))
+class TestStaticsClass extends X.Y.Base {
+    static const SFOO as Number = ENDIAN_BIG as Number;
+}
+
+(:test)
+function lookupStaticTestsCrash6_2_2_U(logger as Logger) as Boolean {
+    ok = true;
+    check(TestStaticsClass.SFOO, Lang.ENDIAN_BIG, logger);
+    return ok;
+}
+
 class TestClass extends X.Y.Base {
     function initialize() {
         Base.initialize();
     }
-    static const SFOO as Number = ENDIAN_BIG as Number;
     const FOO as Number = ENDIAN_BIG as Number;
     function noSystem() as Void {
         // works!
@@ -88,7 +99,6 @@ class TestClass extends X.Y.Base {
 (:test)
 function lookupTestsWorking(logger as Logger) as Boolean {
     ok = true;
-    check(TestClass.SFOO, Lang.ENDIAN_BIG, logger);
     var x = new TestClass();
     check(x.FOO, Lang.ENDIAN_BIG, logger);
     x.noSystem();
@@ -389,7 +399,7 @@ module Statics {
         return C.fv1() == false;
     }
     (:test)
-    function staticConstCrash6_2_0_U(logger as Logger) as Boolean {
+    function staticConstCrash6_2_0_6_2_1U(logger as Logger) as Boolean {
         return C.fK1() == 42;
     }
 }
