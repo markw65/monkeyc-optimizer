@@ -216,6 +216,7 @@ export const githubProjects: RemoteProject[] = [
   {
     root: "https://github.com/mossprescott/moonface",
     options: { checkCompilerLookupRules: "OFF" },
+    include: "monkey.jungle",
     branch: "font-rendering",
     test: false,
   },
@@ -498,9 +499,14 @@ function fetchAndClean(
     })
     .then(() => (skipRemote ? undefined : fetch().catch(fetch)))
     .then(() =>
-      spawnByLine("git", ["reset", "--hard", "origin/HEAD"], loggers, {
-        cwd: projDir,
-      })
+      spawnByLine(
+        "git",
+        ["reset", "--hard", `origin/${branch ?? "HEAD"}`],
+        loggers,
+        {
+          cwd: projDir,
+        }
+      )
     )
     .then(() =>
       spawnByLine("git", ["clean", "-fxd"], loggers, {
