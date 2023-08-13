@@ -19,7 +19,7 @@ import { parseLineNum } from "./readprg/linenum";
 import { parseCode } from "./readprg/opcodes";
 import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
 import { SymbolTable } from "./readprg/symbols";
-import { xmlUtil } from "./sdk-util";
+import { getSdkPath, xmlUtil } from "./sdk-util";
 import { logger } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
@@ -71,12 +71,19 @@ export async function optimizeProgram(
     output = removeExt(filepath, ".prg") + ".opt.prg";
   }
 
-  const [debugXml, key, view] = await Promise.all([
+  const [debugXml, apiDebugXml, key, view] = await Promise.all([
     fs
       .readFile(filepath + ".debug.xml")
       .catch(() => "")
       .then((xmlBytes) => xmlUtil.parseXml(xmlBytes.toString())),
+
+    getSdkPath()
+      .then((sdk) => fs.readFile(`${sdk}bin/api.debug.xml`))
+      .catch(() => "")
+      .then((xmlBytes) => xmlUtil.parseXml(xmlBytes.toString())),
+
     devKey ? getDevKey(devKey) : undefined,
+
     fs.readFile(filepath).then((prgData) => new DataView(prgData.buffer)),
   ]);
 
@@ -84,6 +91,7 @@ export async function optimizeProgram(
     filepath,
     view,
     debugXml,
+    apiDebugXml,
     key,
     config
   );
@@ -118,6 +126,7 @@ function optimizeProgramBuffer(
   filepath: string,
   view: DataView,
   debugXml: xmlUtil.Document,
+  apiDebugXml: xmlUtil.Document | null,
   key: crypto.KeyObject | undefined,
   config: BuildConfig | undefined
 ) {
@@ -128,6 +137,9 @@ function optimizeProgramBuffer(
     symbolTable.parse(sections[SectionKinds.SYMBOLS].view);
   }
   symbolTable.parseXml(debugXml);
+  if (apiDebugXml) {
+    symbolTable.parseXml(apiDebugXml);
+  }
   const header = parseHeader(sections[SectionKinds.HEADER].view);
   parseData(sections[SectionKinds.DATA].view, symbolTable);
   const lineTable = parseLineNum(sections[SectionKinds.LINENUM].view, debugXml);
@@ -426,6 +438,7 @@ export function optimizePrgAndDebug(
     prgName,
     new DataView(prgBuffer, prgOffset, prgLength),
     debugXml,
+    null,
     key,
     config
   );

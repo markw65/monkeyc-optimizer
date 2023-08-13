@@ -38,6 +38,13 @@ export class SymbolTable {
       .elements.forEach((functionEntry) => {
         const { startPc, name, parent } = functionEntry.attr;
         if (!startPc || !name) return;
+        const fullPc = Number(startPc.value.value);
+        if (fullPc >>> 28 !== 1) {
+          // not the code section. this can happen for entries in api.debug.xml,
+          // because the pc is a firmware address (3, rather than 1).
+          return;
+        }
+        const pc = fullPc & 0xffffff;
         const argc =
           functionEntry.children?.filter(
             (node) => node.type === "element" && node.name === "param"
@@ -45,7 +52,6 @@ export class SymbolTable {
         const fullName =
           (parent ? debugXml.processRefs(parent.value.value) + "." : "") +
           debugXml.processRefs(name.value.value);
-        const pc = Number(startPc.value.value) & 0xffffff;
         this.methods.set(pc, {
           name: fullName,
           id: null,
