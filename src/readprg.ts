@@ -71,13 +71,16 @@ export async function optimizeProgram(
     output = removeExt(filepath, ".prg") + ".opt.prg";
   }
 
-  const xmlBytes = await fs.readFile(filepath + ".debug.xml").catch(() => "");
-  const debugXml = xmlUtil.parseXml(xmlBytes.toString());
+  const [debugXml, key, view] = await Promise.all([
+    fs
+      .readFile(filepath + ".debug.xml")
+      .catch(() => "")
+      .then((xmlBytes) => xmlUtil.parseXml(xmlBytes.toString())),
+    devKey ? getDevKey(devKey) : undefined,
+    fs.readFile(filepath).then((prgData) => new DataView(prgData.buffer)),
+  ]);
 
-  const key = devKey ? await getDevKey(devKey) : undefined;
-
-  const view = new DataView((await fs.readFile(filepath)).buffer);
-  const { signature, buffer } = await optimizeProgramBuffer(
+  const { signature, buffer } = optimizeProgramBuffer(
     filepath,
     view,
     debugXml,
@@ -111,7 +114,7 @@ export async function optimizeProgram(
   return { signature, output };
 }
 
-export function optimizeProgramBuffer(
+function optimizeProgramBuffer(
   filepath: string,
   view: DataView,
   debugXml: xmlUtil.Document,
