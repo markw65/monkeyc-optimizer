@@ -818,7 +818,7 @@ export function castType(type: ExactOrUnion, target: UnionTypeTags) {
               return result;
             case TypeTag.Float:
             case TypeTag.Double:
-              // Dont try to implement these, due to inconsistencies and bugs
+              // Don't try to implement these, due to inconsistencies and bugs
               return result;
             case TypeTag.Char:
               result.value = type.value;

@@ -1728,7 +1728,7 @@ function propagateTypes(
                         event.node.operator !== "=" &&
                         nodeCopyProp.has(event.node.left)
                       ) {
-                        // If we're copy proping into the lhs of an update
+                        // If we're copy-propping into the lhs of an update
                         // assignment, we're going to have to rewrite it.
                         // similar to the above, don't also do forward copy
                         // prop. eg
@@ -1741,7 +1741,7 @@ function propagateTypes(
                         //
                         //  var x;
                         //  x = (a + b) + c;
-                        //  return x; // <- dont propagate to here (yet), in case a+b has changed.
+                        //  return x; // <- don't propagate to here (yet), in case a+b has changed.
                         return false;
                       }
                     }

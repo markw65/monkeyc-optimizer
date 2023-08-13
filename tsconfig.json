@@ -4,7 +4,7 @@
     "outDir": "build",
     "module": "esnext",
     "target": "esnext",
-    "checkJs": true /* Typecheck .js files. */,
+    "checkJs": true /* Type check .js files. */,
     "lib": ["esnext"],
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
