@@ -99,6 +99,7 @@ function simpleOpts(func: FuncEntry, context: Context) {
       const cur = block.bytecodes[i];
       if (
         cur.op === Opcodes.nop ||
+        (cur.op === Opcodes.incsp && cur.arg === 0) ||
         (context.config.removeArgc && cur.op === Opcodes.argc)
       ) {
         block.bytecodes.splice(i, 1);
