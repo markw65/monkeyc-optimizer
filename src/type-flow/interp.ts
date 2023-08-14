@@ -467,7 +467,11 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           });
           return;
         }
-        if (istate.checkTypes && !couldBe(left.value, right.value)) {
+        if (
+          istate.checkTypes &&
+          !couldBe(left.value, right.value) &&
+          !subtypeOf({ type: TypeTag.Null | TypeTag.Object }, right.value)
+        ) {
           diagnostic(
             istate.state,
             node,
