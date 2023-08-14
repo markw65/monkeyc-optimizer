@@ -23,116 +23,175 @@ type PreBytecode = {
 };
 
 export function bytecodeTests() {
-  const andSequence = [
-    { op: Opcodes.lgetv, arg: 0 },
-    { op: Opcodes.npush },
-    { op: Opcodes.ne },
-    { op: Opcodes.bf, arg: "eithernull" },
-    { op: Opcodes.lgetv, arg: 1 },
-    { op: Opcodes.npush },
-    { op: Opcodes.ne },
-    { op: Opcodes.bf, arg: "eithernull" },
-    { op: Opcodes.bpush, arg: 1 },
-    { op: Opcodes.return },
-    { label: "eithernull", op: Opcodes.bpush, arg: 0 },
-    { op: Opcodes.return },
-  ];
-  const orSequence = [
-    { op: Opcodes.lgetv, arg: 0 },
-    { op: Opcodes.npush },
-    { op: Opcodes.ne },
-    { op: Opcodes.bt, arg: "notbothnull" },
-    { op: Opcodes.lgetv, arg: 1 },
-    { op: Opcodes.npush },
-    { op: Opcodes.ne },
-    { op: Opcodes.bt, arg: "notbothnull" },
-    { op: Opcodes.bpush, arg: 0 },
-    { op: Opcodes.return },
-    { label: "notbothnull", op: Opcodes.bpush, arg: 1 },
-    { op: Opcodes.return },
-  ];
-  it("check && optimization, normal layout", () =>
-    checkSequence(
-      [
-        { op: Opcodes.lgetv, arg: 0 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.dup, arg: 0 },
-        { op: Opcodes.bf, arg: "firstnull" },
-        { op: Opcodes.lgetv, arg: 1 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.andv },
-        { label: "firstnull", op: Opcodes.bf, arg: "eithernull" },
-        { op: Opcodes.bpush, arg: 1 },
-        { op: Opcodes.return },
-        { label: "eithernull", op: Opcodes.bpush, arg: 0 },
-        { op: Opcodes.return },
-      ],
-      andSequence
-    ));
-  it("check && optimization, reverse layout", () =>
-    checkSequence(
-      [
-        { op: Opcodes.lgetv, arg: 0 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.dup, arg: 0 },
-        { op: Opcodes.bt, arg: "notnull" },
-        { label: "firstnull", op: Opcodes.bf, arg: "eithernull" },
-        { op: Opcodes.bpush, arg: 1 },
-        { op: Opcodes.return },
-        { label: "notnull", op: Opcodes.lgetv, arg: 1 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.andv },
-        { op: Opcodes.goto, arg: "firstnull" },
-        { label: "eithernull", op: Opcodes.bpush, arg: 0 },
-        { op: Opcodes.return },
-      ],
-      andSequence
-    ));
-  it("check || optimization, normal layout", () =>
-    checkSequence(
-      [
-        { op: Opcodes.lgetv, arg: 0 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.dup, arg: 0 },
-        { op: Opcodes.bt, arg: "firstnonnull" },
-        { op: Opcodes.lgetv, arg: 1 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.orv },
-        { label: "firstnonnull", op: Opcodes.bt, arg: "notbothnull" },
-        { op: Opcodes.bpush, arg: 0 },
-        { op: Opcodes.return },
-        { label: "notbothnull", op: Opcodes.bpush, arg: 1 },
-        { op: Opcodes.return },
-      ],
-      orSequence
-    ));
-  it("check || optimization, reverse layout", () =>
-    checkSequence(
-      [
-        { op: Opcodes.lgetv, arg: 0 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.dup, arg: 0 },
-        { op: Opcodes.bf, arg: "isnull" },
-        { label: "firstnonnull", op: Opcodes.bt, arg: "notbothnull" },
-        { op: Opcodes.bpush, arg: 0 },
-        { op: Opcodes.return },
-        { label: "isnull", op: Opcodes.lgetv, arg: 1 },
-        { op: Opcodes.npush },
-        { op: Opcodes.ne },
-        { op: Opcodes.orv },
-        { op: Opcodes.goto, arg: "firstnonnull" },
-        { label: "notbothnull", op: Opcodes.bpush, arg: 1 },
-        { op: Opcodes.return },
-      ],
-      orSequence
-    ));
+  describe("test '&&' and '||' optimizations", () => {
+    const andSequence = [
+      { op: Opcodes.lgetv, arg: 0 },
+      { op: Opcodes.npush },
+      { op: Opcodes.ne },
+      { op: Opcodes.bf, arg: "eithernull" },
+      { op: Opcodes.lgetv, arg: 1 },
+      { op: Opcodes.npush },
+      { op: Opcodes.ne },
+      { op: Opcodes.bf, arg: "eithernull" },
+      { op: Opcodes.bpush, arg: 1 },
+      { op: Opcodes.return },
+      { label: "eithernull", op: Opcodes.bpush, arg: 0 },
+      { op: Opcodes.return },
+    ];
+    const orSequence = [
+      { op: Opcodes.lgetv, arg: 0 },
+      { op: Opcodes.npush },
+      { op: Opcodes.ne },
+      { op: Opcodes.bt, arg: "notbothnull" },
+      { op: Opcodes.lgetv, arg: 1 },
+      { op: Opcodes.npush },
+      { op: Opcodes.ne },
+      { op: Opcodes.bt, arg: "notbothnull" },
+      { op: Opcodes.bpush, arg: 0 },
+      { op: Opcodes.return },
+      { label: "notbothnull", op: Opcodes.bpush, arg: 1 },
+      { op: Opcodes.return },
+    ];
+    it("check && optimization, normal layout", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.dup, arg: 0 },
+          { op: Opcodes.bf, arg: "firstnull" },
+          { op: Opcodes.lgetv, arg: 1 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.andv },
+          { label: "firstnull", op: Opcodes.bf, arg: "eithernull" },
+          { op: Opcodes.bpush, arg: 1 },
+          { op: Opcodes.return },
+          { label: "eithernull", op: Opcodes.bpush, arg: 0 },
+          { op: Opcodes.return },
+        ],
+        andSequence
+      ));
+    it("check && optimization, reverse layout", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.dup, arg: 0 },
+          { op: Opcodes.bt, arg: "notnull" },
+          { label: "firstnull", op: Opcodes.bf, arg: "eithernull" },
+          { op: Opcodes.bpush, arg: 1 },
+          { op: Opcodes.return },
+          { label: "notnull", op: Opcodes.lgetv, arg: 1 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.andv },
+          { op: Opcodes.goto, arg: "firstnull" },
+          { label: "eithernull", op: Opcodes.bpush, arg: 0 },
+          { op: Opcodes.return },
+        ],
+        andSequence
+      ));
+    it("check || optimization, normal layout", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.dup, arg: 0 },
+          { op: Opcodes.bt, arg: "firstnonnull" },
+          { op: Opcodes.lgetv, arg: 1 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.orv },
+          { label: "firstnonnull", op: Opcodes.bt, arg: "notbothnull" },
+          { op: Opcodes.bpush, arg: 0 },
+          { op: Opcodes.return },
+          { label: "notbothnull", op: Opcodes.bpush, arg: 1 },
+          { op: Opcodes.return },
+        ],
+        orSequence
+      ));
+    it("check || optimization, reverse layout", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.dup, arg: 0 },
+          { op: Opcodes.bf, arg: "isnull" },
+          { label: "firstnonnull", op: Opcodes.bt, arg: "notbothnull" },
+          { op: Opcodes.bpush, arg: 0 },
+          { op: Opcodes.return },
+          { label: "isnull", op: Opcodes.lgetv, arg: 1 },
+          { op: Opcodes.npush },
+          { op: Opcodes.ne },
+          { op: Opcodes.orv },
+          { op: Opcodes.goto, arg: "firstnonnull" },
+          { label: "notbothnull", op: Opcodes.bpush, arg: 1 },
+          { op: Opcodes.return },
+        ],
+        orSequence
+      ));
+  });
+  describe("Test shlv optimizations", () => {
+    it("check 'ipush 0; shlv' => nop", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.ipush, arg: 0 },
+          { op: Opcodes.shlv },
+          { op: Opcodes.return },
+        ],
+        [{ op: Opcodes.lgetv, arg: 0 }, { op: Opcodes.return }]
+      ));
+    it("check 'ipush 1; shlv' => dup 0; addv", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.ipush, arg: 1 },
+          { op: Opcodes.shlv },
+          { op: Opcodes.return },
+        ],
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.dup, arg: 0 },
+          { op: Opcodes.addv },
+          { op: Opcodes.return },
+        ]
+      ));
+    it("check 'ipush 5; shlv' => ipush 32; mulv", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.ipush, arg: 5 },
+          { op: Opcodes.shlv },
+          { op: Opcodes.return },
+        ],
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.ipush, arg: 32 },
+          { op: Opcodes.mulv },
+          { op: Opcodes.return },
+        ]
+      ));
+    it("check 'ipush 31; shlv' => no change", () =>
+      checkSequence(
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.ipush, arg: 31 },
+          { op: Opcodes.shlv },
+          { op: Opcodes.return },
+        ],
+        [
+          { op: Opcodes.lgetv, arg: 0 },
+          { op: Opcodes.ipush, arg: 31 },
+          { op: Opcodes.shlv },
+          { op: Opcodes.return },
+        ]
+      ));
+  });
 }
 
 function checkSequence(incodes: PreBytecode[], outcodes: PreBytecode[]) {
@@ -224,7 +283,7 @@ function processBytecode(incodes: PreBytecode[]) {
 
 function createContext(incodes: PreBytecode[]): Context {
   const symbolTable = new SymbolTable();
-  symbolTable.methods.set(0, { name: "test", id: 1 });
+  symbolTable.methods.set(0, { name: "test", id: 1, argc: null });
   const exceptionsMap: ExceptionsMap = new Map();
   const debugXml = xmlUtil.parseXml("<debugInfo></<debugInfo>");
   return {

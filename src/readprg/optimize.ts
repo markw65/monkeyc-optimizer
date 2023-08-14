@@ -119,6 +119,19 @@ function simpleOpts(func: FuncEntry, context: Context) {
             logging && log(`${func.name}: deleting no-op shift (${shift})`);
             continue;
           }
+          if (shift === 1n && prev.op === Opcodes.ipush) {
+            const dup = prev as Bytecode;
+            dup.op = Opcodes.dup;
+            dup.arg = 0;
+            dup.size = 2;
+            const add = cur as Bytecode;
+            add.op = Opcodes.addv;
+            delete add.arg;
+            add.size = 1;
+            logging &&
+              log(`${func.name}: converting "ipush 1; shlv" to "dup 0; addv"`);
+            continue;
+          }
           // note that 31 isn't safe if the other operand is a Long,
           // because we end up multiplying by -2^31.
           if (shift < (prev.op === Opcodes.lpush ? 64n : 31n)) {
