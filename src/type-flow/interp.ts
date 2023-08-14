@@ -17,6 +17,7 @@ import {
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
+import { every } from "../util";
 import { couldBe } from "./could-be";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { checkCallArgs, evaluateCall } from "./interp-call";
@@ -26,24 +27,24 @@ import {
   resolveDottedMember,
 } from "./type-flow-util";
 import {
-  cloneType,
-  display,
   EnumTagsConst,
   ExactOrUnion,
+  ObjectType,
+  TypeTag,
+  ValueTypeTagsConst,
+  cloneType,
+  display,
   getUnionComponent,
   hasNoData,
   hasValue,
   isExact,
   mustBeFalse,
   mustBeTrue,
-  ObjectType,
   typeFromLiteral,
   typeFromSingleTypeSpec,
-  typeFromTypespec,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
-  TypeTag,
-  ValueTypeTagsConst,
+  typeFromTypespec,
 } from "./types";
 import { clearValuesUnder, unionInto } from "./union-type";
 
@@ -717,31 +718,50 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       if (!isLookupCandidate(node)) {
         const property = popIstate(istate, node.property);
         const object = popIstate(istate, node.object);
-        if (
-          hasValue(object.value) &&
-          object.value.type === TypeTag.Array &&
-          property.value.type & (TypeTag.Number | TypeTag.Long)
-        ) {
-          push({
-            value: object.value.value,
-            embeddedEffects: object.embeddedEffects || property.embeddedEffects,
-            node,
-          });
-          break;
-        }
-        if (
-          hasValue(object.value) &&
-          object.value.type === TypeTag.Dictionary &&
-          property.value.type & object.value.value.key.type
-        ) {
-          const value = { type: TypeTag.Null };
-          unionInto(value, object.value.value.value);
-          push({
-            value,
-            embeddedEffects: object.embeddedEffects || property.embeddedEffects,
-            node,
-          });
-          break;
+        if (hasValue(object.value)) {
+          if (
+            object.value.type === TypeTag.Array &&
+            property.value.type & (TypeTag.Number | TypeTag.Long)
+          ) {
+            push({
+              value: object.value.value,
+              embeddedEffects:
+                object.embeddedEffects || property.embeddedEffects,
+              node,
+            });
+            break;
+          }
+          if (
+            object.value.type === TypeTag.Dictionary &&
+            property.value.type & object.value.value.key.type
+          ) {
+            const value = { type: TypeTag.Null };
+            unionInto(value, object.value.value.value);
+            push({
+              value,
+              embeddedEffects:
+                object.embeddedEffects || property.embeddedEffects,
+              node,
+            });
+            break;
+          }
+          if (
+            object.value.type === TypeTag.Object &&
+            property.value.type & (TypeTag.Number | TypeTag.Long) &&
+            object.value.value.klass.value &&
+            every(
+              object.value.value.klass.value,
+              (klass) => klass.fullName === "$.Toybox.Lang.ByteArray"
+            )
+          ) {
+            push({
+              value: { type: TypeTag.Number },
+              embeddedEffects:
+                object.embeddedEffects || property.embeddedEffects,
+              node,
+            });
+            break;
+          }
         }
         push({
           value: { type: TypeTag.Any },
