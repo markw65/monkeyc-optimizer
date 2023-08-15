@@ -18,7 +18,7 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 
 ### 1.1.33
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.51](https://github.com/markw65/prettier-plugin-monkeyc#1051)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.51](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1051)
 
   - Makes it compatible with prettier@3.0.0
 
@@ -95,7 +95,7 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 
 - New features
 
-  - Update to [@markw65/prettier-plugin-monkeyc@1.0.49](https://github.com/markw65/prettier-plugin-monkeyc#1049) (including [#1.0.48](https://github.com/markw65/prettier-plugin-monkeyc#1048) and [#1.0.47](https://github.com/markw65/prettier-plugin-monkeyc#1047))
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.49](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1049) (including [#1.0.48](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1048) and [#1.0.47](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1047))
     - adds support for parsing (but not formatting) .mss files
   - Adds full support for personalities in `.jungle` and `.mss` files, including reading the per-device `personality.mss` files
   - Adds support for `project.typecheck` in `.jungle` files
@@ -198,7 +198,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Project infrastructure
 
-  - Update to [@markw65/prettier-plugin-monkeyc@1.0.46](https://github.com/markw65/prettier-plugin-monkeyc#1046)
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.46](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1046)
     - no functional change.
   - switch from webpack to esbuild, for faster builds, and better packaging.
   - mark the package as `commonjs` so that prettier-extension-monkeyc can set `moduleResolution: nodenext`
@@ -243,7 +243,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.1.12
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.45](https://github.com/markw65/prettier-plugin-monkeyc#1045)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.45](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1045)
   - fixes some bugs that could cause comments to go missing, resulting in an internal error from the formatter
 - Streamline some of the data structures used for `Minimise Locals` and `Single Copy Prop` to reduce memory use, and speed things up a little.
 - Fix a bug that could cause incorrect copy propagation in loops
@@ -251,7 +251,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.1.11
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.44](https://github.com/markw65/prettier-plugin-monkeyc#1044)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.44](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1044)
 
   - Fixes a parser bug relating to Methods returning Void, and a printer bug relating to nested Method declarations.
 
@@ -277,7 +277,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.1.9
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.43](https://github.com/markw65/prettier-plugin-monkeyc#1043)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.43](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1043)
 
 - Bug fixes
 
@@ -344,7 +344,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Tweaks and fixes
 
-  - Update to [@markw65/prettier-plugin-monkeyc@1.0.42](https://github.com/markw65/prettier-plugin-monkeyc#1042)
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.42](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1042)
   - Fixed an issue that cause inlining in return context to be too conservative
   - Update inliner to keep a stack of locations, so that error messages can show exactly where an error occurred, even in the presence of inlining.
   - Update diagnostic api to optionally include a uri to more detailing information.
@@ -408,7 +408,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.0.45
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.41](https://github.com/markw65/prettier-plugin-monkeyc#1041)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.41](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1041)
 
   - Fixes a few parser edge cases
 
@@ -426,7 +426,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.0.44
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.40](https://github.com/markw65/prettier-plugin-monkeyc#1040)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.40](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1040)
 
   - Fixes location ranges associated with parenthesized expressions
   - Fixes parsing of Lang.Char literals
@@ -436,7 +436,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.0.43
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.39](https://github.com/markw65/prettier-plugin-monkeyc#1039)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.39](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1039)
 
   - Fixes issues parsing/printing/optimizing NaN
 
@@ -447,7 +447,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.0.42
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.38](https://github.com/markw65/prettier-plugin-monkeyc#1038)
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.38](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1038)
 
   - faster parsing
   - supports parsing the attributes in api.mir, including sdk version etc.
@@ -471,7 +471,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Improvements
 
-  - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.37](https://github.com/markw65/prettier-plugin-monkeyc#1037).
+  - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.37](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1037).
   - Report locations of errors in manifest.xml (rather than just reporting an error somewhere in the file)
   - Minor improvements to Goto References etc
   - Keep a cache of parsed resource files, and update errors/warnings relating to resources as you type, rather than when the resource file is saved.
@@ -494,7 +494,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Improvements
 
-  - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.36](https://github.com/markw65/prettier-plugin-monkeyc#1036).
+  - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.36](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1036).
   - Upgrade all other npm dependencies to the latest versions, and fix a few issues that showed up as a result.
   - Report missing symbols after optimization, rather than before. Results in fewer false negatives. eg Given `if (foo has :bar) { return foo.bar; }`, where the compiler knows that foo.bar doesn't exist, the whole thing will be optimized away, rather than generate a diagnostic that foo.bar doesn't exist.
   - Stop reporting `X has :Y` as a missing symbol, even when we know that X does not have Y.
@@ -534,7 +534,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 ### 1.0.36
 
-- Update to [@markw65/prettier-plugin-monkeyc@1.0.35](https://github.com/markw65/prettier-plugin-monkeyc#1035).
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.35](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1035).
   - Fixes [prettier-plugin-monkeyc#1](https://github.com/markw65/prettier-plugin-monkeyc/issues/1)
   - Fixes [monkeyc-optimizer#1](https://github.com/markw65/monkeyc-optimizer/issues/1)
 
@@ -594,7 +594,7 @@ No functional change, just fixes a typo that broke the typescript exports.
     - Now it only holds the names of symbols (ie `:name`)
     - There's a separate list of variables that shouldn't be removed
     - There's a separate list of functions that shouldn't be removed
-  - Update to [@markw65/prettier-plugin-monkeyc@1.0.33](https://github.com/markw65/prettier-plugin-monkeyc#1033)
+  - Update to [@markw65/prettier-plugin-monkeyc@1.0.33](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1033)
   - Update for BigInt literals, and cleanup folding code
 
 - New features
