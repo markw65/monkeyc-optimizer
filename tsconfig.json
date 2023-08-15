@@ -18,7 +18,7 @@
     }
   },
 
-  "include": ["src/**/*.ts", "src/*.peggy"],
+  "include": ["src/**/*.ts", "src/*.peggy", "test/mocha/**/*.ts"],
   "exclude": [
     "build",
     "node_modules",

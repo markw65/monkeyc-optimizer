@@ -19,28 +19,31 @@
         "group": "buildWatchers",
         "close": false
       },
-      "problemMatcher": {
-        "applyTo": "allDocuments",
-        "fileLocation": "relative",
-        "pattern": [
-          {
-            "regexp": "\\[(ERROR|WARNING|INFO)\\].*? (\\S.*)",
-            "severity": 1,
-            "message": 2
-          },
-          { "regexp": "^(\\s*)$" },
-          {
-            "regexp": "^\\s*(.+):(\\d+):(\\d+):",
-            "file": 1,
-            "line": 2,
-            "column": 3
+      "problemMatcher": [
+        "$tsc",
+        {
+          "applyTo": "allDocuments",
+          "fileLocation": "relative",
+          "pattern": [
+            {
+              "regexp": "\\[(ERROR|WARNING|INFO)\\].*? (\\S.*)",
+              "severity": 1,
+              "message": 2
+            },
+            { "regexp": "^(\\s*)$" },
+            {
+              "regexp": "^\\s*(.+):(\\d+):(\\d+):",
+              "file": 1,
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "background": {
+            "beginsPattern": " - Build active$",
+            "endsPattern": " - Build inactive$"
           }
-        ],
-        "background": {
-          "beginsPattern": " - Build active$",
-          "endsPattern": " - Build inactive$"
         }
-      },
+      ],
 
       "runOptions": {
         "runOn": "folderOpen"
