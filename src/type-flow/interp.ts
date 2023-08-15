@@ -324,19 +324,55 @@ function getLhsConstraint(
       throw new Error("Checking types without a typeMap");
     }
     const object = istate.typeMap.get(node.object);
-    if (object && !node.computed) {
-      const [, trueDecls] = findObjectDeclsByProperty(
-        istate.state,
-        object,
-        node
-      );
-      if (trueDecls) {
-        lookupDefs = lookupNext(
+    if (object) {
+      if (node.computed) {
+        if (object.value) {
+          let result: ExactOrUnion | null = null;
+          if (object.type & TypeTag.Array) {
+            const arr = getUnionComponent(object, TypeTag.Array);
+            if (arr) {
+              result = arr;
+            }
+          }
+          if (object.type & TypeTag.Dictionary) {
+            const dict = getUnionComponent(object, TypeTag.Dictionary);
+            if (dict) {
+              if (result) {
+                result = cloneType(result);
+                unionInto(result, dict.value);
+              } else {
+                result = dict.value;
+              }
+            }
+          }
+          if (object.type & TypeTag.Object) {
+            const obj = getUnionComponent(object, TypeTag.Object);
+            if (obj && isByteArrayData(obj)) {
+              const t = { type: TypeTag.Number | TypeTag.Char };
+              if (result) {
+                unionInto(t, result);
+              }
+              result = t;
+            }
+          }
+          if (result) {
+            return result;
+          }
+        }
+      } else {
+        const [, trueDecls] = findObjectDeclsByProperty(
           istate.state,
-          [{ parent: null, results: trueDecls }],
-          "decls",
-          node.property
+          object,
+          node
         );
+        if (trueDecls) {
+          lookupDefs = lookupNext(
+            istate.state,
+            [{ parent: null, results: trueDecls }],
+            "decls",
+            node.property
+          );
+        }
       }
     }
   }
@@ -746,13 +782,8 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             break;
           }
           if (
-            object.value.type === TypeTag.Object &&
             property.value.type & (TypeTag.Number | TypeTag.Long) &&
-            object.value.value.klass.value &&
-            every(
-              object.value.value.klass.value,
-              (klass) => klass.fullName === "$.Toybox.Lang.ByteArray"
-            )
+            isByteArray(object.value)
           ) {
             push({
               value: { type: TypeTag.Number },
@@ -1056,4 +1087,22 @@ export function mustBeIdentical(a: ExactOrUnion, b: ExactOrUnion) {
     }
   }
   return false;
+}
+
+export function isByteArray(object: ExactOrUnion) {
+  return (
+    hasValue(object) &&
+    object.type === TypeTag.Object &&
+    isByteArrayData(object.value)
+  );
+}
+
+export function isByteArrayData(objectData: NonNullable<ObjectType["value"]>) {
+  return (
+    objectData.klass.value &&
+    every(
+      objectData.klass.value,
+      (klass) => klass.fullName === "$.Toybox.Lang.ByteArray"
+    )
+  );
 }

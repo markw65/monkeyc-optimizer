@@ -38,7 +38,12 @@ import {
   eliminateDeadStores,
   findDeadStores,
 } from "./type-flow/dead-store";
-import { evaluate, evaluateExpr, InterpState } from "./type-flow/interp";
+import {
+  evaluate,
+  evaluateExpr,
+  InterpState,
+  isByteArrayData,
+} from "./type-flow/interp";
 import { sysCallInfo } from "./type-flow/interp-call";
 import {
   intersection,
@@ -758,7 +763,17 @@ function propagateTypes(
           next = findNextObjectType(istate, trueDecls, me);
         }
       } else {
-        if (cur.type & (TypeTag.Module | TypeTag.Class | TypeTag.Object)) {
+        let byteArray = false;
+        if (cur.type & TypeTag.Object && cur.value) {
+          const odata = getObjectValue(cur);
+          if (odata && isByteArrayData(odata)) {
+            byteArray = true;
+          }
+        }
+        if (
+          cur.type &
+          (TypeTag.Module | TypeTag.Class | (byteArray ? 0 : TypeTag.Object))
+        ) {
           next = {
             type: TypeTag.Any,
           };
@@ -766,6 +781,13 @@ function propagateTypes(
             updateAny = true;
           }
         } else {
+          if (byteArray) {
+            const t = { type: TypeTag.Number };
+            if (next) {
+              unionInto(t, next);
+            }
+            next = t;
+          }
           if (cur.type & TypeTag.Array) {
             const avalue = getUnionComponent(cur, TypeTag.Array) || {
               type: TypeTag.Any,
