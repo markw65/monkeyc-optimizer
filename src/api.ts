@@ -216,7 +216,7 @@ function checkOne(
   decls: DeclKind,
   node: mctree.Identifier
 ): StateNodeDecl[] | null | false {
-  // follow the superchain, looking up node in each class
+  // follow the super chain, looking up node in each class
   const superChain = (cls: ClassStateNode): StateNodeDecl[] | null => {
     if (!cls.superClass || cls.superClass === true) {
       return null;
@@ -233,7 +233,7 @@ function checkOne(
     const [, lkup] = lookup(state, decls, node, null, ns.stack, false, true);
     return lkup && lookupToStateNodeDecls(lkup);
   };
-  // follow the superchain, looking up node in each class's scope
+  // follow the super chain, looking up node in each class's scope
   const superChainScopes = (ns: ClassStateNode): StateNodeDecl[] | null => {
     const result = lookupInContext(ns);
     if (result) return result;
@@ -988,7 +988,7 @@ function stateFuncs() {
                 parent.sn.node === node ||
                 // The pre function might cause node.body to be skipped,
                 // so we need to check here, just in case.
-                // (this actually happens with prettier-extenison-monkeyc's
+                // (this actually happens with prettier-extension-monkeyc's
                 // findItemsByRange)
                 (node.type === "CatchClause" && parent.sn.node === node.body)
               ) {

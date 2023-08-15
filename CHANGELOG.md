@@ -121,7 +121,7 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
   - Added various new optimizations to the interp pass:
     - Handles a few more byte codes
     - Conditional branches that are known to be taken, or known to be not taken are converted to gotos (and the gotos will often be eliminated by re-ordering blocks)
-    - Conditional branches that would be known to be taken, or known to be not taken if evalated at the end of one of their predecessors will be bypassed from that predecessor. Amongst other things, this converts for and while loops, that can be proven to iterate at least once, into do-while loops.
+    - Conditional branches that would be known to be taken, or known to be not taken if evaluated at the end of one of their predecessors will be bypassed from that predecessor. Amongst other things, this converts for and while loops, that can be proven to iterate at least once, into do-while loops.
   - Improved the emitter's algorithm for ordering blocks to avoid some more gotos
 
 ### 1.1.23
@@ -245,7 +245,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.45](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1045)
   - fixes some bugs that could cause comments to go missing, resulting in an internal error from the formatter
-- Streamline some of the data structures used for `Minimise Locals` and `Single Copy Prop` to reduce memory use, and speed things up a little.
+- Streamline some of the data structures used for `Minimize Locals` and `Single Copy Prop` to reduce memory use, and speed things up a little.
 - Fix a bug that could cause incorrect copy propagation in loops
 - Add support for update assignments in copy propagation (so that `var x = a; x += b; return x` goes to `return a + b`)
 
@@ -294,7 +294,7 @@ No functional change, just fixes a typo that broke the typescript exports.
   - Fix an issue with `import` and `using`. If an import happened after the definition of an inline function, inlined copies of the function might incorrectly use those imports resulting in finding the wrong symbols. This was rare - most imports happen at the top of the file, and generally an import will simply make something work that would have failed, rather than changing the behavior of something that already works. But I added a test case that exhibits the problem.
 
 - New features
-  - Add support for comletion style lookups - find all the names available in the current context that fuzzy match a given string
+  - Add support for completion style lookups - find all the names available in the current context that fuzzy match a given string
   - Add helpers to read the function documentation from api.debug.xml
   - Add an option to visitReferences to only find a specific definition, rather than all definitions for that name in the current scope.
 
@@ -431,8 +431,8 @@ No functional change, just fixes a typo that broke the typescript exports.
   - Fixes location ranges associated with parenthesized expressions
   - Fixes parsing of Lang.Char literals
 
-- Add more parsing of expressions embedded in resource files. This should now be complete, in that the analasis pass should see every symbol definition and reference from anywhere in the project.
-- Generalize constant folding to (nearly) all supported types. We don't fold additions between Float or Double and String, because the exact behavior is [buggy and upredictable](https://forums.garmin.com/developer/connect-iq/i/bug-reports/sdk-4-1-7-constant-folds-floats-strings-incorrectly)
+- Add more parsing of expressions embedded in resource files. This should now be complete, in that the analysis pass should see every symbol definition and reference from anywhere in the project.
+- Generalize constant folding to (nearly) all supported types. We don't fold additions between Float or Double and String, because the exact behavior is [buggy and unpredictable](https://forums.garmin.com/developer/connect-iq/i/bug-reports/sdk-4-1-7-constant-folds-floats-strings-incorrectly)
 
 ### 1.0.43
 
@@ -455,7 +455,7 @@ No functional change, just fixes a typo that broke the typescript exports.
 - Performance
 
   - Using the updated prettier-plugin-monkeyc halves the time spent in the parser
-  - There was some pathalogical behavior in the jungle processing. For most projects, it was quite fast (under 1s), but the worst project I found took nearly 5 minutes. I fixed a lot of redundant processing, which dropped most projects to under 500ms, with a worst case of 20s.
+  - There was some pathological behavior in the jungle processing. For most projects, it was quite fast (under 1s), but the worst project I found took nearly 5 minutes. I fixed a lot of redundant processing, which dropped most projects to under 500ms, with a worst case of 20s.
   - I had some caching code to prevent reading the same resource file multiple times, but the cache didn't work properly because an async function ran in between the test of the cache, and the fill of the cache; which meant that lots of threads could test the cache and decide it needed to be filled. Fixed by caching Promises, rather than the promise results. Dropped the worst case 20s down to under 500ms, and the average down below 100ms.
   - improved incremental builds (which helps with prettier-extension-monkeyc's live analysis)
 
@@ -658,7 +658,7 @@ Bug Fixes
 
 - Bug fixes
   - Update to `@markw65/prettier-plugin-monkeyc@1.0.29` to fix certain obscure comment related bugs
-  - When replacing a node (espcially when inlining), delete any comments contained in the old node.
+  - When replacing a node (especially when inlining), delete any comments contained in the old node.
 
 ### 1.0.26
 
@@ -742,7 +742,7 @@ Bug Fixes
 - Optimizer
 
   - Handle more unused expressions, add tests, and prettify the OptimizerTests project
-  - Allow statement-style inlining in assignent and return contexts
+  - Allow statement-style inlining in assignment and return contexts
   - Add diagnostics for failure to inline
 
 - Tests
@@ -757,7 +757,7 @@ Bug Fixes
 ### 1.0.18
 
 - Bug Fixes
-  - The new inliner was too agressive at constant propagating literal parameters to their point of use.
+  - The new inliner was too aggressive at constant propagating literal parameters to their point of use.
 
 ### 1.0.17
 
@@ -815,7 +815,7 @@ Bug Fixes
 
 - Improvements
 
-  - Add displayName to deviceInfo (for getTargetDevices in prettier-extenion-monkeyc)
+  - Add displayName to deviceInfo (for getTargetDevices in prettier-extension-monkeyc)
   - Throw a better error when we fail to read a jungle file
   - Don't try to optimize barrel projects
 

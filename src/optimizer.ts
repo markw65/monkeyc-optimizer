@@ -577,10 +577,10 @@ export async function generateOptimizedProject(options: BuildConfig) {
       process_field(prefix, qualifier, "resourcePath", relative_path);
       process_field(prefix, qualifier, "personality", relative_path);
       process_field(prefix, qualifier, "excludeAnnotations");
-      const qlang = qualifier.lang;
-      if (qlang) {
+      const qLang = qualifier.lang;
+      if (qLang) {
         const devLang = devices[product].languages;
-        const unsupportedLangs = Object.keys(qlang)
+        const unsupportedLangs = Object.keys(qLang)
           .sort()
           .map((key) => {
             if (
@@ -589,7 +589,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
             ) {
               return null;
             }
-            const mapped = map_field(qlang, key, relative_path);
+            const mapped = map_field(qLang, key, relative_path);
             if (!mapped) return null;
             return [key, mapped] as const;
           })
@@ -611,10 +611,10 @@ export async function generateOptimizedProject(options: BuildConfig) {
             parts.push(`${prefix}lang = $(${unsupportedLangsCache[key]})`);
           }
         }
-        Object.keys(qlang).forEach((key) => {
+        Object.keys(qLang).forEach((key) => {
           hasProperty(keysToSkip, key) ||
             !hasProperty(languagesToInclude, key) ||
-            process_field(`${prefix}lang.`, qlang, key, relative_path);
+            process_field(`${prefix}lang.`, qLang, key, relative_path);
         });
       }
     });

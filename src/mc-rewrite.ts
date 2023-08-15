@@ -481,11 +481,11 @@ function optimizeNode(istate: InterpState, node: mctree.Node) {
   }
   switch (node.type) {
     case "UpdateExpression":
-      // we only evaluated any subexpressions of the argument.
+      // we only evaluated any sub-expressions of the argument.
       evaluateNode(istate, node.argument);
       break;
     case "AssignmentExpression": {
-      // we only evaluated any subexpressions of the lhs.
+      // we only evaluated any sub-expressions of the lhs.
       const right = istate.stack.pop()!;
       evaluateNode(istate, node.left);
       istate.stack.push(right);
@@ -660,9 +660,9 @@ export async function optimizeMonkeyC(
       ));
 
   const renamer = (
-    idnode: mctree.TypedIdentifier | mctree.InstanceofIdentifier
+    idNode: mctree.TypedIdentifier | mctree.InstanceofIdentifier
   ) => {
-    const ident = idnode.type === "Identifier" ? idnode : idnode.left;
+    const ident = idNode.type === "Identifier" ? idNode : idNode.left;
     const locals = topLocals();
     const { map } = locals;
     if (map) {
@@ -701,8 +701,8 @@ export async function optimizeMonkeyC(
           while (i--) {
             const decl = decls[declName][i];
             if (
-              decl === idnode ||
-              (decl.type === "VariableDeclarator" && decl.node.id === idnode)
+              decl === idNode ||
+              (decl.type === "VariableDeclarator" && decl.node.id === idNode)
             ) {
               decls[declName].splice(i, 1);
               decls[name] = [decl];
@@ -898,13 +898,13 @@ export async function optimizeMonkeyC(
             markFunctionCalled(state, node);
           }
         }
-        // We dont want to call evaluateNode on
+        // We don't want to call evaluateNode on
         // id, args or returnType
         return ["body"];
       }
       case "ClassDeclaration":
       case "ModuleDeclaration":
-        // We dont want to call evaluateNode on
+        // We don't want to call evaluateNode on
         // id, or superClass
         return ["body"];
     }
