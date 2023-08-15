@@ -476,7 +476,7 @@ export function typeFromTypeStateNode(
 
     case "VariableDeclarator": {
       if (sn.resolvedType) return sn.resolvedType;
-      let declared = null;
+      let declared: ExactOrUnion | null = null;
       if (sn.node.id.type === "BinaryExpression") {
         declared = typeFromTypespec(state, sn.node.id.right, sn.stack);
       }

@@ -21,7 +21,12 @@ export function create_program_analysis(
   config: BuildConfig
 ) {
   const fnMap: FilesToOptimizeMap = {
-    [filename]: { monkeyCSource: source, output: "", excludeAnnotations: {} },
+    [filename]: {
+      monkeyCSource: source,
+      output: "",
+      excludeAnnotations: {},
+      barrel: "",
+    },
   };
   return getFileASTs(fnMap).then(() =>
     analyze(fnMap, {}, undefined, config || {})

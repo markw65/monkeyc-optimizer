@@ -255,7 +255,7 @@ function findEquivalent(
   value?: ExactTypes["value"]
 ) {
   const find = (elems: InterpItemInfo[], d: number) => {
-    let alternate = null;
+    let alternate: number | null = null;
     for (let i = elems.length - d; i--; ) {
       const t = elems[i];
       if (t && t.type.type === type) {
