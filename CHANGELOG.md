@@ -2,6 +2,20 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.34
+
+- Optimizations
+
+  - Add a few more peephole optimizations to the post build optimizer
+    - `incsp 0;` => `nop`
+    - `ipush 0; shlv` => `nop`
+    - `ipush 1; shlv` => `dup 0; addv`
+
+- Type checker
+  - Add warnings for incorrect assignments to Arrays and ByteArrays
+  - Properly type the elements of ByteArrays (always Number)
+  - Never warn about casts to `Object?`, even if the source type might not be an `Object?`
+
 ### 1.1.33
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.51](https://github.com/markw65/prettier-plugin-monkeyc#1051)
