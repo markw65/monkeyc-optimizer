@@ -34,6 +34,7 @@ import {
   ValueTypeTagsConst,
   cloneType,
   display,
+  getObjectValue,
   getUnionComponent,
   hasNoData,
   hasValue,
@@ -754,39 +755,53 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       if (!isLookupCandidate(node)) {
         const property = popIstate(istate, node.property);
         const object = popIstate(istate, node.object);
-        if (hasValue(object.value)) {
-          if (
-            object.value.type === TypeTag.Array &&
-            property.value.type & (TypeTag.Number | TypeTag.Long)
-          ) {
-            push({
-              value: object.value.value,
-              embeddedEffects:
-                object.embeddedEffects || property.embeddedEffects,
-              node,
-            });
-            break;
+        const objectType = object.value;
+        let byteArray = false;
+        if (objectType.type & TypeTag.Object && objectType.value) {
+          const odata = getObjectValue(objectType);
+          if (odata && isByteArrayData(odata)) {
+            byteArray = true;
           }
-          if (
-            object.value.type === TypeTag.Dictionary &&
-            property.value.type & object.value.value.key.type
-          ) {
-            const value = { type: TypeTag.Null };
-            unionInto(value, object.value.value.value);
-            push({
-              value,
-              embeddedEffects:
-                object.embeddedEffects || property.embeddedEffects,
-              node,
-            });
-            break;
+        }
+        if (
+          objectType.value &&
+          !(
+            objectType.type &
+            (TypeTag.Module | TypeTag.Class | (byteArray ? 0 : TypeTag.Object))
+          )
+        ) {
+          let result: ExactOrUnion | null = null;
+          if (objectType.type & TypeTag.Array) {
+            const avalue = getUnionComponent(objectType, TypeTag.Array) || {
+              type: TypeTag.Any,
+            };
+            if (result) {
+              unionInto((result = cloneType(result)), avalue);
+            } else {
+              result = avalue;
+            }
           }
-          if (
-            property.value.type & (TypeTag.Number | TypeTag.Long) &&
-            isByteArray(object.value)
-          ) {
+          if (objectType.type & TypeTag.Dictionary) {
+            const dvalue = getUnionComponent(objectType, TypeTag.Dictionary)
+              ?.value || {
+              type: TypeTag.Any,
+            };
+            if (result) {
+              unionInto((result = cloneType(result)), dvalue);
+            } else {
+              result = dvalue;
+            }
+          }
+          if (byteArray) {
+            const t = { type: TypeTag.Number };
+            if (result) {
+              unionInto(t, result);
+            }
+            result = t;
+          }
+          if (result) {
             push({
-              value: { type: TypeTag.Number },
+              value: result,
               embeddedEffects:
                 object.embeddedEffects || property.embeddedEffects,
               node,
