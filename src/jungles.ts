@@ -511,30 +511,27 @@ async function read_resource_files(targets: Target[], cache: JungleCache) {
                     ? globa(`${path}**/*.xml`, { mark: true })
                     : path
                 )
-            ).then((paths) =>
-              Promise.all(
-                paths
-                  .flat()
-                  .filter((file) => file.endsWith(".xml"))
-                  .map((file) => {
-                    if (!hasProperty(cache.resources, file)) {
-                      cache.resources[file] = fs
-                        .readFile(file)
-                        .then((data) =>
-                          xmlUtil.parseXml(data.toString(), file)
-                        );
-                    }
-                    return Promise.resolve(cache.resources[file]).then(
-                      (rez) => {
-                        cache.resources[file] = resources[file] = rez;
-                        return {
-                          path: file,
-                          resources: rez,
-                        };
-                      }
-                    );
-                  })
-              )
+            )
+          )
+          .then((paths) =>
+            Promise.all(
+              paths
+                .flat()
+                .filter((file) => file.endsWith(".xml"))
+                .map((file) => {
+                  if (!hasProperty(cache.resources, file)) {
+                    cache.resources[file] = fs
+                      .readFile(file)
+                      .then((data) => xmlUtil.parseXml(data.toString(), file));
+                  }
+                  return Promise.resolve(cache.resources[file]).then((rez) => {
+                    cache.resources[file] = resources[file] = rez;
+                    return {
+                      path: file,
+                      resources: rez,
+                    };
+                  });
+                })
             )
           )
           .then(
