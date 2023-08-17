@@ -66,8 +66,10 @@ function isJNode(obj: unknown): obj is JNode {
 type Assignment = { names: string[]; values: JNode[] };
 async function default_jungle() {
   const assignments: Array<Assignment> = [];
-  const devices = await getDeviceInfo();
-  const languages = await getLanguages();
+  const [devices, languages] = await Promise.all([
+    getDeviceInfo(),
+    getLanguages(),
+  ]);
   const literal = (value: string): Literal => ({ type: "Literal", value });
   const qname = (name: string): JNode => ({
     type: "QualifiedName",
@@ -238,8 +240,10 @@ async function process_jungles(sources: string | (string | string[])[]) {
   if (!Array.isArray(sources)) {
     sources = [sources];
   }
-  const results = await Promise.all(sources.map(parse_one));
-  const { state, devices } = await default_jungle();
+  const [{ state, devices }, ...results] = await Promise.all([
+    default_jungle(),
+    ...sources.map(parse_one),
+  ]);
   results.forEach((r) => process_assignments(r, state));
   return { state, devices };
 }
@@ -378,43 +382,44 @@ async function resolve_literals(
   deviceInfo: DeviceInfo[string],
   cache: JungleCache
 ): Promise<JungleQualifier> {
-  const resolve_file_list = async (
+  const resolve_file_list = (
     literals: JNode[] | NestedStringArray
   ): Promise<NestedStringArray> =>
-    literals &&
-    (
-      await Promise.all(
-        literals.map(async (v) => {
-          if (!isJNode(v)) {
-            return v;
+    Promise.all(
+      literals.map((v) => {
+        if (!isJNode(v)) {
+          return v;
+        }
+        if (v.type === "QualifiedName") {
+          throw new Error("Unexpected QualifiedName found!");
+        }
+        if (v.type === "SubList") {
+          return resolve_file_list(v.values);
+        }
+        // Jungle files can contain "./**.mc" which is supposed to match
+        // any mc file under "./". The standard way to express that
+        // is "./**/*.mc", which is what glob expects, so translate.
+        const resolved = resolve_filename(v, default_source).replace(
+          /[\\/]\*\*([^\\/])/g,
+          "/**/*$1"
+        );
+        if (!hasProperty(cache.resolvedPaths, resolved)) {
+          if (/[*?[\]{}]/.test(resolved)) {
+            cache.resolvedPaths[resolved] = globSome(resolved, () => true);
+          } else {
+            cache.resolvedPaths[resolved] = fs.stat(resolved).then(
+              () => true,
+              () => false
+            );
           }
-          if (v.type === "QualifiedName") {
-            throw new Error("Unexpected QualifiedName found!");
-          }
-          if (v.type === "SubList") {
-            return resolve_file_list(v.values);
-          }
-          // Jungle files can contain "./**.mc" which is supposed to match
-          // any mc file under "./". The standard way to express that
-          // is "./**/*.mc", which is what glob expects, so translate.
-          const resolved = resolve_filename(v, default_source).replace(
-            /[\\/]\*\*([^\\/])/g,
-            "/**/*$1"
-          );
-          if (!hasProperty(cache.resolvedPaths, resolved)) {
-            if (/[*?[\]{}]/.test(resolved)) {
-              cache.resolvedPaths[resolved] = globSome(resolved, () => true);
-            } else {
-              cache.resolvedPaths[resolved] = fs
-                .stat(resolved)
-                .then(() => true)
-                .catch(() => false);
-            }
-          }
-          return (await cache.resolvedPaths[resolved]) ? resolved : null;
-        })
-      )
-    ).filter((name): name is NonNullable<typeof name> => name != null);
+        }
+        return cache.resolvedPaths[resolved].then((exists) =>
+          exists ? resolved : null
+        );
+      })
+    ).then((results) =>
+      results.filter((name): name is NonNullable<typeof name> => name != null)
+    );
 
   const resolve_one_file_list = async (base: RawJungle, name: string) => {
     const bname = base[name];
@@ -429,21 +434,23 @@ async function resolve_literals(
     }
   };
 
-  await resolve_one_file_list(qualifier, "sourcePath");
-  await resolve_one_file_list(qualifier, "resourcePath");
-  await resolve_one_file_list(qualifier, "personality");
-  await resolve_one_file_list(qualifier, "barrelPath");
+  const promises = [
+    resolve_one_file_list(qualifier, "sourcePath"),
+    resolve_one_file_list(qualifier, "resourcePath"),
+    resolve_one_file_list(qualifier, "personality"),
+    resolve_one_file_list(qualifier, "barrelPath"),
+  ];
   const lang = qualifier["lang"] as RawJungle;
   if (lang) {
-    await Promise.all(
-      Object.keys(lang).map((key) => {
-        return resolve_one_file_list(lang, key);
-      })
-    );
-    if (Object.keys(lang).length === 0) delete qualifier["lang"];
-  } else {
-    delete qualifier["lang"];
+    Object.keys(lang).forEach((key) => {
+      promises.push(resolve_one_file_list(lang, key));
+    });
   }
+  await Promise.all(promises).then(() => {
+    if (!lang || Object.keys(lang).length === 0) {
+      delete qualifier["lang"];
+    }
+  });
 
   const resolve_literal_list = (base: RawJungle, name: string) => {
     const literals = base[name] as Literal[];
