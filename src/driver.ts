@@ -69,6 +69,7 @@ export async function driver() {
   let postProcessTarget: string | undefined;
   let removeArgc: boolean | undefined = true;
   let postBuildPRE: boolean | undefined = true;
+  let profile: string | undefined;
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -90,6 +91,10 @@ export async function driver() {
       error(`Missing arg for '${key}'`);
     }
     switch (key) {
+      case "profile":
+        if (value == null) return key;
+        profile = value;
+        break;
       case "parallelism":
         if (value == null) return key;
         parallelism = parseInt(value, 10);
@@ -433,31 +438,83 @@ export async function driver() {
       return res;
     };
     let start = 0;
+    const profileWithBlocking = <T>(
+      name: string,
+      callback: () => Promise<T>
+    ) => {
+      if (profile !== name && profile !== "all") {
+        return callback();
+      }
+      const start = Date.now();
+      let prev: number | null = start;
+      const histogram: number[] = [];
+      const blockers: number[] = [];
+      return Promise.all([
+        Promise.resolve()
+          .then(async () => {
+            while (prev != null) {
+              const now = Date.now();
+              const delay = now - prev;
+              histogram[delay] = (histogram[delay] ?? 0) + 1;
+              if (delay > 20) {
+                blockers[prev - start] = delay;
+              }
+              prev = now;
+              await (now - start > -1
+                ? new Promise((resolve) => setTimeout(() => resolve(null), 0))
+                : Promise.resolve());
+            }
+          })
+          .then(() => {
+            console.log(`${name}: Total time: ${Date.now() - start}`);
+            histogram.forEach((count, delay) =>
+              console.log(`${name}: Blocked for ${delay}ms ${count} times`)
+            );
+            blockers.forEach((delay, start) =>
+              console.log(`${name}: At time ${start}ms, block for ${delay}ms`)
+            );
+          }),
+        (() => {
+          console.profile();
+          return callback();
+        })()
+          .then((result) => {
+            console.profileEnd();
+            return result;
+          })
+          .finally(() => {
+            prev = null;
+            console.log(`${name}: Profiling done in ${Date.now() - start}ms`);
+          }),
+      ]).then((results) => results[1]);
+    };
+    const doAnalyzeOnly = () => {
+      return profileWithBlocking("jungle", () =>
+        get_jungle(options.jungleFiles!, options)
+      )
+        .then(({ targets, xml }) =>
+          profileWithBlocking("analysis", () =>
+            getProjectAnalysis(targets, null, xml, options)
+          )
+        )
+        .then((analysis) => {
+          if ("state" in analysis) {
+            reportDiagnostics(analysis.state.diagnostics, logger, extraArgs);
+            return null;
+          }
+          throw new Error(
+            `Analysis failed:\n${Object.values(analysis.fnMap)
+              .filter((fn) => fn.parserError != null)
+              .map((fn) => ` - ${fn.parserError!.toString()}\n`)}`
+          );
+        });
+    };
     return promise
       .then(
         () => (
           (start = Date.now()),
           analyzeOnly
-            ? get_jungle(options.jungleFiles!, options).then(
-                ({ targets, xml }) =>
-                  getProjectAnalysis(targets, null, xml, options).then(
-                    (analysis) => {
-                      if ("state" in analysis) {
-                        reportDiagnostics(
-                          analysis.state.diagnostics,
-                          logger,
-                          extraArgs
-                        );
-                        return null;
-                      }
-                      throw new Error(
-                        `Analysis failed:\n${Object.values(analysis.fnMap)
-                          .filter((fn) => fn.parserError != null)
-                          .map((fn) => ` - ${fn.parserError!.toString()}\n`)}`
-                      );
-                    }
-                  )
-              )
+            ? doAnalyzeOnly()
             : genOnly
             ? runTaskInPool({
                 type: "generateOptimizedProject",
