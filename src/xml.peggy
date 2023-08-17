@@ -34,7 +34,7 @@
     return ret;
   }
 
-  const names = [];
+  let endtag = "";
 
   function convertAttr(attr) {
     const ret = {};
@@ -77,8 +77,6 @@ NameChar
   / Extender
 
 Name "name" = $((Letter / "_" / ":") NameChar*)
-
-Names = head:Name tail:(" " @Name)* { return [head, ...tail]; }
 
 Nmtoken = $NameChar+
 
@@ -242,21 +240,37 @@ SDDecl
 // Elements, Tags and Element Content
 
 element
-  = EmptyElemTag
-  / start:STag c:content ETag {
-      start.children = c;
-      start.loc.end = location().end;
-      return start;
-    }
+  = start:STagPrefix
+    @(
+      "/>" { return start; }
+      / ">"
+        c:content
+        n:ETag
+        & {
+            if (start.name === n) {
+              return true;
+            }
+            const loc = location();
+            loc.start.offset -= n.length;
+            loc.start.column -= n.length;
+            error(`Expected end tag "${start.name}" but got "${n}"`, loc);
+          } {
+          start.children = c;
+          start.loc.end = location().end;
+          return start;
+        }
+    )
 
-STag
-  = "<" name:pushName attr:(S @Attribute)* S? ">" {
+STagPrefix
+  = "<" name:Name attr:(S @Attribute)* S? {
       return wrap({
         type: "element",
         name,
         attr: convertAttr(attr),
       });
     }
+
+ETag = "</" @Name S? ">"
 
 AName = value:Name { return wrap({ type: "attrstr", value }); }
 
@@ -270,28 +284,6 @@ Attribute
         value,
       });
     }
-
-ETag = "</" popName S? ">"
-
-// Match tags
-pushName
-  = n:Name {
-      names.push(n);
-      return n;
-    }
-
-popName
-  = @n:Name
-    & {
-        const other = names.pop();
-        if (other === n) {
-          return true;
-        }
-        const loc = location();
-        loc.start.offset -= n.length;
-        loc.start.column -= n.length;
-        error(`Expected end tag "${other}" but got "${n}"`, loc);
-      }
 
 content
   = c1:CharData?
@@ -309,32 +301,26 @@ content
       return res;
     }
 
-EmptyElemTag
-  = "<" name:Name attr:(S @Attribute)* S? "/>" {
-      return wrap({
-        type: "element",
-        name,
-        attr: convertAttr(attr),
-      });
-    }
-
 // Character and Entity References
 
 CharRef
-  = "&#" value:$[0-9]+ ";" {
-      return wrap({
-        type: "charref",
-        value: parseInt(value, 10),
-        base: 10,
-      });
-    }
-  / "&#x" value:$[0-9a-f]i+ ";" {
-      return wrap({
-        type: "charref",
-        value: parseInt(value, 16),
-        base: 16,
-      });
-    }
+  = "&#"
+    @(
+      "x" value:$[0-9a-f]i+ ";" {
+          return wrap({
+            type: "charref",
+            value: parseInt(value, 16),
+            base: 16,
+          });
+        }
+      / value:$[0-9]+ ";" {
+          return wrap({
+            type: "charref",
+            value: parseInt(value, 10),
+            base: 10,
+          });
+        }
+    )
 
 Reference
   = EntityRef
@@ -359,28 +345,26 @@ PEReference
 // Entity Declarations
 
 EntityDecl
-  = GEDecl
-  / PEDecl
-
-GEDecl
-  = "<!ENTITY" S name:Name S def:EntityDef S? ">" {
-      return wrap({
-        type: "entitydecl",
-        name,
-        def,
-        kind: "&",
-      });
-    }
-
-PEDecl
-  = "<!ENTITY" S "%" S name:Name S def:PEDef S? ">" {
-      return wrap({
-        type: "entitydecl",
-        name,
-        def,
-        kind: "%",
-      });
-    }
+  = "<!ENTITY"
+    S
+    @(
+      "%" S name:Name S def:PEDef S? ">" {
+          return wrap({
+            type: "entitydecl",
+            name,
+            def,
+            kind: "%",
+          });
+        }
+      / name:Name S def:EntityDef S? ">" {
+          return wrap({
+            type: "entitydecl",
+            name,
+            def,
+            kind: "&",
+          });
+        }
+    )
 
 EntityDef
   = value:EntityValue { return wrap({ type: "entityvalue", value }); }
