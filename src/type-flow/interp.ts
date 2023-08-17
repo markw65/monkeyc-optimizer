@@ -21,6 +21,7 @@ import { every } from "../util";
 import { couldBe } from "./could-be";
 import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
 import { checkCallArgs, evaluateCall } from "./interp-call";
+import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
   findObjectDeclsByProperty,
@@ -327,6 +328,19 @@ function getLhsConstraint(
     const object = istate.typeMap.get(node.object);
     if (object) {
       if (node.computed) {
+        const strict = istate.typeChecker === subtypeOf;
+        if (
+          strict &&
+          object.type &
+            ~(
+              TypeTag.Array |
+              TypeTag.Dictionary |
+              TypeTag.Object |
+              TypeTag.Typedef
+            )
+        ) {
+          return { type: TypeTag.Never };
+        }
         if (object.value) {
           let result: ExactOrUnion | null = null;
           if (object.type & TypeTag.Array) {
@@ -339,8 +353,12 @@ function getLhsConstraint(
             const dict = getUnionComponent(object, TypeTag.Dictionary);
             if (dict) {
               if (result) {
-                result = cloneType(result);
-                unionInto(result, dict.value);
+                if (strict) {
+                  result = intersection(result, dict.value);
+                } else {
+                  result = cloneType(result);
+                  unionInto(result, dict.value);
+                }
               } else {
                 result = dict.value;
               }
@@ -349,9 +367,13 @@ function getLhsConstraint(
           if (object.type & TypeTag.Object) {
             const obj = getUnionComponent(object, TypeTag.Object);
             if (obj && isByteArrayData(obj)) {
-              const t = { type: TypeTag.Number | TypeTag.Char };
+              let t = { type: TypeTag.Number | TypeTag.Char };
               if (result) {
-                unionInto(t, result);
+                if (strict) {
+                  t = intersection(t, result);
+                } else {
+                  unionInto(t, result);
+                }
               }
               result = t;
             }
