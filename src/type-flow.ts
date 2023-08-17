@@ -657,7 +657,7 @@ function updateAffected(
             }
             break;
           }
-          entry.curType = updateByAssocPath(assocPath, assignedType, true);
+          entry.curType = updateByAssocPath(assocPath, assignedType);
           break;
         }
         if (pathItem === "*") {
@@ -827,7 +827,7 @@ function propagateTypes(
       type: typePath[i],
     }));
     const assocKey = assocValue.map((av) => av.name ?? "*").join(".");
-    const newType = updateByAssocPath(assocValue, next!, false);
+    const newType = updateByAssocPath(assocValue, next!, newValue != null);
     setStateEvent(
       blockState,
       decl.base,
@@ -2207,15 +2207,48 @@ function propagateTypes(
   };
 }
 
+/*
+ * Figure out the base type for a member expression.
+ *
+ * There are three cases:
+ *
+ * i) `update = false`
+ *    This is just a read of something like foo.bar.baz
+ *
+ *    We may be able to refine the type of foo, because we now know
+ *    that it has a bar member, and that *that* has a baz member.
+ *    Note that this doesn't help with computed members, such as
+ *    foo[1].bar, because although we now know that foo[1] has a bar
+ *    member, we don't know anything about foo[0] or foo[42].
+ *
+ * ii) `update = true`
+ *    This is an assignment to something like foo.bar.baz
+ *
+ *    In addition to the refinements we can make in case i), we
+ *    also know that the type of the last member is whatever got
+ *    assigned to it. In this case, if the last member is computed,
+ *    we do need to widen the type to include the assigned value.
+ *    eg if foo is known to be `Array<Number>`, and we assign
+ *    `foo[1] = "bar"`, then foo's type has to widen to
+ *    `Array<Number or String>`
+ *
+ * iii) `update = undefined`
+ *    There is an assignment that might alias this member expression.
+ *    The new type should be the union of the old type, and the type
+ *    that would have resulted from case ii).
+ */
 function updateByAssocPath(
   path: AssocPath,
   property: ExactOrUnion,
-  union: boolean
+  update?: boolean | undefined
 ) {
-  const valueToStore = (base: ExactOrUnion) => {
-    const clone = cloneType(base);
-    unionInto(clone, property);
-    return clone;
+  const valueToStore = (base: ExactOrUnion | null | undefined) => {
+    if (update == null) {
+      const clone = base ? cloneType(base) : { type: TypeTag.Any };
+      unionInto(clone, property);
+      return clone;
+    }
+    return property;
   };
   for (let i = path.length; i--; ) {
     const pathElem = path[i];
@@ -2224,28 +2257,20 @@ function updateByAssocPath(
       const value = getObjectValue(object);
       if (value) {
         const obj = value.obj ? { ...value.obj } : {};
-        obj[pathElem.name] = union
-          ? valueToStore(obj[pathElem.name] || { type: TypeTag.Any })
-          : property;
+        obj[pathElem.name] = valueToStore(obj[pathElem.name]);
         object = cloneType(object);
         setUnionComponent(object, TypeTag.Object, {
           klass: value.klass,
           obj,
         });
       }
-    } else {
+    } else if (update) {
       if (object.type & TypeTag.Array) {
         object = cloneType(object);
         setUnionComponent(
           object,
           TypeTag.Array,
-          union
-            ? valueToStore(
-                getUnionComponent(object, TypeTag.Array) || {
-                  type: TypeTag.Any,
-                }
-              )
-            : property
+          valueToStore(getUnionComponent(object, TypeTag.Array))
         );
       }
       if (object.type & TypeTag.Dictionary) {
@@ -2253,19 +2278,13 @@ function updateByAssocPath(
         object = cloneType(object);
         setUnionComponent(object, TypeTag.Dictionary, {
           key: dvalue?.key || { type: TypeTag.Any },
-          value: union
-            ? valueToStore(
-                getUnionComponent(object, TypeTag.Dictionary)?.value || {
-                  type: TypeTag.Any,
-                }
-              )
-            : property,
+          value: valueToStore(dvalue?.value),
         });
       }
     }
     path[i].type = object;
     property = object;
-    union = false;
+    update = false;
   }
   return property;
 }
