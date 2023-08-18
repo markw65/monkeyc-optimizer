@@ -241,7 +241,7 @@ function spawnByLine(command, args, lineHandler, options) {
 }
 
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-const tscCommand = ["tsc", "--emitDeclarationOnly", "--outDir", "build/src"];
+const tscCommand = ["tsc", "--emitDeclarationOnly"];
 
 const logger = (line) => {
   // tsc in watch mode does ESC-c to clear the screen
