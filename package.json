@@ -36,6 +36,7 @@
     "cft-font-info": "bin/cft-font-info.js"
   },
   "files": [
+    "CHANGELOG.md",
     "build/optimizer.cjs",
     "build/util.cjs",
     "build/sdk-util.cjs",
