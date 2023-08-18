@@ -2,6 +2,15 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.35
+
+- Infrastructure
+
+  - Optimize the xml parser to speed up compilation/analysis
+
+- Type Checker
+  - More accurate tracking of Array and Dictionary types
+
 ### 1.1.34
 
 - Optimizations
