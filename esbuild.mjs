@@ -5,6 +5,7 @@ import * as fs from "node:fs/promises";
 import peggy from "peggy";
 import * as readline from "node:readline";
 import * as path from "node:path";
+import mergeCharacterClasses from "./esbuild/merge-character-classes.js";
 
 const MONKEYC_OPTIMIZER = JSON.parse(await fs.readFile("./package.json"));
 
@@ -152,7 +153,6 @@ const peggyPlugin = {
         return { text: message, location };
       };
 
-      // Convert Svelte syntax to JavaScript
       try {
         const mapDir = path.resolve(build.initialOptions.outdir, "..");
         const sourceAndMap = peggy
@@ -161,14 +161,15 @@ const peggyPlugin = {
             format: "es",
             output: "source-and-map",
             grammarSource: args.path,
+            plugins: [
+              {
+                use(config) {
+                  config.passes.transform.push(mergeCharacterClasses);
+                },
+              },
+            ],
           })
-          .toStringWithSourceMap({
-            /*file: path.resolve(
-              mapDir,
-              path.basename(args.path, ".peggy") + ".js"
-            ),*/
-            //sourceRoot: process.cwd(),
-          });
+          .toStringWithSourceMap({});
         let contents = sourceAndMap.code;
         if (build.initialOptions.sourcemap) {
           const sourceMap = sourceAndMap.map.toJSON();
