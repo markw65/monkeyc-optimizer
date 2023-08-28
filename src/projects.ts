@@ -297,6 +297,7 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/srwalter/garmin-tesla",
     options: { checkInvalidSymbols: "WARNING" },
   },
+  "https://github.com/sudface/gcount3",
   "https://github.com/sunpazed/garmin-ciqsummit17",
   "https://github.com/sunpazed/garmin-drawaa",
   {
