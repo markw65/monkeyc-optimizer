@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.36
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.52](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1052)
+  - Fixes a bug that didn't allow `import` or `using` inside a class declaration.
+
 ### 1.1.35
 
 - Infrastructure
