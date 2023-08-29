@@ -59,7 +59,7 @@ function common_types(
   if (lt & TypeTag.Null) result |= rt & TypeTag.String;
   if (lt & TypeTag.Boolean) {
     result |=
-      (rt & TypeTag.Boolean) | TypeTag.Number | TypeTag.Long && TypeTag.Boolean;
+      rt & (TypeTag.Boolean | TypeTag.Number | TypeTag.Long) && TypeTag.Boolean;
   }
   if (lt & TypeTag.Number) {
     result |=
