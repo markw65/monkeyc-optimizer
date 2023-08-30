@@ -276,7 +276,7 @@ export function evaluateUnaryTypes(
         "-",
         { type: TypeTag.Number, value: 0 },
         argument
-      );
+      ).type;
     case "!":
     case "~":
       if (hasValue(argument)) {
@@ -284,7 +284,7 @@ export function evaluateUnaryTypes(
           argument.type & TypeTag.Boolean
             ? { type: TypeTag.True }
             : ({ type: TypeTag.Number, value: -1 } as const);
-        return evaluateBinaryTypes("^", left, argument);
+        return evaluateBinaryTypes("^", left, argument).type;
       }
       return {
         type: argument.type & (TypeTag.Boolean | TypeTag.Number | TypeTag.Long),
@@ -586,7 +586,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             node.operator,
             deEnumerate(left.value),
             deEnumerate(right.value)
-          ),
+          ).type,
           embeddedEffects: left.embeddedEffects || right.embeddedEffects,
           node,
         });
@@ -720,7 +720,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           node.operator,
           deEnumerate(left.value),
           deEnumerate(right.value)
-        ),
+        ).type,
         embeddedEffects: left.embeddedEffects || right.embeddedEffects,
         node,
       });
@@ -886,7 +886,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             node.operator.slice(0, -1) as mctree.BinaryOperator,
             left.value,
             right.value
-          ),
+          ).type,
           embeddedEffects: true,
           node,
         });
@@ -915,7 +915,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           node.operator.slice(1) as mctree.BinaryOperator,
           left.value,
           right
-        ),
+        ).type,
         embeddedEffects: true,
         node,
       });

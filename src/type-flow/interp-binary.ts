@@ -12,13 +12,20 @@ import {
   isSingleton,
   mustBeFalse,
   mustBeTrue,
-  SingletonTypeTagsConst,
   TruthyTypes,
   TypeTag,
   UnionTypeTags,
   ValueTypes,
 } from "./types";
 import { unionInto } from "./union-type";
+
+type OpMatch = {
+  // maps sets of right types to the corresponding sets of non-matching
+  // left types.
+  // So eg (Null | Float | Number) + (String | Boolean | Char) would have
+  // Boolean | Char => Null | Float, Boolean => Number
+  mismatch?: Map<TypeTag, TypeTag>;
+};
 
 /*
  * Compute the possible type tags of the result of an arithmetic
@@ -33,18 +40,13 @@ function common_types(
   left: ExactOrUnion,
   right: ExactOrUnion,
   allowed: TypeTag
-) {
+): { tag: TypeTag; castArgs: TypeTag | false } & OpMatch {
   const types = left.type | right.type;
-  let mask =
-    TypeTag.True |
-    TypeTag.False |
-    TypeTag.Number |
-    TypeTag.Long |
-    TypeTag.Float |
-    TypeTag.Double;
+  let mask = (TypeTag.Boolean | TypeTag.Numeric) & allowed;
   if (types & allowed & TypeTag.String) {
     mask |=
       TypeTag.String |
+      TypeTag.Boolean |
       TypeTag.Char |
       TypeTag.Null |
       TypeTag.Dictionary |
@@ -52,39 +54,92 @@ function common_types(
   } else if (types & allowed & TypeTag.Char) {
     mask |= TypeTag.Char;
   }
-  mask &= allowed;
   const lt = left.type & mask;
   const rt = right.type & mask;
-  let result = lt & TypeTag.String;
-  if (lt & TypeTag.Null) result |= rt & TypeTag.String;
+  let mismatch: Map<TypeTag, TypeTag> | undefined;
+  let result = 0;
+  const addMismatch = (left: TypeTag, right: TypeTag) => {
+    if (!mismatch) mismatch = new Map();
+    const bits = mismatch.get(right) ?? 0;
+    mismatch.set(right, bits | left);
+  };
+
+  if (lt & TypeTag.String) {
+    result |= rt && TypeTag.String;
+    if (right.type & ~mask) {
+      addMismatch(TypeTag.String, right.type & ~mask);
+    }
+  }
+
+  if (lt & (TypeTag.Null | TypeTag.Array | TypeTag.Dictionary)) {
+    result |= rt & TypeTag.String;
+    if (right.type & ~TypeTag.String) {
+      addMismatch(
+        lt & (TypeTag.Null | TypeTag.Array | TypeTag.Dictionary),
+        right.type & ~TypeTag.String
+      );
+    }
+  }
+
   if (lt & TypeTag.Boolean) {
     result |=
       rt & (TypeTag.Boolean | TypeTag.Number | TypeTag.Long) && TypeTag.Boolean;
-  }
-  if (lt & TypeTag.Number) {
-    result |=
-      rt & TypeTag.Boolean ? TypeTag.Boolean : rt & ~SingletonTypeTagsConst;
-  }
-  if (lt & TypeTag.Long) {
-    if (rt & TypeTag.Boolean) {
-      result |= TypeTag.Boolean;
-    } else {
-      if (rt & (TypeTag.Number | TypeTag.Long)) result |= TypeTag.Long;
-      if (rt & (TypeTag.Float | TypeTag.Double)) result |= TypeTag.Double;
-      result |= rt & (TypeTag.String | TypeTag.Char);
+    result |= rt & TypeTag.String;
+    const includes =
+      (TypeTag.Boolean | TypeTag.Number | TypeTag.Long | TypeTag.String) & mask;
+    if (right.type & ~includes) {
+      addMismatch(lt & TypeTag.Boolean, right.type & ~includes);
     }
   }
-  if (lt & TypeTag.Float) {
-    if (rt & (TypeTag.Number | TypeTag.Float)) result |= TypeTag.Float;
-    if (rt & (TypeTag.Long | TypeTag.Double)) result |= TypeTag.Double;
-    result |= rt & TypeTag.String;
+
+  if (lt & TypeTag.Number) {
+    const includes =
+      (TypeTag.Boolean | TypeTag.Numeric | TypeTag.String | TypeTag.Char) &
+      allowed;
+    if (rt & TypeTag.Boolean) {
+      result |= TypeTag.Boolean;
+    }
+    result |= rt & includes;
+    if (right.type & ~includes) {
+      addMismatch(TypeTag.Number, right.type & ~includes);
+    }
   }
+
+  if (lt & TypeTag.Long) {
+    const includes =
+      (TypeTag.Boolean | TypeTag.Numeric | TypeTag.String) & allowed;
+    if (rt & TypeTag.Boolean) {
+      result |= TypeTag.Boolean;
+    }
+    result |= rt & includes & ~(TypeTag.Number | TypeTag.Float);
+    if (rt & TypeTag.Number) result |= TypeTag.Long;
+    if (rt & TypeTag.Float) result |= TypeTag.Double;
+    if (right.type & ~includes) {
+      addMismatch(TypeTag.Long, right.type & ~includes);
+    }
+  }
+
+  if (lt & TypeTag.Float) {
+    const includes = (TypeTag.Numeric | TypeTag.String) & allowed;
+    result |= rt & includes & ~(TypeTag.Number | TypeTag.Long);
+    if (rt & TypeTag.Number) result |= TypeTag.Float;
+    if (rt & TypeTag.Long) result |= TypeTag.Double;
+    if (right.type & ~includes) {
+      addMismatch(TypeTag.Float, right.type & ~includes);
+    }
+  }
+
   if (lt & TypeTag.Double) {
-    if (rt & (TypeTag.Number | TypeTag.Long | TypeTag.Float | TypeTag.Double)) {
+    const includes = (TypeTag.Numeric | TypeTag.String) & allowed;
+    if (rt & TypeTag.Numeric) {
       result |= TypeTag.Double;
     }
     result |= rt & TypeTag.String;
+    if (right.type & ~includes) {
+      addMismatch(TypeTag.Double, right.type & ~includes);
+    }
   }
+
   if (lt & TypeTag.Char) {
     if (rt & (TypeTag.Number | TypeTag.Long)) {
       result |= TypeTag.Char;
@@ -92,20 +147,39 @@ function common_types(
     if (rt & (TypeTag.Char | TypeTag.String)) {
       result |= TypeTag.String;
     }
+    if (
+      right.type &
+      ~(TypeTag.Number | TypeTag.Long | TypeTag.Char | TypeTag.String)
+    ) {
+      addMismatch(
+        TypeTag.Char,
+        right.type &
+          ~(TypeTag.Number | TypeTag.Long | TypeTag.Char | TypeTag.String)
+      );
+    }
   }
+
+  if (left.type & ~mask) {
+    addMismatch(left.type & ~mask, right.type);
+  }
+
   return {
     tag: result,
     castArgs: !(result & TypeTag.Char) ? result : false,
+    mismatch,
   } as const;
 }
 
 function compare_types(left: ExactOrUnion, right: ExactOrUnion) {
-  const ret = common_types(
+  const { tag, ...rest } = common_types(
     left,
     right,
     TypeTag.Number | TypeTag.Long | TypeTag.Float | TypeTag.Double
   );
-  return { tag: TypeTag.Boolean, castArgs: ret.castArgs };
+  return {
+    tag: tag === TypeTag.Never ? tag : TypeTag.Boolean,
+    ...rest,
+  };
 }
 
 type OpInfo = {
@@ -114,7 +188,7 @@ type OpInfo = {
     left: ExactOrUnion,
     right: ExactOrUnion,
     allowed: UnionTypeTags
-  ) => { tag: UnionTypeTags; castArgs: UnionTypeTags | false };
+  ) => { tag: UnionTypeTags; castArgs: UnionTypeTags | false } & OpMatch;
   valueFn: (left: ValueTypes, right: ValueTypes) => ExactTypes | undefined;
 };
 
@@ -171,7 +245,9 @@ export function evaluateBinaryTypes(
   op: mctree.BinaryOperator | "instanceof",
   left: ExactOrUnion,
   right: ExactOrUnion
-): ExactOrUnion {
+): {
+  type: ExactOrUnion;
+} & OpMatch {
   if (!operators) {
     operators = {
       "+": {
@@ -412,64 +488,67 @@ export function evaluateBinaryTypes(
   if (op === "instanceof") {
     if (right.type & TypeTag.Class) {
       if (!isExact(right)) {
-        return { type: TypeTag.Boolean };
+        return { type: { type: TypeTag.Boolean } };
       }
       right = { type: TypeTag.Object, value: { klass: right as ClassType } };
     }
     return {
-      type: subtypeOf(left, right)
-        ? TypeTag.True
-        : !couldBeWeak(left, right)
-        ? TypeTag.False
-        : TypeTag.Boolean,
+      type: {
+        type: subtypeOf(left, right)
+          ? TypeTag.True
+          : !couldBeWeak(left, right)
+          ? TypeTag.False
+          : TypeTag.Boolean,
+      },
     };
   }
 
   const info = operators[op];
-  if (!info) return { type: TypeTag.Any };
-  const { tag, castArgs } = info.typeFn(left, right, info.allowed);
+  if (!info) return { type: { type: TypeTag.Any } };
+  const { tag, castArgs, ...rest } = info.typeFn(left, right, info.allowed);
   const result_type = { type: tag };
   if (isExact(result_type) && castArgs !== false) {
     left = castType(left, castArgs);
     right = castType(right, castArgs);
   }
-  if (hasValue(left) && hasValue(right)) {
+  if (hasValue(left) && hasValue(right) && !rest.mismatch?.size) {
     const value = info.valueFn(left, right);
     if (value) {
       if (value.type === TypeTag.Float && value.value != null) {
         value.value = roundToFloat(value.value);
       }
-      return value;
+      return { type: value };
     }
   }
-  return result_type;
+  return { type: result_type, ...rest };
 }
 
 export function evaluateLogicalTypes(
   op: mctree.LogicalOperator,
   left: ExactOrUnion,
   right: ExactOrUnion
-): ExactOrUnion {
+): { type: ExactOrUnion } & OpMatch {
   switch (op) {
     case "&&":
     case "and":
       if (mustBeFalse(left)) {
-        return left;
+        return { type: left };
       } else {
         const result = evaluateBinaryTypes("&", left, right);
-        if ((left.type & TypeTag.Null) !== 0) {
-          unionInto(result, { type: TypeTag.Null });
+        const falsy = left.type & (TypeTag.Null | TypeTag.False);
+        if (falsy !== 0) {
+          unionInto(result.type, { type: falsy });
         }
         return result;
       }
     case "||":
     case "or":
       if (mustBeTrue(left)) {
-        return left;
+        return { type: left };
       } else {
         const result = evaluateBinaryTypes("|", left, right);
         if ((left.type & TruthyTypes) !== 0) {
-          unionInto(result, { type: left.type & TruthyTypes });
+          unionInto(result.type, { type: left.type & TruthyTypes });
         }
         return result;
       }

@@ -7,6 +7,7 @@ import {
   mustBeTrue,
   TypeTag,
 } from "../../src/type-flow/types";
+import { binaryOperatorTests } from "./binaryops.spec";
 import { couldBeTests } from "./coudbe.spec";
 import { intersectionTests } from "./intersection.spec";
 import { subtypeOfTests } from "./subtype.spec";
@@ -88,4 +89,6 @@ export function typeTests() {
     couldBeTests(() => state);
     subtypeOfTests(() => state);
   });
+
+  describe("Binary operator tests", binaryOperatorTests);
 }

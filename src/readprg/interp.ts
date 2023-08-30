@@ -311,7 +311,7 @@ export function interpBytecode(
         { type: { type: TypeTag.Any } }
       );
     }
-    const type = evaluateBinaryTypes(op, args[0].type, args[1].type);
+    const { type } = evaluateBinaryTypes(op, args[0].type, args[1].type);
     if (args[0].equivs) {
       removeEquiv(localState, 1 - localState.stack.length);
     }

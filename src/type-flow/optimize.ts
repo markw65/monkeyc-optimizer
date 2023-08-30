@@ -263,7 +263,7 @@ export function beforeEvaluate(
           );
           popIstate(istate, node.argument);
           istate.stack.push({
-            value: evaluateBinaryTypes("-", leftType, arg.value),
+            value: evaluateBinaryTypes("-", leftType, arg.value).type,
             embeddedEffects: arg.embeddedEffects,
             node: rep,
           });
@@ -616,7 +616,7 @@ function tryIdentity(
             "-",
             { type: TypeTag.Number, value: 0 },
             right.value
-          );
+          ).type;
           node.right = right.node = negated;
           node.operator = node.operator === "+" ? "-" : "+";
         }
@@ -699,7 +699,7 @@ function tryCommuteAndAssociate(
         );
         istate.stack.splice(-2, 2, {
           node: rep,
-          value: evaluateBinaryTypes("-", left.value, right.value),
+          value: evaluateBinaryTypes("-", left.value, right.value).type,
           embeddedEffects: right.embeddedEffects,
         });
         return rep;
@@ -898,7 +898,7 @@ function tryReAssociate(
         : node.operator;
     const topOp = node.left.operator;
     const leftOp = node.operator;
-    const rightType = evaluateBinaryTypes(
+    const { type: rightType } = evaluateBinaryTypes(
       rightOp,
       leftRight.value,
       rightRight.value
