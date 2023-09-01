@@ -49,6 +49,7 @@
   "author": "markw65",
   "license": "MIT",
   "dependencies": {
+    "@markw65/peggy-optimizer": "^1.0.1",
     "@markw65/prettier-plugin-monkeyc": "^1.0.52"
   },
   "devDependencies": {

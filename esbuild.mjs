@@ -5,7 +5,7 @@ import * as fs from "node:fs/promises";
 import peggy from "peggy";
 import * as readline from "node:readline";
 import * as path from "node:path";
-import mergeCharacterClasses from "./esbuild/merge-character-classes.js";
+import peggyOptimizer from "@markw65/peggy-optimizer";
 
 const MONKEYC_OPTIMIZER = JSON.parse(await fs.readFile("./package.json"));
 
@@ -155,23 +155,20 @@ const peggyPlugin = {
 
       try {
         const mapDir = path.resolve(build.initialOptions.outdir, "..");
-        const sourceAndMap = peggy
-          .generate(source, {
-            cache: false,
-            format: "es",
-            output: "source-and-map",
-            grammarSource: args.path,
-            plugins: [
-              {
-                use(config) {
-                  config.passes.transform.push(mergeCharacterClasses);
-                },
-              },
-            ],
-          })
-          .toStringWithSourceMap({});
-        let contents = sourceAndMap.code;
+        const options = /** @type {const} */ {
+          cache: false,
+          format: "es",
+          grammarSource: args.path,
+          plugins: [peggyOptimizer],
+        };
         if (build.initialOptions.sourcemap) {
+          const sourceAndMap = peggy
+            .generate(source, {
+              ...options,
+              output: "source-and-map",
+            })
+            .toStringWithSourceMap({});
+          let contents = sourceAndMap.code;
           const sourceMap = sourceAndMap.map.toJSON();
           sourceMap.sources = sourceMap.sources.map((src) => {
             return src === null ? null : path.relative(mapDir, src);
@@ -180,8 +177,15 @@ const peggyPlugin = {
             JSON.stringify(sourceMap)
           ).toString("base64")}`;
           contents += `\n//# sourceMappingURL=${map}`;
+          return { contents, loader: "js" };
+        } else {
+          return {
+            contents: peggy.generate(source, {
+              ...options,
+              output: "source",
+            }),
+          };
         }
-        return { contents, loader: "js" };
       } catch (e) {
         return { errors: [convertMessage(e)] };
       }
