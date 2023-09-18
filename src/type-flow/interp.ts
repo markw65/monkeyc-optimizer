@@ -19,7 +19,11 @@ import {
 } from "../optimizer-types";
 import { every } from "../util";
 import { couldBe } from "./could-be";
-import { evaluateBinaryTypes, evaluateLogicalTypes } from "./interp-binary";
+import {
+  OpMatch,
+  evaluateBinaryTypes,
+  evaluateLogicalTypes,
+} from "./interp-binary";
 import { checkCallArgs, evaluateCall } from "./interp-call";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
@@ -107,6 +111,33 @@ export function evaluateExpr(
   typeMap?: TypeMap
 ) {
   return evaluate({ state, stack: [], typeMap }, expr);
+}
+
+function diagnoseBinaryOrLogical(
+  istate: InterpState,
+  node: mctree.Expression & { operator: string },
+  result: { type: ExactOrUnion } & OpMatch
+) {
+  const { type, mismatch } = result;
+  if (type.type && !mismatch) return type;
+  if (!istate.typeChecker) return type;
+  if (istate.typeChecker === subtypeOf) {
+    if (!mismatch) return type;
+    diagnostic(
+      istate.state,
+      node,
+      `Unexpected types for operator '${node.operator}': ${Array.from(mismatch)
+        .map(
+          ([rhs, lhs]) =>
+            `[${display({
+              type: lhs,
+            })} vs ${display({ type: rhs })}]`
+        )
+        .join(", ")}`,
+      istate.checkTypes
+    );
+  }
+  return type;
 }
 
 function checkKnownDirection(
@@ -268,35 +299,45 @@ export function evaluate(istate: InterpState, node: mctree.Node) {
 export function evaluateUnaryTypes(
   op: mctree.UnaryOperator,
   argument: ExactOrUnion
-): ExactOrUnion {
+): { type: ExactOrUnion } & OpMatch {
   argument = deEnumerate(argument);
   if (argument.type & TypeTag.Object && hasNoData(argument, TypeTag.Object)) {
     argument.type |= ObjectLikeTagsConst;
   }
   switch (op) {
     case "+":
-      return argument;
+      // `+ x` ignores the type of x, and returns x
+      return { type: argument };
     case "-":
       return evaluateBinaryTypes(
         "-",
         { type: TypeTag.Number, value: 0 },
         argument
-      ).type;
+      );
     case "!":
-    case "~":
+    case "~": {
       if (hasValue(argument)) {
         const left =
           argument.type & TypeTag.Boolean
             ? { type: TypeTag.True }
             : ({ type: TypeTag.Number, value: -1 } as const);
-        return evaluateBinaryTypes("^", left, argument).type;
+        return evaluateBinaryTypes("^", left, argument);
       }
-      return {
-        type:
-          (argument.type & TypeTag.True && TypeTag.False) |
-          (argument.type & TypeTag.False && TypeTag.True) |
-          (argument.type & (TypeTag.Number | TypeTag.Long)),
-      };
+      const ret = {
+        type: {
+          type:
+            (argument.type & TypeTag.True && TypeTag.False) |
+            (argument.type & TypeTag.False && TypeTag.True) |
+            (argument.type & (TypeTag.Number | TypeTag.Long)),
+        },
+      } as { type: ExactOrUnion } & OpMatch;
+      const t =
+        argument.type & ~(TypeTag.Boolean | TypeTag.Number | TypeTag.Long);
+      if (t) {
+        ret.mismatch = new Map([[t, t]]);
+      }
+      return ret;
+    }
   }
   throw new Error(`Unexpected unary operator ${op}`);
 }
@@ -590,8 +631,11 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           );
         }
         push({
-          value: evaluateBinaryTypes(node.operator, left.value, right.value)
-            .type,
+          value: diagnoseBinaryOrLogical(
+            istate,
+            node,
+            evaluateBinaryTypes(node.operator, left.value, right.value)
+          ),
           embeddedEffects: left.embeddedEffects || right.embeddedEffects,
           node,
         });
@@ -607,8 +651,36 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         });
       } else if (node.operator !== " as") {
         const arg = popIstate(istate, node.argument);
+        const { type, mismatch } = evaluateUnaryTypes(
+          node.operator,
+          deEnumerate(arg.value)
+        );
+        if (istate.typeChecker) {
+          if (istate.typeChecker === subtypeOf) {
+            if (mismatch) {
+              diagnostic(
+                istate.state,
+                node,
+                `Unexpected types for operator: ${display({
+                  type: Array.from(mismatch.keys()).reduce(
+                    (prev, type) => prev | type,
+                    TypeTag.Never
+                  ),
+                })}`,
+                istate.checkTypes
+              );
+            }
+          } else if (type.type === TypeTag.Never) {
+            diagnostic(
+              istate.state,
+              node,
+              `Unexpected types for operator: ${display(arg.value)}`,
+              istate.checkTypes
+            );
+          }
+        }
         push({
-          value: evaluateUnaryTypes(node.operator, deEnumerate(arg.value)),
+          value: type,
           embeddedEffects: arg.embeddedEffects,
           node,
         });
@@ -887,11 +959,15 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         });
       } else {
         push({
-          value: evaluateBinaryTypes(
-            node.operator.slice(0, -1) as mctree.BinaryOperator,
-            left.value,
-            right.value
-          ).type,
+          value: diagnoseBinaryOrLogical(
+            istate,
+            node,
+            evaluateBinaryTypes(
+              node.operator.slice(0, -1) as mctree.BinaryOperator,
+              left.value,
+              right.value
+            )
+          ),
           embeddedEffects: true,
           node,
         });

@@ -458,8 +458,8 @@ export function interpBytecode(
     case Opcodes.invv: {
       removeEquiv(localState, -localState.stack.length);
       const arg = localState.stack.pop()?.type ?? { type: TypeTag.Any };
-      const result = evaluateUnaryTypes("~", arg);
-      localState.stack.push({ type: result });
+      const { type } = evaluateUnaryTypes("~", arg);
+      localState.stack.push({ type });
       break;
     }
     default: {

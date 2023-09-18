@@ -235,7 +235,7 @@ export function binaryOperatorTests() {
     });
     it("!Object", () => {
       expect(
-        evaluateUnaryTypes("!", { type: TypeTag.Object | TypeTag.Null })
+        evaluateUnaryTypes("!", { type: TypeTag.Object | TypeTag.Null }).type
       ).to.deep.equal({
         type: TypeTag.Boolean | TypeTag.Number | TypeTag.Long,
       });

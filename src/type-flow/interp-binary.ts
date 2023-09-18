@@ -22,7 +22,7 @@ import {
 } from "./types";
 import { unionInto } from "./union-type";
 
-type OpMatch = {
+export type OpMatch = {
   // maps sets of right types to the corresponding sets of non-matching
   // left types.
   // So eg (Null | Float | Number) + (String | Boolean | Char) would have
