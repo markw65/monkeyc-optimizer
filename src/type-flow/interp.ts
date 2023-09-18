@@ -890,6 +890,10 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             } else {
               result = dvalue;
             }
+            if (!(result.type & TypeTag.Null)) {
+              result = cloneType(result);
+              result.type |= TypeTag.Null;
+            }
           }
           if (byteArray) {
             const t = { type: TypeTag.Number };

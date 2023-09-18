@@ -672,6 +672,7 @@ function updateAffected(
             const dtype = getUnionComponent(type, TypeTag.Dictionary);
             if (dtype) {
               unionInto(newType, dtype.value);
+              newType.type |= TypeTag.Null;
             }
           }
           if (newType.type === TypeTag.Never) break;
@@ -807,6 +808,10 @@ function propagateTypes(
               unionInto((next = cloneType(next)), dvalue);
             } else {
               next = dvalue;
+            }
+            if (!(next.type & TypeTag.Null)) {
+              next = cloneType(next);
+              next.type |= TypeTag.Null;
             }
           }
           if (i === l && newValue) {
