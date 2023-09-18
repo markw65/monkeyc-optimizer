@@ -13,7 +13,6 @@ import {
 import { cloneDeep, withLoc, withLocDeep } from "./ast";
 import { getPostOrder } from "./control-flow";
 import {
-  buildDataFlowGraph,
   DataflowQueue,
   DefEvent,
   Event,
@@ -22,6 +21,7 @@ import {
   FlowKind,
   ModEvent,
   RefEvent,
+  buildDataFlowGraph,
 } from "./data-flow";
 import { findCalleesByNode, functionMayModify } from "./function-info";
 import { inlineRequested } from "./inliner";
@@ -39,9 +39,9 @@ import {
   findDeadStores,
 } from "./type-flow/dead-store";
 import {
+  InterpState,
   evaluate,
   evaluateExpr,
-  InterpState,
   isByteArrayData,
 } from "./type-flow/interp";
 import { sysCallInfo } from "./type-flow/interp-call";
@@ -51,6 +51,8 @@ import {
 } from "./type-flow/intersection-type";
 import { subtypeOf } from "./type-flow/sub-type";
 import {
+  TypeFlowBlock,
+  TypeStateKey,
   declIsLocal,
   declIsNonLocal,
   describeEvent,
@@ -64,29 +66,27 @@ import {
   refineObjectTypeByDecls,
   sourceLocation,
   tsKey,
-  TypeFlowBlock,
-  TypeStateKey,
 } from "./type-flow/type-flow-util";
 import {
+  ExactOrUnion,
+  ObjectLikeTagsConst,
+  SingletonTypeTagsConst,
+  TypeTag,
   cloneType,
   display,
-  ExactOrUnion,
   getObjectValue,
   getStateNodeDeclsFromType,
   getUnionComponent,
   hasValue,
   isExact,
-  ObjectLikeTagsConst,
   setUnionComponent,
-  SingletonTypeTagsConst,
   typeFromLiteral,
-  typeFromTypespec,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
-  TypeTag,
+  typeFromTypespec,
 } from "./type-flow/types";
 import { clearValuesUnder, unionInto, widenType } from "./type-flow/union-type";
-import { every, map, reduce, some } from "./util";
+import { every, log, map, reduce, some } from "./util";
 
 const logging = true;
 
@@ -596,13 +596,13 @@ function typeStateEntry(value: TypeStateValue, key: TypeStateKey) {
 }
 
 function printBlockState(block: TypeFlowBlock, state: TypeState, indent = "") {
-  console.log(indent + "State:");
+  log(indent + "State:");
   if (!state) {
-    console.log(indent + "Not visited!");
+    log(indent + "Not visited!");
     return;
   }
   state.map.forEach((value, key) => {
-    console.log(
+    log(
       `${indent} - ${typeStateEntry(value, key)}${
         value.equivSet
           ? " " + `[(${Array.from(value.equivSet).map(tsKey).join(", ")})]`
@@ -1054,7 +1054,7 @@ function propagateTypes(
       }
       if (mergeTypeState(blockStates, succ.order, curState, nodeCopyProp)) {
         if (logThisRun) {
-          console.log(`re-merge: ${top.order} -> ${succ.order}`);
+          log(`re-merge: ${top.order} -> ${succ.order}`);
         }
         queue.enqueue(succ);
       }
@@ -1345,7 +1345,7 @@ function propagateTypes(
       setTruthy && typeMap.set(event.node, { type: TypeTag.False });
     } else {
       if (logThisRun) {
-        console.log(`  Flow (true): merge to ${trueSucc.order || -1}`);
+        log(`  Flow (true): merge to ${trueSucc.order || -1}`);
         printBlockState(top, sTrue || curState, "    >true ");
       }
       if (
@@ -1357,7 +1357,7 @@ function propagateTypes(
         )
       ) {
         if (logThisRun) {
-          console.log(`re-merge: ${top.order} -> ${trueSucc.order}`);
+          log(`re-merge: ${top.order} -> ${trueSucc.order}`);
         }
         queue.enqueue(trueSucc);
       }
@@ -1366,7 +1366,7 @@ function propagateTypes(
       setTruthy && typeMap.set(event.node, { type: TypeTag.True });
     } else {
       if (logThisRun) {
-        console.log(`  Flow (false): merge to: ${falseSucc.order || -1}`);
+        log(`  Flow (false): merge to: ${falseSucc.order || -1}`);
         printBlockState(top, sFalse || curState, "    >false ");
       }
       if (
@@ -1378,7 +1378,7 @@ function propagateTypes(
         )
       ) {
         if (logThisRun) {
-          console.log(`re-merge: ${top.order} -> ${falseSucc.order}`);
+          log(`re-merge: ${top.order} -> ${falseSucc.order}`);
         }
         queue.enqueue(falseSucc);
       }
@@ -1468,15 +1468,13 @@ function propagateTypes(
           }
         }
         if (logThisRun) {
-          console.log(
-            `  ${describeEvent(event)} == ${display(curEntry.curType)}`
-          );
+          log(`  ${describeEvent(event)} == ${display(curEntry.curType)}`);
         }
         break;
       }
       case "mod": {
         if (logThisRun) {
-          console.log(`  ${describeEvent(event)}`);
+          log(`  ${describeEvent(event)}`);
         }
         modInterference(curState, event, true, (callees, calleeObj) => {
           clearRelatedCopyPropEvents(curState, null, nodeCopyProp);
@@ -1803,7 +1801,7 @@ function propagateTypes(
           }
         }
         if (logThisRun) {
-          console.log(`  ${describeEvent(event)} := ${display(type)}`);
+          log(`  ${describeEvent(event)} := ${display(type)}`);
         }
         break;
       }
@@ -1819,7 +1817,7 @@ function propagateTypes(
           );
         }
         if (logThisRun) {
-          console.log(
+          log(
             `  ${describeEvent(event)} : ${
               !Array.isArray(event.left) && event.left.type === "MemberDecl"
                 ? `${display(
@@ -1878,7 +1876,7 @@ function propagateTypes(
 
     if (!successorsHandled) {
       if (logThisRun) {
-        console.log(
+        log(
           `  merge to: ${map<TypeFlowBlock, number>(
             top.succs,
             (succ) => succ.order || -1
@@ -1918,23 +1916,23 @@ function propagateTypes(
       printBlockTrailer(block);
     });
 
-    console.log("====== TypeMap =====");
+    log("====== TypeMap =====");
     typeMap.forEach((value, key) => {
-      console.log(
+      log(
         `${formatAst(key)} = ${display(value)} ${
           key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
         }`
       );
     });
-    console.log("====== EquivMap =====");
+    log("====== EquivMap =====");
     nodeEquivs.forEach((value, key) => {
-      console.log(
+      log(
         `${formatAst(key)} = [${value.equiv.map((equiv) =>
           tsKey(equiv as TypeStateKey)
         )}] ${key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""}`
       );
     });
-    console.log("====== Copy Prop =====");
+    log("====== Copy Prop =====");
     nodeCopyProp.forEach((value, key) => {
       assert(value !== false);
       if (
@@ -1949,7 +1947,7 @@ function propagateTypes(
       );
       const node =
         value.type === "VariableDeclarator" ? value.init! : value.right;
-      console.log(
+      log(
         `${formatAst(key)} = [${formatAstLongLines(node)}] ${
           key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
         }`
@@ -1958,10 +1956,10 @@ function propagateTypes(
   }
 
   if (logThisRun) {
-    console.log(formatAstLongLines(func.node));
+    log(formatAstLongLines(func.node));
     if (copyPropStores) {
       copyPropStores.forEach(({ ref, ant }, node) => {
-        console.log(
+        log(
           `copy-prop-store: ${formatAstLongLines(node)}${ant ? "!" : ""} => ${
             nodeCopyProp.get(node) !== ref ? "Failed" : "Success"
           }`
@@ -1976,9 +1974,9 @@ function propagateTypes(
     }
     if (logThisRun) {
       if (selfAssignments.size) {
-        console.log("====== Self Assignments =====");
+        log("====== Self Assignments =====");
         selfAssignments.forEach((self) =>
-          console.log(`${formatAst(self)} (${sourceLocation(self.loc)})`)
+          log(`${formatAst(self)} (${sourceLocation(self.loc)})`)
         );
       }
     }
@@ -2057,9 +2055,7 @@ function propagateTypes(
         if (copyNode) {
           if (node.type === "AssignmentExpression") {
             if (logThisRun) {
-              console.log(
-                `Killing copy-prop assignment ${formatAstLongLines(node)}`
-              );
+              log(`Killing copy-prop assignment ${formatAstLongLines(node)}`);
             }
             return withLoc(
               { type: "Literal", value: null, raw: "null" },
@@ -2070,7 +2066,7 @@ function propagateTypes(
           if (node.type === "VariableDeclarator") {
             assert(node.init);
             if (logThisRun) {
-              console.log(
+              log(
                 `Killing copy-prop variable initialization ${formatAstLongLines(
                   node
                 )}`
@@ -2094,7 +2090,7 @@ function propagateTypes(
                     right: copyNode.right,
                   };
             if (logThisRun) {
-              console.log(
+              log(
                 `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
                   replacement
                 )}`
@@ -2104,7 +2100,7 @@ function propagateTypes(
           } else if (copyNode.type === "VariableDeclarator") {
             assert(copyNode.init);
             if (logThisRun) {
-              console.log(
+              log(
                 `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
                   copyNode.init
                 )}`
@@ -2116,7 +2112,7 @@ function propagateTypes(
         }
         if (selfAssignments.has(node)) {
           if (logThisRun) {
-            console.log(
+            log(
               `Deleting self assignment: ${formatAst(node)} (${sourceLocation(
                 node.loc
               )})`
@@ -2191,7 +2187,7 @@ function propagateTypes(
         );
         if (!name) return null;
         if (logThisRun) {
-          console.log(
+          log(
             `Replacing ${formatAst(node)} with ${name} at ${sourceLocation(
               node.loc
             )}`

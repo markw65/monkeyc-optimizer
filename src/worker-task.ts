@@ -8,6 +8,7 @@ import {
 } from "./optimizer";
 import { optimizePrgAndDebug } from "./readprg";
 import { xmlUtil } from "./sdk-util";
+import { logPromise } from "./logger";
 
 interface BaseNode {
   type: string;
@@ -129,5 +130,7 @@ export async function performTask<T extends WorkerTask>(
   if (!handler) {
     throw new Error(`Invalid task type ${type}`);
   }
-  return handler(task.data);
+  return Promise.resolve(handler(task.data)).then((result) =>
+    logPromise.then(() => result)
+  );
 }

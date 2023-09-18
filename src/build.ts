@@ -1,7 +1,7 @@
 import * as path from "path";
 import { BuildConfig } from "./optimizer-types";
 import { getSdkPath } from "./sdk-util";
-import { spawnByLine } from "./util";
+import { log, spawnByLine } from "./util";
 
 export async function build_project(
   product: string | null,
@@ -90,7 +90,7 @@ export async function build_project(
 
   if (!returnCommand) {
     const handlers = [
-      lineCallback || ((line: string) => console.log(line)),
+      lineCallback || ((line: string) => log(line)),
       (line: string) => console.error(line),
     ];
     await spawnByLine(exe, args, handlers, {

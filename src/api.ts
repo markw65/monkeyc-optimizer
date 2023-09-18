@@ -1,6 +1,6 @@
 import {
-  default as MonkeyC,
   LiteralIntegerRe,
+  default as MonkeyC,
   mctree,
   serializeMonkeyC,
 } from "@markw65/prettier-plugin-monkeyc";
@@ -39,10 +39,10 @@ import { getSdkPath, xmlUtil } from "./sdk-util";
 import { TypeMap } from "./type-flow/interp";
 import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
-import { pushUnique, sameArrays } from "./util";
+import { log, pushUnique, sameArrays } from "./util";
 
-export { visitorNode, visitReferences } from "./visitor";
-export { traverseAst, hasProperty, visit_resources };
+export { visitReferences, visitorNode } from "./visitor";
+export { hasProperty, traverseAst, visit_resources };
 
 /*
  * This is an unfortunate hack. I want to be able to extract things
@@ -154,12 +154,12 @@ export async function getApiMapping(
       throw `Negative constant ${fixup} was not a Literal`;
     }
     if (typeof init.value !== "number") {
-      console.log(`Negative fixup ${fixup} was not a number!`);
+      log(`Negative fixup ${fixup} was not a number!`);
     } else if (init.value > 0) {
       init.value = -init.value;
       init.raw = "-" + init.raw;
     } else {
-      // console.log(`Negative fixup ${fixup} was already negative!`);
+      // log(`Negative fixup ${fixup} was already negative!`);
     }
   });
   return result;

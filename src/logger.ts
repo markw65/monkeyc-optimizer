@@ -37,17 +37,36 @@ export function setBanner(b: (() => string) | null) {
   banner = b;
 }
 
-export function log(message: unknown) {
+export let logPromise: Promise<unknown> = Promise.resolve();
+let livePromises = 0;
+
+export function log(...messages: unknown[]) {
   if (banner) {
     const b = banner;
     banner = null;
     theLogger(b());
   }
-  if (theLogger === console.log) {
-    theLogger(message);
-  } else {
-    theLogger(`${message}`);
-  }
+  messages.forEach((message) => {
+    if (livePromises || (message as { then?: unknown }).then) {
+      livePromises++;
+      logPromise = logPromise
+        .then(() => Promise.resolve(message))
+        .then((m) => {
+          livePromises--;
+          if (theLogger === console.log) {
+            theLogger(m);
+          } else {
+            theLogger(`${m}`);
+          }
+        });
+    } else {
+      if (theLogger === console.log) {
+        theLogger(message);
+      } else {
+        theLogger(`${message}`);
+      }
+    }
+  });
 }
 
 export function setLogger(log: (message: string) => void) {

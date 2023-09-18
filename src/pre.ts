@@ -3,20 +3,20 @@ import { formatAst } from "./api";
 import { isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
 import { getPostOrder, postOrderTraverse } from "./control-flow";
 import {
-  buildDataFlowGraph,
-  declFullName,
-  declName,
+  DataflowQueue,
   Event,
   EventDecl,
   ModEvent,
-  RefNode,
   DataFlowBlock as PREBlock,
-  DataflowQueue,
+  RefNode,
+  buildDataFlowGraph,
+  declFullName,
+  declName,
 } from "./data-flow";
 import { cloneSet, functionMayModify, mergeSet } from "./function-info";
 import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
 import { minimizeLocals } from "./type-flow/minimize-locals";
-import { every, some } from "./util";
+import { every, log, some } from "./util";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination
@@ -50,14 +50,14 @@ function logAntState(s: AnticipatedState, decl: EventDecl) {
     if (event.type === "def" || event.type === "mod") defs++;
     return defs;
   }, 0);
-  console.log(
+  log(
     `  - ${declFullName(decl)}: ${candidateCost(s)} bytes, ${
       s.ant.size - defs
     } refs, ${defs} defs, ${s.live ? "" : "!"}live, ${
       s.isIsolated ? "" : "!"
     }isolated`
   );
-  console.log(
+  log(
     `    - members: ${Array.from(s.members)
       .map(([block, live]) => block.order! + (live ? "t" : "f"))
       .join(", ")}`
@@ -85,7 +85,7 @@ export function sizeBasedPRE(
   const candidates = computeAttributes(state, head);
   if (candidates) {
     if (logging) {
-      console.log(`Found ${candidates.size} candidates in ${func.fullName}`);
+      log(`Found ${candidates.size} candidates in ${func.fullName}`);
       logAntDecls(candidates);
     }
     const nodeMap = new Map<mctree.Node, Event[]>();
@@ -418,7 +418,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
 
   if (logging) {
     order.forEach((block) => {
-      console.log(
+      log(
         block.order,
         `(${block.node ? block.node.loc?.start.line : "??"})`,
         `Preds: ${(block.preds || [])
@@ -429,7 +429,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
         block.events.forEach(
           (event) =>
             event.type !== "exn" &&
-            console.log(
+            log(
               `    ${event.type}: ${
                 event.decl
                   ? declFullName(event.decl)
@@ -440,7 +440,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
             )
         );
       }
-      console.log(
+      log(
         `Succs: ${(block.succs || [])
           .map((block) => (block as PREBlock).order)
           .join(", ")} ExSucc: ${
@@ -595,7 +595,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
     }
     blockStates[top.order!] = curState;
     if (logging) {
-      console.log(`Updated block ${top.order!}`);
+      log(`Updated block ${top.order!}`);
       logAntDecls(curState);
     }
     if (top.preds) {

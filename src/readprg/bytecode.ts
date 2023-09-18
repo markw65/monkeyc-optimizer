@@ -1,15 +1,15 @@
 import assert from "node:assert";
 import * as crypto from "node:crypto";
-import { BuildConfig } from "../optimizer-types";
 import { hasProperty } from "../ast";
+import { BuildConfig } from "../optimizer-types";
 import { xmlUtil } from "../sdk-util";
 import { bumpLogging, log, logger, wouldLog } from "../util";
 import { fixupData } from "./data";
-import { emitFunc, UpdateInfo } from "./emit";
+import { UpdateInfo, emitFunc } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
-import { fixupHeader, Header } from "./header";
-import { fixupLineNum, LineNumber } from "./linenum";
-import { Bytecode, isCondBranch, LocalRange, Opcodes } from "./opcodes";
+import { Header, fixupHeader } from "./header";
+import { LineNumber, fixupLineNum } from "./linenum";
+import { Bytecode, LocalRange, Opcodes, isCondBranch } from "./opcodes";
 import { optimizeFunc } from "./optimize";
 import { SymbolTable } from "./symbols";
 

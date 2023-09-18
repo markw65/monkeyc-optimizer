@@ -16,8 +16,9 @@ import {
   VariableStateNode,
 } from "../optimizer-types";
 import { buildConflictGraph } from "../type-flow";
+import { log } from "../util";
 import { renameIdentifier } from "../variable-renamer";
-import { isTypeStateKey, tsKey, TypeStateKey } from "./type-flow-util";
+import { TypeStateKey, isTypeStateKey, tsKey } from "./type-flow-util";
 
 export function minimizeLocals(
   state: ProgramStateAnalysis,
@@ -74,11 +75,11 @@ export function minimizeLocals(
   }
   if (!didMerge) return;
   if (logThisRun) {
-    console.log(`>>> Merging locals in ${func.fullName}`);
+    log(`>>> Merging locals in ${func.fullName}`);
     merge.forEach(
       (merged) =>
         merged.length > 1 &&
-        console.log(` - merging ${merged.map((k) => tsKey(k)).join(" | ")}`)
+        log(` - merging ${merged.map((k) => tsKey(k)).join(" | ")}`)
     );
   }
 

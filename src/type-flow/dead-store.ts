@@ -1,22 +1,23 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import assert from "node:assert";
-import { NodeEquivMap } from "../type-flow";
 import { formatAst, traverseAst } from "../api";
 import { withLoc } from "../ast";
 import { getPostOrder } from "../control-flow";
 import { DataflowQueue, DefEvent, RefNode } from "../data-flow";
 import { unused } from "../inliner";
 import { FunctionStateNode, ProgramStateAnalysis } from "../optimizer-types";
+import { NodeEquivMap } from "../type-flow";
+import { log } from "../util";
 import { variableCleanup } from "./minimize-locals";
 import {
+  TypeFlowBlock,
+  TypeStateKey,
   declIsLocal,
   describeEvent,
   isTypeStateKey,
   printBlockHeader,
   sourceLocation,
   tsKey,
-  TypeFlowBlock,
-  TypeStateKey,
 } from "./type-flow-util";
 
 export type CopyPropStores = Map<
@@ -161,7 +162,7 @@ export function findDeadStores(
       }
       addAnt(curState.partiallyAnticipated, key, node);
       if (logThisRun) {
-        console.log(
+        log(
           `  antrefs: ${curState.partiallyAnticipated.get(key) !== false} ${
             curState.anticipated.get(key) !== false
           }`
@@ -186,9 +187,7 @@ export function findDeadStores(
     const curState = cloneState(blockStates[top.order]);
     if (logThisRun) {
       printBlockHeader(top);
-      curState.dead.forEach((decl) =>
-        console.log(` - anticipated: ${tsKey(decl)}`)
-      );
+      curState.dead.forEach((decl) => log(` - anticipated: ${tsKey(decl)}`));
     }
     if (top.events) {
       for (let i = top.events.length; i--; ) {
@@ -205,10 +204,10 @@ export function findDeadStores(
           case "ref":
             if (isTypeStateKey(event.decl)) {
               if (logThisRun) {
-                console.log(
+                log(
                   `${describeEvent(event)} (${sourceLocation(event.node.loc)})`
                 );
-                console.log(`  kill => ${tsKey(event.decl)}`);
+                log(`  kill => ${tsKey(event.decl)}`);
               }
               copyPropRef(curState, event.decl, event.node);
               curState.dead.delete(event.decl);
@@ -220,7 +219,7 @@ export function findDeadStores(
               (event.node.type !== "VariableDeclarator" || event.node.init)
             ) {
               if (logThisRun) {
-                console.log(
+                log(
                   `${describeEvent(event)} (${sourceLocation(event.node.loc)})`
                 );
               }
@@ -239,7 +238,7 @@ export function findDeadStores(
                   const pant = curState.partiallyAnticipated.get(event.decl);
                   if (pant) {
                     if (logThisRun) {
-                      console.log(
+                      log(
                         `  is copy-prop-candidate ${
                           curState.anticipated?.get(event.decl) === pant
                         }`
@@ -273,7 +272,7 @@ export function findDeadStores(
               if (assignNode) {
                 curState.dead.add(event.decl);
                 if (logThisRun) {
-                  console.log(`  anticipated => ${tsKey(event.decl)}`);
+                  log(`  anticipated => ${tsKey(event.decl)}`);
                 }
               } else if (event.node.type === "UpdateExpression") {
                 copyPropRef(curState, event.decl, event.node.argument);
@@ -284,7 +283,7 @@ export function findDeadStores(
             if (isTypeStateKey(event.decl)) {
               curState.dead.add(event.decl);
               if (logThisRun) {
-                console.log(`  anticipated => ${tsKey(event.decl)}`);
+                log(`  anticipated => ${tsKey(event.decl)}`);
               }
             }
             break;
@@ -361,13 +360,13 @@ export function eliminateDeadStores(
   );
   if (!deadStores.size) return { changes: false, copyPropStores };
   if (logThisRun) {
-    console.log("====== Dead Stores =====");
+    log("====== Dead Stores =====");
     deadStores.forEach(
       (dead) =>
         (dead.type === "AssignmentExpression" ||
           dead.type === "UpdateExpression" ||
           dead.type === "VariableDeclarator") &&
-        console.log(`${formatAst(dead)} (${sourceLocation(dead.loc)})`)
+        log(`${formatAst(dead)} (${sourceLocation(dead.loc)})`)
     );
   }
   let changes = false;

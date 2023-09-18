@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { globa, promiseAll, spawnByLine } from "./util";
 import { BuildConfig } from "./optimizer-types";
+import { globa, log, promiseAll, spawnByLine } from "./util";
 
 export type RemoteProject =
   | string
@@ -403,7 +403,7 @@ export async function fetchGitProjects(
         ).then(() => output);
       })
       .then((output) => {
-        console.log(output);
+        log(output);
         return globa(`${projDir}/**/*.jungle`);
       })
       .then((jungles) => {

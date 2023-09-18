@@ -3,7 +3,7 @@ import * as path from "path";
 
 import { execFile } from "child_process";
 import { getSdkPath, isWin } from "./sdk-util";
-import { LineHandler, spawnByLine } from "./util";
+import { LineHandler, log, spawnByLine } from "./util";
 
 export async function launchSimulator(force = true): Promise<void> {
   try {
@@ -29,7 +29,7 @@ export async function launchSimulator(force = true): Promise<void> {
       await new Promise((r) => setTimeout(r, 200));
     }
   } catch (e) {
-    console.log(e);
+    log(e);
   }
 }
 
@@ -71,7 +71,7 @@ export function simulateProgram(
     spawnByLine(
       path.resolve(sdk, "bin", isWin ? "monkeydo.bat" : "monkeydo"),
       args,
-      logger || ((line: string) => console.log(line))
+      logger || ((line: string) => log(line))
     ).then(() => {
       return;
     })

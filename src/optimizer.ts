@@ -393,8 +393,6 @@ export async function generateOptimizedProject(options: BuildConfig) {
     }
   });
 
-  // console.log(JSON.stringify(targets));
-
   const jungle_dir = path.resolve(workspace, config.outputPath!);
   await fs.mkdir(jungle_dir, { recursive: true });
   const relative_path = (s: string) => path.relative(jungle_dir, s);

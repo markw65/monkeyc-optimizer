@@ -9,25 +9,25 @@ import {
   variableDeclarationName,
 } from "../api";
 import {
-  DataFlowBlock as TypeFlowBlock,
-  declFullName,
   Event,
   EventDecl,
+  DataFlowBlock as TypeFlowBlock,
+  declFullName,
 } from "../data-flow";
 import {
   ProgramStateAnalysis,
   StateNode,
   VariableStateNode,
 } from "../optimizer-types";
-import { forEach, map, some } from "../util";
+import { forEach, log, map, some } from "../util";
 import { InterpState } from "./interp";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
   ExactOrUnion,
+  TypeTag,
   getStateNodeDeclsFromType,
   typeFromTypeStateNodes,
-  TypeTag,
 } from "./types";
 import { unionInto } from "./union-type";
 
@@ -100,7 +100,7 @@ export function sourceLocation(loc: mctree.SourceLocation | null | undefined) {
 }
 
 export function printBlockHeader(block: TypeFlowBlock) {
-  console.log(
+  log(
     block.order,
     `(${block.node?.loc?.source || "??"}:${
       block.node?.loc?.start.line || "??"
@@ -129,14 +129,14 @@ export function printBlockEvents(
   block: TypeFlowBlock,
   extra?: (event: Event) => string
 ) {
-  console.log("Events:");
+  log("Events:");
   forEach(block.events, (event) =>
-    console.log(`    ${describeEvent(event)} ${extra ? extra(event) : ""}`)
+    log(`    ${describeEvent(event)} ${extra ? extra(event) : ""}`)
   );
 }
 
 export function printBlockTrailer(block: TypeFlowBlock) {
-  console.log(
+  log(
     `Succs: ${(block.succs || [])
       .map((block) => (block as TypeFlowBlock).order)
       .join(", ")} ExSucc: ${

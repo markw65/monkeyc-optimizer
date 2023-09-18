@@ -11,9 +11,16 @@ import {
   simulateProgram,
 } from "./optimizer";
 import { BuildConfig, DiagnosticType, ProgramState } from "./optimizer-types";
-import { fetchGitProjects, githubProjects, RemoteProject } from "./projects";
-import { getSdkPath, optimizeProgram, readPrg, SectionKinds } from "./sdk-util";
-import { forEach, globa, promiseAll, spawnByLine } from "./util";
+import { RemoteProject, fetchGitProjects, githubProjects } from "./projects";
+import { SectionKinds, getSdkPath, optimizeProgram, readPrg } from "./sdk-util";
+import {
+  forEach,
+  globa,
+  log,
+  logPromise,
+  promiseAll,
+  spawnByLine,
+} from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
 type JungleInfo = {
@@ -351,9 +358,7 @@ export async function driver() {
     promise = promise
       .then(() => fetchGitProjects(rp, !!testBuild, skipRemote))
       .then((j) => {
-        console.log(
-          `${new Date().toLocaleString()} - Finished updating projects`
-        );
+        log(`${new Date().toLocaleString()} - Finished updating projects`);
         jungles.push(...j);
       });
   }
@@ -466,12 +471,12 @@ export async function driver() {
             }
           })
           .then(() => {
-            console.log(`${name}: Total time: ${Date.now() - start}`);
+            log(`${name}: Total time: ${Date.now() - start}`);
             histogram.forEach((count, delay) =>
-              console.log(`${name}: Blocked for ${delay}ms ${count} times`)
+              log(`${name}: Blocked for ${delay}ms ${count} times`)
             );
             blockers.forEach((delay, start) =>
-              console.log(`${name}: At time ${start}ms, block for ${delay}ms`)
+              log(`${name}: At time ${start}ms, block for ${delay}ms`)
             );
           }),
         (() => {
@@ -484,7 +489,7 @@ export async function driver() {
           })
           .finally(() => {
             prev = null;
-            console.log(`${name}: Profiling done in ${Date.now() - start}ms`);
+            log(`${name}: Profiling done in ${Date.now() - start}ms`);
           }),
       ]).then((results) => results[1]);
     };
@@ -516,21 +521,25 @@ export async function driver() {
           analyzeOnly
             ? doAnalyzeOnly()
             : genOnly
-            ? runTaskInPool({
-                type: "generateOptimizedProject",
-                data: {
-                  options,
-                },
-              }).then(({ diagnostics }) =>
+            ? profileWithBlocking("generate", () =>
+                runTaskInPool({
+                  type: "generateOptimizedProject",
+                  data: {
+                    options,
+                  },
+                })
+              ).then(({ diagnostics }) =>
                 reportDiagnostics(diagnostics, logger, extraArgs)
               )
-            : runTaskInPool({
-                type: "buildOptimizedProject",
-                data: {
-                  product: products ? products[0] : null,
-                  options,
-                },
-              })
+            : profileWithBlocking("build", () =>
+                runTaskInPool({
+                  type: "buildOptimizedProject",
+                  data: {
+                    product: products ? products[0] : null,
+                    options,
+                  },
+                })
+              )
                 .then(
                   ({ exe, args, program, product, hasTests, diagnostics }) => {
                     reportDiagnostics(diagnostics, logger, extraArgs);
@@ -731,7 +740,7 @@ export async function driver() {
   if (parallelism == null) {
     parallelism = Math.min(Math.ceil(os.cpus().length / 2), jungles.length);
   }
-  if (parallelism > 1) {
+  if (parallelism > 1 && !profile) {
     startPool(parallelism);
   }
   await promiseAll((index: number) => {
@@ -744,7 +753,7 @@ export async function driver() {
             parts.push({ line, err });
           }
         : (line: unknown, err?: boolean) =>
-            err ? console.error(line) : console.log(line);
+            err ? console.error(line) : log(line);
     const jf =
       typeof jungleFiles === "string"
         ? {
@@ -771,13 +780,16 @@ export async function driver() {
           )
         : runOne(Promise.resolve(), serializeSim, logger, curProducts, jf);
 
-    return promise.then(() =>
-      parts.forEach((part) =>
-        part.err ? console.error(part.line) : console.log(part.line)
+    return promise
+      .then(() =>
+        parts.forEach((part) =>
+          part.err ? console.error(part.line) : log(part.line)
+        )
       )
-    );
+      .then(() => logPromise);
   }, parallelism).finally(stopPool);
-  console.log(`Total runtime: ${Date.now() - start}ms`);
+  log(`Total runtime: ${Date.now() - start}ms`);
+  await logPromise;
   if (failures.length) {
     throw new Error(
       failures

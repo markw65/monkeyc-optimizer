@@ -1,12 +1,19 @@
 import * as child_process from "child_process";
+import glob from "fast-glob";
 import * as fsc from "fs";
 import * as fs from "fs/promises";
-import glob from "fast-glob";
 import * as path from "path";
-import * as readline from "readline";
 import PriorityQueue from "priorityqueuejs";
+import * as readline from "readline";
 
-export { logger, log, wouldLog, setBanner, bumpLogging } from "./logger";
+export {
+  bumpLogging,
+  log,
+  logPromise,
+  logger,
+  setBanner,
+  wouldLog,
+} from "./logger";
 
 export function globa(
   pattern: string,

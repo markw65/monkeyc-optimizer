@@ -2,17 +2,17 @@ import assert from "node:assert";
 import { log, setBanner, wouldLog } from "../util";
 import {
   Block,
-  blockToString,
   Context,
-  countFallthroughPreds,
   FuncEntry,
+  blockToString,
+  countFallthroughPreds,
   functionBanner,
   offsetToString,
   redirect,
   removeBlock,
   splitBlock,
 } from "./bytecode";
-import { Bytecode, isCondBranch, Opcodes } from "./opcodes";
+import { Bytecode, Opcodes, isCondBranch } from "./opcodes";
 
 export function blockSharing(func: FuncEntry, context: Context) {
   const candidates: Map<number, Set<Block>> = new Map();

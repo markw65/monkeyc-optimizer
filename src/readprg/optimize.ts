@@ -1,15 +1,14 @@
 import assert from "node:assert";
-import { sizeBasedPRE } from "./pre";
 import { log, logger, setBanner, wouldLog } from "../util";
 import { optimizeArrayInit } from "./array-init";
 import {
-  addPred,
   Block,
+  Context,
+  FuncEntry,
+  addPred,
   blockToString,
   bytecodeToString,
-  Context,
   countFallthroughPreds,
-  FuncEntry,
   functionBanner,
   makeArgless,
   offsetToString,
@@ -17,12 +16,13 @@ import {
   removeBlock,
   removePred,
 } from "./bytecode";
-import { localDCE } from "./dce";
-import { cloneState, interpBytecode, interpFunc, InterpState } from "./interp";
-import { minimizeLocals } from "./locals";
-import { Bytecode, isBoolOp, isCondBranch, Mulv, Opcodes } from "./opcodes";
-import { blockSharing } from "./sharing";
 import { postOrderTraverse } from "./cflow";
+import { localDCE } from "./dce";
+import { InterpState, cloneState, interpBytecode, interpFunc } from "./interp";
+import { minimizeLocals } from "./locals";
+import { Bytecode, Mulv, Opcodes, isBoolOp, isCondBranch } from "./opcodes";
+import { sizeBasedPRE } from "./pre";
+import { blockSharing } from "./sharing";
 
 export function optimizeFunc(func: FuncEntry, context: Context) {
   while (true) {
