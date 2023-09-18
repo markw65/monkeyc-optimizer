@@ -52,7 +52,7 @@ export type EventDecl =
     };
 
 /*
- * An occurance of a use of a node of interest to data flow
+ * An occurrence of a use of a node of interest to data flow
  */
 export interface RefEvent extends BaseEvent {
   type: "ref";
@@ -271,7 +271,7 @@ export function buildDataFlowGraph(
       ) || null;
     if (!Array.isArray(decls)) return decls;
     // We use EventDecl as a Map key, so we need to
-    // uniquify it. Note that from any given function,
+    // uniqify it. Note that from any given function,
     // if state.lookup finds a set of non locals, it will
     // always find the same set, so we can use the first
     // such as the unique identifier.

@@ -95,7 +95,7 @@ export function couldBeHelper(
     return true;
   }
 
-  const checkTypdef = (t: ExactOrUnion, other: ExactOrUnion) => {
+  const checkTypedef = (t: ExactOrUnion, other: ExactOrUnion) => {
     const typedef = getUnionComponent(t, TypeTag.Typedef);
     return (
       typedef &&
@@ -107,10 +107,10 @@ export function couldBeHelper(
       })
     );
   };
-  if (a.type & TypeTag.Typedef && checkTypdef(a, b)) {
+  if (a.type & TypeTag.Typedef && checkTypedef(a, b)) {
     return true;
   }
-  if (b.type & TypeTag.Typedef && checkTypdef(b, a)) {
+  if (b.type & TypeTag.Typedef && checkTypedef(b, a)) {
     return true;
   }
   return false;

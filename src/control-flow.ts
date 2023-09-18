@@ -473,7 +473,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "UpdateExpression":
           // We don't want to traverse the argument, since then it would
           // look like a ref, rather than a def. But if its a
-          // MemberExpression, we *do* want to traverse the subexpressions
+          // MemberExpression, we *do* want to traverse the sub-expressions
           // as potential refs.
           if (node.argument.type === "MemberExpression") {
             state.traverse(node.argument.object);

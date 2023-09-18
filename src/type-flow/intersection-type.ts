@@ -607,7 +607,7 @@ function restrictByEqualityByComponent(
   return br;
 }
 /*
- * Given that a == b, reutnr what we can deduce about b's
+ * Given that a == b, return what we can deduce about b's
  * type.
  *
  * Note that this is similar to intersection. In many cases, it
