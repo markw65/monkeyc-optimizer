@@ -43,10 +43,12 @@ import {
   BuildConfig,
   ByNameStateNodeDecls,
   ClassStateNode,
+  Diagnostic,
   FilesToOptimizeMap,
   FunctionStateNode,
   LookupDefinition,
   ModuleStateNode,
+  PreDiagnostic,
   ProgramState,
   ProgramStateAnalysis,
   ProgramStateLive,
@@ -70,7 +72,7 @@ import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
 import { mcExprFromType, typeFromLiteral, TypeTag } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
-import { pushUnique } from "./util";
+import { AwaitedError, pushUnique } from "./util";
 import { renameIdentifier, renameVariable } from "./variable-renamer";
 
 /*
@@ -409,24 +411,27 @@ export function reportMissingSymbols(
             diagnostic(
               state,
               node,
-              `The expression ${formatAst(
-                node
-              )} will fail at runtime using sdk-4.1.6`,
+              formatAst(node).then(
+                (nodeStr) =>
+                  `The expression ${nodeStr} will fail at runtime using sdk-4.1.6`
+              ),
               compiler2DiagnosticType
             );
           }
           return undefined;
         }
-        let nodeStr;
         if (state.inType) {
-          if (!checkTypes || (nodeStr = formatAst(node)).match(/^Void|Null$/)) {
+          if (
+            !checkTypes ||
+            (node.type === "Identifier" && node.name.match(/^Void|Null$/))
+          ) {
             return undefined;
           }
         }
         diagnostic(
           state,
           node,
-          `Undefined symbol ${nodeStr || formatAst(node)}`,
+          formatAst(node).then((nodeStr) => `Undefined symbol ${nodeStr}`),
           diagnosticType
         );
         return false;
@@ -600,6 +605,22 @@ function markFunctionCalled(
 }
 
 export async function optimizeMonkeyC(
+  fnMap: FilesToOptimizeMap,
+  resourcesMap: Record<string, JungleResourceMap>,
+  manifestXML: xmlUtil.Document,
+  config: BuildConfig
+) {
+  try {
+    return optimizeMonkeyCHelper(fnMap, resourcesMap, manifestXML, config);
+  } catch (ex) {
+    if (ex instanceof AwaitedError) {
+      await ex.resolve();
+    }
+    throw ex;
+  }
+}
+
+async function optimizeMonkeyCHelper(
   fnMap: FilesToOptimizeMap,
   resourcesMap: Record<string, JungleResourceMap>,
   manifestXML: xmlUtil.Document,
@@ -1152,8 +1173,13 @@ export async function optimizeMonkeyC(
     });
   }
 
-  Object.values(state.allFunctions).forEach((fns) =>
-    fns.forEach((fn) => sizeBasedPRE(state, fn))
+  await Object.values(state.allFunctions).reduce(
+    (promise, fns) =>
+      fns.reduce(
+        (promise, fn) => promise.then(() => sizeBasedPRE(state, fn)),
+        promise
+      ),
+    Promise.resolve()
   );
 
   cleanupAll();
@@ -1174,13 +1200,42 @@ export async function optimizeMonkeyC(
     }
     delete state.inlineDiagnostics;
   }
-  Object.entries(fnMap).forEach(([name, f]) => {
-    if (state.config && state.config.checkBuildPragmas) {
-      pragmaChecker(state, f.ast!, state.diagnostics?.[name]);
-    }
-  });
 
-  return { diagnostics: state.diagnostics, sdkVersion: state.sdkVersion };
+  const resolveDiagnostics = (diagnostics?: PreDiagnostic[]) =>
+    diagnostics
+      ? Promise.all(
+          diagnostics
+            ?.filter((diagnostic) => typeof diagnostic.message !== "string")
+            .map((diagnostic) => diagnostic.message)
+        ).then(() => diagnostics as Diagnostic[])
+      : diagnostics;
+
+  const resolveDiagnosticsMap = (
+    diagnosticsMap: Record<string, PreDiagnostic[]>
+  ) =>
+    Promise.all(
+      Object.values(diagnosticsMap).map((diagnostics) =>
+        resolveDiagnostics(diagnostics)
+      )
+    ).then(() => diagnosticsMap as Record<string, Diagnostic[]>);
+  if (state.config?.checkBuildPragmas) {
+    await Object.entries(fnMap).reduce((promise, [name, f]) => {
+      return Promise.all([
+        resolveDiagnostics(state.diagnostics?.[name]),
+        promise,
+      ]).then(([diagnostics]) => pragmaChecker(state, f.ast!, diagnostics));
+    }, Promise.resolve());
+  }
+
+  const diagnostics: Record<string, Diagnostic[]> | undefined =
+    state.diagnostics
+      ? await resolveDiagnosticsMap(state.diagnostics)
+      : state.diagnostics;
+
+  return {
+    diagnostics,
+    sdkVersion: state.sdkVersion,
+  };
 }
 
 /*

@@ -205,7 +205,10 @@ export function findDeadStores(
             if (isTypeStateKey(event.decl)) {
               if (logThisRun) {
                 log(
-                  `${describeEvent(event)} (${sourceLocation(event.node.loc)})`
+                  describeEvent(event).then(
+                    (eventStr) =>
+                      `${eventStr} (${sourceLocation(event.node.loc)})`
+                  )
                 );
                 log(`  kill => ${tsKey(event.decl)}`);
               }
@@ -220,7 +223,10 @@ export function findDeadStores(
             ) {
               if (logThisRun) {
                 log(
-                  `${describeEvent(event)} (${sourceLocation(event.node.loc)})`
+                  describeEvent(event).then(
+                    (eventStr) =>
+                      `${eventStr} (${sourceLocation(event.node.loc)})`
+                  )
                 );
               }
               const assignNode =
@@ -366,7 +372,11 @@ export function eliminateDeadStores(
         (dead.type === "AssignmentExpression" ||
           dead.type === "UpdateExpression" ||
           dead.type === "VariableDeclarator") &&
-        log(`${formatAst(dead)} (${sourceLocation(dead.loc)})`)
+        log(
+          formatAst(dead).then(
+            (deadStr) => `${deadStr} (${sourceLocation(dead.loc)})`
+          )
+        )
     );
   }
   let changes = false;

@@ -15,7 +15,7 @@ import {
   VariableStateNode,
 } from "./optimizer-types";
 import { declIsLocal } from "./type-flow/type-flow-util";
-import { every, GenericQueue, some } from "./util";
+import { AwaitedError, GenericQueue, every, some } from "./util";
 
 /*
  * This is the set of nodes that are of interest to data flow.
@@ -184,7 +184,7 @@ export interface DataFlowBlock extends Block<Event> {
   order?: number;
 }
 
-export function declFullName(decl: EventDecl): string {
+export async function declFullName(decl: EventDecl): Promise<string> {
   if (Array.isArray(decl)) {
     decl = decl[0];
   }
@@ -199,12 +199,12 @@ export function declFullName(decl: EventDecl): string {
       return decl.left.name;
     case "EnumStringMember":
       return decl.init
-        ? `${decl.id.name}:${formatAst(decl.init)}`
+        ? `${decl.id.name}:${await formatAst(decl.init)}`
         : decl.id.name;
     case "MemberDecl":
-      return `${declFullName(decl.base)}->${decl.path.join(".")}`;
+      return `${await declFullName(decl.base)}->${decl.path.join(".")}`;
     case "Unknown":
-      return `Unknown:${formatAst(decl.node)}`;
+      return `Unknown:${await formatAst(decl.node)}`;
     default:
       unhandledType(decl);
   }
@@ -284,8 +284,10 @@ export function buildDataFlowGraph(
       canon.length !== decls.length ||
       !canon.every((v, i) => v === decls[i])
     ) {
-      throw new Error(
-        `Canonical representation of ${declFullName(canon)} did not match`
+      throw new AwaitedError(
+        declFullName(canon).then(
+          (canonStr) => `Canonical representation of ${canonStr} did not match`
+        )
       );
     }
     return canon;
@@ -379,8 +381,10 @@ export function buildDataFlowGraph(
             }
             const v = liveDefs.get(def);
             if (!v || !v.has(node)) {
-              throw new Error(
-                `No stmt in liveDef for ${def ? declFullName(def) : "null"}`
+              throw new AwaitedError(
+                Promise.resolve(def ? declFullName(def) : "null").then(
+                  (defStr) => `No stmt in liveDef for ${defStr}`
+                )
               );
             }
             v.delete(node);

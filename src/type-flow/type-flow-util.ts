@@ -19,7 +19,7 @@ import {
   StateNode,
   VariableStateNode,
 } from "../optimizer-types";
-import { forEach, log, map, some } from "../util";
+import { AwaitedError, forEach, log, map, some } from "../util";
 import { InterpState } from "./interp";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
@@ -68,7 +68,9 @@ export function localDeclName(decl: EventDecl) {
     case "VariableDeclarator":
       return variableDeclarationName(decl.node.id);
   }
-  throw new Error(`Invalid local decl: ${declFullName(decl)}`);
+  throw new AwaitedError(
+    declFullName(decl).then((declStr) => `Invalid local decl: ${declStr}`)
+  );
 }
 
 export type TypeStateKey = Exclude<
@@ -112,17 +114,17 @@ export function printBlockHeader(block: TypeFlowBlock) {
 }
 
 export function describeEvent(event: Event) {
-  if (event.type === "exn") return "exn:";
-  return `${event.type}: ${
+  if (event.type === "exn") return Promise.resolve("exn:");
+  return Promise.resolve(
     event.type === "flw" ||
-    event.type === "mod" ||
-    (!Array.isArray(event.decl) &&
-      (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
+      event.type === "mod" ||
+      (!Array.isArray(event.decl) &&
+        (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
       ? formatAst(event.node)
       : event.decl
       ? declFullName(event.decl)
       : "??"
-  }`;
+  ).then((desc) => `${event.type}: ${desc}`);
 }
 
 export function printBlockEvents(
@@ -131,7 +133,11 @@ export function printBlockEvents(
 ) {
   log("Events:");
   forEach(block.events, (event) =>
-    log(`    ${describeEvent(event)} ${extra ? extra(event) : ""}`)
+    log(
+      describeEvent(event).then(
+        (eventStr) => `    ${eventStr} ${extra ? extra(event) : ""}`
+      )
+    )
   );
 }
 

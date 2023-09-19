@@ -22,6 +22,7 @@ import {
   LookupDefinition,
   LookupResult,
   ModuleStateNode,
+  PreDiagnostic,
   ProgramState,
   ProgramStateAnalysis,
   ProgramStateLive,
@@ -489,15 +490,17 @@ function lookup(
       }
       if (imports) {
         if (imports.length > 1) {
+          const imp = imports;
           if (state.config?.checkInvalidSymbols !== "OFF") {
             diagnostic(
               state,
               node,
-              `${formatAst(
-                node
-              )} is ambiguous and exists in multiple imported modules [${imports
-                .map(({ name }) => name)
-                .join(", ")}]`,
+              formatAst(node).then(
+                (nodeStr) =>
+                  `${nodeStr} is ambiguous and exists in multiple imported modules [${imp
+                    .map(({ name }) => name)
+                    .join(", ")}]`
+              ),
               state.config?.checkInvalidSymbols || "WARNING"
             );
           } else if (
@@ -514,9 +517,10 @@ function lookup(
               diagnostic(
                 state,
                 node,
-                `${formatAst(
-                  node
-                )} will only be found when compiled with compiler2 at -O1 or above`,
+                formatAst(node).then(
+                  (nodeStr) =>
+                    `${nodeStr} will only be found when compiled with compiler2 at -O1 or above`
+                ),
                 state.config?.checkCompilerLookupRules || "WARNING",
                 {
                   uri: "https://github.com/markw65/monkeyc-optimizer/wiki/Compiler1-vs-Compiler2-lookup-rules",
@@ -1080,7 +1084,7 @@ export function formatAst(
   switch (node.type) {
     case "BlockStatement":
       if (node.body.length) break;
-      return "{}";
+      return Promise.resolve("{}");
     case "Program":
     case "ExpressionStatement":
       break;
@@ -1097,12 +1101,14 @@ export function formatAst(
   // as the ast itself, and the printers will find what they're
   // looking for in the source.
   const source = (monkeyCSource || "") + "\n" + serializeMonkeyC(node);
-  return Prettier.format(source, {
-    ...(options || {}),
-    parser: "monkeyc-json",
-    plugins: [MonkeyC],
-    endOfLine: "lf",
-  });
+  return Promise.resolve(
+    Prettier.format(source, {
+      ...(options || {}),
+      parser: "monkeyc-json",
+      plugins: [MonkeyC],
+      endOfLine: "lf",
+    })
+  );
 }
 
 function findNamesInExactScope(decl: StateNode, regexp: RegExp) {
@@ -1174,6 +1180,14 @@ export function mapVarDeclsByType(
     }
     return decl;
   });
+}
+
+export function formatScopedName(
+  node: mctree.ScopedName | mctree.ThisExpression
+): string {
+  if (node.type === "ThisExpression") return node.text;
+  if (node.type === "Identifier") return node.name;
+  return `${formatScopedName(node.object)}.${node.property.name}`;
 }
 
 export function formatAstLongLines(node: mctree.Node) {
@@ -1394,7 +1408,9 @@ function findUsing(
     diagnostic(
       state,
       using.node.id,
-      `Unable to resolve import of ${formatAst(using.node.id)}`,
+      formatAst(using.node.id).then(
+        (nodeStr) => `Unable to resolve import of ${nodeStr}`
+      ),
       state.config?.checkInvalidSymbols || "WARNING"
     );
   }
@@ -1485,7 +1501,7 @@ export function isClassVariable(v: VariableStateNode) {
 export function diagnostic(
   state: ProgramState,
   node: mctree.Node,
-  message: string | null,
+  message: string | Promise<string> | null,
   type: DiagnosticType = "INFO",
   extra?: Diagnostic["extra"]
 ) {
@@ -1494,9 +1510,9 @@ export function diagnostic(
 }
 
 export function diagnosticHelper(
-  diagnostics: Record<string, Diagnostic[]>,
+  diagnostics: Record<string, PreDiagnostic[]>,
   node: mctree.Node,
-  message: string | null,
+  message: string | Promise<string> | null,
   type: DiagnosticType = "INFO",
   extra: Diagnostic["extra"] | undefined,
   uniqueLocs: boolean
@@ -1526,10 +1542,13 @@ export function diagnosticHelper(
   );
   if (message) {
     if (index < 0) index = diags.length;
-    const diag: Diagnostic = {
+    const diag: PreDiagnostic = {
       type,
       loc,
-      message,
+      message:
+        typeof message === "string"
+          ? message
+          : message.then((m) => (diag.message = m)),
     };
     if (extra) {
       diag.extra = extra;

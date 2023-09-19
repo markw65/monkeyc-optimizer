@@ -3,7 +3,7 @@ import assert from "node:assert";
 import {
   collectNamespaces,
   findUsingForNode,
-  formatAstLongLines,
+  formatScopedName,
   lookupNext,
 } from "../api";
 import { makeIdentifier, makeScopedName, withLocDeep } from "../ast";
@@ -146,7 +146,7 @@ export function minimizeModules(
       } else {
         name = key.type === "Identifier" ? key.name : key.property.name;
       }
-      const original = formatAstLongLines(key);
+      const original = formatScopedName(key);
       const repl = key as unknown as Record<string, unknown>;
       repl.type = "Identifier";
       repl.name = name;

@@ -624,9 +624,12 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           diagnostic(
             istate.state,
             node,
-            `This comparison seems redundant because ${formatAst(
+            formatAst(
               left.value.type === TypeTag.Null ? node.right : node.left
-            )} should never be null`,
+            ).then(
+              (nodeStr) =>
+                `This comparison seems redundant because ${nodeStr} should never be null`
+            ),
             istate.checkTypes
           );
         }
@@ -993,9 +996,12 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           diagnostic(
             istate.state,
             node,
-            `Invalid assignment to ${formatAst(node.left)}. Expected ${display(
-              constraint
-            )} but got ${display(actual)}`,
+            formatAst(node.left).then(
+              (nodeStr) =>
+                `Invalid assignment to ${nodeStr}. Expected ${display(
+                  constraint
+                )} but got ${display(actual)}`
+            ),
             istate.checkTypes
           );
         }
@@ -1078,11 +1084,15 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
               diagnostic(
                 istate.state,
                 node,
-                `Invalid initializer for ${formatAst(
-                  node.id.left
-                )}. Expected ${formatAst(node.id.right)} but got ${display(
-                  init.value
-                )}`,
+                Promise.all([
+                  formatAst(node.id.left),
+                  formatAst(node.id.right),
+                ]).then(
+                  ([leftStr, rightStr]) =>
+                    `Invalid initializer for ${leftStr}. Expected ${rightStr} but got ${display(
+                      init.value
+                    )}`
+                ),
                 istate.checkTypes
               );
             }

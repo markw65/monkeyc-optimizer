@@ -1468,13 +1468,17 @@ function propagateTypes(
           }
         }
         if (logThisRun) {
-          log(`  ${describeEvent(event)} == ${display(curEntry.curType)}`);
+          log(
+            describeEvent(event).then(
+              (eventStr) => `  ${eventStr} == ${display(curEntry.curType)}`
+            )
+          );
         }
         break;
       }
       case "mod": {
         if (logThisRun) {
-          log(`  ${describeEvent(event)}`);
+          log(describeEvent(event).then((eventStr) => `  ${eventStr}`));
         }
         modInterference(curState, event, true, (callees, calleeObj) => {
           clearRelatedCopyPropEvents(curState, null, nodeCopyProp);
@@ -1801,7 +1805,11 @@ function propagateTypes(
           }
         }
         if (logThisRun) {
-          log(`  ${describeEvent(event)} := ${display(type)}`);
+          log(
+            describeEvent(event).then(
+              (eventStr) => `  ${eventStr} := ${display(type)}`
+            )
+          );
         }
         break;
       }
@@ -1818,15 +1826,18 @@ function propagateTypes(
         }
         if (logThisRun) {
           log(
-            `  ${describeEvent(event)} : ${
-              !Array.isArray(event.left) && event.left.type === "MemberDecl"
-                ? `${display(
-                    curState.map.get(event.left.base)?.curType || {
-                      type: TypeTag.Any,
-                    }
-                  )} :: `
-                : ""
-            }${display(getStateType(curState, event.left))}`
+            describeEvent(event).then(
+              (eventStr) =>
+                `  ${eventStr} : ${
+                  !Array.isArray(event.left) && event.left.type === "MemberDecl"
+                    ? `${display(
+                        curState.map.get(event.left.base)?.curType || {
+                          type: TypeTag.Any,
+                        }
+                      )} :: `
+                    : ""
+                }${display(getStateType(curState, event.left))}`
+            )
           );
         }
         if (!skipMerge && handleFlowEvent(event, top, curState)) {
@@ -1919,17 +1930,25 @@ function propagateTypes(
     log("====== TypeMap =====");
     typeMap.forEach((value, key) => {
       log(
-        `${formatAst(key)} = ${display(value)} ${
-          key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
-        }`
+        formatAst(key).then(
+          (keyStr) =>
+            `${keyStr} = ${display(value)} ${
+              key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
+            }`
+        )
       );
     });
     log("====== EquivMap =====");
     nodeEquivs.forEach((value, key) => {
       log(
-        `${formatAst(key)} = [${value.equiv.map((equiv) =>
-          tsKey(equiv as TypeStateKey)
-        )}] ${key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""}`
+        formatAst(key).then(
+          (keyStr) =>
+            `${keyStr} = [${value.equiv.map((equiv) =>
+              tsKey(equiv as TypeStateKey)
+            )}] ${
+              key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
+            }`
+        )
       );
     });
     log("====== Copy Prop =====");
@@ -1948,9 +1967,14 @@ function propagateTypes(
       const node =
         value.type === "VariableDeclarator" ? value.init! : value.right;
       log(
-        `${formatAst(key)} = [${formatAstLongLines(node)}] ${
-          key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
-        }`
+        formatAst(key).then((keyStr) =>
+          formatAstLongLines(node).then(
+            (nodeStr) =>
+              `${keyStr} = [${nodeStr}] ${
+                key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
+              }`
+          )
+        )
       );
     });
   }
@@ -1960,9 +1984,12 @@ function propagateTypes(
     if (copyPropStores) {
       copyPropStores.forEach(({ ref, ant }, node) => {
         log(
-          `copy-prop-store: ${formatAstLongLines(node)}${ant ? "!" : ""} => ${
-            nodeCopyProp.get(node) !== ref ? "Failed" : "Success"
-          }`
+          formatAstLongLines(node).then(
+            (nodeStr) =>
+              `copy-prop-store: ${nodeStr}${ant ? "!" : ""} => ${
+                nodeCopyProp.get(node) !== ref ? "Failed" : "Success"
+              }`
+          )
         );
       });
     }
@@ -1976,7 +2003,11 @@ function propagateTypes(
       if (selfAssignments.size) {
         log("====== Self Assignments =====");
         selfAssignments.forEach((self) =>
-          log(`${formatAst(self)} (${sourceLocation(self.loc)})`)
+          log(
+            formatAst(self).then(
+              (selfStr) => `${selfStr} (${sourceLocation(self.loc)})`
+            )
+          )
         );
       }
     }
@@ -2055,7 +2086,11 @@ function propagateTypes(
         if (copyNode) {
           if (node.type === "AssignmentExpression") {
             if (logThisRun) {
-              log(`Killing copy-prop assignment ${formatAstLongLines(node)}`);
+              log(
+                formatAstLongLines(node).then(
+                  (nodeStr) => `Killing copy-prop assignment ${nodeStr}`
+                )
+              );
             }
             return withLoc(
               { type: "Literal", value: null, raw: "null" },
@@ -2067,9 +2102,10 @@ function propagateTypes(
             assert(node.init);
             if (logThisRun) {
               log(
-                `Killing copy-prop variable initialization ${formatAstLongLines(
-                  node
-                )}`
+                formatAstLongLines(node).then(
+                  (nodeStr) =>
+                    `Killing copy-prop variable initialization ${nodeStr}`
+                )
               );
             }
             const dup = { ...node };
@@ -2091,31 +2127,39 @@ function propagateTypes(
                   };
             if (logThisRun) {
               log(
-                `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
-                  replacement
-                )}`
+                formatAstLongLines(node).then((nodeStr) =>
+                  formatAstLongLines(replacement).then(
+                    (repStr) => `copy-prop ${nodeStr} => ${repStr}`
+                  )
+                )
               );
             }
             return withLocDeep(replacement, node, node, false);
           } else if (copyNode.type === "VariableDeclarator") {
-            assert(copyNode.init);
+            const init = copyNode.init;
+            assert(init);
             if (logThisRun) {
               log(
-                `copy-prop ${formatAstLongLines(node)} => ${formatAstLongLines(
-                  copyNode.init
-                )}`
+                formatAstLongLines(node).then((nodeStr) =>
+                  formatAstLongLines(init).then(
+                    (initStr) => `copy-prop ${nodeStr} => ${initStr}`
+                  )
+                )
               );
             }
-            return withLocDeep(copyNode.init, node, node, false);
+            return withLocDeep(init, node, node, false);
           }
           assert(false);
         }
         if (selfAssignments.has(node)) {
           if (logThisRun) {
             log(
-              `Deleting self assignment: ${formatAst(node)} (${sourceLocation(
-                node.loc
-              )})`
+              formatAst(node).then(
+                (nodeStr) =>
+                  `Deleting self assignment: ${nodeStr} (${sourceLocation(
+                    node.loc
+                  )})`
+              )
             );
           }
           return withLoc(
@@ -2145,7 +2189,7 @@ function propagateTypes(
         const curInfo = nodeEquivDeclInfo.get(equiv.decl);
         if (!curInfo) {
           throw new Error(
-            `Missing info for equiv ${formatAst(node)} = [${equiv.equiv
+            `Missing info for equiv ${sourceLocation(node.loc)} = [${equiv.equiv
               .map((decl) => tsKey(decl as TypeStateKey))
               .join(", ")}]`
           );
@@ -2188,9 +2232,12 @@ function propagateTypes(
         if (!name) return null;
         if (logThisRun) {
           log(
-            `Replacing ${formatAst(node)} with ${name} at ${sourceLocation(
-              node.loc
-            )}`
+            formatAst(node).then(
+              (nodeStr) =>
+                `Replacing ${nodeStr} with ${name} at ${sourceLocation(
+                  node.loc
+                )}`
+            )
           );
         }
         const replacement = withLoc({ type: "Identifier", name }, node, node);

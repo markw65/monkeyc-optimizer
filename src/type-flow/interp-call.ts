@@ -57,7 +57,9 @@ export function evaluateCall(
       diagnostic(
         istate.state,
         node,
-        `'${formatAst(node.callee)}' is not callable`,
+        formatAst(node.callee).then(
+          (calleeStr) => `'${calleeStr}' is not callable`
+        ),
         istate.checkTypes
       );
     return { value: { type: TypeTag.Any }, node, embeddedEffects: true };

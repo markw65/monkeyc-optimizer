@@ -582,7 +582,7 @@ export function typeFromSingleTypeSpec(
           diagnostic(
             state,
             id,
-            `Unable to resolve type ${formatAst(id)}`,
+            formatAst(id).then((idStr) => `Unable to resolve type ${idStr}`),
             level || "WARNING"
           );
         }

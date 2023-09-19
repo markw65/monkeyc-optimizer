@@ -6,14 +6,11 @@ import * as Prettier from "prettier";
 import {
   collectNamespaces,
   formatAst,
-  getApiMapping,
   hasProperty,
-  isStateNode,
   parseSdkVersion,
 } from "./api";
 import { build_project } from "./build";
 import {
-  get_jungle,
   JungleBuildDependencies,
   JungleError,
   JungleQualifier,
@@ -21,6 +18,7 @@ import {
   ResolvedBarrel,
   ResolvedJungle,
   Target,
+  get_jungle,
 } from "./jungles";
 import { launchSimulator, simulateProgram } from "./launch";
 import {
@@ -43,14 +41,14 @@ import {
   FunctionStateNode,
   ProgramState,
   ProgramStateAnalysis,
-  StateNode,
 } from "./optimizer-types";
 import { appSupport, connectiq, getSdkPath, xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
-import { evaluate, InterpState, TypeMap } from "./type-flow/interp";
+import { InterpState, TypeMap, evaluate } from "./type-flow/interp";
 import { subtypeOf } from "./type-flow/sub-type";
 import {
+  AwaitedError,
   copyRecursiveAsNeeded,
   first_modified,
   globa,
@@ -61,19 +59,19 @@ import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
 export * from "./optimizer-types";
-export { display, ExactOrUnion } from "./type-flow/types";
+export { ExactOrUnion, display } from "./type-flow/types";
 export {
-  copyRecursiveAsNeeded,
-  get_jungle,
   JungleBuildDependencies,
   JungleError,
   JungleResourceMap,
+  ResolvedJungle,
+  TypeMap,
+  copyRecursiveAsNeeded,
+  get_jungle,
   launchSimulator,
   manifestProducts,
   mctree,
-  ResolvedJungle,
   simulateProgram,
-  TypeMap,
 };
 
 function relative_path_no_dotdot(relative: string) {
@@ -933,8 +931,9 @@ export async function generateOneConfig(
           await fs.mkdir(dir, { recursive: true });
 
           options.filepath = name;
-          const opt_source = formatAst(info.ast!, info.monkeyCSource, options);
-          await fs.writeFile(name, opt_source);
+          await formatAst(info.ast!, info.monkeyCSource, options).then(
+            (opt_source) => fs.writeFile(name, opt_source)
+          );
           return info.hasTests;
         })
       ).then((results) => {
@@ -959,6 +958,22 @@ export async function generateOneConfig(
 }
 
 export async function getProjectAnalysis(
+  targets: Target[],
+  analysis: PreAnalysis | null,
+  manifestXML: xmlUtil.Document,
+  options: BuildConfig
+): Promise<Analysis | PreAnalysis> {
+  try {
+    return getProjectAnalysisHelper(targets, analysis, manifestXML, options);
+  } catch (ex) {
+    if (ex instanceof AwaitedError) {
+      await ex.resolve();
+    }
+    throw ex;
+  }
+}
+
+async function getProjectAnalysisHelper(
   targets: Target[],
   analysis: PreAnalysis | null,
   manifestXML: xmlUtil.Document,
@@ -1104,64 +1119,4 @@ export async function getProjectAnalysis(
   }
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state, typeMap };
-}
-
-/**
- *
- * @param {BuildConfig} options
- * @returns
- */
-export async function generateApiMirTests(options: BuildConfig) {
-  const config = { ...defaultConfig, ...(options || {}) };
-  const tests: Array<[string, string]> = [];
-  const api = await getApiMapping();
-  if (!api) {
-    throw new Error("Failed to read api.mir");
-  }
-  const findConstants = (node: StateNode) => {
-    node.decls &&
-      Object.entries(node.decls).forEach(([key, decl]) => {
-        if (decl.length > 1) throw `Bad decl length:${node.fullName}.${key}`;
-        if (decl.length !== 1) return;
-        const d = decl[0];
-        if (
-          d.type === "EnumStringMember" ||
-          (d.type === "VariableDeclarator" && d.node.kind === "const")
-        ) {
-          const init = isStateNode(d) ? d.node.init : d.init;
-          if (!init) {
-            throw new Error(`Missing init for ${node.fullName}.${key}`);
-          }
-          tests.push([`${node.fullName}.${key}`, formatAst(init)]);
-        } else if (isStateNode(d)) {
-          findConstants(d);
-        }
-      });
-  };
-  findConstants(api);
-  function hasTests(name: string) {
-    const names = name.split(".");
-    return names
-      .map((t, i, arr) => arr.slice(0, i).join(".") + " has :" + t)
-      .slice(2)
-      .join(" && ");
-  }
-  const source = [
-    "import Toybox.Lang;",
-    "import Toybox.Test;",
-    "(:test,:typecheck(false))",
-    "function apiTest(logger as Logger) as Boolean {",
-    ...tests.map(
-      (t) =>
-        `  if (${hasTests(t[0])}) { if (${t[0]} != ${t[1]}) { logger.debug("${
-          t[0]
-        }: "+${t[0]}.toString()+" != ${
-          t[1]
-        }"); } } else { logger.debug("Not tested: ${t[0]}"); }`
-    ),
-    "  return true;",
-    "}",
-  ].join("\n");
-  const workspace = config.workspace;
-  return fs.writeFile(`${workspace}/source/apiTest.mc`, source);
 }

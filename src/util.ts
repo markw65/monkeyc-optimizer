@@ -290,3 +290,12 @@ export class GenericQueue<Block> {
     return this.queue.isEmpty();
   }
 }
+
+export class AwaitedError extends Error {
+  constructor(private messagePromise: Promise<string>) {
+    super();
+  }
+  resolve() {
+    return this.messagePromise.then((message) => (this.message = message));
+  }
+}

@@ -1,18 +1,15 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { checkCompilerVersion, diagnostic, formatAst } from "./api";
 import { traverseAst } from "./ast";
-import { ProgramState, ProgramStateOptimizer } from "./optimizer-types";
+import { Diagnostic, ProgramStateOptimizer } from "./optimizer-types";
 
 export function pragmaChecker(
   state: ProgramStateOptimizer,
   ast: mctree.Program,
-  diagnostics:
-    | NonNullable<ProgramState["diagnostics"]>[string]
-    | null
-    | undefined
+  diagnostics: Diagnostic[] | null | undefined
 ) {
   const comments = ast.comments;
-  if (!comments) return;
+  if (!comments) return Promise.resolve();
   diagnostics = diagnostics
     ?.slice()
     .sort((d1, d2) => d1.loc.start.offset - d2.loc.start.offset);
@@ -76,6 +73,7 @@ export function pragmaChecker(
     return re.test(haystack);
   };
   next();
+  let promise = Promise.resolve();
   traverseAst(ast, (node) => {
     if (
       index >= comments.length ||
@@ -88,18 +86,22 @@ export function pragmaChecker(
     if (node.start && node.start >= (comment.end || Infinity)) {
       const { kind, quote, needle } = matchers.shift()!;
       if (kind === "match") {
-        const haystack = formatAst(node)
-          .replace(/([\r\n]|\s)+/g, " ")
-          .replace(/\b\w+\s\/\*>([\w.]+)<\*\//g, "$1");
-        if (!matcher(quote, needle, haystack)) {
-          matcher(quote, needle, haystack);
-          diagnostic(
-            state,
-            comment,
-            `Didn't find '${needle}' in '${haystack}'`,
-            "ERROR"
-          );
-        }
+        promise = promise.then(() =>
+          formatAst(node).then((haystack) => {
+            haystack = haystack
+              .replace(/([\r\n]|\s)+/g, " ")
+              .replace(/\b\w+\s\/\*>([\w.]+)<\*\//g, "$1");
+            if (!matcher(quote, needle, haystack)) {
+              matcher(quote, needle, haystack);
+              diagnostic(
+                state,
+                comment,
+                `Didn't find '${needle}' in '${haystack}'`,
+                "ERROR"
+              );
+            }
+          })
+        );
       } else if (kind === "expect") {
         const locCmp = (
           a: NonNullable<typeof diagnostics>[number]["loc"],
@@ -158,4 +160,5 @@ export function pragmaChecker(
     }
     return null;
   });
+  return promise;
 }

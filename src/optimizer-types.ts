@@ -177,6 +177,10 @@ export interface Diagnostic extends DiagnosticBase {
   extra?: { uri: string; message: string };
 }
 
+export type PreDiagnostic = Omit<Diagnostic, "message"> & {
+  message: string | Promise<string>;
+};
+
 type ProgramStateStackElem = {
   sn: StateNode;
   usings?: Record<string, ImportUsing>;
@@ -267,7 +271,7 @@ export type ProgramState = {
   }[];
   index?: { [key: string]: unknown[] };
   constants?: { [key: string]: mctree.Literal };
-  diagnostics?: Record<string, Diagnostic[]>;
+  diagnostics?: Record<string, PreDiagnostic[]>;
   inlineDiagnostics?: Record<string, Diagnostic[]>;
   enumMap?: Map<EnumStringMember, EnumStateNode>;
 };

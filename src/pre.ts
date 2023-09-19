@@ -16,7 +16,7 @@ import {
 import { cloneSet, functionMayModify, mergeSet } from "./function-info";
 import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
 import { minimizeLocals } from "./type-flow/minimize-locals";
-import { every, log, some } from "./util";
+import { AwaitedError, every, log, some } from "./util";
 
 /**
  * This implements a pseudo Partial Redundancy Elimination
@@ -51,11 +51,14 @@ function logAntState(s: AnticipatedState, decl: EventDecl) {
     return defs;
   }, 0);
   log(
-    `  - ${declFullName(decl)}: ${candidateCost(s)} bytes, ${
-      s.ant.size - defs
-    } refs, ${defs} defs, ${s.live ? "" : "!"}live, ${
-      s.isIsolated ? "" : "!"
-    }isolated`
+    declFullName(decl).then(
+      (declStr) =>
+        `  - ${declStr}: ${candidateCost(s)} bytes, ${
+          s.ant.size - defs
+        } refs, ${defs} defs, ${s.live ? "" : "!"}live, ${
+          s.isIsolated ? "" : "!"
+        }isolated`
+    )
   );
   log(
     `    - members: ${Array.from(s.members)
@@ -68,7 +71,7 @@ function logAntDecls(antDecls: AnticipatedDecls) {
   antDecls.forEach(logAntState);
 }
 
-export function sizeBasedPRE(
+export async function sizeBasedPRE(
   state: ProgramStateAnalysis,
   func: FunctionStateNode
 ) {
@@ -100,8 +103,10 @@ export function sizeBasedPRE(
     );
     variableDecl.end = variableDecl.start;
     variableDecl.loc!.end = variableDecl.loc!.start;
-    Array.from(candidates.keys())
-      .map((decl) => [declFullName(decl), decl] as const)
+    const keys = Array.from(candidates.keys());
+    const names = await Promise.all(keys.map((decl) => declFullName(decl)));
+    keys
+      .map((decl, i) => [names[i], decl] as const)
       .sort()
       .forEach(([, decl]) => {
         let name;
@@ -430,13 +435,13 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
           (event) =>
             event.type !== "exn" &&
             log(
-              `    ${event.type}: ${
+              Promise.resolve(
                 event.decl
                   ? declFullName(event.decl)
                   : event.node
                   ? formatAst(event.node)
                   : "??"
-              }`
+              ).then((eventDetails) => `    ${event.type}: ${eventDetails}`)
             )
         );
       }
@@ -768,7 +773,11 @@ function applyReplacements(
             }
             const name = declMap.get(event.decl);
             if (!name) {
-              throw new Error(`No replacement found for "${formatAst(node)}"`);
+              throw new AwaitedError(
+                formatAst(node).then(
+                  (targetStr) => `No replacement found for "${targetStr}"`
+                )
+              );
             }
             return ident(name, node);
           }
@@ -792,8 +801,10 @@ function applyReplacements(
                 : (node.argument as mctree.AssignmentExpression["left"]);
             const name = declMap.get(event.decl);
             if (!name) {
-              throw new Error(
-                `No replacement found for "${formatAst(target)}"`
+              throw new AwaitedError(
+                formatAst(target).then(
+                  (targetStr) => `No replacement found for "${targetStr}"`
+                )
               );
             }
             const id = ident(name, target);
@@ -856,11 +867,17 @@ function applyReplacements(
           const decl = event.decl!;
           const name = declMap.get(decl);
           if (!name) {
-            throw new Error(`No replacement found for "${declFullName(decl)}"`);
+            throw new AwaitedError(
+              declFullName(decl).then(
+                (declStr) => `No replacement found for "${declStr}"`
+              )
+            );
           }
           if (!event.id) {
-            throw new Error(
-              `Missing id for mod event for "${declFullName(decl)}"`
+            throw new AwaitedError(
+              declFullName(decl).then(
+                (declStr) => `Missing id for mod event for "${declStr}"`
+              )
             );
           }
           const rhs = withLocDeep(event.id, locNode, locNode);
