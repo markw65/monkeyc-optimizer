@@ -752,6 +752,16 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         },
         { key: { type: TypeTag.Never }, value: { type: TypeTag.Never } }
       );
+      const keyTypes = value.key.type & ValueTypeTagsConst;
+      if (keyTypes && !hasNoData(value.key, keyTypes)) {
+        // drop any literals from the type
+        unionInto(value.key, { type: keyTypes });
+      }
+      const valTypes = value.value.type & ValueTypeTagsConst;
+      if (valTypes && !hasNoData(value.value, valTypes)) {
+        // drop any literals from the type
+        unionInto(value.value, { type: valTypes });
+      }
       push({
         value:
           value.key.type === TypeTag.Never && value.value.type === TypeTag.Never
