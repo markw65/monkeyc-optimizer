@@ -178,7 +178,7 @@ export interface Diagnostic extends DiagnosticBase {
 }
 
 export type PreDiagnostic = Omit<Diagnostic, "message"> & {
-  message: string | Promise<string>;
+  message: string | Promise<string> | null;
 };
 
 type ProgramStateStackElem = {

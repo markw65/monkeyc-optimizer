@@ -666,8 +666,7 @@ export function inlineDiagnostic(
       call,
       message && `While inlining ${func.node.id.name}: ${message}`,
       "INFO",
-      undefined,
-      true
+      undefined
     );
   }
 }

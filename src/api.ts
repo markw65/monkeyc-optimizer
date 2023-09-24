@@ -1506,7 +1506,7 @@ export function diagnostic(
   extra?: Diagnostic["extra"]
 ) {
   if (!state.diagnostics) state.diagnostics = {};
-  diagnosticHelper(state.diagnostics, node, message, type, extra, false);
+  diagnosticHelper(state.diagnostics, node, message, type, extra);
 }
 
 export function diagnosticHelper(
@@ -1514,8 +1514,7 @@ export function diagnosticHelper(
   node: mctree.Node,
   message: string | Promise<string> | null,
   type: DiagnosticType = "INFO",
-  extra: Diagnostic["extra"] | undefined,
-  uniqueLocs: boolean
+  extra: Diagnostic["extra"] | undefined
 ) {
   const loc = node.loc;
   if (!loc || !loc.source) return;
@@ -1525,50 +1524,32 @@ export function diagnosticHelper(
     diagnostics[source] = [];
   }
   const diags = diagnostics[source];
-  let index = diags.findIndex(
-    (item) =>
-      item.loc.start.offset === loc.start.offset &&
-      item.loc.end.offset === loc.end.offset &&
-      (!item.related
-        ? !node.origins
-        : item.related.length === node.origins?.length &&
-          item.related.every(
-            (r, i) =>
-              r.loc.start.offset === node.origins![i].loc.start.offset &&
-              r.loc.end.offset === node.origins![i].loc.end.offset &&
-              r.loc.source === node.origins![i].loc.source
-          )) &&
-      (uniqueLocs || message === item.message)
-  );
-  if (message) {
-    if (index < 0) index = diags.length;
-    const diag: PreDiagnostic = {
-      type,
-      loc,
-      message:
-        typeof message === "string"
-          ? message
-          : message.then((m) => (diag.message = m)),
-    };
-    if (extra) {
-      diag.extra = extra;
-    }
-    if (node.origins) {
-      diag.related = [];
-      const related = diag.related;
-      node.origins.forEach((origin) => {
-        if (origin.loc.source) {
-          related.push({
-            loc: origin.loc as DiagnosticInfo["loc"],
-            message: `inlined from ${origin.func}`,
-          });
-        }
-      });
-    }
-    diags[index] = diag;
-  } else if (index >= 0) {
-    diags.splice(index, 1);
+  const diag: PreDiagnostic = {
+    type,
+    loc,
+    message:
+      message == null
+        ? null
+        : typeof message === "string"
+        ? message
+        : message.then((m) => (diag.message = m)),
+  };
+  if (extra) {
+    diag.extra = extra;
   }
+  if (node.origins) {
+    diag.related = [];
+    const related = diag.related;
+    node.origins.forEach((origin) => {
+      if (origin.loc.source) {
+        related.push({
+          loc: origin.loc as DiagnosticInfo["loc"],
+          message: `inlined from ${origin.func}`,
+        });
+      }
+    });
+  }
+  diags.push(diag);
 }
 
 export function getSuperClasses(klass: ClassStateNode) {

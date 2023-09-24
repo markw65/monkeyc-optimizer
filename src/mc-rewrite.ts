@@ -1207,7 +1207,37 @@ async function optimizeMonkeyCHelper(
           diagnostics
             ?.filter((diagnostic) => typeof diagnostic.message !== "string")
             .map((diagnostic) => diagnostic.message)
-        ).then(() => diagnostics as Diagnostic[])
+        ).then(() => {
+          const groups: Map<string, Diagnostic[]> = new Map();
+          diagnostics.forEach((d) => {
+            let key = `${d.loc.start.offset}:${d.loc.end.offset}`;
+            if (d.related) {
+              key +=
+                ":" +
+                d.related
+                  .map((r) => `${r.loc.start.offset}:${r.loc.end.offset}`)
+                  .join(":");
+            }
+            if (!d.message) {
+              groups.delete(key);
+            } else {
+              const group = groups.get(key);
+              if (!group) {
+                groups.set(key, [d as Diagnostic]);
+              } else {
+                const index = group.findIndex((g) => g.message === d.message);
+                if (index < 0) {
+                  group.push(d as Diagnostic);
+                } else {
+                  group[index] = d as Diagnostic;
+                }
+              }
+            }
+          });
+          diagnostics.splice(0);
+          diagnostics.push(...Array.from(groups.values()).flat());
+          return diagnostics as Diagnostic[];
+        })
       : diagnostics;
 
   const resolveDiagnosticsMap = (
