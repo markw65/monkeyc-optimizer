@@ -204,6 +204,23 @@ function intersectionValue(pair: ValuePairs): SingleValue | null {
       return atype.type === TypeTag.Never ? null : atype;
     }
     case TypeTag.Dictionary: {
+      if (!pair.avalue.value) {
+        if (!pair.bvalue.value) {
+          const result = new Map(pair.avalue);
+          pair.bvalue.forEach((bv, key) => {
+            const av = result.get(key);
+            if (av) {
+              bv = intersection(bv, av);
+            }
+            result.set(key, bv);
+          });
+          return result;
+        } else {
+          return pair.bvalue;
+        }
+      } else if (!pair.bvalue.value) {
+        return pair.avalue;
+      }
       const dkey = intersection(pair.avalue.key, pair.bvalue.key);
       const dvalue = intersection(pair.avalue.value, pair.bvalue.value);
       return dkey.type !== TypeTag.Never && dvalue.type !== TypeTag.Never

@@ -1,6 +1,7 @@
 import { getSuperClasses, hasProperty } from "../api";
 import { unhandledType } from "../data-flow";
 import { every, some } from "../util";
+import { couldBe } from "./could-be";
 import { expandTypedef } from "./intersection-type";
 import {
   cloneType,
@@ -10,6 +11,7 @@ import {
   getObjectValue,
   getUnionComponent,
   ObjectLikeTagsConst,
+  typeFromObjectLiteralKey,
   TypeTag,
   typeTagName,
   ValuePairs,
@@ -93,6 +95,27 @@ function subtypeOfValue(pair: ValuePairs) {
     case TypeTag.Dictionary: {
       const adict = pair.avalue;
       const bdict = pair.bvalue;
+      if (!adict.value) {
+        if (!bdict.value) {
+          return Array.from(adict).every(([key, av]) => {
+            const bv = bdict.get(key);
+            return !bv || subtypeOf(av, bv);
+          });
+        }
+        // a mapped type is never a subtype of a generic dictionary, because any
+        // keys not explicitly specified in the mapped type can exist, and have
+        // arbitrary types
+        return false;
+      }
+      if (!bdict.value) {
+        // Dictionary<string,string> subtypeOf { "foo" as String, :bar as Number }
+        // is true, because any dictionary mapping strings to strings either
+        // maps "foo" to a string, or it doesn't include "foo" as a key.
+        return Array.from(bdict).every(([key, bv]) => {
+          const kt = typeFromObjectLiteralKey(key);
+          return !couldBe(kt, adict.key) || subtypeOf(adict.value, bv);
+        });
+      }
       return (
         subtypeOf(adict.key, bdict.key) && subtypeOf(adict.value, bdict.value)
       );

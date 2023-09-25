@@ -35,9 +35,9 @@ import {
   EnumTagsConst,
   ExactOrUnion,
   ObjectLikeTagsConst,
+  ObjectLiteralType,
   ObjectType,
   TypeTag,
-  ValueTypeTagsConst,
   cloneType,
   display,
   getObjectValue,
@@ -47,6 +47,9 @@ import {
   isExact,
   mustBeFalse,
   mustBeTrue,
+  objectLiteralKeyFromExpr,
+  objectLiteralKeyFromType,
+  relaxType,
   typeFromLiteral,
   typeFromSingleTypeSpec,
   typeFromTypeStateNode,
@@ -398,33 +401,41 @@ function getLhsConstraint(
               result = arr;
             }
           }
+          const updateResult = (value: ExactOrUnion) => {
+            if (result) {
+              if (strict) {
+                result = intersection(result, value);
+              } else {
+                result = cloneType(result);
+                unionInto(result, value);
+              }
+            } else {
+              result = value;
+            }
+          };
           if (object.type & TypeTag.Dictionary) {
             const dict = getUnionComponent(object, TypeTag.Dictionary);
             if (dict) {
-              if (result) {
-                if (strict) {
-                  result = intersection(result, dict.value);
-                } else {
-                  result = cloneType(result);
-                  unionInto(result, dict.value);
-                }
+              if (dict.value) {
+                updateResult(dict.value);
               } else {
-                result = dict.value;
+                const keyType = istate.typeMap.get(node.property);
+                const keyStr = keyType
+                  ? objectLiteralKeyFromType(keyType)
+                  : objectLiteralKeyFromExpr(node.property);
+                if (keyStr) {
+                  const value = dict.get(keyStr);
+                  if (value != null) {
+                    updateResult(value);
+                  }
+                }
               }
             }
           }
           if (object.type & TypeTag.Object) {
             const obj = getUnionComponent(object, TypeTag.Object);
             if (obj && isByteArrayData(obj)) {
-              let t = { type: TypeTag.Number | TypeTag.Char };
-              if (result) {
-                if (strict) {
-                  t = intersection(t, result);
-                } else {
-                  unionInto(t, result);
-                }
-              }
-              result = t;
+              updateResult({ type: TypeTag.Number | TypeTag.Char });
             }
           }
           if (result) {
@@ -537,6 +548,7 @@ function byteArrayType(state: ProgramStateAnalysis): ObjectType {
     },
   };
 }
+
 export function evaluateNode(istate: InterpState, node: mctree.Node) {
   const { state, stack } = istate;
 
@@ -719,18 +731,15 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           node,
         });
       } else {
-        const value = args.reduce(
-          (cur, next) => {
-            unionInto(cur, next.value);
-            return cur;
-          },
-          { type: TypeTag.Never }
+        const value = relaxType(
+          args.reduce(
+            (cur, next) => {
+              unionInto(cur, next.value);
+              return cur;
+            },
+            { type: TypeTag.Never }
+          )
         );
-        const valTypes = value.type & ValueTypeTagsConst;
-        if (valTypes && !hasNoData(value, valTypes)) {
-          // drop any literals from the type
-          unionInto(value, { type: valTypes });
-        }
         push({
           value:
             value.type === TypeTag.Never
@@ -748,33 +757,44 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       const args = node.properties.length
         ? stack.splice(-node.properties.length * 2)
         : [];
-      const value = args.reduce(
-        (cur, next, i) => {
-          unionInto(i & 1 ? cur.value : cur.key, next.value);
-          return cur;
-        },
-        { key: { type: TypeTag.Never }, value: { type: TypeTag.Never } }
-      );
-      const keyTypes = value.key.type & ValueTypeTagsConst;
-      if (keyTypes && !hasNoData(value.key, keyTypes)) {
-        // drop any literals from the type
-        unionInto(value.key, { type: keyTypes });
-      }
-      const valTypes = value.value.type & ValueTypeTagsConst;
-      if (valTypes && !hasNoData(value.value, valTypes)) {
-        // drop any literals from the type
-        unionInto(value.value, { type: valTypes });
+      const fields: ObjectLiteralType = new Map();
+      for (let i = 0; i < args.length; i += 2) {
+        const key = args[i];
+        const value = args[i + 1];
+        const keyStr = objectLiteralKeyFromType(key.value);
+        if (!keyStr) {
+          const value = args.reduce(
+            (cur, next, i) => {
+              unionInto(i & 1 ? cur.value : cur.key, next.value);
+              return cur;
+            },
+            { key: { type: TypeTag.Never }, value: { type: TypeTag.Never } }
+          );
+          value.key = relaxType(value.key);
+          value.value = relaxType(value.value);
+          push({
+            value:
+              value.key.type === TypeTag.Never &&
+              value.value.type === TypeTag.Never
+                ? {
+                    type: TypeTag.Dictionary,
+                  }
+                : {
+                    type: TypeTag.Dictionary,
+                    value,
+                  },
+            embeddedEffects: args.some((arg) => arg.embeddedEffects),
+            node,
+          });
+          return;
+        }
+        fields.set(keyStr, relaxType(value.value));
       }
       push({
-        value:
-          value.key.type === TypeTag.Never && value.value.type === TypeTag.Never
-            ? {
-                type: TypeTag.Dictionary,
-              }
-            : {
-                type: TypeTag.Dictionary,
-                value,
-              },
+        value: {
+          type: TypeTag.Dictionary,
+          value: fields,
+        },
         embeddedEffects: args.some((arg) => arg.embeddedEffects),
         node,
       });

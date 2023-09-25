@@ -186,6 +186,10 @@ export type ExactTypes =
   | SymbolType
   | TypedefType;
 
+export type ObjectLiteralType = Map<string, ExactOrUnion> & {
+  value?: undefined;
+};
+
 type ExactPairHelper<T> = T extends ExactTypes
   ? { type: T["type"]; avalue: T["value"]; bvalue: T["value"] }
   : never;
@@ -250,7 +254,10 @@ export interface ArrayType extends AbstractValue {
 }
 export interface DictionaryType extends AbstractValue {
   type: TypeTag.Dictionary;
-  value?: { key: ExactOrUnion; value: ExactOrUnion } | undefined;
+  value?:
+    | { key: ExactOrUnion; value: ExactOrUnion }
+    | ObjectLiteralType
+    | undefined;
 }
 export interface MethodType extends AbstractValue {
   type: TypeTag.Method;
@@ -357,6 +364,27 @@ export function hasNoData(v: AbstractValue, t: TypeTag) {
 
 export function cloneType<T extends ExactOrUnion>(t: T): T {
   return { ...t };
+}
+
+/*
+ * Drop literal types, so that Number<42> becomes Number, false becomes Boolean,
+ * etc.
+ */
+export function relaxType(type: ExactOrUnion) {
+  const valTypes = type.type & ValueTypeTagsConst;
+  if (
+    (!valTypes || hasNoData(type, valTypes)) &&
+    (!(type.type & TypeTag.Boolean) ||
+      (type.type & TypeTag.Boolean) === TypeTag.Boolean)
+  ) {
+    return type;
+  }
+  // drop any literals from the type
+  const relaxed = {
+    type: valTypes | (type.type & TypeTag.Boolean ? TypeTag.Boolean : 0),
+  };
+  unionInto(relaxed, type);
+  return relaxed;
 }
 
 function resolveEnum(e: EnumStateNode): ExactOrUnion {
@@ -531,6 +559,78 @@ export function typeFromTypeStateNodes(
   );
 }
 
+export function objectLiteralKeyFromExpr(
+  key: mctree.Expression
+): string | null {
+  switch (key.type) {
+    case "Literal": {
+      const t = typeFromLiteral(key);
+      if (t.value == null) return t.type.toString();
+      return `${t.type}:${t.value}`;
+    }
+    case "UnaryExpression":
+      if (key.operator === ":") {
+        return `${TypeTag.Symbol}:${key.argument.name}`;
+      }
+      break;
+  }
+  return null;
+}
+
+function objectLiteralKeyFromKeyExpr(key: mctree.Expression): string {
+  const str = objectLiteralKeyFromExpr(key);
+  if (str) {
+    return str;
+  }
+  throw new Error(`Unexpected object expression key: ${key.type}`);
+}
+
+export function objectLiteralKeyFromType(key: ExactOrUnion): string | null {
+  switch (key.type) {
+    case TypeTag.Null:
+    case TypeTag.False:
+    case TypeTag.True:
+      return `${key.type}`;
+    case TypeTag.Number:
+    case TypeTag.Float:
+    case TypeTag.Double:
+    case TypeTag.Long:
+    case TypeTag.Char:
+    case TypeTag.String:
+    case TypeTag.Symbol:
+      if (key.value != null) {
+        return `${key.type}:${key.value}`;
+      }
+      break;
+  }
+  return null;
+}
+
+export function typeFromObjectLiteralKey(key: string): ValueTypes {
+  const match = key.match(/^(\d+)(:(.*))?$/);
+  if (!match) {
+    throw new Error(`Not an object literal key: '${key}'`);
+  }
+  const type = Number(match[1]);
+  switch (type) {
+    case TypeTag.Null:
+    case TypeTag.False:
+    case TypeTag.True:
+      return { type };
+    case TypeTag.Number:
+    case TypeTag.Float:
+    case TypeTag.Double:
+      return { type, value: Number(match[3]) };
+    case TypeTag.Long:
+      return { type, value: BigInt(match[3]) };
+    case TypeTag.Char:
+    case TypeTag.String:
+    case TypeTag.Symbol:
+      return { type, value: match[3] };
+  }
+  throw new Error(`Unexpected object literal key: ${type}`);
+}
+
 export function typeFromSingleTypeSpec(
   state: ProgramStateAnalysis,
   type: mctree.TypeSpecPart | mctree.ObjectExpression,
@@ -540,8 +640,17 @@ export function typeFromSingleTypeSpec(
     type = { type: "TypeSpecPart", name: type };
   }
   switch (type.type) {
-    case "ObjectExpression":
-      return { type: TypeTag.Dictionary };
+    case "ObjectExpression": {
+      const fields: ObjectLiteralType = new Map();
+      type.properties.forEach((property) => {
+        const prop = property as unknown as mctree.AsExpression;
+        fields.set(
+          objectLiteralKeyFromKeyExpr(prop.left),
+          typeFromTypespec(state, prop.right)
+        );
+      });
+      return { type: TypeTag.Dictionary, value: fields };
+    }
     case "TypeSpecPart": {
       if (type.body) {
         // this is an interface declaration.
@@ -897,7 +1006,16 @@ export function display(type: ExactOrUnion): string {
       case TypeTag.Array:
         return display(tv.value);
       case TypeTag.Dictionary:
-        return `${display(tv.value.key)}, ${display(tv.value.value)}`;
+        return tv.value.value
+          ? `Dictionary<${display(tv.value.key)}, ${display(tv.value.value)}>`
+          : `{ ${Array.from(tv.value)
+              .map(
+                ([key, value]) =>
+                  `${display(typeFromObjectLiteralKey(key))} as ${display(
+                    value
+                  )}`
+              )
+              .join(", ")} }`;
       case TypeTag.Method:
         return `Method(${tv.value.args
           .map((arg, i) => `a${i + 1} as ${display(arg)}`)
@@ -960,7 +1078,8 @@ export function display(type: ExactOrUnion): string {
         TypeTag.Typedef |
         TypeTag.Symbol |
         TypeTag.Method |
-        TypeTag.String)
+        TypeTag.String |
+        TypeTag.Dictionary)
     ) {
       parts.push(valueStr);
     } else {

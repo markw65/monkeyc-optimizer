@@ -23,7 +23,10 @@ import {
   getUnionComponent,
   hasValue,
   isExact,
+  objectLiteralKeyFromType,
+  relaxType,
   setUnionComponent,
+  typeFromObjectLiteralKey,
   typeFromTypespec,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
@@ -166,13 +169,14 @@ export function checkCallArgs(
               }
               if (arg.type & TypeTag.Dictionary) {
                 const adata = getUnionComponent(arg, TypeTag.Dictionary);
-                if (adata) {
+                if (adata && adata.value) {
                   const pdata = getUnionComponent(
                     paramType,
                     TypeTag.Dictionary
                   );
                   if (
                     !pdata ||
+                    !pdata.value ||
                     !subtypeOf(pdata.key, adata.key) ||
                     !subtypeOf(pdata.value, adata.value)
                   ) {
@@ -182,11 +186,14 @@ export function checkCallArgs(
                         cur.fullName
                       }: passing Dictionary<${display(adata.key)}, ${display(
                         adata.value
-                      )}> to parameter Dictionary${
+                      )}> to parameter ${display(
                         pdata
-                          ? `<${display(pdata.key)}, ${display(pdata.value)}>`
-                          : ""
-                      } is not type safe`,
+                          ? {
+                              type: TypeTag.Dictionary,
+                              value: pdata,
+                            }
+                          : { type: TypeTag.Dictionary }
+                      )} is not type safe`,
                     ]);
                   }
                 }
@@ -359,10 +366,22 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
       if (ddata) {
-        ret.returnType = ddata.value;
         const args = getArgs();
         if (args.length === 1) {
-          ret.argTypes = [ddata.key];
+          if (ddata.value) {
+            ret.returnType = ddata.value;
+            ret.argTypes = [ddata.key];
+          } else {
+            const key = objectLiteralKeyFromType(args[0]);
+            if (key) {
+              const value = ddata.get(key);
+              if (value) {
+                ret.returnType = cloneType(value);
+                ret.returnType.type |= TypeTag.Null;
+                ret.argTypes = args;
+              }
+            }
+          }
         }
       }
     }
@@ -377,7 +396,19 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
       if (ddata) {
-        ret.returnType = { type: TypeTag.Array, value: ddata.value };
+        const returnType: ExactOrUnion = { type: TypeTag.Array };
+        if (ddata.value) {
+          returnType.value = ddata.value;
+        } else {
+          const value: ExactOrUnion = { type: TypeTag.Never };
+          ddata.forEach((v) => {
+            unionInto(value, v);
+          });
+          if (value.type !== TypeTag.Never) {
+            returnType.value = value;
+          }
+        }
+        ret.returnType = { type: TypeTag.Array, value: returnType };
       }
     }
     return ret;
@@ -391,7 +422,19 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
       if (ddata) {
-        ret.returnType = { type: TypeTag.Array, value: ddata.key };
+        const returnType: ExactOrUnion = { type: TypeTag.Array };
+        if (ddata.value) {
+          returnType.value = ddata.key;
+        } else {
+          const value: ExactOrUnion = { type: TypeTag.Never };
+          ddata.forEach((v, k) => {
+            unionInto(value, typeFromObjectLiteralKey(k));
+          });
+          if (value.type !== TypeTag.Never) {
+            returnType.value = value;
+          }
+        }
+        ret.returnType = { type: TypeTag.Array, value: returnType };
       }
     }
     return ret;
@@ -409,23 +452,46 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         const args = getArgs();
         if (args.length === 2) {
           const key = args[0];
-          const value = args[1];
-          const stKey = subtypeOf(key, ddata.key);
-          const stValue = subtypeOf(value, ddata.value);
-          if (!stKey || !stValue) {
-            ret.argTypes = [ddata.key, ddata.value];
-            const newDData = { ...ddata };
-            if (!stKey) {
-              newDData.key = cloneType(newDData.key);
-              unionInto(newDData.key, key);
+          if (ddata.value) {
+            const value = args[1];
+            const stKey = subtypeOf(key, ddata.key);
+            const stValue = subtypeOf(value, ddata.value);
+            if (!stKey || !stValue) {
+              ret.argTypes = [ddata.key, ddata.value];
+              const newDData = { ...ddata };
+              if (!stKey) {
+                newDData.key = cloneType(newDData.key);
+                unionInto(newDData.key, relaxType(key));
+              }
+              if (!stValue) {
+                newDData.value = cloneType(newDData.value);
+                unionInto(newDData.value, relaxType(value));
+              }
+              const newObj = cloneType(calleeObj);
+              setUnionComponent(newObj, TypeTag.Dictionary, newDData);
+              ret.calleeObj = newObj;
             }
-            if (!stValue) {
-              newDData.value = cloneType(newDData.value);
-              unionInto(newDData.value, value);
+          } else {
+            const keyStr = objectLiteralKeyFromType(key);
+            if (keyStr) {
+              const value = ddata.get(keyStr);
+              if (value) {
+                ret.argTypes = [key, value];
+                if (subtypeOf(args[1], value)) {
+                  return ret;
+                }
+              }
+              const newDData = new Map(ddata);
+              let newFieldType = relaxType(args[1]);
+              if (value) {
+                newFieldType = cloneType(newFieldType);
+                unionInto(newFieldType, value);
+              }
+              newDData.set(keyStr, newFieldType);
+              const newObj = cloneType(calleeObj);
+              setUnionComponent(newObj, TypeTag.Dictionary, newDData);
+              ret.calleeObj = newObj;
             }
-            const newObj = cloneType(calleeObj);
-            setUnionComponent(newObj, TypeTag.Dictionary, newDData);
-            ret.calleeObj = newObj;
           }
         }
       }

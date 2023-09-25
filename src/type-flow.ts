@@ -79,6 +79,8 @@ import {
   getUnionComponent,
   hasValue,
   isExact,
+  objectLiteralKeyFromExpr,
+  relaxType,
   setUnionComponent,
   typeFromLiteral,
   typeFromTypeStateNode,
@@ -86,7 +88,7 @@ import {
   typeFromTypespec,
 } from "./type-flow/types";
 import { clearValuesUnder, unionInto, widenType } from "./type-flow/union-type";
-import { every, log, map, reduce, some } from "./util";
+import { every, forEach, log, map, reduce, some } from "./util";
 
 const logging = true;
 
@@ -195,7 +197,13 @@ export function buildConflictGraph(
 // evaluated, and we keep them around so we know when
 // to invalidate this entry (or at least, remove some of
 // its type specializations)
-type AssocPath = Array<{ name: string | null; type: ExactOrUnion }>;
+type AssocPath = Array<{
+  name: string | null;
+  type: ExactOrUnion;
+  // for a computed member which is a dictionary, whose type is an
+  // ObjectLiteralType, this is the key.
+  keyStr?: string;
+}>;
 
 type CopyPropItem = {
   event: DefEvent;
@@ -671,7 +679,12 @@ function updateAffected(
           if (type.type & TypeTag.Dictionary) {
             const dtype = getUnionComponent(type, TypeTag.Dictionary);
             if (dtype) {
-              unionInto(newType, dtype.value);
+              if (dtype.value) {
+                unionInto(newType, dtype.value);
+              } else {
+                // Dictionary TODO: Handle literal keys here
+                dtype.forEach((value) => unionInto(newType, value));
+              }
               newType.type |= TypeTag.Null;
             }
           }
@@ -732,18 +745,28 @@ function propagateTypes(
     });
   }
 
+  function withNull(type: ExactOrUnion) {
+    if (type.type & TypeTag.Null) return type;
+    type = cloneType(type);
+    type.type |= TypeTag.Null;
+    return type;
+  }
   function memberDeclInfo(
     blockState: TypeState,
     decl: Extract<EventDecl, { type: "MemberDecl" }>,
     newValue?: ExactOrUnion | undefined
   ): [ExactOrUnion, boolean] | null {
-    const baseType = getStateType(blockState, decl.base);
-    const typePath: ExactOrUnion[] = [baseType];
-    let next = null as ExactOrUnion | null;
+    let cur = getStateType(blockState, decl.base);
+    const assocValue: AssocPath = [];
+
     let updateAny = false;
     for (let i = 0, l = decl.path.length - 1; i <= l; i++) {
-      let cur = typePath.pop()!;
+      let next = null as ExactOrUnion | null;
       const me = decl.path[i];
+      assocValue.push({
+        name: me.computed ? null : me.property.name,
+        type: cur,
+      });
       next = null;
       if (!me.computed) {
         const value = getObjectValue(cur);
@@ -799,19 +822,41 @@ function propagateTypes(
               next = avalue;
             }
           }
+          let isExact = false;
           if (cur.type & TypeTag.Dictionary) {
-            const dvalue = getUnionComponent(cur, TypeTag.Dictionary)
-              ?.value || {
-              type: TypeTag.Any,
-            };
-            if (next) {
-              unionInto((next = cloneType(next)), dvalue);
-            } else {
-              next = dvalue;
+            const ddict = getUnionComponent(cur, TypeTag.Dictionary);
+            if (ddict && !ddict.value) {
+              const keyStr = objectLiteralKeyFromExpr(me.property);
+              if (keyStr) {
+                const n = ddict.get(keyStr);
+                if (!next) {
+                  isExact = true;
+                  assocValue[i].keyStr = keyStr;
+                  if (n) {
+                    next = withNull(n);
+                  } else if (i !== l || !newValue) {
+                    next = { type: TypeTag.Any };
+                  }
+                } else {
+                  if (n) {
+                    unionInto((next = cloneType(next)), n);
+                    next.type |= TypeTag.Null;
+                  } else {
+                    next = { type: TypeTag.Any };
+                  }
+                }
+              }
             }
-            if (!(next.type & TypeTag.Null)) {
-              next = cloneType(next);
-              next.type |= TypeTag.Null;
+            if (!isExact) {
+              const dvalue = ddict?.value ?? {
+                type: TypeTag.Any,
+              };
+              if (next) {
+                unionInto((next = cloneType(next)), dvalue);
+              } else {
+                next = dvalue;
+              }
+              next = withNull(next);
             }
           }
           if (i === l && newValue) {
@@ -824,15 +869,11 @@ function propagateTypes(
         }
       }
       if (!next) return null;
-      typePath.push(cur);
-      typePath.push(next);
+      assocValue[i].type = cur;
+      cur = next;
     }
-    const assocValue: AssocPath = decl.path.map((me, i) => ({
-      name: me.computed ? null : me.property.name,
-      type: typePath[i],
-    }));
     const assocKey = assocValue.map((av) => av.name ?? "*").join(".");
-    const newType = updateByAssocPath(assocValue, next!, newValue != null);
+    const newType = updateByAssocPath(assocValue, cur, newValue != null);
     setStateEvent(
       blockState,
       decl.base,
@@ -855,7 +896,7 @@ function propagateTypes(
             assocKey,
             baseElem.name,
             affected,
-            next!
+            cur
           );
         }
       }
@@ -887,9 +928,9 @@ function propagateTypes(
               const decls: StateNodeDecl[] = result.flatMap(
                 (lookupDef) => lookupDef.results
               );
-              const doUpdate = (key: TypeStateKey, cur: TypeStateValue) => {
-                const update = cloneType(cur.curType);
-                unionInto(update, next!);
+              const doUpdate = (key: TypeStateKey, value: TypeStateValue) => {
+                const update = cloneType(value.curType);
+                unionInto(update, cur);
                 setStateEvent(blockState, key, update, UpdateKind.None);
               };
 
@@ -908,7 +949,7 @@ function propagateTypes(
         }
       }
     }
-    return [next!, updateAny];
+    return [cur, updateAny];
   }
 
   function typeConstraint(decls: TypeStateKey): ExactOrUnion {
@@ -1068,22 +1109,28 @@ function propagateTypes(
     node: mctree.CallExpression
   ) {
     const calleeObj = getStateType(curState, calleeObjDecl);
-    const calleeResult: ExactOrUnion = { type: TypeTag.Never };
-    const result = every(callees, (callee) => {
+    let calleeResult = null as ExactOrUnion | null;
+    let effectFree = true;
+    forEach(callees, (callee) => {
       const info = sysCallInfo(istate.state, callee);
-      if (!info) return false;
+      if (!info) {
+        effectFree = false;
+        return;
+      }
       const result = info(istate.state, callee, calleeObj, () =>
         node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
       );
       if (!result.effectFree) {
-        return false;
+        effectFree = false;
       }
       if (result.calleeObj) {
+        if (!calleeResult) {
+          calleeResult = { type: TypeTag.Never } as ExactOrUnion;
+        }
         unionInto(calleeResult, result.calleeObj);
       }
-      return true;
     });
-    return result ? calleeResult : null;
+    return { effectFree, calleeResult };
   }
 
   function modInterference(
@@ -1109,23 +1156,24 @@ function propagateTypes(
       callees = event.callees;
     }
     if (event.calleeObj) {
-      const calleeObjResult = checkModResults(
+      const { effectFree, calleeResult } = checkModResults(
         blockState,
         event.calleeObj,
         callees,
         event.node as mctree.CallExpression
       );
-      if (calleeObjResult) {
-        if (calleeObjResult.type !== TypeTag.Never) {
-          if (doUpdate) {
-            setStateEvent(
-              blockState,
-              event.calleeObj,
-              calleeObjResult,
-              UpdateKind.None
-            );
-          }
+      if (calleeResult) {
+        if (doUpdate) {
+          setStateEvent(
+            blockState,
+            event.calleeObj,
+            calleeResult,
+            UpdateKind.None
+          );
         }
+        return effectFree;
+      }
+      if (effectFree) {
         return true;
       }
     }
@@ -2323,11 +2371,26 @@ function updateByAssocPath(
       }
       if (object.type & TypeTag.Dictionary) {
         const dvalue = getUnionComponent(object, TypeTag.Dictionary);
-        object = cloneType(object);
-        setUnionComponent(object, TypeTag.Dictionary, {
-          key: dvalue?.key || { type: TypeTag.Any },
-          value: valueToStore(dvalue?.value),
-        });
+        if (dvalue) {
+          if (dvalue.value) {
+            object = cloneType(object);
+            setUnionComponent(object, TypeTag.Dictionary, {
+              key: dvalue.key || { type: TypeTag.Any },
+              value: valueToStore(dvalue.value),
+            });
+          } else {
+            if (pathElem.keyStr) {
+              object = cloneType(object);
+              const relaxed = cloneType(relaxType(property));
+              relaxed.type &= ~TypeTag.Null;
+              setUnionComponent(
+                object,
+                TypeTag.Dictionary,
+                new Map(dvalue).set(pathElem.keyStr, relaxed)
+              );
+            }
+          }
+        }
       }
     }
     path[i].type = object;

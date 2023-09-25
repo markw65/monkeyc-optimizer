@@ -7,6 +7,7 @@ import {
   TypedefStateNode,
 } from "../optimizer-types";
 import { forEach, some } from "../util";
+import { couldBe } from "./could-be";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
@@ -20,6 +21,7 @@ import {
   setUnionComponent,
   SingletonTypeTagsConst,
   SingleValue,
+  typeFromObjectLiteralKey,
   TypeTag,
   UnionData,
   UnionDataKey,
@@ -170,9 +172,57 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
     }
 
     case TypeTag.Dictionary: {
-      const { key, value } = pair.avalue;
-      const keyChange = tryUnion(key, pair.bvalue.key);
-      const valueChange = tryUnion(value, pair.bvalue.value);
+      const avalue = pair.avalue;
+      const bvalue = pair.bvalue;
+      if (!avalue.value) {
+        if (!bvalue.value) {
+          const result = new Map(avalue);
+          let merged = false;
+          result.forEach((av, key) => {
+            const bv = bvalue.get(key);
+            if (!bv) {
+              result.delete(key);
+              merged = true;
+              return;
+            }
+            av = cloneType(av);
+            if (unionInto(av, bv)) merged = true;
+            result.set(key, av);
+          });
+          return [result, merged];
+        } else {
+          const result = new Map(avalue);
+          let merged = false;
+          result.forEach((av, key) => {
+            const keyType = typeFromObjectLiteralKey(key);
+            if (couldBe(keyType, bvalue.key)) {
+              const bv = tryUnion(av, bvalue.value);
+              if (bv) {
+                result.set(key, bv);
+                merged = true;
+              }
+            }
+          });
+          return [result, merged];
+        }
+      } else if (!bvalue.value) {
+        const result = new Map(bvalue);
+        let merged = false;
+        result.forEach((bv, key) => {
+          const keyType = typeFromObjectLiteralKey(key);
+          if (couldBe(keyType, avalue.key)) {
+            const av = tryUnion(bv, avalue.value);
+            if (av) {
+              result.set(key, av);
+              merged = true;
+            }
+          }
+        });
+        return [result, merged];
+      }
+      const { key, value } = avalue;
+      const keyChange = tryUnion(key, bvalue.key);
+      const valueChange = tryUnion(value, bvalue.value);
       if (keyChange || valueChange) {
         return [{ key: keyChange || key, value: valueChange || value }, true];
       }
@@ -425,14 +475,31 @@ function widenTypeHelper(t: ExactOrUnion, depth: number) {
             clearValuesUnder(result, ac.type);
           } else {
             const ddata = ac.value;
-            const key = widenTypeHelper(ddata.key, depth + 1);
-            const data = widenTypeHelper(ddata.value, depth + 1);
-            if (key || data) {
-              if (!result) result = cloneType(t);
-              const newDData = { ...ddata };
-              if (key) newDData.key = key;
-              if (data) newDData.value = data;
-              setUnionComponent(result, ac.type, newDData);
+            if (ddata.value) {
+              const key = widenTypeHelper(ddata.key, depth + 1);
+              const data = widenTypeHelper(ddata.value, depth + 1);
+              if (key || data) {
+                if (!result) result = cloneType(t);
+                const newDData = { ...ddata };
+                if (key) newDData.key = key;
+                if (data) newDData.value = data;
+                setUnionComponent(result, ac.type, newDData);
+              }
+            } else {
+              let newDData = ddata;
+              ddata.forEach((dvalue, dkey) => {
+                const data = widenTypeHelper(dvalue, depth + 1);
+                if (data) {
+                  if (newDData === ddata) {
+                    newDData = new Map(newDData);
+                  }
+                  newDData.set(dkey, data);
+                }
+              });
+              if (newDData !== ddata) {
+                if (!result) result = cloneType(t);
+                setUnionComponent(result, ac.type, newDData);
+              }
             }
           }
           return;

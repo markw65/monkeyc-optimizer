@@ -145,11 +145,17 @@ function couldBeValue(pair: ValuePairs, shallow: boolean) {
     case TypeTag.Char:
     case TypeTag.Symbol:
       return pair.avalue === pair.bvalue;
+    // todo: Array<Number> couldBe Array<String> because they could both be
+    // empty.
     case TypeTag.Array:
       return shallow || couldBe(pair.avalue, pair.bvalue);
+    // todo: as above, arbitrary Dictionaries *couldBe* each other because they
+    // could both be empty.
     case TypeTag.Dictionary: {
       return (
         shallow ||
+        !pair.avalue.value ||
+        !pair.bvalue.value ||
         (couldBe(pair.avalue.key, pair.bvalue.key) &&
           couldBe(pair.avalue.value, pair.bvalue.value))
       );
