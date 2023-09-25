@@ -75,7 +75,9 @@ function testRelationalFolding1(logger as Logger) as Boolean {
 }
 
 (:test)
-function testRelationalFoldingExpectedFail4_1_6_U(logger as Logger) as Boolean {
+function testRelationalFoldingExpectedFail4_1_6_6_2_9U(
+    logger as Logger
+) as Boolean {
     ok = true;
 
     /* @match /check\(@42, @42, logger\);/ */
