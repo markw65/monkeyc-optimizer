@@ -371,6 +371,9 @@ export function cloneType<T extends ExactOrUnion>(t: T): T {
  * etc.
  */
 export function relaxType(type: ExactOrUnion) {
+  if (type.type === TypeTag.Null) {
+    return { type: TypeTag.Null | TypeTag.Object };
+  }
   const valTypes = type.type & ValueTypeTagsConst;
   if (
     (!valTypes || hasNoData(type, valTypes)) &&
