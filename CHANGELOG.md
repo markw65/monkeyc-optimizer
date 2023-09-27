@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.38
+
+- Fix a bug introduced in 1.1.37 that could lead to duplicate diagnostics, and diagnostics with strange contents.
+- Give `{ :foo => null }` the type `{ :foo => Object? }`, so that subsequent assignments to `:foo` aren't reported as type errors.
+
 ### 1.1.37
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.53](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1053)
