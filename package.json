@@ -50,7 +50,7 @@
   "license": "MIT",
   "dependencies": {
     "@markw65/peggy-optimizer": "^1.0.1",
-    "@markw65/prettier-plugin-monkeyc": "^1.0.52"
+    "@markw65/prettier-plugin-monkeyc": "^1.0.53"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",
