@@ -8,6 +8,7 @@ import {
   formatAst,
   hasProperty,
   parseSdkVersion,
+  resolveDiagnosticsMap,
 } from "./api";
 import { build_project } from "./build";
 import {
@@ -1116,6 +1117,10 @@ async function getProjectAnalysisHelper(
       collectNamespaces(f.ast!, state);
     });
     delete state.pre;
+  }
+
+  if (state.diagnostics) {
+    await resolveDiagnosticsMap(state.diagnostics);
   }
 
   return { fnMap: fnMap as Analysis["fnMap"], paths, state, typeMap };

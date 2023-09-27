@@ -10,6 +10,8 @@ import {
   isLookupCandidate,
   isStateNode,
   markInvokeClassMethod,
+  resolveDiagnostics,
+  resolveDiagnosticsMap,
   variableDeclarationName,
   visitReferences,
 } from "./api";
@@ -31,8 +33,8 @@ import {
   recordModifiedUnknown,
 } from "./function-info";
 import {
-  inlinableSubExpression,
   InlineContext,
+  inlinableSubExpression,
   inlineDiagnostic,
   inlineFunction,
   shouldInline,
@@ -48,7 +50,6 @@ import {
   FunctionStateNode,
   LookupDefinition,
   ModuleStateNode,
-  PreDiagnostic,
   ProgramState,
   ProgramStateAnalysis,
   ProgramStateLive,
@@ -62,15 +63,15 @@ import { xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
 import {
+  InterpState,
   evaluate,
   evaluateNode,
-  InterpState,
   preEvaluate,
 } from "./type-flow/interp";
 import { minimizeModules } from "./type-flow/minimize-modules";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
-import { mcExprFromType, typeFromLiteral, TypeTag } from "./type-flow/types";
+import { TypeTag, mcExprFromType, typeFromLiteral } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { AwaitedError, pushUnique } from "./util";
 import { renameIdentifier, renameVariable } from "./variable-renamer";
@@ -1201,53 +1202,6 @@ async function optimizeMonkeyCHelper(
     delete state.inlineDiagnostics;
   }
 
-  const resolveDiagnostics = (diagnostics?: PreDiagnostic[]) =>
-    diagnostics
-      ? Promise.all(
-          diagnostics
-            ?.filter((diagnostic) => typeof diagnostic.message !== "string")
-            .map((diagnostic) => diagnostic.message)
-        ).then(() => {
-          const groups: Map<string, Diagnostic[]> = new Map();
-          diagnostics.forEach((d) => {
-            let key = `${d.loc.start.offset}:${d.loc.end.offset}`;
-            if (d.related) {
-              key +=
-                ":" +
-                d.related
-                  .map((r) => `${r.loc.start.offset}:${r.loc.end.offset}`)
-                  .join(":");
-            }
-            if (!d.message) {
-              groups.delete(key);
-            } else {
-              const group = groups.get(key);
-              if (!group) {
-                groups.set(key, [d as Diagnostic]);
-              } else {
-                const index = group.findIndex((g) => g.message === d.message);
-                if (index < 0) {
-                  group.push(d as Diagnostic);
-                } else {
-                  group[index] = d as Diagnostic;
-                }
-              }
-            }
-          });
-          diagnostics.splice(0);
-          diagnostics.push(...Array.from(groups.values()).flat());
-          return diagnostics as Diagnostic[];
-        })
-      : diagnostics;
-
-  const resolveDiagnosticsMap = (
-    diagnosticsMap: Record<string, PreDiagnostic[]>
-  ) =>
-    Promise.all(
-      Object.values(diagnosticsMap).map((diagnostics) =>
-        resolveDiagnostics(diagnostics)
-      )
-    ).then(() => diagnosticsMap as Record<string, Diagnostic[]>);
   if (state.config?.checkBuildPragmas) {
     await Object.entries(fnMap).reduce((promise, [name, f]) => {
       return Promise.all([
