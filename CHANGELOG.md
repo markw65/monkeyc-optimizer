@@ -2,6 +2,32 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.37
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.53](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1053)
+
+- Features
+
+  - Generate diagnostics for unary and binary operators with incorrect arguments
+  - Properly handle object-literal types (eg `{ :foo as String, :bar as Number }`).
+  - When converting Graphics.ColorValue to a number, format the number as hex.
+
+- Tests
+
+  - Update tests for sdk 6.3.0
+  - Add more test coverage for binary operators and their expected types.
+
+- Build
+
+  - Use [@markw65/peggy-optimizer](https://github.com/markw65/peggy/tree/peggy-optimizer/optimizer-plugin) to optimize the jungle and resource parsers
+  - Make things work properly with prettier-3.x, but don't actually upgrade yet
+
+- Bug fixes
+
+  - Fix a bug with the result type of A & B when A could be Boolean
+  - Always include null for the types of values extracted from `Dictionary`s
+  - When inferring the type of a `Dictionary`, don't include values.
+
 ### 1.1.36
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.52](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1052)
