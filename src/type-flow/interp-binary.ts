@@ -1,17 +1,20 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { couldBeWeak } from "./could-be";
-import { roundToFloat } from "./interp";
+import { deEnumerate, roundToFloat } from "./interp";
 import { subtypeOf } from "./sub-type";
 import {
   castType,
   ClassType,
+  cloneType,
   ExactOrUnion,
   ExactTypes,
+  hasNoData,
   hasValue,
   isExact,
   isSingleton,
   mustBeFalse,
   mustBeTrue,
+  ObjectLikeTagsConst,
   TruthyTypes,
   TypeTag,
   UnionTypeTags,
@@ -96,7 +99,7 @@ function common_types(
     const includes =
       (TypeTag.Boolean | TypeTag.Numeric | TypeTag.String | TypeTag.Char) &
       allowed;
-    if (rt & TypeTag.Boolean) {
+    if (rt & allowed & TypeTag.Boolean) {
       result |= TypeTag.Boolean;
     }
     result |= rt & includes;
@@ -108,7 +111,7 @@ function common_types(
   if (lt & TypeTag.Long) {
     const includes =
       (TypeTag.Boolean | TypeTag.Numeric | TypeTag.String) & allowed;
-    if (rt & TypeTag.Boolean) {
+    if (rt & allowed & TypeTag.Boolean) {
       result |= TypeTag.Boolean;
     }
     result |= rt & includes & ~(TypeTag.Number | TypeTag.Float);
@@ -248,6 +251,16 @@ export function evaluateBinaryTypes(
 ): {
   type: ExactOrUnion;
 } & OpMatch {
+  left = deEnumerate(left);
+  right = deEnumerate(right);
+  if (left.type & TypeTag.Object && hasNoData(left, TypeTag.Object)) {
+    left = cloneType(left);
+    left.type |= ObjectLikeTagsConst;
+  }
+  if (right.type & TypeTag.Object && hasNoData(right, TypeTag.Object)) {
+    right = cloneType(right);
+    right.type |= ObjectLikeTagsConst;
+  }
   if (!operators) {
     operators = {
       "+": {

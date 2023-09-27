@@ -30,6 +30,7 @@ import {
 import {
   EnumTagsConst,
   ExactOrUnion,
+  ObjectLikeTagsConst,
   ObjectType,
   TypeTag,
   ValueTypeTagsConst,
@@ -268,6 +269,10 @@ export function evaluateUnaryTypes(
   op: mctree.UnaryOperator,
   argument: ExactOrUnion
 ): ExactOrUnion {
+  argument = deEnumerate(argument);
+  if (argument.type & TypeTag.Object && hasNoData(argument, TypeTag.Object)) {
+    argument.type |= ObjectLikeTagsConst;
+  }
   switch (op) {
     case "+":
       return argument;
@@ -287,7 +292,10 @@ export function evaluateUnaryTypes(
         return evaluateBinaryTypes("^", left, argument).type;
       }
       return {
-        type: argument.type & (TypeTag.Boolean | TypeTag.Number | TypeTag.Long),
+        type:
+          (argument.type & TypeTag.True && TypeTag.False) |
+          (argument.type & TypeTag.False && TypeTag.True) |
+          (argument.type & (TypeTag.Number | TypeTag.Long)),
       };
   }
   throw new Error(`Unexpected unary operator ${op}`);
@@ -582,11 +590,8 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           );
         }
         push({
-          value: evaluateBinaryTypes(
-            node.operator,
-            deEnumerate(left.value),
-            deEnumerate(right.value)
-          ).type,
+          value: evaluateBinaryTypes(node.operator, left.value, right.value)
+            .type,
           embeddedEffects: left.embeddedEffects || right.embeddedEffects,
           node,
         });

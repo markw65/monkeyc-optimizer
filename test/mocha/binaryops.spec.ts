@@ -10,6 +10,7 @@ import {
   mustBeTrue,
 } from "../../src/type-flow/types";
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { evaluateUnaryTypes } from "src/type-flow/interp";
 
 export function binaryOperatorTests() {
   describe("Invalid inputs to", () => {
@@ -35,11 +36,9 @@ export function binaryOperatorTests() {
       TypeTag.Method |
       TypeTag.Module |
       TypeTag.Class |
-      TypeTag.Enum |
-      TypeTag.Object |
       TypeTag.Typedef |
       TypeTag.Symbol;
-    const validBits = TypeTag.Any; // & ~(TypeTag.Enum | TypeTag.Typedef);
+    const validBits = TypeTag.Any & ~TypeTag.Object & ~TypeTag.Enum;
 
     describe("'+' without String", () => {
       const alwaysFail =
@@ -105,7 +104,8 @@ export function binaryOperatorTests() {
 
     const regularArith = (op: mctree.BinaryOperator, allowed: TypeTag) => {
       describe(`'${op}'`, () => {
-        const alwaysFail = TypeTag.Any & ~allowed;
+        const alwaysFail =
+          TypeTag.Any & ~(TypeTag.Object | TypeTag.Enum | allowed);
         it("invalid bits on left, everything on right", () =>
           check(op, alwaysFail, validBits, TypeTag.Never, [
             [alwaysFail, validBits],
@@ -149,7 +149,14 @@ export function binaryOperatorTests() {
 
     describe(`'&&' / 'and'`, () => {
       const alwaysFail =
-        TypeTag.Any & ~(TypeTag.Boolean | TypeTag.Number | TypeTag.Long);
+        TypeTag.Any &
+        ~(
+          TypeTag.Boolean |
+          TypeTag.Number |
+          TypeTag.Long |
+          TypeTag.Object |
+          TypeTag.Enum
+        );
       it("invalid bits on left, everything on right", () =>
         check("&&", alwaysFail, validBits, TypeTag.Null, [
           [alwaysFail, validBits],
@@ -178,7 +185,14 @@ export function binaryOperatorTests() {
     });
     describe(`'||' / 'or'`, () => {
       const alwaysFail =
-        TypeTag.Any & ~(TypeTag.Boolean | TypeTag.Number | TypeTag.Long);
+        TypeTag.Any &
+        ~(
+          TypeTag.Boolean |
+          TypeTag.Number |
+          TypeTag.Long |
+          TypeTag.Object |
+          TypeTag.Enum
+        );
       it("invalid bits on left, everything on right", () =>
         check("||", alwaysFail, validBits, alwaysFail & TruthyTypes, [
           [alwaysFail, validBits],
@@ -209,15 +223,22 @@ export function binaryOperatorTests() {
     });
   });
 
-  describe("Logical AND", () => {
-    it("Boolean && ANY", () => {
+  describe("Logical operators", () => {
+    it("Boolean && Object", () => {
       expect(
         evaluateLogicalTypes(
           "&&",
           { type: TypeTag.Boolean },
-          { type: TypeTag.Any }
+          { type: TypeTag.Object | TypeTag.Null }
         ).type
       ).to.deep.equal({ type: TypeTag.Boolean });
+    });
+    it("!Object", () => {
+      expect(
+        evaluateUnaryTypes("!", { type: TypeTag.Object | TypeTag.Null })
+      ).to.deep.equal({
+        type: TypeTag.Boolean | TypeTag.Number | TypeTag.Long,
+      });
     });
   });
 }
