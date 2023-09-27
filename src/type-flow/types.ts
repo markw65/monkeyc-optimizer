@@ -844,17 +844,29 @@ export function mcExprFromType(type: ValueTypes): mctree.Expression | null {
       if (type.value.value && hasValue(type.value.value)) {
         const left = mcExprFromType(type.value.value);
         if (left) {
-          return type.value.enum
-            ? ({
-                type: "BinaryExpression",
-                operator: "as",
-                left,
-                right: {
-                  type: "TypeSpecList",
-                  ts: [type.value.enum.fullName.slice(2)],
-                },
-              } as unknown as mctree.AsExpression)
-            : left;
+          if (!type.value.enum) {
+            return left;
+          }
+          const enumStr = type.value.enum.fullName.slice(2);
+          if (
+            enumStr === "Toybox.Graphics.ColorValue" &&
+            left.type === "Literal" &&
+            typeof left.value === "number" &&
+            left.value >= 0 &&
+            left.value <= 0xffffff &&
+            /^\d+$/.test(left.raw)
+          ) {
+            left.raw = "0x" + `00000${left.value.toString(16)}`.slice(-6);
+          }
+          return {
+            type: "BinaryExpression",
+            operator: "as",
+            left,
+            right: {
+              type: "TypeSpecList",
+              ts: [type.value.enum.fullName.slice(2)],
+            },
+          } as unknown as mctree.AsExpression;
         }
       }
   }
