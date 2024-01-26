@@ -1,0 +1,108 @@
+From 811cacd4bc9c035601d1fb6670aeef0a575395fb Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Fri, 26 Jan 2024 11:02:36 -0800
+Subject: [PATCH] Fixes for type-checker and fitFields
+
+---
+ resources/fitcontributions/fitcontributions.xml | 10 +++++-----
+ source/AuxHRApp.mc                              |  2 +-
+ source/AuxHRSensor.mc                           |  7 +++----
+ 3 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/resources/fitcontributions/fitcontributions.xml b/resources/fitcontributions/fitcontributions.xml
+index 208fb59..271a0e1 100644
+--- a/resources/fitcontributions/fitcontributions.xml
++++ b/resources/fitcontributions/fitcontributions.xml
+@@ -25,7 +25,7 @@
+       displayInChart="false"
+       displayInActivityLaps="false"
+       displayInActivitySummary="true"
+-      sortOrder="1"
++      sortOrder="2"
+       precision="0"
+       dataLabel="@Strings.lAvgHeartRate"
+       unitLabel="@Strings.lHeartRateUnits" />
+@@ -34,7 +34,7 @@
+       displayInChart="false"
+       displayInActivityLaps="true"
+       displayInActivitySummary="false"
+-      sortOrder="2"
++      sortOrder="3"
+       precision="0"
+       dataLabel="@Strings.lMaxHeartRate"
+       unitLabel="@Strings.lHeartRateUnits" />
+@@ -43,7 +43,7 @@
+       displayInChart="false"
+       displayInActivityLaps="false"
+       displayInActivitySummary="true"
+-      sortOrder="2"
++      sortOrder="4"
+       precision="0"
+       dataLabel="@Strings.lMaxHeartRate"
+       unitLabel="@Strings.lHeartRateUnits" />
+@@ -52,7 +52,7 @@
+       displayInChart="false"
+       displayInActivityLaps="true"
+       displayInActivitySummary="false"
+-      sortOrder="3"
++      sortOrder="5"
+       precision="0"
+       dataLabel="@Strings.lMinHeartRate"
+       unitLabel="@Strings.lHeartRateUnits" />
+@@ -61,7 +61,7 @@
+       displayInChart="false"
+       displayInActivityLaps="false"
+       displayInActivitySummary="true"
+-      sortOrder="3"
++      sortOrder="6"
+       precision="0"
+       dataLabel="@Strings.lMinHeartRate"
+       unitLabel="@Strings.lHeartRateUnits" />
+diff --git a/source/AuxHRApp.mc b/source/AuxHRApp.mc
+index 5d734e6..8a2d7c5 100644
+--- a/source/AuxHRApp.mc
++++ b/source/AuxHRApp.mc
+@@ -1,5 +1,6 @@
+ using Toybox.Application as App;
+ import Toybox.Ant;
++using Toybox.System as Sys;
+ 
+ class AuxHRApp extends App.AppBase {
+ 	var mSensor;
+@@ -25,7 +26,6 @@ class AuxHRApp extends App.AppBase {
+ 
+     // onStop() is called when your application is exiting
+     function onStop(state) {
+-    	return false;
+     }
+ 
+     // Return the initial view of your application here
+diff --git a/source/AuxHRSensor.mc b/source/AuxHRSensor.mc
+index 8941584..fc87ace 100644
+--- a/source/AuxHRSensor.mc
++++ b/source/AuxHRSensor.mc
+@@ -60,18 +60,17 @@ class AuxHRSensor extends Ant.GenericChannel {
+     }
+ 
+     function open() {
+-        // Open the channel
+-        GenericChannel.open();
+-
+         data = new AuxHRData();
+         searching = true;
++        // Open the channel
++        return GenericChannel.open();
+     }
+ 
+     function closeSensor() {
+         GenericChannel.close();
+     }
+ 
+-    function onMessage(msg) {
++    function onMessage(msg as Ant.Message) as Void {
+         // Parse the payload
+         var payload = msg.getPayload();
+ 
+-- 
+2.34.1
+

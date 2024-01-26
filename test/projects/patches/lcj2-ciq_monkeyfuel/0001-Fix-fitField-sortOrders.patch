@@ -1,0 +1,31 @@
+From fae77b7835368f6553c2f4985ff87fc04886571e Mon Sep 17 00:00:00 2001
+From: markw65 <mark_st@myosotissp.com>
+Date: Fri, 26 Jan 2024 10:51:34 -0800
+Subject: [PATCH] Fix fitField sortOrders
+
+---
+ resources/fit.xml | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/resources/fit.xml b/resources/fit.xml
+index 788035e..f79f12f 100644
+--- a/resources/fit.xml
++++ b/resources/fit.xml
+@@ -3,10 +3,10 @@
+     <fitField id="3" displayInChart="true" sortOrder="0" precision="2" chartTitle="@Strings.FieldBurnRate" dataLabel="@Strings.FieldBurnRate" unitLabel="@Strings.GC_BurnRate_Units" fillColor="#0099FF" />
+ 
+     <!-- LAP : Lap Data Definitions -->
+-    <fitField id="1" displayInActivityLaps="true" sortOrder="0" precision="2" dataLabel="@Strings.FieldCurrent" unitLabel="@Strings.GC_Empty_Units" />
+-    <fitField id="4" displayInActivityLaps="true" sortOrder="1" precision="2" dataLabel="@Strings.FieldBurnAverage" unitLabel="@Strings.GC_BurnRate_Units" />
++    <fitField id="1" displayInActivityLaps="true" sortOrder="1" precision="2" dataLabel="@Strings.FieldCurrent" unitLabel="@Strings.GC_Empty_Units" />
++    <fitField id="4" displayInActivityLaps="true" sortOrder="2" precision="2" dataLabel="@Strings.FieldBurnAverage" unitLabel="@Strings.GC_BurnRate_Units" />
+ 
+     <!-- SESSION : Session Data Definitions -->
+-    <fitField id="2" displayInActivitySummary="true" sortOrder="0" precision="2" dataLabel="@Strings.FieldCurrent" unitLabel="@Strings.GC_Empty_Units" />
+-    <fitField id="5" displayInActivitySummary="true" sortOrder="1" precision="2" dataLabel="@Strings.FieldBurnAverage" unitLabel="@Strings.GC_BurnRate_Units" />
++    <fitField id="2" displayInActivitySummary="true" sortOrder="3" precision="2" dataLabel="@Strings.FieldCurrent" unitLabel="@Strings.GC_Empty_Units" />
++    <fitField id="5" displayInActivitySummary="true" sortOrder="4" precision="2" dataLabel="@Strings.FieldBurnAverage" unitLabel="@Strings.GC_BurnRate_Units" />
+ </fitContributions>
+-- 
+2.34.1
+
