@@ -2,6 +2,14 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.39
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.54](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1054)
+
+  - Fixes the parser to understand tuples
+
+- Add basic type analysis for tuples
+
 ### 1.1.38
 
 - Fix a bug introduced in 1.1.37 that could lead to duplicate diagnostics, and diagnostics with strange contents.
