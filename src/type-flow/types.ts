@@ -636,13 +636,28 @@ export function typeFromObjectLiteralKey(key: string): ValueTypes {
 
 export function typeFromSingleTypeSpec(
   state: ProgramStateAnalysis,
-  type: mctree.TypeSpecPart | mctree.ObjectExpression,
+  type: mctree.SingleTypeSpec,
   stack?: ProgramStateStack | undefined
 ): ExactOrUnion {
   if (typeof type === "string") {
     type = { type: "TypeSpecPart", name: type };
   }
   switch (type.type) {
+    case "ArrayExpression": {
+      return {
+        type: TypeTag.Array,
+        value: type.elements.reduce(
+          (prev, cur) => {
+            unionInto(
+              prev,
+              typeFromTypespec(state, cur as unknown as mctree.TypeSpecList)
+            );
+            return prev;
+          },
+          { type: TypeTag.Never }
+        ),
+      };
+    }
     case "ObjectExpression": {
       const fields: ObjectLiteralType = new Map();
       type.properties.forEach((property) => {
