@@ -32,6 +32,7 @@ import {
   resolveDottedMember,
 } from "./type-flow-util";
 import {
+  ArrayType,
   EnumTagsConst,
   ExactOrUnion,
   ObjectLikeTagsConst,
@@ -365,6 +366,31 @@ export function deEnumerate(t: ExactOrUnion) {
   return t;
 }
 
+function arrayTypeAtIndex(
+  arr: NonNullable<ArrayType["value"]>,
+  elemType: ExactOrUnion | undefined
+) {
+  if (Array.isArray(arr)) {
+    if (
+      elemType &&
+      isExact(elemType) &&
+      elemType.type === TypeTag.Number &&
+      elemType.value != null &&
+      arr[elemType.value] != null
+    ) {
+      return arr[elemType.value];
+    }
+    return arr.reduce(
+      (p, v) => {
+        unionInto(p, v);
+        return p;
+      },
+      { type: TypeTag.Never }
+    );
+  }
+  return arr;
+}
+
 function getLhsConstraint(
   istate: InterpState,
   node: mctree.MemberExpression | mctree.Identifier
@@ -398,7 +424,7 @@ function getLhsConstraint(
           if (object.type & TypeTag.Array) {
             const arr = getUnionComponent(object, TypeTag.Array);
             if (arr) {
-              result = arr;
+              result = arrayTypeAtIndex(arr, istate.typeMap.get(node.property));
             }
           }
           const updateResult = (value: ExactOrUnion) => {
@@ -731,22 +757,9 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           node,
         });
       } else {
-        const value = relaxType(
-          args.reduce(
-            (cur, next) => {
-              unionInto(cur, next.value);
-              return cur;
-            },
-            { type: TypeTag.Never }
-          )
-        );
+        const value = args.map((arg) => relaxType(arg.value));
         push({
-          value:
-            value.type === TypeTag.Never
-              ? {
-                  type: TypeTag.Array,
-                }
-              : { type: TypeTag.Array, value },
+          value: { type: TypeTag.Array, value },
           embeddedEffects,
           node,
         });
@@ -907,13 +920,15 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             const avalue = getUnionComponent(objectType, TypeTag.Array) || {
               type: TypeTag.Any,
             };
+            const atype = arrayTypeAtIndex(avalue, property.value);
             if (result) {
-              unionInto((result = cloneType(result)), avalue);
+              unionInto((result = cloneType(result)), atype);
             } else {
-              result = avalue;
+              result = atype;
             }
           }
           if (objectType.type & TypeTag.Dictionary) {
+            // Dictionary TODO: Try to use the property
             const dvalue = getUnionComponent(objectType, TypeTag.Dictionary)
               ?.value || {
               type: TypeTag.Any,

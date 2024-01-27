@@ -148,16 +148,37 @@ function couldBeValue(pair: ValuePairs, shallow: boolean) {
     // todo: Array<Number> couldBe Array<String> because they could both be
     // empty.
     case TypeTag.Array:
-      return shallow || couldBe(pair.avalue, pair.bvalue);
+      if (shallow) return true;
+      if (Array.isArray(pair.avalue)) {
+        const bv = pair.bvalue;
+        if (Array.isArray(bv)) {
+          if (pair.avalue.length !== bv.length) {
+            return false;
+          }
+          return pair.avalue.every((a, i) => couldBe(a, bv[i]));
+        }
+        return pair.avalue.every((a) => couldBe(a, bv));
+      }
+      if (Array.isArray(pair.bvalue)) {
+        const av = pair.avalue;
+        return pair.bvalue.every((b) => couldBe(av, b));
+      }
+      return couldBe(pair.avalue, pair.bvalue);
     // todo: as above, arbitrary Dictionaries *couldBe* each other because they
     // could both be empty.
     case TypeTag.Dictionary: {
+      if (shallow) return true;
+      // ObjectLiteral types differ from tuples. As we see above, if a tuple
+      // contains a type X, and the other array cannot contain that type,
+      // couldBe has to return false.
+      // But the keys of an ObjectLiteral type aren't always present, and in
+      // particular it might be the empty Dictionary. So couldBe must return true.
+      if (!pair.avalue.value || !pair.bvalue.value) {
+        return true;
+      }
       return (
-        shallow ||
-        !pair.avalue.value ||
-        !pair.bvalue.value ||
-        (couldBe(pair.avalue.key, pair.bvalue.key) &&
-          couldBe(pair.avalue.value, pair.bvalue.value))
+        couldBe(pair.avalue.key, pair.bvalue.key) &&
+        couldBe(pair.avalue.value, pair.bvalue.value)
       );
     }
     case TypeTag.Method: {

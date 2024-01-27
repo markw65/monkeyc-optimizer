@@ -18,6 +18,7 @@ import {
   forEachUnionComponent,
   getUnionComponent,
   hasUnionData,
+  reducedType,
   setUnionComponent,
   SingletonTypeTagsConst,
   SingleValue,
@@ -154,7 +155,7 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
     case TypeTag.Null:
     case TypeTag.False:
     case TypeTag.True:
-      throw new Error("Unexpected typetag in mergeSingle");
+      throw new Error("Unexpected TypeTag in mergeSingle");
     case TypeTag.Number:
     case TypeTag.Long:
     case TypeTag.Float:
@@ -167,8 +168,24 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
       }
       return [null, true];
     case TypeTag.Array: {
-      const merged = tryUnion(pair.avalue, pair.bvalue);
-      return [merged || pair.avalue, merged != null];
+      // Array TODO: Support an actual union-of-tuples type
+      if (Array.isArray(pair.avalue)) {
+        const bv = pair.bvalue;
+        if (Array.isArray(bv)) {
+          if (pair.avalue.length === bv.length) {
+            let changed = false;
+            const u = pair.avalue.map((a, i) => {
+              const merged = tryUnion(a, bv[i]);
+              if (merged) changed = true;
+              return merged || a;
+            });
+            return [u, changed];
+          }
+        }
+      }
+      const av = reducedType(pair.avalue);
+      const merged = tryUnion(av, reducedType(pair.bvalue));
+      return [merged || av, merged != null];
     }
 
     case TypeTag.Dictionary: {
@@ -449,6 +466,26 @@ export function clearValuesUnder(
   }
 }
 
+/**
+ * Its possible for type inference in a loop to keep inferring more and
+ * more specialized types.
+ *
+ * eg
+ *
+ * var x = [];
+ * for (i=0; i<N; i++) {
+ *   x = [x, i];
+ *   // on the first iteration, x is [[], Number], then [[[], Number], Number] and so on
+ * }
+ *
+ * If we don't know how many iterations will run, we can't know the final type of x, so
+ * we don't want to just keep iterating the type analysis. After a few iterations, we start
+ * applying widenTypeHelper to ensure that the widening stops.
+ *
+ * This looks at the type, and kills off anything that's too deeply nested.
+ *
+ * @returns The modified type if modifications were needed, otherwise null.
+ */
 function widenTypeHelper(t: ExactOrUnion, depth: number) {
   let result: ExactOrUnion | null = null;
   forEachUnionComponent(
@@ -462,10 +499,27 @@ function widenTypeHelper(t: ExactOrUnion, depth: number) {
             if (!result) result = cloneType(t);
             clearValuesUnder(result, ac.type);
           } else {
-            const v = widenTypeHelper(ac.value, depth + 1);
-            if (v) {
-              if (!result) result = cloneType(t);
-              setUnionComponent(result, ac.type, v);
+            if (Array.isArray(ac.value)) {
+              let newAData = ac.value;
+              ac.value.forEach((avalue, index) => {
+                const data = widenTypeHelper(avalue, depth + 1);
+                if (data) {
+                  if (newAData === ac.value) {
+                    newAData = newAData.slice();
+                  }
+                  newAData[index] = data;
+                }
+              });
+              if (newAData !== ac.value) {
+                if (!result) result = cloneType(t);
+                setUnionComponent(result, ac.type, newAData);
+              }
+            } else {
+              const v = widenTypeHelper(ac.value, depth + 1);
+              if (v) {
+                if (!result) result = cloneType(t);
+                setUnionComponent(result, ac.type, v);
+              }
             }
           }
           return;

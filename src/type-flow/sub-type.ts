@@ -90,8 +90,23 @@ function subtypeOfValue(pair: ValuePairs) {
     case TypeTag.Char:
     case TypeTag.Symbol:
       return pair.avalue === pair.bvalue;
-    case TypeTag.Array:
+    case TypeTag.Array: {
+      if (Array.isArray(pair.avalue)) {
+        const bv = pair.bvalue;
+        if (Array.isArray(bv)) {
+          if (pair.avalue.length !== bv.length) {
+            return false;
+          }
+          return pair.avalue.every((t, i) => subtypeOf(t, bv[i]));
+        }
+        return pair.avalue.every((t) => subtypeOf(t, bv));
+      } else if (Array.isArray(pair.bvalue)) {
+        // An Array<T> is never a subtype of a tuple, because it could have
+        // arbitrary length.
+        return false;
+      }
       return subtypeOf(pair.avalue, pair.bvalue);
+    }
     case TypeTag.Dictionary: {
       const adict = pair.avalue;
       const bdict = pair.bvalue;

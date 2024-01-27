@@ -250,7 +250,7 @@ export interface StringType extends AbstractValue {
 }
 export interface ArrayType extends AbstractValue {
   type: TypeTag.Array;
-  value?: ExactOrUnion | undefined;
+  value?: ExactOrUnion | ExactOrUnion[] | undefined;
 }
 export interface DictionaryType extends AbstractValue {
   type: TypeTag.Dictionary;
@@ -562,6 +562,22 @@ export function typeFromTypeStateNodes(
   );
 }
 
+export function arrayLiteralKeyFromType(k: ExactOrUnion | null | undefined) {
+  if (k && k.value != null) {
+    if (k.type === TypeTag.Number || k.type === TypeTag.Long) {
+      return Number(k.value);
+    }
+  }
+  return null;
+}
+
+export function arrayLiteralKeyFromExpr(key: mctree.Expression) {
+  if (key.type === "Literal") {
+    return arrayLiteralKeyFromType(typeFromLiteral(key));
+  }
+  return null;
+}
+
 export function objectLiteralKeyFromExpr(
   key: mctree.Expression
 ): string | null {
@@ -646,15 +662,8 @@ export function typeFromSingleTypeSpec(
     case "ArrayExpression": {
       return {
         type: TypeTag.Array,
-        value: type.elements.reduce(
-          (prev, cur) => {
-            unionInto(
-              prev,
-              typeFromTypespec(state, cur as unknown as mctree.TypeSpecList)
-            );
-            return prev;
-          },
-          { type: TypeTag.Never }
+        value: type.elements.map((cur) =>
+          typeFromTypespec(state, cur as unknown as mctree.TypeSpecList)
         ),
       };
     }
@@ -980,6 +989,21 @@ export function castType(type: ExactOrUnion, target: UnionTypeTags) {
   return result;
 }
 
+export function reducedType(
+  elems: ExactOrUnion[] | ExactOrUnion
+): ExactOrUnion {
+  if (!Array.isArray(elems)) {
+    return elems;
+  }
+  return elems.reduce(
+    (p, t) => {
+      unionInto(p, t);
+      return p;
+    },
+    { type: TypeTag.Never }
+  );
+}
+
 /*
  * Anything consisting of solely these types is definitely true
  */
@@ -1034,7 +1058,9 @@ export function display(type: ExactOrUnion): string {
       case TypeTag.String:
         return JSON.stringify(tv.value);
       case TypeTag.Array:
-        return display(tv.value);
+        return Array.isArray(tv.value)
+          ? `[${tv.value.map((t) => display(t)).join(", ")}]`
+          : `Array<${display(tv.value)}>`;
       case TypeTag.Dictionary:
         return tv.value.value
           ? `Dictionary<${display(tv.value.key)}, ${display(tv.value.value)}>`
@@ -1109,6 +1135,7 @@ export function display(type: ExactOrUnion): string {
         TypeTag.Symbol |
         TypeTag.Method |
         TypeTag.String |
+        TypeTag.Array |
         TypeTag.Dictionary)
     ) {
       parts.push(valueStr);

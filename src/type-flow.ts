@@ -72,6 +72,7 @@ import {
   ObjectLikeTagsConst,
   SingletonTypeTagsConst,
   TypeTag,
+  arrayLiteralKeyFromExpr,
   cloneType,
   display,
   getObjectValue,
@@ -200,9 +201,10 @@ export function buildConflictGraph(
 type AssocPath = Array<{
   name: string | null;
   type: ExactOrUnion;
-  // for a computed member which is a dictionary, whose type is an
-  // ObjectLiteralType, this is the key.
-  keyStr?: string;
+  // for a computed member which is a Dictionary, whose type is an
+  // ObjectLiteralType, this is the key (as a string)
+  // for an Array, its the index
+  keyStr?: string | number;
 }>;
 
 type CopyPropItem = {
@@ -673,7 +675,12 @@ function updateAffected(
           if (type.type & TypeTag.Array) {
             const atype = getUnionComponent(type, TypeTag.Array);
             if (atype) {
-              unionInto(newType, atype);
+              if (Array.isArray(atype)) {
+                // Array TODO: Handle literal keys
+                atype.forEach((value) => unionInto(newType, value));
+              } else {
+                unionInto(newType, atype);
+              }
             }
           }
           if (type.type & TypeTag.Dictionary) {
@@ -813,13 +820,28 @@ function propagateTypes(
             next = t;
           }
           if (cur.type & TypeTag.Array) {
-            const avalue = getUnionComponent(cur, TypeTag.Array) || {
+            let avalue = getUnionComponent(cur, TypeTag.Array) || {
               type: TypeTag.Any,
             };
-            if (next) {
-              unionInto((next = cloneType(next)), avalue);
+            if (Array.isArray(avalue)) {
+              const index = arrayLiteralKeyFromExpr(me.property);
+              if (index != null && avalue[index] != null) {
+                if (!next) {
+                  assocValue[i].keyStr = index;
+                }
+                avalue = avalue[index];
+              }
+              if (next || i !== l || !newValue) {
+                const n = next ? cloneType(next) : { type: TypeTag.Never };
+                forEach(avalue, (v) => unionInto(n, v));
+                next = n;
+              }
             } else {
-              next = avalue;
+              if (next) {
+                unionInto((next = cloneType(next)), avalue);
+              } else {
+                next = avalue;
+              }
             }
           }
           let isExact = false;
@@ -838,6 +860,7 @@ function propagateTypes(
                     next = { type: TypeTag.Any };
                   }
                 } else {
+                  delete assocValue[i].keyStr;
                   if (n) {
                     unionInto((next = cloneType(next)), n);
                     next.type |= TypeTag.Null;
@@ -2362,12 +2385,25 @@ function updateByAssocPath(
       }
     } else if (update) {
       if (object.type & TypeTag.Array) {
+        let avalue = getUnionComponent(object, TypeTag.Array);
+        if (Array.isArray(avalue)) {
+          const key = pathElem.keyStr;
+          const relaxed = relaxType(property);
+          if (typeof key === "number" && key >= 0 && key < avalue.length) {
+            avalue = avalue.slice();
+            avalue[key] = relaxed;
+          } else {
+            avalue = avalue.map((v) => {
+              v = cloneType(v);
+              unionInto(v, relaxed);
+              return v;
+            });
+          }
+        } else {
+          avalue = valueToStore(avalue);
+        }
         object = cloneType(object);
-        setUnionComponent(
-          object,
-          TypeTag.Array,
-          valueToStore(getUnionComponent(object, TypeTag.Array))
-        );
+        setUnionComponent(object, TypeTag.Array, avalue);
       }
       if (object.type & TypeTag.Dictionary) {
         const dvalue = getUnionComponent(object, TypeTag.Dictionary);
@@ -2379,7 +2415,7 @@ function updateByAssocPath(
               value: valueToStore(dvalue.value),
             });
           } else {
-            if (pathElem.keyStr) {
+            if (typeof pathElem.keyStr === "string") {
               object = cloneType(object);
               const relaxed = cloneType(relaxType(property));
               relaxed.type &= ~TypeTag.Null;

@@ -24,6 +24,7 @@ import {
   hasValue,
   isExact,
   objectLiteralKeyFromType,
+  reducedType,
   relaxType,
   setUnionComponent,
   typeFromObjectLiteralKey,
@@ -155,14 +156,17 @@ export function checkCallArgs(
                 const atype = getUnionComponent(arg, TypeTag.Array);
                 if (atype) {
                   const ptype = getUnionComponent(paramType, TypeTag.Array);
-                  if (!ptype || !subtypeOf(ptype, atype)) {
+                  if (
+                    !ptype ||
+                    Array.isArray(ptype) ||
+                    Array.isArray(atype) ||
+                    !subtypeOf(ptype, atype)
+                  ) {
                     curDiags.push([
                       node.arguments[i],
-                      `Argument ${i + 1} to ${
-                        cur.fullName
-                      }: passing Array<${display(atype)}> to parameter Array${
-                        ptype ? `<${display(ptype)}>` : ""
-                      } is not type safe`,
+                      `Argument ${i + 1} to ${cur.fullName}: passing ${display(
+                        arg
+                      )} to parameter ${display(paramType)} is not type safe`,
                     ]);
                   }
                 }
@@ -319,7 +323,13 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         if (args.length === 1) {
           const arg = args[0];
           if (callee.name === "add") {
-            if (!subtypeOf(arg, adata)) {
+            if (Array.isArray(adata)) {
+              const relaxed = relaxType(arg);
+              const newAData = [...adata, relaxed];
+              ret.returnType.value = newAData;
+              ret.argTypes = [relaxed];
+              ret.calleeObj = ret.returnType;
+            } else if (!subtypeOf(arg, adata)) {
               const newAData = cloneType(adata);
               unionInto(newAData, arg);
               const newObj = cloneType(calleeObj);
@@ -328,6 +338,19 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
               ret.argTypes = [adata];
             }
           } else {
+            if (Array.isArray(adata)) {
+              if (arg.type & TypeTag.Array) {
+                const argSubtypes = getUnionComponent(arg, TypeTag.Array);
+                if (argSubtypes && Array.isArray(argSubtypes)) {
+                  const newAData = [...adata, ...argSubtypes];
+                  ret.returnType.value = newAData;
+                  ret.argTypes = [arg];
+                  ret.calleeObj = ret.returnType;
+                  return ret;
+                }
+              }
+              ret.returnType.value = reducedType(adata);
+            }
             if (!subtypeOf(arg, ret.returnType)) {
               ret.argTypes = [ret.returnType];
               const newObj = cloneType(calleeObj);

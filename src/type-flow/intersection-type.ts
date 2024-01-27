@@ -200,6 +200,22 @@ function intersectionValue(pair: ValuePairs): SingleValue | null {
     case TypeTag.Symbol:
       return pair.avalue === pair.bvalue ? pair.avalue : null;
     case TypeTag.Array: {
+      if (Array.isArray(pair.avalue)) {
+        const bv = pair.bvalue;
+        if (Array.isArray(bv)) {
+          if (pair.avalue.length !== bv.length) {
+            return null;
+          }
+          const isect = pair.avalue.map((t, i) => intersection(t, bv[i]));
+          return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+        }
+        const isect = pair.avalue.map((t) => intersection(t, bv));
+        return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+      } else if (Array.isArray(pair.bvalue)) {
+        const av = pair.avalue;
+        const isect = pair.bvalue.map((t) => intersection(av, t));
+        return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+      }
       const atype = intersection(pair.avalue, pair.bvalue);
       return atype.type === TypeTag.Never ? null : atype;
     }
