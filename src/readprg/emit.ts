@@ -33,6 +33,8 @@ export function emitFunc(
   cleanCfg(func, context);
   groupBlocks(func);
 
+  const shift_hack = context.header.ciqVersion < 0x50000;
+
   const { liveInLocals } = getLocalsInfo(func);
   const liveLocalRanges: Map<number, LocalXmlInfo> = new Map();
 
@@ -144,7 +146,7 @@ export function emitFunc(
         bytecode.arg = taken;
         bytecode.op = bytecode.op === Opcodes.bt ? Opcodes.bf : Opcodes.bt;
       }
-      offset = emitBytecode(bytecode, view, offset, linktable);
+      offset = emitBytecode(bytecode, view, offset, linktable, shift_hack);
     });
     if (block.next != null && block.next !== blocks[i + 1]?.offset) {
       const bc: Bytecode = {
@@ -153,7 +155,7 @@ export function emitFunc(
         offset: block.offset,
         size: 3,
       };
-      offset = emitBytecode(bc, view, offset, linktable);
+      offset = emitBytecode(bc, view, offset, linktable, shift_hack);
     }
   });
   assert(exceptionStack.length === 0);

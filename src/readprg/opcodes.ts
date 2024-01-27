@@ -146,11 +146,11 @@ export interface Modv extends Argless {
 // causes garmin's tools to report that its
 // an invalid binary. So we have to just
 // live with it.
-export interface Shlv extends ByteArg {
+export interface Shlv extends Argless {
   op: Opcodes.shlv;
 }
 
-export interface Shrv extends ByteArg {
+export interface Shrv extends Argless {
   op: Opcodes.shrv;
 }
 
@@ -467,6 +467,8 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
       case Opcodes.newa:
       case Opcodes.newba:
       case Opcodes.newd:
+      case Opcodes.shlv:
+      case Opcodes.shrv:
         return { op, offset, size: 1 };
 
       case Opcodes.incsp:
@@ -476,8 +478,6 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
       case Opcodes.bpush:
       case Opcodes.dup:
       case Opcodes.argc:
-      case Opcodes.shlv:
-      case Opcodes.shrv:
         return { op, arg: view.getUint8(current++), offset, size: 2 };
       case Opcodes.goto:
       case Opcodes.jsr:
@@ -606,10 +606,19 @@ export function emitBytecode(
   bytecode: Bytecode,
   view: DataView,
   offset: number,
-  linktable: Map<number, number>
+  linktable: Map<number, number>,
+  shift_hack: boolean
 ) {
   view.setUint8(offset++, bytecode.op);
-  if (bytecode.arg == null) return offset;
+  if (bytecode.arg == null) {
+    if (
+      shift_hack &&
+      (bytecode.op === Opcodes.shlv || bytecode.op === Opcodes.shrv)
+    ) {
+      view.setUint8(offset++, Opcodes.nop);
+    }
+    return offset;
+  }
   switch (bytecode.op) {
     case Opcodes.incsp:
     case Opcodes.invokem:
@@ -618,8 +627,6 @@ export function emitBytecode(
     case Opcodes.bpush:
     case Opcodes.dup:
     case Opcodes.argc:
-    case Opcodes.shlv:
-    case Opcodes.shrv:
       view.setUint8(offset++, bytecode.arg);
       break;
     case Opcodes.goto:
