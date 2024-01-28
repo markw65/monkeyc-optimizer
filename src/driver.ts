@@ -1,6 +1,8 @@
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
-import * as path from "path";
+import * as path from "node:path";
 import { checkCompilerVersion, parseSdkVersion } from "./api";
+import { getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
 import {
   defaultConfig,
   getConfig,
@@ -10,7 +12,12 @@ import {
   mctree,
   simulateProgram,
 } from "./optimizer";
-import { BuildConfig, DiagnosticType, ProgramState } from "./optimizer-types";
+import {
+  BuildConfig,
+  DiagnosticType,
+  FilesToOptimizeMap,
+  ProgramState,
+} from "./optimizer-types";
 import { RemoteProject, fetchGitProjects, githubProjects } from "./projects";
 import { SectionKinds, getSdkPath, optimizeProgram, readPrg } from "./sdk-util";
 import {
@@ -22,6 +29,7 @@ import {
   spawnByLine,
 } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
+import { parseXml } from "./xml-util";
 
 type JungleInfo = {
   jungle: string;
@@ -77,6 +85,7 @@ export async function driver() {
   let removeArgc: boolean | undefined = true;
   let postBuildPRE: boolean | undefined = true;
   let profile: string | undefined;
+  const sourceFiles: string[] = [];
 
   const sdk = await getSdkPath();
   const sdkVersion = (() => {
@@ -301,6 +310,14 @@ export async function driver() {
       case "postBuildPRE":
         postBuildPRE = /^(false|0)$/i.test(value) ? false : true;
         break;
+      case "sourceFile":
+        if (value == null) return key;
+        promise = promise
+          .then(() => globa(value))
+          .then((files) => {
+            sourceFiles.push(...files);
+          });
+        break;
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -365,6 +382,27 @@ export async function driver() {
   await promise;
   if (!jungles.length) {
     if (postProcess) return;
+    if (sourceFiles.length) {
+      await sourceFiles.reduce(async (promise, sourceFile) => {
+        await promise;
+        log(`Starting ${sourceFile}`);
+        const { diagnostics } = await analyzeSourceFile(sourceFile, {
+          trustDeclaredTypes,
+          propagateTypes,
+          typeCheckLevel,
+          checkTypes,
+          checkBuildPragmas: true,
+        });
+        reportDiagnostics(
+          diagnostics,
+          (line: unknown, err?: boolean) =>
+            err ? console.error(line) : log(line),
+          []
+        );
+        log(`${sourceFile} complete`);
+      }, Promise.resolve());
+      return;
+    }
     throw new Error("No inputs!");
   }
   if (!testBuild && !execute && products) {
@@ -856,4 +894,21 @@ function trySim(
     .then(() =>
       simulateProgram(program, product!, runTests, [handler, handler])
     );
+}
+
+async function analyzeSourceFile(sourceFile: string, config: BuildConfig) {
+  const source = (await fs.readFile(sourceFile)).toString();
+  const fnMap: FilesToOptimizeMap = {
+    [sourceFile]: {
+      monkeyCSource: source,
+      output: "",
+      excludeAnnotations: {},
+      barrel: "",
+    },
+  };
+  await getFileASTs(fnMap);
+  const manifestXML = parseXml(
+    '<?xml version="1.0"?><iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq"/>'
+  );
+  return optimizeMonkeyC(fnMap, {}, manifestXML, config ?? {});
 }
