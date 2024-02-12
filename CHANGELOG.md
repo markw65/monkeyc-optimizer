@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.41
+
+- Add proper support for tuple types (Sdk-7.x)
+- Fix a bug with the signature of the initialize method of resource-generated menus
+
 ### 1.1.40
 
 - Update the bytecode optimizer to be compatible with Sdk-7.x
