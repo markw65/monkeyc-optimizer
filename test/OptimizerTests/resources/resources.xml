@@ -1,0 +1,23 @@
+<resources>
+    <menus>
+        <menu2 id="SettingsMainMenu" title="@Strings.settingsTitle">
+            <menu-item id="menuFoo" label="@Strings.settingsFooTitle" subLabel="@Strings.fooSub" />
+            <menu-item id="menuBar" label="@Strings.settingsBarTitle" subLabel="@Strings.barSub" />
+        </menu2>
+        <menu2 id="SettingsFieldMenu" title="@Strings.settingsFieldTitle">
+            <menu-item id="fieldHehe" label="@Strings.fieldHehe" />
+            <menu-item id="fieldHihi" label="@Strings.fieldHihi" />
+        </menu2>
+
+    </menus>
+    <strings>
+        <string id="settingsFieldTitle">settingsFieldTitle</string>
+        <string id="fooSub">fooSub</string>
+        <string id="settingsFooTitle">settingsFooTitle</string>
+        <string id="fieldHehe">fieldHehe</string>
+        <string id="settingsTitle">settingsTitle</string>
+        <string id="barSub">barSub</string>
+        <string id="settingsBarTitle">settingsBarTitle</string>
+        <string id="fieldHihi">fieldHihi</string>
+    </strings>
+</resources>

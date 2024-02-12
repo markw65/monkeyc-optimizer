@@ -75,7 +75,7 @@ export async function driver() {
   let minimizeLocals = true;
   let minimizeModules = true;
   let singleUseCopyProp = true;
-  let checkTypes: DiagnosticType | "OFF" = "WARNING";
+  let checkTypes: DiagnosticType | "OFF" | undefined;
   let skipRemote = false;
   let covarianceWarnings: boolean | undefined;
   let postOptimize = false;
@@ -324,6 +324,10 @@ export async function driver() {
     return null;
   }, null);
   if (prev) error(`Missing arg for '${prev}'`);
+  if (checkTypes == null) {
+    checkTypes =
+      typeCheckLevel.toLowerCase() === "strict" ? "ERROR" : "WARNING";
+  }
   const getOptions = (options: BuildConfig) => {
     options = {
       developerKeyPath,

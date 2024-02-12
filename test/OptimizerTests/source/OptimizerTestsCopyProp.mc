@@ -156,6 +156,9 @@ function testCopyProp(logger as Logger) as Boolean {
     check(x, 3.0, logger);
     x = testPartiallyAnticipatedCopyPropEffectFreeFunction(2, false);
     check(x, -2, logger);
+    // Note that { 42 => Number } is not a subtype of Dictionary<Number, Number> because
+    // { 42 => Number } is allowed to have arbitrary unspecified keys.
+    // @expect "expected to be Dictionary<Number, Number> but got { Number<42> as Number }"
     x = testConflictCopyPropFunction(42, { 42 => 24 });
     check(x, 24, logger);
     gMaybeModified = 1;

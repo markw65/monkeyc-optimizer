@@ -1,5 +1,6 @@
 project.manifest = manifest.xml
 base.sourcePath = source
-
+base.resourcePath = resources/drawables;resources/layouts;resources/menus;resources/strings
 base.excludeAnnotations = size
 fr235.excludeAnnotations = speed
+fenix5.resourcePath = $(base.resourcePath);resources/resources.xml

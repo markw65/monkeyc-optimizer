@@ -15,3 +15,10 @@ class OptimizerTestsMenuDelegate extends WatchUi.MenuInputDelegate {
         }
     }
 }
+
+(:speed)
+class OptimizerRezMenu extends Rez.Menus.SettingsMainMenu {
+    function initialize() {
+        SettingsMainMenu.initialize();
+    }
+}

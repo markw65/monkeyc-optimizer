@@ -521,6 +521,16 @@ function add_one_resource(
           },
         ]
       : [];
+    items.push({
+      type: "ClassElement",
+      item: {
+        type: "FunctionDeclaration",
+        id: makeIdentifier("initialize", loc),
+        body: null,
+        params: [],
+        loc: e.loc,
+      },
+    });
     return {
       type: "ClassDeclaration",
       body: { type: "ClassBody", body: items, loc: e.loc },

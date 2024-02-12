@@ -184,6 +184,7 @@ function add(
     b as Number or Long or Float or Double or String or Char or Null,
     c as Number or Long or Float or Double or String or Char
 ) as Void {
+    // @expect "Unexpected types for operator '+':"
     check(c, a + b, logger);
 }
 
