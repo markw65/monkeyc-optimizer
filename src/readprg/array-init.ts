@@ -452,6 +452,15 @@ export function optimizeArrayInit(
     loop.taken = loopOffset;
     return true;
   }
+  const max = Math.floor(
+    (100 - interpState.stack.length - interpState.locals.length) / 2
+  );
+  if (max < 0) return false;
+  if (putvStarts.length > max) {
+    // If we push too many things onto the stack, it might overflow,
+    // so chop things off here.
+    putvStarts.splice(max);
+  }
   if (!tryLocal(3) && putvStarts.length < 4) return false;
   if (local >= 0) {
     block.bytecodes.splice(i, 0, bytecode(Opcodes.popv, undefined));
@@ -462,7 +471,11 @@ export function optimizeArrayInit(
   dupsToFix.forEach((x, n) => {
     const bc = block.bytecodes[n];
     assert(bc.op === Opcodes.dup && bc.arg >= 2);
-    bc.arg += (putvStarts.length - x - 1) * 2;
+    if (putvStarts.length > x) {
+      // note that we might have truncated putvStarts to prevent
+      // stack overflow above.
+      bc.arg += (putvStarts.length - x - 1) * 2;
+    }
   });
 
   // delete each "dup 0; ipush <n>" pair except the first one
