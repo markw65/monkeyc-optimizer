@@ -1404,24 +1404,25 @@ function optimizeCall(
   if (state.currentFunction) {
     recordCalledFuncs(state.currentFunction, callees);
   }
-  if (callees.length === 1 && callees[0].type === "FunctionDeclaration") {
+  if (callees.length === 1) {
     const callee = callees[0].node;
-    if (
-      !context &&
-      callee.optimizable &&
-      !callee.hasOverride &&
-      node.arguments.every((n) => getNodeValue(n)[0] !== null)
-    ) {
-      const ret = evaluateFunction(istate, callee, node.arguments);
-      if (ret) {
-        inlineDiagnostic(state, callees[0], node, null);
-        return withLoc(ret, node, node);
+    if (callees[0].type === "FunctionDeclaration" && !callee.hasOverride) {
+      if (
+        !context &&
+        callee.optimizable &&
+        node.arguments.every((n) => getNodeValue(n)[0] !== null)
+      ) {
+        const ret = evaluateFunction(istate, callee, node.arguments);
+        if (ret) {
+          inlineDiagnostic(state, callees[0], node, null);
+          return withLoc(ret, node, node);
+        }
       }
-    }
-    if (shouldInline(state, callees[0], node, context)) {
-      const ret = inlineFunction(state, callees[0], node, context);
-      if (ret) {
-        return ret;
+      if (shouldInline(state, callees[0], node, context)) {
+        const ret = inlineFunction(state, callees[0], node, context);
+        if (ret) {
+          return ret;
+        }
       }
     }
   }

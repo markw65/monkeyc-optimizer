@@ -713,3 +713,24 @@ function testWarningsFromInline(logger as Logger) as Boolean {
     var y = warningFromInlineA(a);
     return x && y;
 }
+
+(:test)
+function testNoInlineFromAbstract(logger as Logger) as Boolean {
+    var x = new NoInlineFromAbstractDerived();
+    return x.bar() == 42;
+}
+
+class NoInlineFromAbstractBase {
+    function foo() as Number? {
+        return null;
+    }
+    function bar() as Number? {
+        return foo();
+    }
+}
+
+class NoInlineFromAbstractDerived extends NoInlineFromAbstractBase {
+    function foo() as Number? {
+        return 42;
+    }
+}
