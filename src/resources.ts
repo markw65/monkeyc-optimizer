@@ -1,5 +1,5 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
-import { diagnostic, lookupByFullName } from "./api";
+import { diagnostic } from "./api";
 import {
   adjustLoc,
   hasProperty,
@@ -492,8 +492,7 @@ function add_one_resource(
                     {
                       type: "TypeSpecPart",
                       name: makeScopedName(
-                        state &&
-                          lookupByFullName(state, "Toybox.Lang.ResourceId")
+                        (state?.sdkVersion ?? 0) >= 7000000
                           ? "Toybox.Lang.ResourceId"
                           : "Toybox.Lang.Symbol"
                       ),
