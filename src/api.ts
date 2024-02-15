@@ -1318,22 +1318,22 @@ export function makeToyboxLink(result: StateNodeDecl) {
   return null;
 }
 
-export function lookupByFullName(
-  state: ProgramStateAnalysis,
-  fullName: string
-) {
-  return fullName.split(".").reduce(
-    (results: StateNodeDecl[], part) => {
-      return results
-        .flatMap((result) =>
-          isStateNode(result)
-            ? result.decls?.[part] || result.type_decls?.[part]
-            : null
-        )
-        .filter((sn): sn is StateNodeDecl => !!sn);
-    },
-    [state.stack[0].sn]
-  );
+export function lookupByFullName(state: ProgramState, fullName: string) {
+  const sn = state.stack?.[0].sn;
+  return sn
+    ? fullName.split(".").reduce(
+        (results: StateNodeDecl[], part) => {
+          return results
+            .flatMap((result) =>
+              isStateNode(result)
+                ? result.decls?.[part] || result.type_decls?.[part]
+                : null
+            )
+            .filter((sn): sn is StateNodeDecl => !!sn);
+        },
+        [sn]
+      )
+    : [];
 }
 
 function handleException(

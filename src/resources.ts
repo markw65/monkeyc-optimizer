@@ -1,5 +1,5 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
-import { diagnostic } from "./api";
+import { diagnostic, lookupByFullName } from "./api";
 import {
   adjustLoc,
   hasProperty,
@@ -491,7 +491,12 @@ function add_one_resource(
                   ts: [
                     {
                       type: "TypeSpecPart",
-                      name: makeIdentifier("Symbol"),
+                      name: makeScopedName(
+                        state &&
+                          lookupByFullName(state, "Toybox.Lang.ResourceId")
+                          ? "Toybox.Lang.ResourceId"
+                          : "Toybox.Lang.Symbol"
+                      ),
                     },
                   ],
                 },
