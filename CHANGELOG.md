@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.44
+
+- Proper fix for type mismatch errors relating to Rez.Strings under sdk-7.x, with tests. Previous fix introduced diagnostics with sdk-6.x at TypeCheckLevel=Strict
+
 ### 1.1.43
 
 - Fix bogus type mismatch errors relating to Rez.Strings.\* under sdk-7.x
