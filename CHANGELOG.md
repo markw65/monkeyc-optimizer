@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.43
+
+- Fix bogus type mismatch errors relating to Rez.Strings.\* under sdk-7.x
+
 ### 1.1.42
 
 - Fix a stack overflow caused by the post build array init optimization
