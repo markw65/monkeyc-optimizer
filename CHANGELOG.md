@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.42
+
+- Fix a stack overflow caused by the post build array init optimization
+- Fix a bug allowing overridden methods to be inlined
+
 ### 1.1.41
 
 - Add proper support for tuple types (Sdk-7.x)
