@@ -783,6 +783,7 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
   "typeCheckLevel",
   "covarianceWarnings",
   "iterateOptimizer",
+  "extraExcludes",
 ];
 
 /**

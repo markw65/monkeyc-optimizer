@@ -1279,11 +1279,11 @@ export async function createDocumentationMap(
   return docMap;
 }
 
-export function makeToyboxLink(result: StateNodeDecl) {
+export function makeToyboxLink(result: StateNodeDecl, root?: string) {
   const make_link = (fullName: string, fragment?: string) => {
     const path = fullName.split(".");
     return (
-      `https://developer.garmin.com/connect-iq/api-docs/${path
+      `${root ?? "https://developer.garmin.com/connect-iq/api-docs/"}${path
         .slice(1, fragment ? -1 : undefined)
         .join("/")}.html` +
       (fragment ? `#${path.slice(-1)[0]}-${fragment}` : "")

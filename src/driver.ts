@@ -85,6 +85,7 @@ export async function driver() {
   let removeArgc: boolean | undefined = true;
   let postBuildPRE: boolean | undefined = true;
   let profile: string | undefined;
+  let extraExcludes: string | undefined;
   const sourceFiles: string[] = [];
 
   const sdk = await getSdkPath();
@@ -318,6 +319,11 @@ export async function driver() {
             sourceFiles.push(...files);
           });
         break;
+      case "extraExcludes":
+        if (value == null) return key;
+        extraExcludes = value;
+        break;
+
       default:
         error(`Unknown argument: ${match ? match[0] : value}`);
     }
@@ -352,6 +358,7 @@ export async function driver() {
       checkManifest: true,
       checkBuildPragmas,
       covarianceWarnings,
+      extraExcludes,
       iterateOptimizer,
       removeArgc,
       postBuildPRE,

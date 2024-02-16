@@ -25,6 +25,7 @@ export type BuildConfig = {
   skipOptimization?: boolean; // Run the build with the specified options on the original project
   checkManifest?: boolean; // Do some basic sanitization on the manifest file, and create a new one for the optimized build if they fail
   device?: string; // The device to build for
+  extraExcludes?: string; // Semicolon separated list of exclude annotations to be added/removed from every target
   ignoredExcludeAnnotations?: string; // Semicolon separated list of exclude annotations to ignore when finding optimizer groups
   ignoredAnnotations?: string; // Semicolon separated list of annotations to ignore when finding optimizer groups
   ignoredSourcePaths?: string; // Semicolon separated list of source path regexps

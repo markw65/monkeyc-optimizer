@@ -697,6 +697,26 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
     }
   };
 
+  if (options.extraExcludes) {
+    const toAdd: string[] = [];
+    const toRemove: string[] = [];
+    options.extraExcludes.split(";").forEach((exclude) => {
+      if (exclude.startsWith("-")) {
+        toRemove.push(exclude.slice(1));
+      } else {
+        toAdd.push(exclude);
+      }
+    });
+    targets.forEach((target) => {
+      const ex = Object.fromEntries(
+        (target.qualifier.excludeAnnotations?.concat(toAdd) ?? toAdd).map(
+          (x) => [x, true] as const
+        )
+      );
+      toRemove.forEach((r) => delete ex[r]);
+      target.qualifier.excludeAnnotations = Object.keys(ex);
+    });
+  }
   const ignoredExcludeAnnotations = ignoreStrOption(
     options.ignoredExcludeAnnotations
   );
