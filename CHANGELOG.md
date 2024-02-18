@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.45
+
+- Add `extraExcludes` option so that builds can be configured without modifying monkey.jungle
+
 ### 1.1.44
 
 - Proper fix for type mismatch errors relating to Rez.Strings under sdk-7.x, with tests. Previous fix introduced diagnostics with sdk-6.x at TypeCheckLevel=Strict
