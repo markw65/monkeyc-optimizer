@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.46
+
+- No change in functionality, but make @markw65/peggy-optimizer a devDependency so it doesn't get shipped with the package, and update to [@markw65/prettier-plugin-monkeyc@1.0.55](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1055) for the same reason.
+
 ### 1.1.45
 
 - Add `extraExcludes` option so that builds can be configured without modifying monkey.jungle
