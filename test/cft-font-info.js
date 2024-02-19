@@ -6,8 +6,43 @@ const { globa } = require("../build/util.cjs");
 const path = require("node:path");
 
 const fonts = new Set();
+const otherArgs = [];
+let charsWanted;
+
+function error(e) {
+  throw new Error(e);
+}
+
+const prev = process.argv.slice(2).reduce((key, value) => {
+  const plain = !key && !value.startsWith("--");
+  if (plain) {
+    otherArgs.push(value);
+    return null;
+  }
+  const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
+  if (!key) {
+    if (!match) {
+      error(`Expected an argument but got: ${value}`);
+    }
+    key = match[1];
+    value = match[2];
+  } else if (match) {
+    error(`Missing arg for '${key}'`);
+  }
+  switch (key) {
+    case "chars":
+      if (value == null) return key;
+      charsWanted = (charsWanted ?? "") + value;
+      break;
+    default:
+      error(`Unknown argument: --${key}`);
+  }
+  return null;
+}, null);
+if (prev) error(`Missing arg for '${prev}'`);
+
 Promise.all(
-  process.argv.slice(2).map((filename) => {
+  otherArgs.map((filename) => {
     if (/\.cft$/i.test(filename)) {
       return globa(path.resolve(sdkUtil.connectiq, "Fonts", filename)).then(
         (filenames) => {
@@ -40,7 +75,7 @@ Promise.all(
   .then((results) =>
     Promise.all(
       Array.from(fonts).map((font) =>
-        cft.getCFTFontInfo(font).catch(() => null)
+        cft.getCFTFontInfo(font, charsWanted).catch(() => null)
       )
     )
       .then((fonts) =>
