@@ -2,7 +2,7 @@
 
 const cft = require("../build/cftinfo.cjs");
 const sdkUtil = require("../build/sdk-util.cjs");
-const { globa } = require("../build/util.cjs");
+const { globa, promiseAll } = require("../build/util.cjs");
 const path = require("node:path");
 
 const fonts = new Set();
@@ -75,30 +75,41 @@ Promise.all(
       )
     );
   })
-)
-  .then((results) =>
-    Promise.all(
-      Array.from(fonts).map((font) =>
-        cft
-          .getCFTFontInfo(font, { chars: charsWanted, charInfoAsArray })
-          .catch(() => null)
+).then((results) => {
+  console.log("{");
+  let last = -1;
+  let active = [];
+  const fontArray = Array.from(fonts).sort();
+  return promiseAll(
+    (i) =>
+      fontArray[i] &&
+      cft
+        .getCFTFontInfo(fontArray[i], { chars: charsWanted, charInfoAsArray })
+        .then(({ name, ...rest }) => `"${name}":${JSON.stringify(rest)},`)
+        .catch(() => null)
+        .then((line) => {
+          active[i] = line;
+          while (active[last + 1] !== undefined) {
+            const a = active[++last];
+            if (a != null) {
+              console.log(a);
+            }
+            delete active[last];
+          }
+        })
+  )
+    .then(() => active.forEach((line) => line && console.log(line)))
+    .then(() =>
+      console.log(
+        `"devices":${JSON.stringify(
+          Object.fromEntries(
+            results
+              .flat()
+              .filter((result) => result != null)
+              .map(({ device, ...rest }) => [device, rest])
+          )
+        )}`
       )
     )
-      .then((fonts) =>
-        Object.fromEntries(
-          fonts
-            .filter((font) => font != null)
-            .map(({ name, ...rest }) => [name, rest])
-        )
-      )
-      .then((fonts) => ({
-        fonts,
-        devices: Object.fromEntries(
-          results
-            .flat()
-            .filter((result) => result != null)
-            .map(({ device, ...rest }) => [device, rest])
-        ),
-      }))
-  )
-  .then((results) => console.log(JSON.stringify(results)));
+    .then(() => console.log("}"));
+});
