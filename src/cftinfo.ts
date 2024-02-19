@@ -227,8 +227,10 @@ function getGlyphAscentDescent(
   align: number,
   flags: GlyphFlags
 ) {
-  const rle = (glyphOffset & 0x800000) !== 0;
-  glyphOffset &= 0x7fffff;
+  const rle = (flags & GlyphFlags.RLE) !== 0;
+  if (rle) {
+    glyphOffset &= 0x7fffff;
+  }
   const pixelsPerByte = flags & GlyphFlags.TwoBit ? 4 : 8;
   const bytesToCount = Math.ceil(width / pixelsPerByte);
   const byteWidth = Math.ceil(bytesToCount / align) * align;
