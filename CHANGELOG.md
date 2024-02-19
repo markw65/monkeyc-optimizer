@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.47
+
+- Adds glyphAscent and glyphDescent to the font info produced by `cft-font-info`
+- Adds a --chars option to `cft-font-info` to select the chars you want included. This can save time, and greatly reduce the amount of output produced.
+
 ### 1.1.46
 
 - No change in functionality, but make @markw65/peggy-optimizer a devDependency so it doesn't get shipped with the package, and update to [@markw65/prettier-plugin-monkeyc@1.0.55](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1055) for the same reason.
