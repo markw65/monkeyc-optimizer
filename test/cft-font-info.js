@@ -8,6 +8,7 @@ const path = require("node:path");
 const fonts = new Set();
 const otherArgs = [];
 let charsWanted;
+let charInfoAsArray;
 
 function error(e) {
   throw new Error(e);
@@ -33,6 +34,9 @@ const prev = process.argv.slice(2).reduce((key, value) => {
     case "chars":
       if (value == null) return key;
       charsWanted = (charsWanted ?? "") + value;
+      break;
+    case "char-info-as-array":
+      charInfoAsArray = !value || /^(true|1)$/i.test(value);
       break;
     default:
       error(`Unknown argument: --${key}`);
@@ -75,7 +79,9 @@ Promise.all(
   .then((results) =>
     Promise.all(
       Array.from(fonts).map((font) =>
-        cft.getCFTFontInfo(font, charsWanted).catch(() => null)
+        cft
+          .getCFTFontInfo(font, { chars: charsWanted, charInfoAsArray })
+          .catch(() => null)
       )
     )
       .then((fonts) =>

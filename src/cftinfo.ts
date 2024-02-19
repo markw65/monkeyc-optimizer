@@ -46,10 +46,11 @@ enum GlyphFlags {
   TwoBit = 4,
 }
 
+export type FontInfoOptions = { chars?: string; charInfoAsArray?: boolean };
 export async function getCFTFontInfoFromBuffer(
   name: string,
   data: Buffer,
-  chars?: string
+  options?: FontInfoOptions | string
 ) {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const glyphFlags: GlyphFlags = view.getUint8(3);
@@ -59,9 +60,13 @@ export async function getCFTFontInfoFromBuffer(
   const height = view.getUint16(22);
   const ascent = view.getUint16(24);
   const internalLeading = view.getUint16(26);
-  const charFilter = chars
-    ? new Set(chars.split("").map((ch) => ch.charCodeAt(0)))
-    : null;
+  const { chars, charInfoAsArray } = (
+    typeof options === "string" ? { chars: options } : options ?? {}
+  ) satisfies FontInfoOptions;
+  const charFilter =
+    chars != null
+      ? new Set(chars.split("").map((ch) => ch.charCodeAt(0)))
+      : null;
 
   const cmapNGroups = view.getUint32(cmapOffset + 12);
   const charInfo: {
@@ -107,6 +112,16 @@ export async function getCFTFontInfoFromBuffer(
     }
   }
 
+  if (charInfoAsArray && charInfo.length) {
+    return {
+      name,
+      height,
+      ascent,
+      internalLeading,
+      charInfo: charInfo.map((info) => Object.values(info)),
+      charInfoNames: Object.keys(charInfo[0]),
+    };
+  }
   return {
     name,
     height,
