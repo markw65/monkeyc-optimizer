@@ -392,7 +392,8 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         const args = getArgs();
         if (args.length === 1) {
           if (ddata.value) {
-            ret.returnType = ddata.value;
+            ret.returnType = cloneType(ddata.value);
+            ret.returnType.type |= TypeTag.Null;
             ret.argTypes = [ddata.key];
           } else {
             const key = objectLiteralKeyFromType(args[0]);
