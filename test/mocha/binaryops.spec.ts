@@ -141,10 +141,10 @@ export function binaryOperatorTests() {
     regularArith("^", TypeTag.Boolean | TypeTag.Number | TypeTag.Long);
     regularArith("<<", TypeTag.Number | TypeTag.Long);
     regularArith(">>", TypeTag.Number | TypeTag.Long);
-    regularArith("<", TypeTag.Numeric);
-    regularArith("<=", TypeTag.Numeric);
-    regularArith(">=", TypeTag.Numeric);
-    regularArith(">", TypeTag.Numeric);
+    regularArith("<", TypeTag.Numeric | TypeTag.Char);
+    regularArith("<=", TypeTag.Numeric | TypeTag.Char);
+    regularArith(">=", TypeTag.Numeric | TypeTag.Char);
+    regularArith(">", TypeTag.Numeric | TypeTag.Char);
     // "==" and "!=" are valid regardless of input types, so there's nothing to test here.
 
     describe(`'&&' / 'and'`, () => {

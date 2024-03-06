@@ -144,21 +144,16 @@ function common_types(
   }
 
   if (lt & TypeTag.Char) {
-    if (rt & (TypeTag.Number | TypeTag.Long)) {
+    if (rt & TypeTag.Number) {
       result |= TypeTag.Char;
     }
     if (rt & (TypeTag.Char | TypeTag.String)) {
       result |= TypeTag.String;
     }
-    if (
-      right.type &
-      ~(TypeTag.Number | TypeTag.Long | TypeTag.Char | TypeTag.String)
-    ) {
-      addMismatch(
-        TypeTag.Char,
-        right.type &
-          ~(TypeTag.Number | TypeTag.Long | TypeTag.Char | TypeTag.String)
-      );
+    const includes =
+      (TypeTag.Number | TypeTag.Long | TypeTag.Char | TypeTag.String) & allowed;
+    if (right.type & ~includes) {
+      addMismatch(TypeTag.Char, right.type & ~includes);
     }
   }
 
@@ -177,7 +172,11 @@ function compare_types(left: ExactOrUnion, right: ExactOrUnion) {
   const { tag, ...rest } = common_types(
     left,
     right,
-    TypeTag.Number | TypeTag.Long | TypeTag.Float | TypeTag.Double
+    TypeTag.Number |
+      TypeTag.Long |
+      TypeTag.Float |
+      TypeTag.Double |
+      TypeTag.Char
   );
   return {
     tag: tag === TypeTag.Never ? tag : TypeTag.Boolean,
