@@ -33,7 +33,8 @@ export type JungleError = Error & {
   buildDependencies?: JungleBuildDependencies;
 };
 
-type JNode = Literal | QName | SubList;
+type JNode = Literal | QName | Compound | SubList;
+
 type Literal = {
   type: "Literal";
   value: string;
@@ -43,6 +44,10 @@ type QName = {
   type: "QualifiedName";
   names: string[];
   source?: string;
+};
+type Compound = {
+  type: "Compound";
+  values: Array<Literal | QName>;
 };
 type SubList = {
   type: "SubList";
@@ -191,22 +196,32 @@ function process_assignments(assignments: Assignment[], current: RawJungle) {
 
 function evaluate_locals(assignments: Assignment[]) {
   const locals: Record<string, JNode[]> = {};
+  let localsLength = 0;
   while (true) {
     assignments = assignments.filter((a) => {
-      if (
-        a.names.length === 1 &&
-        a.values.every((v) => typeof v === "string")
-      ) {
+      if (a.names.length === 1 && a.values.every((v) => v.type === "Literal")) {
         locals[a.names[0]] = a.values;
         return false;
       }
       return true;
     });
-    if (!Object.keys(locals).length) break;
+    const newLength = Object.keys(locals).length;
+    if (newLength === localsLength) break;
+    localsLength = newLength;
     const process_list = (values: JNode[]) => {
       for (let i = values.length; i--; ) {
         const v = values[i];
-        if (
+        if (v.type === "Compound") {
+          process_list(v.values);
+          if (v.values.every((s) => s.type === "Literal")) {
+            values[i] = {
+              type: "Literal",
+              value: v.values
+                .map((s) => (s.type === "Literal" ? s.value : ""))
+                .join(""),
+            };
+          }
+        } else if (
           v.type === "QualifiedName" &&
           v.names.length === 1 &&
           hasProperty(locals, v.names[0])
@@ -255,7 +270,28 @@ function resolve_node_list(state: RawJungle, list: RawJungleValue) {
   for (let i = list.length; i--; ) {
     const v = list[i];
     if (typeof v === "string" || Array.isArray(v)) continue;
-    if (v.type === "QualifiedName") {
+    if (v.type === "Compound") {
+      const rep = resolve_node_list(state, v.values);
+      if (!Array.isArray(rep)) {
+        throw new Error("Failed to resolve a compound node");
+      }
+      if (
+        (rep as Array<JNode | string>).every(
+          (v) => typeof v === "string" || v.type === "Literal"
+        )
+      ) {
+        list[i] = {
+          type: "Literal",
+          value: (rep as Array<JNode | string>)
+            .map((v) =>
+              typeof v === "string" ? v : v.type === "Literal" ? v.value : ""
+            )
+            .join(""),
+        };
+      } else {
+        v.values = rep as Array<Literal | QName>;
+      }
+    } else if (v.type === "QualifiedName") {
       const rep = resolve_node(state, resolve_node_by_path(state, v.names));
       if (Array.isArray(rep)) {
         if (rep.length !== 1 || (isJNode(rep[0]) && rep[0].type)) {
@@ -333,8 +369,21 @@ function resolve_node_by_path(
   }, state);
 }
 
-// fully resolve the given node, and all its children
+let depth = 0;
 function resolve_node(state: RawJungle, node: RawJungleValue | undefined) {
+  try {
+    depth++;
+    if (depth > 8) {
+      console.log(depth);
+    }
+    return resolve_node_x(state, node);
+  } finally {
+    depth--;
+  }
+}
+
+// fully resolve the given node, and all its children
+function resolve_node_x(state: RawJungle, node: RawJungleValue | undefined) {
   if (node === undefined || Array.isArray(node)) {
     // an already optimized leaf node
     return node;
@@ -395,6 +444,9 @@ async function resolve_literals(
         }
         if (v.type === "SubList") {
           return resolve_file_list(v.values);
+        }
+        if (v.type === "Compound") {
+          throw new Error("Oops");
         }
         // Jungle files can contain "./**.mc" which is supposed to match
         // any mc file under "./". The standard way to express that

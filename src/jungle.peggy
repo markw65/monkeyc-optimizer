@@ -25,9 +25,7 @@ QualifiedName
 ValueList = head:Value tail:(_ ";" _ @Value)* { return [head, ...tail]; }
 
 Value
-  = "$(" @QualifiedName ")"
-  / RawValue
-  / StringValue
+  = Compound
   / SubList
 
 RawValue "raw string"
@@ -38,6 +36,12 @@ RawValue "raw string"
 StringValue "quoted string"
   = "\"" value:$(RawPart+ (WhiteSpace+ RawPart+)* WhiteSpace*) "\"" {
       return wrap({ type: "Literal", value });
+    }
+
+Compound
+  = head:("$(" @QualifiedName ")" / RawValue / StringValue)
+    tail:(_ @("$(" @QualifiedName ")" / RawValue / StringValue))* {
+      return tail.length ? { type: "Compound", values: [head, ...tail] } : head;
     }
 
 SubList = "[" values:ValueList "]" { return wrap({ type: "SubList", values }); }
@@ -58,7 +62,7 @@ IdentifierPart
   / UnicodeCombiningMark
   / UnicodeDigit
   / UnicodeConnectorPunctuation
-  / "$"
+  / "$" !"("
   / "-"
   / "\u200C"
   / "\u200D"
