@@ -37,7 +37,7 @@ export function cleanupUnusedVars(
   const stack: mctree.Statement[][] = [];
   /*
    * Every local mentioned in toRemove can be removed, but
-   * occurances of the identifier prior to its declaration
+   * occurrences of the identifier prior to its declaration
    * must be non-local. So reconstruct the toRemove record
    * as we go. This is to prevent issues with something like
    *
@@ -75,7 +75,7 @@ export function cleanupUnusedVars(
         case "VariableDeclaration": {
           node.declarations.forEach((decl, i) => {
             const name = variableDeclarationName(decl.id);
-            if (hasProperty(toRemove, name)) {
+            if (hasProperty(toRemove, name) && toRemove[name]!.node === decl) {
               activeRemove[name] = toRemove[name];
               const info = varDeclarations.get(node);
               if (info) {
