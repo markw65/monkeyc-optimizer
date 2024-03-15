@@ -2,6 +2,13 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.49
+
+- Fix a bug in cleanupUnusedVars that could cause the wrong variable to be removed
+- Allow variables mixed with literals in jungle files
+- Allow Char as operands to relational operators
+- Include Null in dictionary return type
+
 ### 1.1.48
 
 - Adds a `--char-info-as-array` option to `cft-font-info`. When this option is set, charInfo is an array of arrays, rather than an array of objects, and there is a (single) `charInfoNames` array, giving the names of the elements of the charInfo sub-arrays. This is to save space - the charInfo array only contains the data, rather than (potentially) thousands of copies of the field names.
