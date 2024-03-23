@@ -215,7 +215,8 @@ export function minimizeLocals(
           assert(node.left.type === "Identifier");
           if (
             node.right.type === "Identifier" &&
-            node.right.name === info.name
+            node.right.name === info.name &&
+            node.operator === "="
           ) {
             return withLoc(
               { type: "Literal", value: null, raw: "null" },

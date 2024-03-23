@@ -182,3 +182,15 @@ function testPostBuildArrayInitStackOverflow(logger as Logger) as Boolean {
     }
     return true;
 }
+
+function minimizeKeepAssignOp(x as Number) as Number {
+    var y = x * x;
+    y *= y;
+    return y + y;
+}
+
+var minLocalsTestVal as Number = 2;
+(:test)
+function testVariableMinimization(logger as Logger) as Boolean {
+    return minimizeKeepAssignOp(minLocalsTestVal) == 32;
+}
