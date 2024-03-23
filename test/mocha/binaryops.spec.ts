@@ -70,14 +70,14 @@ export function binaryOperatorTests() {
     });
 
     describe("'+' with String", () => {
-      const alwaysFail = neverValid;
+      const alwaysFail = neverValid & ~TypeTag.Method & ~TypeTag.Symbol;
       it("invalid bits on left, everything on right", () =>
         check("+", alwaysFail, validBits, TypeTag.Never, [
           [alwaysFail, validBits],
         ]));
       it("everything on left, invalid bits on right", () =>
         check("+", validBits, alwaysFail, TypeTag.Never, [
-          [validBits, alwaysFail],
+          [validBits & ~TypeTag.Method & ~TypeTag.Symbol, alwaysFail],
         ]));
       it("every exact type vs invalid bits, both ways", () => {
         let i = validBits & ~(TypeTag.Enum | TypeTag.Typedef | TypeTag.Object);

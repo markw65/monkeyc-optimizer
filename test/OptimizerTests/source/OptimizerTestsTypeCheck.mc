@@ -26,24 +26,30 @@ function testStr(c as String) as Boolean {
 
 (:test)
 function testCharComparisons(logger as Logger) as Boolean {
-    return (
-        testChar('5') &&
-        !testChar('z')
-    );
+    return testChar('5') && !testChar('z');
 }
 
 (:test)
 function testCharStrComparisonsCrash(logger as Logger) as Boolean {
-    return (
-        testStrChar("5") &&
-        !testStrChar("z")
-    );
+    return testStrChar("5") && !testStrChar("z");
 }
 
 (:test)
 function testStrComparisonsCrash(logger as Logger) as Boolean {
-    return (
-        testStr("5") &&
-        !testStr("z")
-    );
+    return testStr("5") && !testStr("z");
+}
+
+function strAdd(
+    str as String,
+    sym as Symbol,
+    m as (Method() as String),
+    o as Object
+) as String {
+    return str + sym + " " + m + " " + o;
+}
+
+(:test)
+function testStrAddition(logger as Logger) as Boolean {
+    strAdd("foo", :foo, (1).method(:toString), new Lang.Object());
+    return true;
 }

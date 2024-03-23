@@ -53,7 +53,11 @@ function common_types(
       TypeTag.Char |
       TypeTag.Null |
       TypeTag.Dictionary |
-      TypeTag.Array;
+      TypeTag.Array |
+      TypeTag.Symbol |
+      TypeTag.Object |
+      TypeTag.Enum |
+      TypeTag.Method;
   } else if (types & allowed & TypeTag.Char) {
     mask |= TypeTag.Char;
   }
