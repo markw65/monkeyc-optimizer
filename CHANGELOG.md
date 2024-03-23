@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.50
+
+- Add a diagnostic when an inline function doesn't get removed
+- No diagnostics for String + Symbol, or String + Method, or String + Object, or String + Enum (Fixes #9)
+- Fix a bug in minimizeLocals (Fixes #15)
+
 ### 1.1.49
 
 - Fix a bug in cleanupUnusedVars that could cause the wrong variable to be removed
