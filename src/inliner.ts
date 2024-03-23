@@ -305,19 +305,18 @@ function inliningLooksUseful(
   return false;
 }
 
-export function inlineRequested(
+function inlineRequestedNode(
   state: ProgramStateAnalysis,
-  func: FunctionStateNode
+  func: mctree.FunctionDeclaration
 ) {
   const excludeAnnotations =
-    (func.node.loc?.source &&
-      state.fnMap[func.node.loc?.source]?.excludeAnnotations) ||
+    (func.loc?.source && state.fnMap[func.loc?.source]?.excludeAnnotations) ||
     {};
 
   if (
-    func.node.attrs &&
-    func.node.attrs.attributes &&
-    func.node.attrs.attributes.elements.some(
+    func.attrs &&
+    func.attrs.attributes &&
+    func.attrs.attributes.elements.some(
       (attr) =>
         attr.type === "UnaryExpression" &&
         (attr.argument.name === "inline" ||
@@ -328,6 +327,13 @@ export function inlineRequested(
     return true;
   }
   return false;
+}
+
+export function inlineRequested(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode
+) {
+  return inlineRequestedNode(state, func.node);
 }
 
 export function shouldInline(
@@ -1107,4 +1113,30 @@ function fixNodeScope(
     );
   }
   return null;
+}
+
+export function reportFailedInlining(
+  state: ProgramStateAnalysis,
+  ast: mctree.Program
+) {
+  traverseAst(ast, (node: mctree.Node) => {
+    switch (node.type) {
+      case "FunctionDeclaration":
+        if (inlineRequestedNode(state, node)) {
+          if (!state.inlineDiagnostics) {
+            state.inlineDiagnostics = {};
+          }
+          diagnosticHelper(
+            state.inlineDiagnostics,
+            node,
+            `The inline function ${node.id.name} was not removed from the program`,
+            "INFO",
+            undefined
+          );
+        }
+        return false;
+      default:
+        return null;
+    }
+  });
 }

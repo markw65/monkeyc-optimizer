@@ -599,6 +599,17 @@ class Foo {
         }
         return result;
     }
+
+    (:inline)
+    hidden function wasremoved() as Number {
+        /* @match This should be removed */
+        return 42;
+    }
+    // @expect "notremoved was not removed"
+    (:inline)
+    hidden function notremoved() as Number {
+        return 42;
+    }
 }
 
 (:inline)
@@ -717,6 +728,7 @@ function testWarningsFromInline(logger as Logger) as Boolean {
 (:test)
 function testNoInlineFromAbstract(logger as Logger) as Boolean {
     var x = new NoInlineFromAbstractDerived();
+    logger.debug(x.notremoved());
     return x.bar() == 42;
 }
 
@@ -726,6 +738,9 @@ class NoInlineFromAbstractBase {
     }
     function bar() as Number? {
         return foo();
+    }
+    function notremoved() as Number {
+        return 42;
     }
 }
 

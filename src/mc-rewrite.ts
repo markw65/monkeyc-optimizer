@@ -37,6 +37,7 @@ import {
   inlinableSubExpression,
   inlineDiagnostic,
   inlineFunction,
+  reportFailedInlining,
   shouldInline,
   unused,
 } from "./inliner";
@@ -1186,6 +1187,9 @@ async function optimizeMonkeyCHelper(
   cleanupAll();
   config.checkCompilerLookupRules = checkLookupRules;
   reportMissingSymbols(state, config);
+  Object.values(fnMap).forEach(
+    ({ ast }) => ast && reportFailedInlining(state, ast)
+  );
 
   if (state.inlineDiagnostics) {
     if (!state.diagnostics) {
