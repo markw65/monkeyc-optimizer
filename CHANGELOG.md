@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.51
+
+- Fix a bug where a call with mismatched arguments could be marked as side-effect free, and then removed.
+- Don't inline functions with mis-matched arguments, and issue a diagnostic.
+
 ### 1.1.50
 
 - Add a diagnostic when an inline function doesn't get removed
