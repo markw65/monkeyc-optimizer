@@ -373,6 +373,15 @@ export function shouldInline(
         return true;
       }
     }
+    if (requested && func.node.params.length !== args.length) {
+      inlineDiagnostic(
+        state,
+        func,
+        call,
+        "This function cannot be inlined due to incorrect arguments"
+      );
+      return false;
+    }
     if (!context && requested) {
       inlineDiagnostic(
         state,

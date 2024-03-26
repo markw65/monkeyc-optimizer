@@ -122,6 +122,7 @@ export function checkCallArgs(
       if (cur.info === false) {
         argEffects = false;
       }
+      if (effects) result.embeddedEffects = true;
       const needsCheck =
         checker && (cur === callees || !isOverride(cur, callees));
       const expectedArgs = (argTypes || cur.node.params).length;
@@ -229,7 +230,6 @@ export function checkCallArgs(
         result.value.type = TypeTag.Any;
         delete result.value.value;
       }
-      if (effects) result.embeddedEffects = true;
       return result;
     },
     {
