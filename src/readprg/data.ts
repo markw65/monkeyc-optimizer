@@ -6,27 +6,39 @@ export function parseData(view: DataView, symbols: SymbolTable) {
   let current = 0;
   while (current < view.byteLength) {
     const code = view.getInt32(current);
-    if (code === -1046127121) {
-      current = skipClassDef(view, current + 4, symbols);
+    if (code === -1046127121 || code === -1029349905) {
+      current = skipClassDef(view, current + 4, symbols, code);
     } else if (view.getUint8(current) === 1) {
       current = symbols.parseSymbol(view, current, current + 1);
+    } else if (view.getUint8(current) === 3) {
+      current += view.getUint32(current + 1) + 6;
     } else {
       throw new Error(`Unknown code: ${code}`);
     }
   }
 }
 
-function skipClassDef(view: DataView, current: number, symbols: SymbolTable) {
-  current += 4; // skip extends
-  current += 4; // skip statics
-  current += 4; // skip parent module
-  current += 4; // skip module id
+function skipClassDef(
+  view: DataView,
+  current: number,
+  symbols: SymbolTable,
+  code: number
+) {
+  const isVariableSized = code === -1029349905;
+  const flags = isVariableSized ? view.getUint8(current++) : -1;
+  if (flags & 1) current += 4; // skip extends
+  if (flags & 2) current += 4; // skip statics
+  if (flags & 4) current += 4; // skip parent module
+  if (flags & 8) current += 4; // skip module id
   current += 2; // skip appTypes
-  let fields = view.getUint8(current++);
+  let fields = isVariableSized
+    ? view.getUint16((current += 2) - 2)
+    : view.getUint8(current++);
   while (fields--) {
     const f1 = view.getUint32((current += 4) - 4);
+    const type = isVariableSized ? view.getUint8(current++) : f1 & 15;
     const addr = view.getUint32((current += 4) - 4);
-    if ((f1 & 15) !== 6) continue;
+    if (type !== 6) continue;
     // its a method;
     const section = addr >>> 28;
     if (section === 1) {
@@ -63,10 +75,12 @@ export function fixupData(context: Context, offsetMap: Map<number, number>) {
   let current = 0;
   while (current < view.byteLength) {
     const code = view.getInt32(current);
-    if (code === -1046127121) {
-      current = fixupClassDef(view, current + 4, offsetMap);
+    if (code === -1046127121 || code === -1029349905) {
+      current = fixupClassDef(view, current + 4, offsetMap, code);
     } else if (view.getUint8(current) === 1) {
       current = symbols.parseSymbol(view, current, current + 1);
+    } else if (view.getUint8(current) === 3) {
+      current += view.getUint32(current + 1) + 6;
     } else {
       throw new Error(`Unknown code: ${code}`);
     }
@@ -76,18 +90,24 @@ export function fixupData(context: Context, offsetMap: Map<number, number>) {
 function fixupClassDef(
   view: DataView,
   current: number,
-  offsetMap: Map<number, number>
+  offsetMap: Map<number, number>,
+  code: number
 ) {
-  current += 4; // skip extends
-  current += 4; // skip statics
-  current += 4; // skip parent module
-  current += 4; // skip module id
+  const isVariableSized = code === -1029349905;
+  const flags = isVariableSized ? view.getUint8(current++) : -1;
+  if (flags & 1) current += 4; // skip extends
+  if (flags & 2) current += 4; // skip statics
+  if (flags & 4) current += 4; // skip parent module
+  if (flags & 8) current += 4; // skip module id
   current += 2; // skip appTypes
-  let fields = view.getUint8(current++);
+  let fields = isVariableSized
+    ? view.getUint16((current += 2) - 2)
+    : view.getUint8(current++);
   while (fields--) {
     const f1 = view.getUint32((current += 4) - 4);
+    const type = isVariableSized ? view.getUint8(current++) : f1 & 15;
     const addr = view.getUint32((current += 4) - 4);
-    if ((f1 & 15) !== 6) continue;
+    if (type !== 6) continue;
     // its a method;
     const section = addr >>> 28;
     if (section === 1) {

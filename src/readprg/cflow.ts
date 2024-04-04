@@ -247,7 +247,9 @@ export function rpoPropagate<T>(
         }
         if (
           top.exsucc &&
-          (bc.op === Opcodes.invokem || bc.op === Opcodes.throw)
+          (bc.op === Opcodes.invokem ||
+            bc.op === Opcodes.invokemz ||
+            bc.op === Opcodes.throw)
         ) {
           doMerge(top.exsucc, true);
         }

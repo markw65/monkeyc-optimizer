@@ -34,6 +34,7 @@ import {
   isCondBranch,
   Lputv,
   Opcodes,
+  opReadsLocal,
 } from "./opcodes";
 
 interface InterpItemInfo {
@@ -322,8 +323,11 @@ export function interpBytecode(
   };
 
   switch (bc.op) {
+    case Opcodes.getself:
     case Opcodes.lgetv: {
-      let local = localState.locals[bc.arg];
+      const localNum = opReadsLocal(bc);
+      assert(localNum != null);
+      let local = localState.locals[localNum];
       if (local) {
         local = { ...local };
         delete local.equivs;
@@ -331,7 +335,7 @@ export function interpBytecode(
         local = { type: { type: TypeTag.Any } };
       }
       localState.stack.push(local);
-      addEquiv(localState, -localState.stack.length, bc.arg);
+      addEquiv(localState, -localState.stack.length, localNum);
       break;
     }
     case Opcodes.dup: {
@@ -374,23 +378,44 @@ export function interpBytecode(
       localState.locals[bc.arg].type = value.type;
       break;
     }
+    case Opcodes.ipushz:
+      xpush(TypeTag.Number, 0);
+      break;
     case Opcodes.ipush:
+    case Opcodes.ipush1:
+    case Opcodes.ipush2:
+    case Opcodes.ipush3:
       xpush(TypeTag.Number, bc.arg);
       break;
     case Opcodes.lpush:
       xpush(TypeTag.Long, bc.arg);
       break;
+    case Opcodes.lpushz:
+      xpush(TypeTag.Long, 0n);
+      break;
     case Opcodes.fpush:
       xpush(TypeTag.Float, roundToFloat(bc.arg));
       break;
+    case Opcodes.fpushz:
+      xpush(TypeTag.Float, 0);
+      break;
     case Opcodes.dpush:
       xpush(TypeTag.Double, bc.arg);
+      break;
+    case Opcodes.dpushz:
+      xpush(TypeTag.Double, 0);
       break;
     case Opcodes.cpush:
       xpush(TypeTag.Char, String.fromCharCode(bc.arg));
       break;
     case Opcodes.bpush:
       xpush(bc.arg ? TypeTag.True : TypeTag.False);
+      break;
+    case Opcodes.btpush:
+      xpush(TypeTag.True);
+      break;
+    case Opcodes.bfpush:
+      xpush(TypeTag.False);
       break;
     case Opcodes.npush:
       xpush(TypeTag.Null);

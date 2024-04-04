@@ -15,6 +15,7 @@ import { SymbolTable } from "./symbols";
 
 export const enum SectionKinds {
   HEADER = 0xd000d000 | 0,
+  HEADER_VERSIONED = 0xd000d00d | 0,
   TEXT = 0xc0debabe | 0,
   DATA = 0xda7ababe | 0,
   SYMBOLS = 0x5717b015 | 0,
@@ -24,6 +25,27 @@ export const enum SectionKinds {
   STORE_SIG = 20833 | 0,
 }
 
+/*
+HEADER(-805253120, 1, false),
+  ENTRY_POINTS(1616953566, 11, false),
+  PERMISSIONS(1610668801, 2, true),
+  DATA(-629491010, 3, true),
+  CODE(-1059145026, 4, true),
+  LINK_TABLE(-1046128719, 5, true),
+  PC_TO_LINE_NUM(-1059161423, 6, true),
+  RESOURCES(-267558899, 7, true),
+  BACKGROUND_RESOURCES(-553727362, 8, true),
+  GLANCE_RESOURCES(-804390194, 9, true),
+  COMPLICATIONS(-87106950, 10, true),
+  EXCEPTIONS(248410373, 12, true),
+  SETTINGS(1584862309, 13, true),
+  SYMBOLS(1461170197, 14, false),
+  STRING_RESOURCE_SYMBOLS(-1163025067, 15, false),
+  APP_UNLOCK(-804148571, 16, false),
+  APP_STORE_SIGNATURE(20833, 17, false),
+  DEVELOPER_SIGNATURE(-507453934, 18, false),
+  DEBUG(-805303010, 19, true);
+*/
 export type SectionInfo = { offset: number; length: number; view: DataView };
 export type Logger = (module: string, level: number, message: string) => void;
 
@@ -404,6 +426,16 @@ export function bytecodeToString(
   symbolTable: SymbolTable | null | undefined
 ) {
   let arg: string | null = null;
+  const symbol = (arg: number) => {
+    const argSym = symbolTable?.symbolToLabelMap.get(arg);
+    if (argSym) {
+      const symbol = symbolTable?.symbols.get(argSym);
+      if (symbol) {
+        return `${symbol.str} (${arg})`;
+      }
+    }
+    return arg.toString();
+  };
   switch (bytecode.op) {
     case Opcodes.lgetv:
     case Opcodes.lputv:
@@ -413,16 +445,9 @@ export function bytecodeToString(
         }`;
       }
       break;
-    case Opcodes.spush: {
-      const argSym = symbolTable?.symbolToLabelMap.get(bytecode.arg);
-      if (argSym) {
-        const symbol = symbolTable?.symbols.get(argSym);
-        if (symbol) {
-          arg = `${symbol.str} (${bytecode.arg})`;
-        }
-      }
+    case Opcodes.spush:
+      arg = symbol(bytecode.arg);
       break;
-    }
     case Opcodes.news: {
       const symbol = symbolTable?.symbols.get(bytecode.arg);
       if (symbol) {
@@ -433,10 +458,24 @@ export function bytecodeToString(
     case Opcodes.bt:
     case Opcodes.bf:
     case Opcodes.goto:
-    case Opcodes.jsr: {
+    case Opcodes.jsr:
       arg = offsetToString(bytecode.arg);
       break;
-    }
+    case Opcodes.getlocalv:
+      arg = `${
+        bytecode.range
+          ? `${bytecode.range.name} ${bytecode.arg}${
+              bytecode.range.isParam ? " (param)" : ""
+            }`
+          : bytecode.arg.local
+      } ${symbol(bytecode.arg.var)}`;
+      break;
+    case Opcodes.getmv:
+      arg = `${symbol(bytecode.arg.module)} ${symbol(bytecode.arg.var)}`;
+      break;
+    case Opcodes.argcincsp:
+      arg = `${bytecode.arg.argc} ${bytecode.arg.incsp}`;
+      break;
   }
   if (arg == null && hasProperty(bytecode, "arg")) {
     arg = `${bytecode.arg}`;
@@ -497,6 +536,7 @@ export function findFunctions({
         next = undefined;
         break;
       case Opcodes.invokem:
+      case Opcodes.invokemz:
         mayThrow = true;
         break;
       case Opcodes.return:
@@ -723,7 +763,10 @@ export function splitBlock(func: FuncEntry, block: Block, offset: number) {
     if (block.exsucc) {
       if (
         !block.bytecodes.some(
-          (bc) => bc.op === Opcodes.throw || bc.op === Opcodes.invokem
+          (bc) =>
+            bc.op === Opcodes.throw ||
+            bc.op === Opcodes.invokem ||
+            bc.op === Opcodes.invokemz
         )
       ) {
         if (!isNew) {

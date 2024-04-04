@@ -140,7 +140,10 @@ function optimizeProgramBuffer(
   if (apiDebugXml) {
     symbolTable.parseXml(apiDebugXml);
   }
-  const header = parseHeader(sections[SectionKinds.HEADER].view);
+  const header = parseHeader(
+    (sections[SectionKinds.HEADER] ?? sections[SectionKinds.HEADER_VERSIONED])
+      .view
+  );
   parseData(sections[SectionKinds.DATA].view, symbolTable);
   const lineTable = parseLineNum(sections[SectionKinds.LINENUM].view, debugXml);
   const exceptionsMap = parseExceptions(sections[SectionKinds.EXCEPTIONS].view);

@@ -8,13 +8,18 @@ import {
 } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
 import {
+  Argc,
   Bytecode,
   Frpush,
+  Getlocalv,
+  Getself,
+  Getselfv,
   Lgetv,
   LocalRange,
   Lputv,
   Nop,
   Opcodes,
+  opReadsLocal,
 } from "./opcodes";
 
 function cloneLive(locals: Map<number, Set<Bytecode>> | undefined) {
@@ -45,6 +50,13 @@ function mergeInto(
   return changed;
 }
 
+function getLocalNum(key: LocalKey) {
+  if (key.op === Opcodes.lputv) return key.arg;
+  const local = opReadsLocal(key);
+  assert(local !== null);
+  return local;
+}
+
 export function minimizeLocals(
   func: FuncEntry,
   equivSets: Map<Lputv, Set<number>>,
@@ -65,15 +77,16 @@ export function minimizeLocals(
   // Also, local 0 is read by frpush, so even if it wasn't live in (and its not
   // live into non-class methods), we need to pin it to zero.
   locals.forEach((local, key) => {
-    if (key.op === Opcodes.lgetv || key.arg === 0) {
-      colors.set(key, key.arg);
-      const merged = merge[key.arg];
-      if (argc == null || key.arg < argc) {
+    const localNum = getLocalNum(key);
+    if (key.op !== Opcodes.lputv || localNum === 0) {
+      colors.set(key, localNum);
+      const merged = merge[localNum];
+      if (argc == null || localNum < argc) {
         if (merged) {
-          assert(!key.arg);
+          assert(!localNum);
           merged.push(key);
         } else {
-          merge[key.arg] = [key];
+          merge[localNum] = [key];
         }
       }
     }
@@ -81,7 +94,7 @@ export function minimizeLocals(
   // In theory, choosing a good order here could help; in practice it rarely
   // seems to make a difference. Needs revisiting
   locals.forEach((local, key) => {
-    if (key.op === Opcodes.lgetv) return;
+    if (key.op !== Opcodes.lputv) return;
     let inUse = 0n;
     local.conflicts.forEach((conflict) => {
       const color = colors.get(conflict);
@@ -109,15 +122,16 @@ export function minimizeLocals(
     // if there's a single range mapped to this stack slot, and its original
     // stack slot was a smaller one, and *that* stack slot either has multiple
     // ranges, or doesn't match its original stack slot, then swap them.
+    if (!merged) continue;
+    const firstLocal = getLocalNum(merged[0]);
     if (
-      merged &&
-      merged[0].arg < i &&
-      (argc == null || merged[0].arg >= argc) &&
-      merged.every((elem) => elem.arg === merged[0].arg)
+      firstLocal < i &&
+      (argc == null || firstLocal >= argc) &&
+      merged.every((elem) => getLocalNum(elem) === firstLocal)
     ) {
-      const j = merged[0].arg;
+      const j = firstLocal;
       const other = merge[j];
-      if (other.every((elem) => elem.arg !== j)) {
+      if (other.every((elem) => getLocalNum(elem) !== j)) {
         merge[i] = other;
         merge[j] = merged;
         merged.forEach((elem) => colors.set(elem, j));
@@ -174,10 +188,25 @@ export function minimizeLocals(
     }
     value.live.forEach((bc) => fixupMap.set(bc, { color, range }));
   });
+
   func.blocks.forEach((block) => {
     let filter = false;
     block.bytecodes.forEach((bc) => {
       switch (bc.op) {
+        case Opcodes.argcincsp: {
+          argc = bc.arg.argc;
+          const newinc = merge.length - argc;
+          if (newinc > 0) {
+            bc.arg.incsp = newinc;
+          } else {
+            const argCount = bc as Bytecode as Argc;
+            argCount.op = Opcodes.argc;
+            argCount.arg = argc;
+            argCount.size = 2;
+            filter = true;
+          }
+          break;
+        }
         case Opcodes.argc:
           argc = bc.arg;
           break;
@@ -199,11 +228,16 @@ export function minimizeLocals(
           }
           break;
         }
+        case Opcodes.getlocalv:
         case Opcodes.lgetv:
         case Opcodes.lputv: {
           const info = fixupMap.get(bc);
           assert(info != null);
-          bc.arg = info.color;
+          if (bc.op === Opcodes.getlocalv) {
+            bc.arg.local = info.color;
+          } else {
+            bc.arg = info.color;
+          }
           if (info.range) {
             bc.range = info.range;
           } else {
@@ -211,6 +245,17 @@ export function minimizeLocals(
           }
           break;
         }
+        case Opcodes.frpush:
+        case Opcodes.getself:
+        case Opcodes.getselfv: {
+          const info = fixupMap.get(bc);
+          if (info) {
+            assert(!info.color);
+          }
+          break;
+        }
+        default:
+          assert(!fixupMap.get(bc));
       }
     });
     if (filter) {
@@ -220,7 +265,8 @@ export function minimizeLocals(
   return true;
 }
 
-type LocalKey = Lputv | Lgetv;
+type LocalReaders = Lgetv | Getself | Getlocalv | Getselfv | Frpush;
+type LocalKey = Lputv | LocalReaders;
 type SingleLocal = { live: Set<Bytecode>; conflicts: Set<Bytecode> };
 type LocalInfo = Map<LocalKey, SingleLocal>;
 
@@ -233,46 +279,35 @@ function computeSplitRanges(
 
   /*
    * Map from register number, to a map from Lputv's to the set of dependent
-   * Lgetv's, and the set of conflicting Lgetvs
+   * LocalReaders's, and the set of conflicting LocalReaders
    */
   const splitRanges: Map<number, LocalInfo> = new Map();
 
-  const recordLgetv = (locals: Map<number, Set<Bytecode>>, bc: Lgetv) => {
-    const bcs = locals.get(bc.arg);
+  const recordLocalRead = (
+    locals: Map<number, Set<Bytecode>>,
+    bc: LocalReaders
+  ) => {
+    const localid = opReadsLocal(bc);
+    assert(localid != null);
+    const bcs = locals.get(localid);
     if (!bcs) {
-      locals.set(bc.arg, new Set([bc]));
+      locals.set(localid, new Set([bc]));
     } else {
       bcs.add(bc);
     }
   };
-
-  const fakeLgetvs: Map<Frpush, Lgetv> = new Map();
 
   postOrderPropagate(
     func,
     (block) => cloneLive(liveOutLocals.get(block.offset)),
     (block, bc, locals) => {
       switch (bc.op) {
-        case Opcodes.frpush: {
-          let fakeLgetv = fakeLgetvs.get(bc);
-          if (!fakeLgetv) {
-            fakeLgetv = {
-              op: Opcodes.lgetv,
-              arg: 0,
-              size: 2,
-              offset: bc.offset,
-            };
-            fakeLgetvs.set(bc, fakeLgetv);
-          }
-          // frpush gets the last base used in a getv (ie in Foo.bar it would be
-          // Foo). If that is a class, it pushes local 0, otherwise it pushes
-          // Foo. If we did a bit more analysis, we could know whether it cares about
-          // local 0 or not. But for now, just assume it does.
-          recordLgetv(locals, fakeLgetv);
-          break;
-        }
+        case Opcodes.getself:
+        case Opcodes.getselfv:
+        case Opcodes.getlocalv:
+        case Opcodes.frpush:
         case Opcodes.lgetv:
-          recordLgetv(locals, bc);
+          recordLocalRead(locals, bc);
           break;
 
         case Opcodes.lputv: {
@@ -280,7 +315,7 @@ function computeSplitRanges(
           if (!bcs) {
             bcs = new Set();
           }
-          let ranges = splitRanges.get(bc.arg);
+          const ranges = splitRanges.get(bc.arg);
           const equiv = equivSets.get(bc);
           const conflicts: Set<Bytecode> = new Set();
           locals.forEach((liveBcs, local) => {
@@ -291,10 +326,7 @@ function computeSplitRanges(
             liveBcs.forEach((lbc) => conflicts.add(lbc));
           });
           if (!ranges) {
-            splitRanges.set(
-              bc.arg,
-              (ranges = new Map([[bc, { live: bcs, conflicts }]]))
-            );
+            splitRanges.set(bc.arg, new Map([[bc, { live: bcs, conflicts }]]));
           } else {
             ranges.set(bc, { live: bcs, conflicts });
           }
@@ -303,6 +335,7 @@ function computeSplitRanges(
         }
         case Opcodes.throw:
         case Opcodes.invokem:
+        case Opcodes.invokemz:
           if (block.exsucc) {
             const from = liveInLocals.get(block.exsucc);
             if (from) {
@@ -310,6 +343,8 @@ function computeSplitRanges(
             }
           }
           break;
+        default:
+          assert(opReadsLocal(bc) == null);
       }
     },
     (block, locals) => {
@@ -327,7 +362,7 @@ function computeSplitRanges(
   );
   const liveIn = liveInLocals.get(func.offset);
   liveIn?.forEach((bcs, num) => {
-    const bc = bcs.values().next().value as Lgetv;
+    const bc = bcs.values().next().value as LocalReaders;
     let range = splitRanges.get(num);
     if (!range) {
       splitRanges.set(num, (range = new Map()));
@@ -386,7 +421,7 @@ function mergeSplitRanges(splitRanges: Map<number, LocalInfo>) {
       let lputv: LocalKey | null = null;
       let singleRange: SingleLocal | null = null;
       pvSet.forEach((pv) => {
-        if (!lputv || pv.op === Opcodes.lgetv) lputv = pv;
+        if (!lputv || pv.op !== Opcodes.lputv) lputv = pv;
       });
       pvSet.forEach((pv) => {
         const { live, conflicts } = range.get(pv)!;
@@ -418,6 +453,7 @@ function mergeSplitRanges(splitRanges: Map<number, LocalInfo>) {
       v.conflicts = new Set(
         Array.from(v.conflicts).flatMap((bc) => {
           const r = bcToLiveRange.get(bc);
+          assert(r);
           if (!r) {
             // this must have been a fake Lgetv inserted for an frpush
             assert(bc.arg === 0);

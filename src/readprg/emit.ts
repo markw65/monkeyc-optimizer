@@ -336,6 +336,7 @@ function getLocalsInfo(func: FuncEntry) {
 
         case Opcodes.throw:
         case Opcodes.invokem:
+        case Opcodes.invokemz:
           if (block.exsucc) {
             const from = liveInLocals.get(block.exsucc);
             if (from) {

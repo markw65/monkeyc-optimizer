@@ -147,7 +147,10 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
     let index = block.bytecodes.findIndex(
       (bc) =>
         bcs.has(bc) ||
-        (block.exsucc && (bc.op === Opcodes.invokem || bc.op === Opcodes.throw))
+        (block.exsucc &&
+          (bc.op === Opcodes.invokem ||
+            bc.op === Opcodes.invokemz ||
+            bc.op === Opcodes.throw))
     );
     if (index < 0) {
       // if its not there, we want to insert at the end; except we can't insert

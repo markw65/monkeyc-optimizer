@@ -1,3 +1,4 @@
+import { unhandledType } from "src/data-flow";
 import { logger, setBanner, wouldLog } from "../util";
 import {
   bytecodeToString,
@@ -8,7 +9,7 @@ import {
   offsetToString,
 } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
-import { Bytecode, getOpInfo, Opcodes } from "./opcodes";
+import { Bytecode, getOpInfo, Opcodes, opReadsLocal } from "./opcodes";
 
 export function localDCE(func: FuncEntry, context: Context) {
   if (wouldLog("dce", 5)) {
@@ -153,23 +154,42 @@ export function localDCE(func: FuncEntry, context: Context) {
           }
           break;
         }
+        case Opcodes.getlocalv:
+        case Opcodes.getself:
+        case Opcodes.getselfv:
         case Opcodes.lgetv:
+        case Opcodes.btpush:
+        case Opcodes.bfpush:
+        case Opcodes.frpush:
+        case Opcodes.apush:
+        case Opcodes.bapush:
+        case Opcodes.hpush:
         case Opcodes.npush:
         case Opcodes.bpush:
         case Opcodes.news:
         case Opcodes.ipush:
+        case Opcodes.ipushz:
+        case Opcodes.ipush1:
+        case Opcodes.ipush2:
+        case Opcodes.ipush3:
         case Opcodes.fpush:
+        case Opcodes.fpushz:
         case Opcodes.spush:
         case Opcodes.cpush:
         case Opcodes.lpush:
-        case Opcodes.dpush: {
+        case Opcodes.lpushz:
+        case Opcodes.dpush:
+        case Opcodes.dpushz: {
           const item = dceInfo.stack.pop();
           if (item?.dead) {
             item.deps.push(i);
             reportNop(item);
             item.deps.forEach((index) => makeNop(block.bytecodes[index]));
-          } else if (bytecode.op === Opcodes.lgetv) {
-            dceInfo.locals.add(bytecode.arg);
+          } else {
+            const local = opReadsLocal(bytecode);
+            if (local != null) {
+              dceInfo.locals.add(local);
+            }
           }
           break;
         }
@@ -207,6 +227,7 @@ export function localDCE(func: FuncEntry, context: Context) {
         }
         case Opcodes.newc:
         case Opcodes.isnull:
+        case Opcodes.isnotnull:
         case Opcodes.invv:
         case Opcodes.getm:
         case Opcodes.newa:
@@ -226,6 +247,7 @@ export function localDCE(func: FuncEntry, context: Context) {
 
         case Opcodes.throw:
         case Opcodes.invokem:
+        case Opcodes.invokemz:
           // A call might throw, so if there's an exsucc
           // we need to mark all the locals that are live
           // into the exsucc as live here.
@@ -235,7 +257,22 @@ export function localDCE(func: FuncEntry, context: Context) {
               ?.forEach((local) => dceInfo.locals.add(local));
           }
         // fallthrough
-        default: {
+        case Opcodes.aputv:
+        case Opcodes.aputvdup:
+        case Opcodes.argc:
+        case Opcodes.incsp:
+        case Opcodes.argcincsp:
+        case Opcodes.bf:
+        case Opcodes.bt:
+        case Opcodes.getmv:
+        case Opcodes.getsv:
+        case Opcodes.goto:
+        case Opcodes.jsr:
+        case Opcodes.nop:
+        case Opcodes.putv:
+        case Opcodes.ret:
+        case Opcodes.return:
+        case Opcodes.ts: {
           let { push, pop } = getOpInfo(bytecode);
           while (push-- > 0) {
             dceInfo.stack.pop();
@@ -243,7 +280,10 @@ export function localDCE(func: FuncEntry, context: Context) {
           while (pop-- > 0) {
             dceInfo.stack.push({ dead: false });
           }
+          break;
         }
+        default:
+          unhandledType(bytecode);
       }
     }
     if (changes) {
@@ -264,20 +304,24 @@ export function computeLiveLocals(func: FuncEntry) {
     (block) => new Set(liveOutLocals.get(block.offset)),
     (block, bc, locals) => {
       switch (bc.op) {
-        case Opcodes.lgetv:
-          locals.add(bc.arg);
-          break;
         case Opcodes.lputv:
           locals.delete(bc.arg);
           break;
         case Opcodes.throw:
         case Opcodes.invokem:
+        case Opcodes.invokemz:
           if (block.exsucc) {
             liveInLocals
               .get(block.exsucc)
               ?.forEach((local) => locals.add(local));
           }
           break;
+        default: {
+          const local = opReadsLocal(bc);
+          if (local != null) {
+            locals.add(local);
+          }
+        }
       }
     },
     (block, locals) => {

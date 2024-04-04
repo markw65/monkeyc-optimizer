@@ -288,6 +288,7 @@ function createContext(incodes: PreBytecode[]): Context {
   const debugXml = xmlUtil.parseXml("<debugInfo></<debugInfo>");
   return {
     header: {
+      headerVersion: 0,
       ciqVersion: 0,
       backgroundOffsets: { code: 0, data: 0 },
       appLock: false,

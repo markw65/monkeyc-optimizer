@@ -7,6 +7,7 @@ export type SectionOffset = {
 };
 
 export type Header = {
+  headerVersion: number;
   ciqVersion: number;
   backgroundOffsets: SectionOffset;
   appLock: boolean;
@@ -16,8 +17,11 @@ export type Header = {
 
 export function parseHeader(view: DataView) {
   let offset = 0;
-  const ciqVersion = view.getUint32((offset += 4) - 4);
+  const word = view.getUint32((offset += 4) - 4);
+  const ciqVersion = word & 0xffffff;
+  const headerVersion = word >>> 24;
   const header: Header = {
+    headerVersion,
     ciqVersion,
     backgroundOffsets: { data: 0, code: 0 },
     appLock: false,
@@ -43,7 +47,10 @@ export function parseHeader(view: DataView) {
 }
 
 export function fixupHeader(context: Context, updateInfo: UpdateInfo) {
-  const view = context.sections[SectionKinds.HEADER].view;
+  const view = (
+    context.sections[SectionKinds.HEADER] ??
+    context.sections[SectionKinds.HEADER_VERSIONED]
+  ).view;
   if (context.header.backgroundOffsets.code !== 0) {
     const offset = updateInfo.offsetMap.get(
       context.header.backgroundOffsets.code
