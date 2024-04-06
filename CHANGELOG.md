@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.52
+
+- Add support for System 5 .prg files, including new bytecodes.
+
 ### 1.1.51
 
 - Fix a bug where a call with mismatched arguments could be marked as side-effect free, and then removed.
