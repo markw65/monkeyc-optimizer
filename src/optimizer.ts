@@ -340,12 +340,25 @@ export async function generateOptimizedProject(options: BuildConfig) {
   await createLocalBarrels(targets, config);
 
   const buildConfigs: Record<string, JungleQualifier | null> = {};
-  let pick_one = config.products ? config.products.indexOf("pick-one") : -1;
+  const pick_one = config.products ? config.products.indexOf("pick-one") : -1;
+  if (pick_one >= 0) {
+    let preferredProduct = 0;
+    targets.every((t, i) => {
+      const dev = devices[t.product];
+      if (!dev) return true;
+      if (dev.ciqVersions.every((ciq) => ciq.startsWith("5"))) {
+        preferredProduct = i;
+        return false;
+      }
+      if (dev.ciqVersions.some((ciq) => ciq.startsWith("5"))) {
+        preferredProduct = i;
+      }
+      return true;
+    });
+    options.products = [...options.products!];
+    options.products[pick_one] = targets[preferredProduct].product;
+  }
   if (config.skipOptimization) {
-    if (pick_one >= 0) {
-      options.products = [...options.products!];
-      options.products[pick_one] = targets[0].product;
-    }
     return {
       jungleFiles: config.jungleFiles,
       xml,
@@ -373,18 +386,10 @@ export async function generateOptimizedProject(options: BuildConfig) {
       buildConfigs[key] = null;
     }
     if (
-      pick_one >= 0 ||
       !options.products ||
       options.products.includes(p.product) ||
       (p.shape && options.products.includes(p.shape))
     ) {
-      if (pick_one >= 0) {
-        // don't modify the original array since it may be shared
-        // (and *is* shared when we're called from test.js)
-        options.products = [...options.products!];
-        options.products[pick_one] = p.product;
-        pick_one = -1;
-      }
       if (!buildConfigs[key]) {
         buildConfigs[key] = p.group.optimizerConfig;
         configsToBuild++;

@@ -37,6 +37,7 @@ export type DeviceInfo = {
     deviceFamily: string;
     displayName: string;
     languages: Record<string, true>;
+    ciqVersions: Array<string>;
   };
 };
 
@@ -57,7 +58,7 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
             deviceFamily: string;
             displayName: string;
             partNumbers: Array<{
-              connectIqVersion: string;
+              connectIQVersion: string;
               firmwareVersion: string;
               languages: Array<{ code: string; fontSet: string }>;
             }>;
@@ -69,9 +70,10 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
             )
             .flat(1)
         );
+        const ciqVersions = partNumbers.map((part) => part.connectIQVersion);
         return [
           deviceId,
-          { appTypes, deviceFamily, displayName, languages },
+          { appTypes, deviceFamily, displayName, languages, ciqVersions },
         ] as const;
       });
     })
