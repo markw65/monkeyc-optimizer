@@ -933,31 +933,31 @@ export function instForType(
         op: Opcodes.bpush,
         arg: type.type === TypeTag.False ? 0 : 1,
         offset,
-        size: 1,
+        size: 2,
       };
     case TypeTag.Number:
-      return { op: Opcodes.ipush, arg: type.value, offset, size: 1 };
+      return { op: Opcodes.ipush, arg: type.value, offset, size: 5 };
     case TypeTag.Long:
-      return { op: Opcodes.lpush, arg: type.value, offset, size: 1 };
+      return { op: Opcodes.lpush, arg: type.value, offset, size: 9 };
     case TypeTag.Float:
-      return { op: Opcodes.fpush, arg: type.value, offset, size: 1 };
+      return { op: Opcodes.fpush, arg: type.value, offset, size: 5 };
     case TypeTag.Double:
-      return { op: Opcodes.dpush, arg: type.value, offset, size: 1 };
+      return { op: Opcodes.dpush, arg: type.value, offset, size: 9 };
     case TypeTag.Char:
       return {
         op: Opcodes.cpush,
         arg: type.value.charCodeAt(0),
         offset,
-        size: 1,
+        size: 5,
       };
     case TypeTag.Symbol: {
       const match = type.value.match(/<(\d+)>$/);
       assert(match);
       return {
-        op: Opcodes.ipush,
+        op: Opcodes.spush,
         arg: parseInt(match[1], 10),
         offset,
-        size: 1,
+        size: 5,
       };
     }
   }
