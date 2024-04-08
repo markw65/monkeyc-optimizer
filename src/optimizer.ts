@@ -343,18 +343,19 @@ export async function generateOptimizedProject(options: BuildConfig) {
   const pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   if (pick_one >= 0) {
     let preferredProduct = 0;
-    targets.every((t, i) => {
-      const dev = devices[t.product];
-      if (!dev) return true;
-      if (dev.ciqVersions.every((ciq) => ciq.startsWith("5"))) {
-        preferredProduct = i;
-        return false;
-      }
-      if (dev.ciqVersions.some((ciq) => ciq.startsWith("5"))) {
-        preferredProduct = i;
-      }
-      return true;
-    });
+    false &&
+      targets.every((t, i) => {
+        const dev = devices[t.product];
+        if (!dev) return true;
+        if (dev.ciqVersions.every((ciq) => ciq.startsWith("5"))) {
+          preferredProduct = i;
+          return false;
+        }
+        if (dev.ciqVersions.some((ciq) => ciq.startsWith("5"))) {
+          preferredProduct = i;
+        }
+        return true;
+      });
     options.products = [...options.products!];
     options.products[pick_one] = targets[preferredProduct].product;
   }
