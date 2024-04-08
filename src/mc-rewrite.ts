@@ -768,7 +768,11 @@ async function optimizeMonkeyCHelper(
     const ret = preEvaluate(istate, node);
     switch (node.type) {
       case "EnumDeclaration":
-        return [];
+        return ["body"];
+      case "EnumStringBody":
+        return ["members"];
+      case "EnumStringMember":
+        return ["init"];
       case "ForStatement": {
         const map = topLocals().map;
         if (map) {
@@ -1278,19 +1282,17 @@ function cleanup(
           );
         })
       ) {
-        node.enumType = [
-          ...new Set(
-            node.members.map((m) => {
-              if (!("init" in m)) return "Number";
-              const [node, type] = getNodeValue(m.init);
-              if (!node) {
-                throw new Error("Failed to get type for eliminated enum");
-              }
-              return type;
-            })
-          ),
-        ].join(" or ");
-        node.members.splice(0);
+        const enumType = new Set(
+          node.members.map((m) => {
+            if (!("init" in m)) return "Number";
+            const [node, type] = getNodeValue(m.init);
+            return node ? type : null;
+          })
+        );
+        if (!enumType.has(null)) {
+          node.enumType = [...enumType].join(" or ");
+          node.members.splice(0);
+        }
       }
       break;
     case "EnumDeclaration":

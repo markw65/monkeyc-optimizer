@@ -928,21 +928,20 @@ function stateFuncs() {
                   }
                   const name = m.id.name;
                   const init = getLiteralNode(m.init);
-                  if (!init) {
-                    throw new Error("Unexpected enum initializer");
-                  }
-                  if (init !== m.init) {
-                    if (m.init.enumType) {
-                      init.enumType = m.init.enumType;
+                  if (init) {
+                    if (init !== m.init) {
+                      if (m.init.enumType) {
+                        init.enumType = m.init.enumType;
+                      }
+                      m.init = init;
                     }
-                    m.init = init;
-                  }
-                  if (
-                    init.type === "Literal" &&
-                    init.raw &&
-                    LiteralIntegerRe.test(init.raw)
-                  ) {
-                    prev = init.value as number | bigint;
+                    if (
+                      init.type === "Literal" &&
+                      init.raw &&
+                      LiteralIntegerRe.test(init.raw)
+                    ) {
+                      prev = init.value as number | bigint;
+                    }
                   }
                   if (!hasProperty(values, name)) {
                     values[name] = [];

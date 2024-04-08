@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { EnumStringMember } from "@markw65/prettier-plugin-monkeyc/build/estree-types";
 import { xmlUtil } from "./sdk-util";
 import { ExactOrUnion } from "./type-flow/types";
 
@@ -274,7 +273,7 @@ export type ProgramState = {
   constants?: { [key: string]: mctree.Literal };
   diagnostics?: Record<string, PreDiagnostic[]>;
   inlineDiagnostics?: Record<string, Diagnostic[]>;
-  enumMap?: Map<EnumStringMember, EnumStateNode>;
+  enumMap?: Map<mctree.EnumStringMember, EnumStateNode>;
 };
 export type Finalized<T, Keys extends keyof T> = T & {
   [key in Keys]-?: NonNullable<T[key]>;
