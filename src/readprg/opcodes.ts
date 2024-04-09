@@ -775,6 +775,8 @@ export function opcodeSize(op: Opcodes) {
     case Opcodes.getself:
     case Opcodes.aputvdup:
     case Opcodes.isnotnull:
+    case Opcodes.shlv:
+    case Opcodes.shrv:
       return 1;
     case Opcodes.incsp:
     case Opcodes.invokem:
@@ -783,8 +785,6 @@ export function opcodeSize(op: Opcodes) {
     case Opcodes.bpush:
     case Opcodes.dup:
     case Opcodes.argc:
-    case Opcodes.shlv:
-    case Opcodes.shrv:
     case Opcodes.ipush1:
       return 2;
     case Opcodes.goto:
