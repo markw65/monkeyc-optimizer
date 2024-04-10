@@ -14,6 +14,7 @@ import {
   functionMayModify,
 } from "./function-info";
 import {
+  Diagnostic,
   FunctionStateNode,
   ProgramStateAnalysis,
   ProgramStateStack,
@@ -387,7 +388,11 @@ export function shouldInline(
         state,
         func,
         call,
-        "This function can only be inlined in statement, assignment, if or return contexts"
+        "This function can only be inlined in statement, assignment, if or return contexts",
+        {
+          uri: "https://github.com/markw65/monkeyc-optimizer/wiki/Inlining#so-inlining-is-restricted-to-a-few-fairly-common-places-or-contexts",
+          message: "contexts",
+        }
       );
     }
     return context != null;
@@ -670,7 +675,8 @@ export function inlineDiagnostic(
   state: ProgramStateAnalysis,
   func: FunctionStateNode,
   call: mctree.CallExpression,
-  message: string | null
+  message: string | null,
+  extra?: Diagnostic["extra"]
 ) {
   if (inlineRequested(state, func)) {
     if (!state.inlineDiagnostics) {
@@ -681,7 +687,7 @@ export function inlineDiagnostic(
       call,
       message && `While inlining ${func.node.id.name}: ${message}`,
       "INFO",
-      undefined
+      extra
     );
   }
 }
