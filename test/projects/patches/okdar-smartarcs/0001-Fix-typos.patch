@@ -1,27 +1,27 @@
-From 6abd5196e101e1301040d37424f321a821bc7619 Mon Sep 17 00:00:00 2001
+From 3cd3f8b20ec1b5fedf4126c364433e58ff7fb602 Mon Sep 17 00:00:00 2001
 From: markw65 <mark_st@myosotissp.com>
-Date: Mon, 5 Dec 2022 16:01:40 -0800
-Subject: [PATCH] Fix typos
+Date: Tue, 9 Apr 2024 18:04:40 -0700
+Subject: [PATCH] Fix-typos
 
 ---
  source/SunCalc.mc | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/source/SunCalc.mc b/source/SunCalc.mc
-index 3f98a27..0a4a707 100644
+index 5feeeb9..59b1577 100644
 --- a/source/SunCalc.mc
 +++ b/source/SunCalc.mc
-@@ -5,8 +5,8 @@ using Toybox.Time as Time;
- using Toybox.Position as Pos;
+@@ -7,8 +7,8 @@ using Toybox.Position as Pos;
+ class SunCalc {
  
- enum {
--	NIGHT_END,
--	NAUTICAL_DAWN,
+     enum {
+-        NIGHT_END,
+-        NAUTICAL_DAWN,
 +	ASTRO_DAWN,
 +	NAUTIC_DAWN,
- 	DAWN,
- 	BLUE_HOUR_AM,
- 	SUNRISE,
+         DAWN,
+         BLUE_HOUR_AM,
+         SUNRISE,
 -- 
 2.34.1
 
