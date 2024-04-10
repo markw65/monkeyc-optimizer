@@ -20,7 +20,14 @@ import { postOrderTraverse } from "./cflow";
 import { localDCE } from "./dce";
 import { InterpState, cloneState, interpBytecode, interpFunc } from "./interp";
 import { minimizeLocals } from "./locals";
-import { Bytecode, Mulv, Opcodes, isBoolOp, isCondBranch } from "./opcodes";
+import {
+  Bytecode,
+  Mulv,
+  Opcodes,
+  isBoolOp,
+  isCondBranch,
+  opcodeSize,
+} from "./opcodes";
 import { sizeBasedPRE } from "./pre";
 import { blockSharing } from "./sharing";
 
@@ -123,11 +130,9 @@ function simpleOpts(func: FuncEntry, context: Context) {
             const dup = prev as Bytecode;
             dup.op = Opcodes.dup;
             dup.arg = 0;
-            dup.size = 2;
             const add = cur as Bytecode;
             add.op = Opcodes.addv;
             delete add.arg;
-            add.size = 1;
             logging &&
               log(`${func.name}: converting "ipush 1; shlv" to "dup 0; addv"`);
             continue;
@@ -149,7 +154,6 @@ function simpleOpts(func: FuncEntry, context: Context) {
             changes = true;
             const mulv = cur as Bytecode as Mulv;
             mulv.op = Opcodes.mulv;
-            mulv.size = 1;
             delete mulv.arg;
           }
         }
@@ -328,7 +332,6 @@ function equalSymbolToEq(block: Block, equalsIndex: number) {
   block.bytecodes.splice(equalsIndex, 5, spush, {
     op: Opcodes.eq,
     offset: invokem.offset,
-    size: 1,
   });
   logger(
     "optimize",
@@ -430,7 +433,8 @@ function removeUnreachableCatches(func: FuncEntry, context: Context) {
         } else if (
           next.next == null &&
           next.bytecodes.length < 3 &&
-          next.bytecodes.reduce((size, bc) => size + bc.size, 0) < 3 &&
+          next.bytecodes.reduce((size, bc) => size + opcodeSize(bc.op), 0) <
+            3 &&
           countFallthroughPreds(func, next) > 1
         ) {
           logger(
@@ -447,7 +451,7 @@ function removeUnreachableCatches(func: FuncEntry, context: Context) {
           let offset = context.nextOffset;
           next.bytecodes.forEach((bc) => {
             block.bytecodes.push({ ...bc, offset });
-            offset += bc.size;
+            offset += opcodeSize(bc.op);
           });
           context.nextOffset = offset;
           redirect(func, block, next.offset, null);

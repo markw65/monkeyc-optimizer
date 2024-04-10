@@ -248,7 +248,7 @@ export function optimizeArrayInit(
             const bc = block.bytecodes[found - 1];
             if (
               bc.op !== Opcodes.dup &&
-              (!initInst || initInst.size > bc.size)
+              (!initInst || opcodeSize(initInst.op) > opcodeSize(bc.op))
             ) {
               const { push, pop } = getOpInfo(bc);
               if (push === 1 && pop === 0) {
@@ -296,7 +296,6 @@ export function optimizeArrayInit(
       const bc = block.bytecodes[i];
       const op = bc.op;
       bc.op = Opcodes.popv;
-      bc.size = 1;
       delete bc.arg;
       assert(op === Opcodes.aputv);
     };
@@ -372,7 +371,10 @@ export function optimizeArrayInit(
   } else {
     initInst = null;
   }
-  if (initLocal && (!initInst || initInst.size > initLocal.size)) {
+  if (
+    initLocal &&
+    (!initInst || opcodeSize(initInst.op) > opcodeSize(initLocal.op))
+  ) {
     initInst = initLocal;
   }
   if (initInst) {

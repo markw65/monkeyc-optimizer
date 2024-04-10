@@ -153,7 +153,6 @@ export function emitFunc(
         op: Opcodes.goto,
         arg: block.next,
         offset: block.offset,
-        size: 3,
       };
       offset = emitBytecode(bc, view, offset, linktable, shift_hack);
     }

@@ -8,6 +8,7 @@ import { hasProperty } from "./ast";
 import { BuildConfig } from "./optimizer-types";
 import {
   Context,
+  offsetAfter,
   optimizeBytecode,
   SectionInfo,
   SectionKinds,
@@ -161,9 +162,9 @@ function optimizeProgramBuffer(
     exceptionsMap,
     key,
     debugXml,
-    nextOffset:
-      (bytecodes[bytecodes.length - 1]?.offset ?? 0) +
-      (bytecodes[bytecodes.length - 1]?.size ?? 0),
+    nextOffset: bytecodes[bytecodes.length - 1]
+      ? offsetAfter(bytecodes[bytecodes.length - 1])
+      : 0,
     nextLocalId: 0,
   };
   optimizeBytecode(context);

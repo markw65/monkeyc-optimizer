@@ -12,7 +12,7 @@ import {
   removeBlock,
   splitBlock,
 } from "./bytecode";
-import { Bytecode, Opcodes, isCondBranch } from "./opcodes";
+import { Bytecode, Opcodes, isCondBranch, opcodeSize } from "./opcodes";
 
 export function blockSharing(func: FuncEntry, context: Context) {
   const candidates: Map<number, Set<Block>> = new Map();
@@ -56,7 +56,7 @@ export function blockSharing(func: FuncEntry, context: Context) {
       blocks.forEach((block) => {
         const blockEnd = block.bytecodes[block.bytecodes.length - 1];
         if (!group.length) {
-          size = blockEnd.size;
+          size = opcodeSize(blockEnd.op);
         } else {
           const key = group[0];
           const keyEnd = key.bytecodes[key.bytecodes.length - 1];
@@ -147,7 +147,7 @@ export function blockSharing(func: FuncEntry, context: Context) {
               }
               entry.group.delete(block);
             } else {
-              const sz = size + (bc?.size ?? 0);
+              const sz = size + (bc ? opcodeSize(bc.op) : 0);
               nextState.push({ group: blocks.map((b) => group[b]), size: sz });
             }
           });

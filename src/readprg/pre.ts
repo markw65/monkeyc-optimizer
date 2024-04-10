@@ -178,7 +178,6 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
               bc.op = Opcodes.nop;
               prev.op = Opcodes.lgetv;
               prev.arg = slot;
-              prev.size = 2;
             }
           })
       );
@@ -207,7 +206,6 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
       bcs.forEach((bc) => {
         bc.op = Opcodes.lgetv;
         bc.arg = slot;
-        bc.size = 2;
       });
     }
   });

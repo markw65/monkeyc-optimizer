@@ -642,7 +642,6 @@ export function interpFunc(func: FuncEntry, context: Context) {
                 op: Opcodes.dup,
                 arg,
                 offset: bc.offset,
-                size: 2,
                 invert: localState.stack.length <= ~index,
               });
             } else {
@@ -651,7 +650,6 @@ export function interpFunc(func: FuncEntry, context: Context) {
                 op: Opcodes.lgetv,
                 arg,
                 offset: bc.offset,
-                size: 2,
                 invert: localState.locals.length <= index,
               });
             }
@@ -871,11 +869,9 @@ export function interpFunc(func: FuncEntry, context: Context) {
       } else {
         delete orig.arg;
       }
-      orig.size = rep.size;
       if (rep.invert) {
         const invv = { ...orig };
         invv.op = Opcodes.invv;
-        invv.size = 1;
         invv.offset = context.nextOffset++;
         delete invv.arg;
         block.bytecodes.splice(i + 1, 0, invv);
@@ -901,7 +897,6 @@ export function interpFunc(func: FuncEntry, context: Context) {
       for (let i = 0; i < pops; i++) {
         block.bytecodes.push({
           op: Opcodes.popv,
-          size: 1,
           offset: context.nextOffset++,
         });
       }
@@ -926,29 +921,27 @@ export function instForType(
   if (!hasValue(type)) return null;
   switch (type.type) {
     case TypeTag.Null:
-      return { op: Opcodes.npush, offset, size: 1 };
+      return { op: Opcodes.npush, offset };
     case TypeTag.False:
     case TypeTag.True:
       return {
         op: Opcodes.bpush,
         arg: type.type === TypeTag.False ? 0 : 1,
         offset,
-        size: 2,
       };
     case TypeTag.Number:
-      return { op: Opcodes.ipush, arg: type.value, offset, size: 5 };
+      return { op: Opcodes.ipush, arg: type.value, offset };
     case TypeTag.Long:
-      return { op: Opcodes.lpush, arg: type.value, offset, size: 9 };
+      return { op: Opcodes.lpush, arg: type.value, offset };
     case TypeTag.Float:
-      return { op: Opcodes.fpush, arg: type.value, offset, size: 5 };
+      return { op: Opcodes.fpush, arg: type.value, offset };
     case TypeTag.Double:
-      return { op: Opcodes.dpush, arg: type.value, offset, size: 9 };
+      return { op: Opcodes.dpush, arg: type.value, offset };
     case TypeTag.Char:
       return {
         op: Opcodes.cpush,
         arg: type.value.charCodeAt(0),
         offset,
-        size: 5,
       };
     case TypeTag.Symbol: {
       const match = type.value.match(/<(\d+)>$/);
@@ -957,7 +950,6 @@ export function instForType(
         op: Opcodes.spush,
         arg: parseInt(match[1], 10),
         offset,
-        size: 5,
       };
     }
   }

@@ -9,7 +9,13 @@ import { UpdateInfo, emitFunc } from "./emit";
 import { ExceptionEntry, ExceptionsMap, fixupExceptions } from "./exceptions";
 import { Header, fixupHeader } from "./header";
 import { LineNumber, fixupLineNum } from "./linenum";
-import { Bytecode, LocalRange, Opcodes, isCondBranch } from "./opcodes";
+import {
+  Bytecode,
+  LocalRange,
+  Opcodes,
+  isCondBranch,
+  opcodeSize,
+} from "./opcodes";
 import { optimizeFunc } from "./optimize";
 import { SymbolTable } from "./symbols";
 
@@ -487,6 +493,10 @@ export function bytecodeToString(
   return `${Opcodes[bytecode.op]}${arg ?? ""}`;
 }
 
+export function offsetAfter(bc: Bytecode) {
+  return bc.offset + opcodeSize(bc.op);
+}
+
 export function findFunctions({
   bytecodes,
   symbolTable,
@@ -508,14 +518,14 @@ export function findFunctions({
       case Opcodes.bf:
       case Opcodes.goto:
       case Opcodes.jsr:
-        blockStarts.add(bytecode.offset + bytecode.size);
+        blockStarts.add(offsetAfter(bytecode));
         blockStarts.add(bytecode.arg);
         return;
 
       case Opcodes.return:
       case Opcodes.ret:
       case Opcodes.throw:
-        blockStarts.add(bytecode.offset + bytecode.size);
+        blockStarts.add(offsetAfter(bytecode));
         return;
     }
   });
@@ -527,7 +537,7 @@ export function findFunctions({
   let next: number | undefined;
   let taken: number | undefined;
   bytecodes.forEach((bytecode, i) => {
-    const nextBcOffset = bytecode.offset + bytecode.size;
+    const nextBcOffset = offsetAfter(bytecode);
     next = nextBcOffset;
     taken = undefined;
     switch (bytecode.op) {
@@ -675,7 +685,6 @@ export function findFunctions({
 export function makeArgless(bc: Bytecode, op: Opcodes) {
   bc.op = op;
   delete bc.arg;
-  bc.size = 1;
 }
 
 export function equalBlocks(b1: Block, b2: Block) {

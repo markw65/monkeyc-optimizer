@@ -83,7 +83,6 @@ export enum Opcodes {
 interface BaseOpcode {
   op: Opcodes;
   offset: number;
-  size: number;
   lineNum?: LineNumber;
   arg?: unknown;
 }
@@ -589,7 +588,7 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
       case Opcodes.gt:
       case Opcodes.gte:
       case Opcodes.ne:
-        return { op, offset, size: 1 };
+        return { op, offset };
       case Opcodes.frpush:
       case Opcodes.canhazplz:
       case Opcodes.isa:
@@ -613,7 +612,7 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
       case Opcodes.getself:
       case Opcodes.aputvdup:
       case Opcodes.isnotnull:
-        return { op, offset, size: 1 };
+        return { op, offset };
 
       case Opcodes.incsp:
       case Opcodes.invokem:
@@ -623,7 +622,7 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
       case Opcodes.dup:
       case Opcodes.argc:
       case Opcodes.ipush1:
-        return { op, arg: view.getUint8(current++), offset, size: 2 };
+        return { op, arg: view.getUint8(current++), offset };
       case Opcodes.goto:
       case Opcodes.jsr:
       case Opcodes.bt:
@@ -632,21 +631,18 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
           op,
           arg: offset + view.getInt16((current += 2) - 2) + 3,
           offset,
-          size: 3,
         };
       case Opcodes.ipush2:
         return {
           op,
           arg: view.getInt16((current += 2) - 2),
           offset,
-          size: 3,
         };
       case Opcodes.ipush3:
         return {
           op,
           arg: view.getInt32((current += 3) - 3) >> 8,
           offset,
-          size: 4,
         };
       case Opcodes.news:
       case Opcodes.apush:
@@ -657,7 +653,7 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
       case Opcodes.cpush:
       case Opcodes.getsv:
       case Opcodes.getselfv:
-        return { op, arg: view.getInt32((current += 4) - 4), offset, size: 5 };
+        return { op, arg: view.getInt32((current += 4) - 4), offset };
       case Opcodes.getmv:
         return {
           op,
@@ -666,7 +662,6 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
             var: view.getInt32((current += 4) - 4),
           },
           offset,
-          size: 9,
         };
       case Opcodes.getlocalv:
         return {
@@ -676,7 +671,6 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
             var: view.getInt32((current += 4) - 4),
           },
           offset,
-          size: 6,
         };
       case Opcodes.argcincsp:
         return {
@@ -686,7 +680,6 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
             incsp: view.getUint8(current++),
           },
           offset,
-          size: 3,
         };
 
       case Opcodes.lpush:
@@ -694,21 +687,18 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
           op,
           arg: view.getBigInt64((current += 8) - 8),
           offset,
-          size: 9,
         };
       case Opcodes.fpush:
         return {
           op,
           arg: view.getFloat32((current += 4) - 4),
           offset,
-          size: 5,
         };
       case Opcodes.dpush:
         return {
           op,
           arg: view.getFloat64((current += 8) - 8),
           offset,
-          size: 9,
         };
       case Opcodes.ts:
         throw new Error(`Unknown opcode ${op}`);
@@ -725,7 +715,7 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
     }
     results.push(nextOp);
   }
-  results.push({ op: Opcodes.nop, size: 1, offset: current });
+  results.push({ op: Opcodes.nop, offset: current });
   return results;
 }
 

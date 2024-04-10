@@ -224,9 +224,9 @@ function compareFunc(func: FuncEntry, bytecodes: Map<number, Bytecode>) {
             assert.strictEqual(block.bytecodes.length, i + 1);
             if (bc.op === expected.op) {
               target = expected.arg;
-              offset += bc.size;
+              offset += opcodeSize(bc.op);
             } else {
-              target = offset + bc.size;
+              target = offset + opcodeSize(bc.op);
               offset = expected.arg;
             }
             break;
@@ -236,12 +236,12 @@ function compareFunc(func: FuncEntry, bytecodes: Map<number, Bytecode>) {
             assert.strictEqual(bc.op, expected.op);
             assert.strictEqual(block.bytecodes.length, i + 1);
             target = expected.arg;
-            offset += bc.size;
+            offset += opcodeSize(bc.op);
             break;
           default:
             assert.strictEqual(bc.op, expected.op);
             assert.strictEqual(bc.arg, expected.arg);
-            offset += bc.size;
+            offset += opcodeSize(bc.op);
         }
       }
     });

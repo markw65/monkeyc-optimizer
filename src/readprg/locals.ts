@@ -202,7 +202,6 @@ export function minimizeLocals(
             const argCount = bc as Bytecode as Argc;
             argCount.op = Opcodes.argc;
             argCount.arg = argc;
-            argCount.size = 2;
             filter = true;
           }
           break;
@@ -223,7 +222,6 @@ export function minimizeLocals(
             const nop = bc as Bytecode as Nop;
             nop.op = Opcodes.nop;
             delete nop.arg;
-            nop.size = 1;
             filter = true;
           }
           break;
