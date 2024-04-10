@@ -30,12 +30,15 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
         view.setFloat32(0, bc.arg);
         return (BigInt(view.getInt32(0)) << 8n) | BigInt(bc.op);
       }
+      case Opcodes.ipush:
+      case Opcodes.ipush2:
+      case Opcodes.ipush3:
+        return (BigInt(bc.arg) << 8n) | BigInt(Opcodes.ipush);
       case Opcodes.spush:
         if (bcs[index + 1]?.op === Opcodes.getm) {
           break;
         }
       // fall through
-      case Opcodes.ipush:
       case Opcodes.lpush:
       case Opcodes.cpush:
       case Opcodes.news:

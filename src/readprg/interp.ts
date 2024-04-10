@@ -615,6 +615,8 @@ export function interpFunc(func: FuncEntry, context: Context) {
           break;
         }
         case Opcodes.ipush:
+        case Opcodes.ipush2:
+        case Opcodes.ipush3:
         case Opcodes.lpush:
         case Opcodes.fpush:
         case Opcodes.dpush:
