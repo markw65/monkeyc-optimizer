@@ -443,16 +443,22 @@ function visit_resource_refs(
       });
       const content = doc.textContent(node);
       if (content) {
-        stringToScopedName(
-          node,
-          null,
-          content,
-          locRange(
-            node.children![0].loc!,
-            node.children![node.children!.length - 1].loc!
-          )
-        );
-        return false;
+        switch (node.name) {
+          case "string":
+          case "jsonData":
+            return false;
+          default:
+            stringToScopedName(
+              node,
+              null,
+              content,
+              locRange(
+                node.children![0].loc!,
+                node.children![node.children!.length - 1].loc!
+              )
+            );
+            return false;
+        }
       }
       return;
     },
