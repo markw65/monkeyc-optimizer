@@ -1640,6 +1640,32 @@ function propagateTypes(
             ? event.node.left
             : null;
         if (lval) {
+          if (nodeCopyProp.size && lval.type === "MemberExpression") {
+            // We can convert
+            // x = foo(); x[0] = 1
+            // to
+            // foo()[0] = 1;
+            // but we can't do that for
+            // x = foo() as Type; x[0] = 1
+            // because of a Garmin parser bug.
+            let t = lval as mctree.Expression;
+            while (t.type === "MemberExpression") {
+              t = t.object;
+            }
+            const target = nodeCopyProp.get(t);
+            if (target) {
+              const copyExpr =
+                target.type === "AssignmentExpression"
+                  ? target.right
+                  : target.type === "VariableDeclarator"
+                  ? target.init
+                  : null;
+              if (copyExpr?.type === "BinaryExpression") {
+                nodeCopyProp.set(target, false);
+                nodeCopyProp.delete(t);
+              }
+            }
+          }
           if (declIsLocal(event.decl)) {
             if (!istate.localLvals) {
               istate.localLvals = new Set();
