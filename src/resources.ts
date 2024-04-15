@@ -324,7 +324,7 @@ function visit_resource_refs(
       name = name.substring(1);
       loc = adjustLoc(loc, 1, 0);
     }
-    if (hasProperty(skip, name)) {
+    if (hasProperty(skip, name) || /^\d+(\.\d+)?%?$/.test(name)) {
       return;
     }
     if (/^([-\w_$]+\s*\.\s*)*[-\w_$]+$/.test(name)) {
