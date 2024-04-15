@@ -2,6 +2,15 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.54
+
+- Fix return types of Dictionary.values() and Dictionary.keys()
+- Fix issue with single-copy-prop creating stores that the Garmin compiler can't parse
+- Handle percentage strings in resources
+- Handle special strings in <param> nodes
+- Don't treat '@Dotted.Name' as special in strings and jsonData
+- Include ipush2 and ipush3 in pre
+
 ### 1.1.53
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.56](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1056)
