@@ -279,7 +279,9 @@ export function add_resources_to_ast(
 
 const drawableSkips: Record<string, Record<string, true>> = {
   x: { center: true, left: true, right: true, start: true },
+  locX: { center: true, left: true, right: true, start: true },
   y: { center: true, top: true, bottom: true, start: true },
+  locY: { center: true, top: true, bottom: true, start: true },
   width: { fill: true },
   height: { fill: true },
   a: { fill: true },
@@ -406,7 +408,14 @@ function visit_resource_refs(
     switch (element.name) {
       case "param":
         if (id === null) {
-          parseArg(dotted, l);
+          const name = element.attr.name?.value.value;
+          parseArg(
+            dotted,
+            l,
+            name && hasProperty(drawableSkips, name)
+              ? drawableSkips[name]
+              : null
+          );
         }
         return;
       case "drawable":
