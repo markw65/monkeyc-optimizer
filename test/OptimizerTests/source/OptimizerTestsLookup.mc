@@ -65,6 +65,7 @@ class TestClass extends X.Y.Base {
     function initialize() {
         Base.initialize();
     }
+    typedef MyBoolean as Boolean;
     const FOO as Number = ENDIAN_BIG as Number;
     function noSystem() as Void {
         // works!
@@ -87,7 +88,7 @@ class TestClass extends X.Y.Base {
         // Fails at runtime: "Could not find symbol 'Number'"
         /* @expect "Number will only be found" */
         var t = x instanceof Number;
-        return t;
+        return t as MyBoolean;
     }
     function properties() as Void {
         // mimimizeModules prevents this from firing for now

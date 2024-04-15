@@ -432,8 +432,8 @@ function lookup(
           case "ClassDeclaration":
             if (inStatic && state.config?.enforceStatic !== "NO") {
               inStatic = false;
-              if (hasProperty(si.decls, node.name)) {
-                const r = si.decls[node.name].filter((s) => {
+              if (hasProperty(si[decls], node.name)) {
+                const r = si[decls]![node.name].filter((s) => {
                   switch (s.type) {
                     case "FunctionDeclaration":
                     case "VariableDeclarator":
