@@ -432,7 +432,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
             returnType.value = value;
           }
         }
-        ret.returnType = { type: TypeTag.Array, value: returnType };
+        ret.returnType = returnType;
       }
     }
     return ret;
@@ -458,7 +458,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
             returnType.value = value;
           }
         }
-        ret.returnType = { type: TypeTag.Array, value: returnType };
+        ret.returnType = returnType;
       }
     }
     return ret;
