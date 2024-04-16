@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.55
+
+- Allow class typedef lookups from static methods
+- Fix method lookups on enum values
+
 ### 1.1.54
 
 - Fix return types of Dictionary.values() and Dictionary.keys()
