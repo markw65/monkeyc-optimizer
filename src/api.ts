@@ -42,6 +42,7 @@ import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
 import { log, pushUnique, sameArrays } from "./util";
 import { getNodeValue } from "./ast";
+import { unhandledType } from "./data-flow";
 
 export { visitReferences, visitorNode } from "./visitor";
 export { hasProperty, traverseAst, visit_resources };
@@ -320,40 +321,41 @@ export function lookupNext(
     const addToItems = (sns: StateNodeDecl[]) =>
       sns.forEach((module) => {
         if (!isStateNode(module)) {
-          if (module.type === "EnumStringMember") {
-            if (!module.init) {
-              addToItems(lookupByFullName(state, "Toybox.Lang.Number"));
-            } else if (module.init.type === "Literal") {
-              const [, type] = getNodeValue(module.init);
-              switch (type) {
-                case "Null":
-                  return;
-                case "Boolean":
-                case "Char":
-                case "Double":
-                case "Float":
-                case "Long":
-                case "Number":
-                case "String":
-                  addToItems(lookupByFullName(state, `Toybox.Lang.${type}`));
-                  return;
-              }
-            } else {
-              [
-                "Boolean",
-                "Char",
-                "Double",
-                "Float",
-                "Long",
-                "Number",
-                "String",
-              ].forEach((type) =>
-                addToItems(lookupByFullName(state, `Toybox.Lang.${type}`))
-              );
-              return;
-            }
+          if (module.type !== "EnumStringMember") return;
+          if (!module.init) {
+            addToItems(lookupByFullName(state, "Toybox.Lang.Number"));
+            return;
           }
-          addToItems(lookupByFullName(state, "Toybox.Lang.Object"));
+          if (module.init.type === "Literal") {
+            const [, type] = getNodeValue(module.init);
+            switch (type) {
+              case "Null":
+                break;
+              case "Boolean":
+              case "Char":
+              case "Double":
+              case "Float":
+              case "Long":
+              case "Number":
+              case "String":
+                addToItems(lookupByFullName(state, `Toybox.Lang.${type}`));
+                break;
+              default:
+                unhandledType(type);
+            }
+            return;
+          }
+          [
+            "Boolean",
+            "Char",
+            "Double",
+            "Float",
+            "Long",
+            "Number",
+            "String",
+          ].forEach((type) =>
+            addToItems(lookupByFullName(state, `Toybox.Lang.${type}`))
+          );
           return;
         }
         const res = checkOne(state, module, decls, property);
