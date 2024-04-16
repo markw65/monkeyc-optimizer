@@ -5,6 +5,11 @@ import Toybox.Application.Storage;
 import Toybox.WatchUi;
 import A.B;
 
+enum SomeValues {
+    SomeValueNumber = 0,
+    SomeValueString = "hello",
+    SomeValueDouble = 42.0d,
+}
 (:inline)
 function inlineNeedsLocalImport() as Number {
     return B.a();
@@ -59,6 +64,15 @@ function lookupStaticTestsCrash6_2_2_U(logger as Logger) as Boolean {
     ok = true;
     check(TestStaticsClass.SFOO, Lang.ENDIAN_BIG, logger);
     return ok;
+}
+
+(:test,:typecheck(false))
+function lookupMethodsOnEnums(logger as Logger) as Boolean {
+    return (
+        (SomeValueNumber.equals(0)
+            ? SomeValueString.length()
+            : SomeValueDouble.toNumber()) == 5
+    );
 }
 
 class TestClass extends X.Y.Base {

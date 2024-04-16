@@ -41,6 +41,7 @@ import { TypeMap } from "./type-flow/interp";
 import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
 import { log, pushUnique, sameArrays } from "./util";
+import { getNodeValue } from "./ast";
 
 export { visitReferences, visitorNode } from "./visitor";
 export { hasProperty, traverseAst, visit_resources };
@@ -315,15 +316,53 @@ export function lookupNext(
   property: mctree.Identifier
 ) {
   return results.reduce<LookupDefinition[] | null>((current, lookupDef) => {
-    const items = lookupDef.results
-      .map((module) => {
+    const items: { parent: StateNode; results: StateNodeDecl[] }[] = [];
+    const addToItems = (sns: StateNodeDecl[]) =>
+      sns.forEach((module) => {
         if (!isStateNode(module)) {
-          return null;
+          if (module.type === "EnumStringMember") {
+            if (!module.init) {
+              addToItems(lookupByFullName(state, "Toybox.Lang.Number"));
+            } else if (module.init.type === "Literal") {
+              const [, type] = getNodeValue(module.init);
+              switch (type) {
+                case "Null":
+                  return;
+                case "Boolean":
+                case "Char":
+                case "Double":
+                case "Float":
+                case "Long":
+                case "Number":
+                case "String":
+                  addToItems(lookupByFullName(state, `Toybox.Lang.${type}`));
+                  return;
+              }
+            } else {
+              [
+                "Boolean",
+                "Char",
+                "Double",
+                "Float",
+                "Long",
+                "Number",
+                "String",
+              ].forEach((type) =>
+                addToItems(lookupByFullName(state, `Toybox.Lang.${type}`))
+              );
+              return;
+            }
+          }
+          addToItems(lookupByFullName(state, "Toybox.Lang.Object"));
+          return;
         }
         const res = checkOne(state, module, decls, property);
-        return res ? { parent: module, results: res } : null;
-      })
-      .filter((r): r is NonNullable<typeof r> => r != null);
+        if (res) {
+          items.push({ parent: module, results: res });
+        }
+      });
+    addToItems(lookupDef.results);
+
     if (!items.length) return current;
     return current ? current.concat(items) : items;
   }, null);
