@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.56
+
+- Fix regression caused by the fix to #24 (Fixes #26)
+- Fix bug in the post build optimizer for system 7 devices, caused by not handling the new argcincsp bytecode
+
 ### 1.1.55
 
 - Allow class typedef lookups from static methods
