@@ -7,7 +7,7 @@ import {
   functionBanner,
 } from "./bytecode";
 import { computeDominators, intersect, postOrderTraverse } from "./cflow";
-import { Bytecode, Incsp, Opcodes, opcodeSize } from "./opcodes";
+import { Argcincsp, Bytecode, Incsp, Opcodes, opcodeSize } from "./opcodes";
 
 export function sizeBasedPRE(func: FuncEntry, context: Context) {
   if (func.argc == null) {
@@ -15,7 +15,7 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
   }
   const canonicalMap: Map<bigint, Set<Bytecode>> = new Map();
   let states: Map<number, Map<bigint, Set<Bytecode>>> = new Map();
-  let incSp = null as Incsp | false | null;
+  let incSp = null as Incsp | Argcincsp | false | null;
   const getBigInt = (bc: Bytecode, index: number, bcs: Bytecode[]) => {
     switch (bc.op) {
       case Opcodes.dpush: {
@@ -44,6 +44,7 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
       case Opcodes.news:
         return (BigInt(bc.arg) << 8n) | BigInt(bc.op);
       case Opcodes.incsp:
+      case Opcodes.argcincsp:
         if (incSp != null) {
           incSp = false;
         }
@@ -108,7 +109,9 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
       }
     });
   });
-  let nextSlot = func.argc + (incSp?.arg ?? 0);
+  let nextSlot =
+    func.argc +
+    (incSp?.op === Opcodes.incsp ? incSp.arg : incSp?.arg.incsp ?? 0);
   const bytecode = <T extends Opcodes>(
     op: T,
     arg: Extract<Bytecode, { op: T }>["arg"]
@@ -213,7 +216,11 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
     }
   });
   if (incSp) {
-    incSp.arg += insertionBlocks.size;
+    if (incSp.op === Opcodes.incsp) {
+      incSp.arg += insertionBlocks.size;
+    } else {
+      incSp.arg.incsp += insertionBlocks.size;
+    }
   } else {
     const startBlock = func.blocks.get(func.offset)!;
     const index =
