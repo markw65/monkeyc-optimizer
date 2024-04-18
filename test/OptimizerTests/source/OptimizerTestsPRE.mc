@@ -19,15 +19,20 @@ function checksArgs(
     l as Long,
     d as Double
 ) as Boolean {
-    return (
-        n instanceof Lang.Number &&
-        f instanceof Lang.Float &&
-        l instanceof Lang.Long &&
-        d instanceof Lang.Double &&
-        n == f &&
-        l == d &&
-        f == l
-    );
+    if (
+        !(
+            n instanceof Lang.Number &&
+            f instanceof Lang.Float &&
+            l instanceof Lang.Long &&
+            d instanceof Lang.Double
+        )
+    ) {
+        return false;
+    }
+    if (n != f) {
+        return false;
+    }
+    return l == d && f == l;
 }
 
 (:test)

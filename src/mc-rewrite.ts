@@ -553,6 +553,8 @@ function evaluateFunction(
           case "ReturnStatement":
           case "UnaryExpression":
           case "BinaryExpression":
+          case "ConditionalExpression":
+          case "LogicalExpression":
           case "Literal":
           case "Identifier":
             return;
