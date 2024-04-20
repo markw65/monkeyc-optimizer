@@ -2,6 +2,13 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.57
+
+- Include ConditionalExpression and LogicalExpression in evaluateFunction
+- Fix personality search path (Fixes # 27)
+- Use fully qualified names for enum typedefs (Fixes # 28)
+- Fix auto-inlining of protected functions (Fixes #29)
+
 ### 1.1.56
 
 - Fix regression caused by the fix to #24 (Fixes #26)
