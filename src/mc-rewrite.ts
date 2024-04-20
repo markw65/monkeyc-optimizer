@@ -1292,7 +1292,9 @@ function cleanup(
           })
         );
         if (!enumType.has(null)) {
-          node.enumType = [...enumType].join(" or ");
+          node.enumType = [...enumType]
+            .map((t) => (t === "Null" ? t : `Toybox.Lang.${t}`))
+            .join(" or ");
           node.members.splice(0);
         }
       }
