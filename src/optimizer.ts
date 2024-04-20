@@ -43,7 +43,7 @@ import {
   ProgramState,
   ProgramStateAnalysis,
 } from "./optimizer-types";
-import { appSupport, connectiq, getSdkPath, xmlUtil } from "./sdk-util";
+import { appSupport, getSdkPath, xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
 import { InterpState, TypeMap, evaluate } from "./type-flow/interp";
@@ -704,17 +704,9 @@ async function fileInfoFromConfig(
     ".mc"
   );
 
-  let personality = buildConfig.personality;
-  if (buildConfig.products) {
-    personality = (personality ?? []).concat(
-      buildConfig.products.map(
-        (product) => `${connectiq}/Devices/${product}/personality.mss`
-      )
-    );
-  }
   const { files: personalityFiles } = await filesFromPaths(
     workspace,
-    personality,
+    buildConfig.personality,
     ".mss"
   );
 
@@ -859,7 +851,17 @@ export async function generateOneConfig(
         })
         .flat()
     );
-    barrelFnMaps.forEach((barrelFnMap) => Object.assign(fnMap, barrelFnMap));
+    barrelFnMaps.forEach((barrelFnMap) =>
+      Object.entries(barrelFnMap).forEach(([key, value]) => {
+        // barrels shouldn't generally have any files in common
+        // with the main project. But personality files from
+        // the Device directory might be shared.
+        // Make sure to not overwrite the one from the main project
+        if (!hasProperty(fnMap, key)) {
+          fnMap[key] = value;
+        }
+      })
+    );
   }
 
   const actualOptimizedFiles = (

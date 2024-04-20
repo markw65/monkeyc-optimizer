@@ -1,0 +1,21 @@
+<layout id="MainLayout">
+    <label
+        x="center"
+        y="5"
+        text="@Strings.prompt"
+        color="Graphics.COLOR_WHITE"
+        justification="Graphics.TEXT_JUSTIFY_CENTER" />
+    <bitmap
+        id="id_monkey"
+        x="center"
+        y="30"
+        filename="../../resources/images/icon.png" />
+    <text-area
+        text="test"
+        personality="
+        prompt_color_dark__title
+        prompt_font__title
+        prompt_loc__title
+        prompt_size__title
+    " />
+</layout>

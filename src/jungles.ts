@@ -13,7 +13,13 @@ import {
   readManifest,
 } from "./manifest";
 import { BuildConfig } from "./optimizer-types.js";
-import { DeviceInfo, getDeviceInfo, getLanguages, xmlUtil } from "./sdk-util";
+import {
+  connectiq,
+  DeviceInfo,
+  getDeviceInfo,
+  getLanguages,
+  xmlUtil,
+} from "./sdk-util";
 import { globa, globSome } from "./util";
 
 type JungleCache = {
@@ -90,7 +96,11 @@ async function default_jungle() {
       assign(id, [qname(base)]);
     }
     rassign(`${id}.resourcePath`, [literal(rez)], base);
-    rassign(`${id}.personality`, [literal(rez)], base);
+    rassign(
+      `${id}.personality`,
+      [literal(`${connectiq}/Devices/${id}`), literal(rez)],
+      base
+    );
 
     languages.forEach((l: { id: string; name: string }) =>
       rassign(`${id}.lang.${l.id}`, [literal(`${rez}-${l.id}`)], base)
