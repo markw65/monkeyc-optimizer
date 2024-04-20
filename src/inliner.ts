@@ -1,6 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   diagnosticHelper,
+  getSuperClasses,
   hasProperty,
   isLookupCandidate,
   isStateNode,
@@ -18,6 +19,7 @@ import {
   FunctionStateNode,
   ProgramStateAnalysis,
   ProgramStateStack,
+  StateNodeAttributes,
   StateNodeDecl,
   VariableStateNode,
 } from "./optimizer-types";
@@ -281,7 +283,8 @@ function canInline(
 }
 
 function inliningLooksUseful(
-  func: mctree.FunctionDeclaration,
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
   node: mctree.Node
 ) {
   while (true) {
@@ -296,12 +299,49 @@ function inliningLooksUseful(
   if (node.type === "Literal") return true;
   if (node.type === "Identifier") {
     if (
-      func.params.length === 1 &&
-      variableDeclarationName(func.params[0]) === node.name
+      func.node.params.length === 1 &&
+      variableDeclarationName(func.node.params[0]) === node.name
     ) {
       return 1;
     }
-    return true;
+    const stack = func.stack;
+    if (!stack) return false;
+    const calleeClass = stack[stack.length - 1].sn;
+    if (calleeClass.type !== "ClassDeclaration") {
+      return true;
+    }
+    const [, results] = state.lookupNonlocal(node, null, stack);
+    if (!results) return false;
+    const attrs = results.reduce(
+      (attrs, result) =>
+        attrs |
+        result.results.reduce(
+          (attrs, sn) =>
+            attrs |
+            (isStateNode(sn)
+              ? sn.attributes &
+                (StateNodeAttributes.PRIVATE | StateNodeAttributes.PROTECTED)
+              : 0),
+          0
+        ),
+      0
+    );
+    if (!attrs) return true;
+    if (state.stack[stack.length - 1] === stack[stack.length - 1]) {
+      // same class means its always ok
+      return true;
+    }
+    if (attrs & StateNodeAttributes.PRIVATE) return false;
+    for (let i = state.stack.length; i--; ) {
+      const callerClass = state.stack[i].sn;
+      if (callerClass.type === "ClassDeclaration") {
+        if (getSuperClasses(callerClass)?.has(calleeClass)) {
+          return true;
+        }
+        // no special access for methods of nested classes
+        break;
+      }
+    }
   }
   return false;
 }
@@ -358,7 +398,8 @@ export function shouldInline(
   ) {
     inlineAsExpression = true;
     autoInline = inliningLooksUseful(
-      func.node,
+      state,
+      func,
       func.node.body.body[0].argument
     );
   }
