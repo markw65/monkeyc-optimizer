@@ -401,7 +401,14 @@ export async function generateOptimizedProject(options: BuildConfig) {
   const jungle_dir = path.resolve(workspace, config.outputPath!);
   await fs.mkdir(jungle_dir, { recursive: true });
   const relative_path = (s: string) => path.relative(jungle_dir, s);
-  let relative_manifest = relative_path(manifest);
+  const quoted_relative_path = (s: string) => {
+    const rel = relative_path(s);
+    if (/[^-*._$/\\\w]/.test(rel)) {
+      return `"${rel}"`;
+    }
+    return rel;
+  };
+  let relative_manifest = quoted_relative_path(manifest);
   const manifestOk =
     (!config.checkManifest ||
       (await checkManifest(
@@ -577,8 +584,8 @@ export async function generateOptimizedProject(options: BuildConfig) {
         );
       }
       // annotations were handled via source transformations.
-      process_field(prefix, qualifier, "resourcePath", relative_path);
-      process_field(prefix, qualifier, "personality", relative_path);
+      process_field(prefix, qualifier, "resourcePath", quoted_relative_path);
+      process_field(prefix, qualifier, "personality", quoted_relative_path);
       process_field(prefix, qualifier, "excludeAnnotations");
       const qLang = qualifier.lang;
       if (qLang) {
@@ -592,7 +599,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
             ) {
               return null;
             }
-            const mapped = map_field(qLang, key, relative_path);
+            const mapped = map_field(qLang, key, quoted_relative_path);
             if (!mapped) return null;
             return [key, mapped] as const;
           })
