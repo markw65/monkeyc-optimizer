@@ -102,142 +102,148 @@ export function visitReferences(
     }
     checkResults([id.name, [{ parent: parent.sn, results }]], id);
   };
-  state.pre = (node) => {
-    if (filter && !filter(node)) return [];
-    switch (node.type) {
-      case "AttributeList":
-        return [];
-      case "UnaryExpression":
-        // a bare symbol isn't a reference
-        if (node.operator === ":") return [];
-        break;
-      case "BinaryExpression":
-        /*
-         * `expr has :symbol` can be treated as a reference
-         * to expr.symbol.
-         */
-        if (node.operator === "has") {
-          if (
-            node.right.type === "UnaryExpression" &&
-            node.right.operator === ":"
-          ) {
-            if (!name || node.right.argument.name === name) {
-              return checkResults(
-                lookup({
-                  type: "MemberExpression",
-                  object: node.left,
-                  property: node.right.argument,
-                  computed: false,
-                }),
-                node
-              );
+  const { pre, post } = state;
+  try {
+    state.pre = (node) => {
+      if (filter && !filter(node)) return [];
+      switch (node.type) {
+        case "AttributeList":
+          return [];
+        case "UnaryExpression":
+          // a bare symbol isn't a reference
+          if (node.operator === ":") return [];
+          break;
+        case "BinaryExpression":
+          /*
+           * `expr has :symbol` can be treated as a reference
+           * to expr.symbol.
+           */
+          if (node.operator === "has") {
+            if (
+              node.right.type === "UnaryExpression" &&
+              node.right.operator === ":"
+            ) {
+              if (!name || node.right.argument.name === name) {
+                return checkResults(
+                  lookup({
+                    type: "MemberExpression",
+                    object: node.left,
+                    property: node.right.argument,
+                    computed: false,
+                  }),
+                  node
+                );
+              }
             }
           }
-        }
-        break;
+          break;
 
-      case "CallExpression":
-        // A call expression whose callee is an identifier is looked
-        // up as a non-local. ie even if there's a same named local,
-        // it will be ignored, and the lookup will start as if the
-        // call had been written self.foo() rather than foo().
-        if (node.callee.type === "Identifier") {
-          if (
-            (!name || node.callee.name === name) &&
-            (!filter || filter(node.callee))
-          ) {
-            /* ignore return value */
-            checkResults(lookup(node.callee, true), node.callee);
-          }
-          return ["arguments"];
-        }
-        break;
-
-      case "Identifier":
-        if (!name || node.name === name) {
-          return checkResults(lookup(node), node);
-        }
-        break;
-
-      case "MemberExpression": {
-        const property = isLookupCandidate(node);
-        if (property) {
-          if (!name || property.name === name) {
-            return checkResults(lookup(node), node) || ["object"];
-          }
-          return ["object"];
-        }
-        break;
-      }
-      case "MethodDefinition": {
-        if (!state.inType) {
-          throw new Error("Method definition outside of type!");
-        }
-        if (node.params) {
-          node.params.forEach((param) => {
-            if (param.type === "BinaryExpression") {
-              state.traverse(param.right);
+        case "CallExpression":
+          // A call expression whose callee is an identifier is looked
+          // up as a non-local. ie even if there's a same named local,
+          // it will be ignored, and the lookup will start as if the
+          // call had been written self.foo() rather than foo().
+          if (node.callee.type === "Identifier") {
+            if (
+              (!name || node.callee.name === name) &&
+              (!filter || filter(node.callee))
+            ) {
+              /* ignore return value */
+              checkResults(lookup(node.callee, true), node.callee);
             }
-          });
-        }
-        return ["returnType"];
-      }
+            return ["arguments"];
+          }
+          break;
 
-      case "ModuleDeclaration":
-        if (includeDefs) {
-          visitDef(node.id);
-        }
-        return ["body"];
-      case "ClassDeclaration":
-        if (includeDefs) {
-          visitDef(node.id, node);
-        }
-        return ["body", "superClass"];
-      case "FunctionDeclaration":
-        if (includeDefs) {
-          visitDef(node.id, node);
-        }
-        return ["params", "returnType", "body"];
-      case "TypedefDeclaration":
-        if (includeDefs) {
-          visitDef(node.id, node, "type_decls");
-        }
-        return ["ts"];
+        case "Identifier":
+          if (!name || node.name === name) {
+            return checkResults(lookup(node), node);
+          }
+          break;
 
-      case "VariableDeclarator":
-        if (includeDefs) {
-          visitDef(node.id, node);
-        }
-        if (node.id.type === "BinaryExpression") {
-          state.traverse(node.id.right);
-        }
-        return ["init"];
-      case "EnumDeclaration":
-        if (includeDefs) {
-          if (node.id) {
-            visitDef(node.id, node, "type_decls");
+        case "MemberExpression": {
+          const property = isLookupCandidate(node);
+          if (property) {
+            if (!name || property.name === name) {
+              return checkResults(lookup(node), node) || ["object"];
+            }
+            return ["object"];
           }
           break;
         }
-        return [];
-      case "EnumStringMember": {
-        if (!filter || filter(node.id)) {
-          checkResults(
-            [node.id.name, [{ parent: state.top().sn, results: [node] }]],
-            node
-          );
+        case "MethodDefinition": {
+          if (!state.inType) {
+            throw new Error("Method definition outside of type!");
+          }
+          if (node.params) {
+            node.params.forEach((param) => {
+              if (param.type === "BinaryExpression") {
+                state.traverse(param.right);
+              }
+            });
+          }
+          return ["returnType"];
         }
-        break;
+
+        case "ModuleDeclaration":
+          if (includeDefs) {
+            visitDef(node.id);
+          }
+          return ["body"];
+        case "ClassDeclaration":
+          if (includeDefs) {
+            visitDef(node.id, node);
+          }
+          return ["body", "superClass"];
+        case "FunctionDeclaration":
+          if (includeDefs) {
+            visitDef(node.id, node);
+          }
+          return ["params", "returnType", "body"];
+        case "TypedefDeclaration":
+          if (includeDefs) {
+            visitDef(node.id, node, "type_decls");
+          }
+          return ["ts"];
+
+        case "VariableDeclarator":
+          if (includeDefs) {
+            visitDef(node.id, node);
+          }
+          if (node.id.type === "BinaryExpression") {
+            state.traverse(node.id.right);
+          }
+          return ["init"];
+        case "EnumDeclaration":
+          if (includeDefs) {
+            if (node.id) {
+              visitDef(node.id, node, "type_decls");
+            }
+            break;
+          }
+          return [];
+        case "EnumStringMember": {
+          if (!filter || filter(node.id)) {
+            checkResults(
+              [node.id.name, [{ parent: state.top().sn, results: [node] }]],
+              node
+            );
+          }
+          break;
+        }
+        case "CatchClause":
+          if (includeDefs) break;
+          if (node.param && node.param.type !== "Identifier") {
+            state.traverse(node.param.right);
+          }
+          return ["body"];
       }
-      case "CatchClause":
-        if (includeDefs) break;
-        if (node.param && node.param.type !== "Identifier") {
-          state.traverse(node.param.right);
-        }
-        return ["body"];
-    }
-    return null;
-  };
-  collectNamespaces(ast, state);
-  delete state.pre;
+      return null;
+    };
+    delete state.post;
+    collectNamespaces(ast, state);
+  } finally {
+    state.pre = pre;
+    state.post = post;
+  }
 }

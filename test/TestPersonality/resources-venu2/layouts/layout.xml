@@ -18,4 +18,13 @@
         prompt_loc__title
         prompt_size__title
     " />
+    <drawable
+        id="test"
+        class="TestDrawable">
+        <param name="locX">10</param>
+        <param name="locY">10</param>
+        <param name="width">10</param>
+        <param name="height">10</param>
+        <param name="enumValue">TestDrawable.VALUE</param>
+    </drawable>
 </layout>

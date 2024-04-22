@@ -76,6 +76,7 @@ import { TypeTag, mcExprFromType, typeFromLiteral } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { AwaitedError, pushUnique } from "./util";
 import { renameIdentifier, renameVariable } from "./variable-renamer";
+import { unhandledType } from "./data-flow";
 
 /*
  * Map each name to the list of StateNodes that declare that
@@ -1145,10 +1146,14 @@ async function optimizeMonkeyCHelper(
     collectNamespaces(f.ast!, state);
   });
 
-  const cleanupAll = () =>
-    Object.values(fnMap).reduce((changes, f) => {
+  const cleanupAll = () => {
+    const usedDecls = findRezRefs(state);
+    return Object.values(fnMap).reduce((changes, f) => {
       traverseAst(f.ast!, undefined, (node) => {
-        const ret = cleanup(state, node, f.ast!);
+        if (usedDecls.has(node)) {
+          return null;
+        }
+        const ret = cleanup(state, node, f.ast!, usedDecls);
         if (ret === false) {
           changes = true;
           state.removeNodeComments(node, f.ast!);
@@ -1159,6 +1164,7 @@ async function optimizeMonkeyCHelper(
       });
       return changes;
     }, false);
+  };
 
   do {
     state.usedByName = {};
@@ -1170,7 +1176,8 @@ async function optimizeMonkeyCHelper(
     });
     state.exposed = state.nextExposed;
     state.nextExposed = {};
-  } while (cleanupAll() && state.config?.iterateOptimizer);
+    if (!cleanupAll()) break;
+  } while (state.config?.iterateOptimizer);
 
   delete state.pre;
   delete state.post;
@@ -1232,6 +1239,56 @@ async function optimizeMonkeyCHelper(
   };
 }
 
+function findRezRefs(state: ProgramStateAnalysis) {
+  const usedDecls = new Set<mctree.Node>();
+  state.rezAst &&
+    visitReferences(
+      state,
+      state.rezAst,
+      null,
+      false,
+      (node, results, error) => {
+        if (error) return;
+        results.forEach((result) =>
+          result.results.forEach((sn) => {
+            switch (sn.type) {
+              case "ModuleDeclaration":
+              case "Program":
+              case "BlockStatement":
+                return;
+              case "Identifier":
+              case "BinaryExpression":
+                // function params
+                return;
+              case "EnumStringMember":
+                if (sn.system) return;
+                usedDecls.add(sn);
+                break;
+              case "ClassDeclaration":
+              case "FunctionDeclaration":
+              case "EnumDeclaration":
+              case "TypedefDeclaration":
+                if (sn.node.attrs?.system) return;
+              // fallthrough
+              case "VariableDeclarator":
+                if (
+                  sn.fullName.startsWith("$.Toybox") ||
+                  sn.fullName.startsWith("$.Rez")
+                ) {
+                  return;
+                }
+                usedDecls.add(sn.node);
+                break;
+              default:
+                unhandledType(sn);
+            }
+          })
+        );
+        return undefined;
+      }
+    );
+  return usedDecls;
+}
 /*
  * Might this function be called from somewhere, including
  * callbacks from the api (eg getSettingsView, etc).
@@ -1267,7 +1324,8 @@ function maybeCalled(
 function cleanup(
   state: ProgramStateAnalysis,
   node: mctree.Node,
-  ast: mctree.Program
+  ast: mctree.Program,
+  usedNodes: Set<mctree.Node>
 ) {
   switch (node.type) {
     case "ThisExpression":
@@ -1276,6 +1334,7 @@ function cleanup(
     case "EnumStringBody":
       if (
         node.members.every((m) => {
+          if (usedNodes.has(m)) return false;
           const name = "name" in m ? m.name : m.id.name;
           return (
             hasProperty(state.index, name) &&
