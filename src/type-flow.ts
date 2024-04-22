@@ -733,12 +733,12 @@ function propagateTypes(
   const queue = new DataflowQueue();
 
   let selfClassDecl: ClassStateNode | null = null;
-  if (!(func.attributes & StateNodeAttributes.STATIC)) {
-    const klass = func.stack?.[func.stack?.length - 1].sn;
-    if (klass && klass.type === "ClassDeclaration") {
-      selfClassDecl = klass;
-    }
+  const isStatic = !!(func.attributes & StateNodeAttributes.STATIC);
+  const klass = func.stack?.[func.stack?.length - 1].sn;
+  if (klass && klass.type === "ClassDeclaration") {
+    selfClassDecl = klass;
   }
+  const isInitialize = selfClassDecl && func.name === "initialize";
 
   order.forEach((block, i) => {
     block.order = i;
@@ -923,7 +923,7 @@ function propagateTypes(
           );
         }
       }
-      if (selfClassDecl) {
+      if (!isStatic && selfClassDecl) {
         // Handle interference between the MemberDecl store
         // and the "self" object.
         const baseObj = getObjectValue(baseElem.type);
@@ -991,6 +991,15 @@ function propagateTypes(
             ? typeFromLiteral(decl)
             : typeFromTypeStateNode(state, decl, true)
         );
+        if (
+          isInitialize &&
+          decl.type === "VariableDeclarator" &&
+          !decl.node.init &&
+          decl.node.kind === "var" &&
+          decl.stack[decl.stack.length - 1].sn === selfClassDecl
+        ) {
+          cur.type |= TypeTag.Null;
+        }
         return cur;
       },
       { type: TypeTag.Never }
