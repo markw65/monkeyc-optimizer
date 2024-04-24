@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.59
+
+- Getv and Putv can directly access local 0 (Fixes #34)
+
 ### 1.1.58
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.57](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1057)
