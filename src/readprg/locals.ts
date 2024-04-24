@@ -1,9 +1,9 @@
 import assert from "node:assert";
 import { log, logger, wouldLog } from "../logger";
 import {
-  bytecodeToString,
   Context,
   FuncEntry,
+  bytecodeToString,
   functionBanner,
 } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
@@ -14,11 +14,13 @@ import {
   Getlocalv,
   Getself,
   Getselfv,
+  Getv,
   Lgetv,
   LocalRange,
   Lputv,
   Nop,
   Opcodes,
+  Putv,
   opReadsLocal,
 } from "./opcodes";
 
@@ -243,6 +245,8 @@ export function minimizeLocals(
           }
           break;
         }
+        case Opcodes.putv:
+        case Opcodes.getv:
         case Opcodes.frpush:
         case Opcodes.getself:
         case Opcodes.getselfv: {
@@ -263,7 +267,14 @@ export function minimizeLocals(
   return true;
 }
 
-type LocalReaders = Lgetv | Getself | Getlocalv | Getselfv | Frpush;
+type LocalReaders =
+  | Lgetv
+  | Getself
+  | Getlocalv
+  | Getselfv
+  | Frpush
+  | Getv
+  | Putv;
 type LocalKey = Lputv | LocalReaders;
 type SingleLocal = { live: Set<Bytecode>; conflicts: Set<Bytecode> };
 type LocalInfo = Map<LocalKey, SingleLocal>;
@@ -305,6 +316,8 @@ function computeSplitRanges(
         case Opcodes.getlocalv:
         case Opcodes.frpush:
         case Opcodes.lgetv:
+        case Opcodes.getv:
+        case Opcodes.putv:
           recordLocalRead(locals, bc);
           break;
 

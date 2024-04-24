@@ -135,11 +135,11 @@ export function localDCE(func: FuncEntry, context: Context) {
             dceInfo.stack.push({ dead: false });
           }
           dceInfo.locals.delete(bytecode.arg);
-          break;
+          continue;
         }
         case Opcodes.popv:
           dceInfo.stack.push({ dead: true, deps: [i] });
-          break;
+          continue;
         case Opcodes.dup: {
           const item = dceInfo.stack.pop();
           if (item?.dead) {
@@ -152,7 +152,7 @@ export function localDCE(func: FuncEntry, context: Context) {
                 false;
             }
           }
-          break;
+          continue;
         }
         case Opcodes.getlocalv:
         case Opcodes.getself:
@@ -185,11 +185,7 @@ export function localDCE(func: FuncEntry, context: Context) {
             item.deps.push(i);
             reportNop(item);
             item.deps.forEach((index) => makeNop(block.bytecodes[index]));
-          } else {
-            const local = opReadsLocal(bytecode);
-            if (local != null) {
-              dceInfo.locals.add(local);
-            }
+            continue;
           }
           break;
         }
@@ -219,10 +215,10 @@ export function localDCE(func: FuncEntry, context: Context) {
             makePopv(bytecode);
             dceInfo.stack.push({ dead: true, deps: item.deps.slice() });
             dceInfo.stack.push({ dead: true, deps: [i] });
-          } else {
-            dceInfo.stack.push({ dead: false });
-            dceInfo.stack.push({ dead: false });
+            continue;
           }
+          dceInfo.stack.push({ dead: false });
+          dceInfo.stack.push({ dead: false });
           break;
         }
         case Opcodes.newc:
@@ -239,9 +235,9 @@ export function localDCE(func: FuncEntry, context: Context) {
             makePopv(bytecode);
             item.deps.forEach((index) => makeNop(block.bytecodes[index]));
             dceInfo.stack.push({ dead: true, deps: [i] });
-          } else {
-            dceInfo.stack.push({ dead: false });
+            continue;
           }
+          dceInfo.stack.push({ dead: false });
           break;
         }
 
@@ -284,6 +280,10 @@ export function localDCE(func: FuncEntry, context: Context) {
         }
         default:
           unhandledType(bytecode);
+      }
+      const local = opReadsLocal(bytecode);
+      if (local != null) {
+        dceInfo.locals.add(local);
       }
     }
     if (changes) {

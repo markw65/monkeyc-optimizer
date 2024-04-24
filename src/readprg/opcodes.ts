@@ -1096,6 +1096,8 @@ export function opReadsLocal(bytecode: Bytecode) {
     case Opcodes.getselfv:
     case Opcodes.getself:
     case Opcodes.frpush:
+    case Opcodes.getv:
+    case Opcodes.putv:
       return 0;
     case Opcodes.getlocalv:
       return bytecode.arg.local;
@@ -1103,13 +1105,11 @@ export function opReadsLocal(bytecode: Bytecode) {
       return bytecode.arg;
 
     case Opcodes.lputv:
-    case Opcodes.putv:
     case Opcodes.aputv:
     case Opcodes.aputvdup:
     case Opcodes.newc:
     case Opcodes.invokem:
     case Opcodes.invokemz:
-    case Opcodes.getv:
     case Opcodes.getmv:
     case Opcodes.getsv:
     case Opcodes.agetv:
