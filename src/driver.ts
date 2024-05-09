@@ -82,7 +82,7 @@ export async function driver() {
   let iterateOptimizer = false;
   let postProcess: string | null = null;
   let postProcessTarget: string | undefined;
-  let removeArgc: boolean | undefined = true;
+  let removeArgc: boolean | undefined = false;
   let postBuildPRE: boolean | undefined = true;
   let profile: string | undefined;
   let extraExcludes: string | undefined;
@@ -333,6 +333,9 @@ export async function driver() {
   if (checkTypes == null) {
     checkTypes =
       typeCheckLevel.toLowerCase() === "strict" ? "ERROR" : "WARNING";
+  }
+  if (removeArgc) {
+    console.error("removeArgc is no longer supported, and will be ignored");
   }
   const getOptions = (options: BuildConfig) => {
     options = {

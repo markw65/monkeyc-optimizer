@@ -97,7 +97,7 @@ function doArrayInits(
   return changes;
 }
 
-function simpleOpts(func: FuncEntry, context: Context) {
+function simpleOpts(func: FuncEntry, _context: Context) {
   const equalsSym = 8388787;
 
   const logging = wouldLog("optimize", 5);
@@ -106,8 +106,7 @@ function simpleOpts(func: FuncEntry, context: Context) {
       const cur = block.bytecodes[i];
       if (
         cur.op === Opcodes.nop ||
-        (cur.op === Opcodes.incsp && cur.arg === 0) ||
-        (context.config.removeArgc && cur.op === Opcodes.argc)
+        (cur.op === Opcodes.incsp && cur.arg === 0)
       ) {
         block.bytecodes.splice(i, 1);
         changes = true;
