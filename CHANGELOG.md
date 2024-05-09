@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.60
+
+- Disable the "remove argc" optimization, as it's going to start breaking verification in the app store.
+
 ### 1.1.59
 
 - Getv and Putv can directly access local 0 (Fixes #34)
