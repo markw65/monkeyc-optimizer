@@ -470,7 +470,7 @@ export function bytecodeToString(
     case Opcodes.getlocalv:
       arg = `${
         bytecode.range
-          ? `${bytecode.range.name} ${bytecode.arg}${
+          ? `${bytecode.range.name} ${bytecode.arg.local}${
               bytecode.range.isParam ? " (param)" : ""
             }`
           : bytecode.arg.local
