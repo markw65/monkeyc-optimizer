@@ -14,6 +14,7 @@ import {
   LocalRange,
   Opcodes,
   isCondBranch,
+  opReadsLocal,
   opcodeSize,
 } from "./opcodes";
 import { optimizeFunc } from "./optimize";
@@ -169,8 +170,9 @@ function markLocals(context: Context) {
         e.push(localInfo.sid);
       }
     });
-    if (bc.op === Opcodes.lgetv || bc.op === Opcodes.lputv) {
-      const local = live.get(bc.arg);
+    const localNum = bc.op === Opcodes.lputv ? bc.arg : opReadsLocal(bc) ?? -1;
+    if (localNum >= 0) {
+      const local = live.get(localNum);
       if (local) {
         const range: LocalRange = { name: local.name, id: local.range };
         if (local.arg) {

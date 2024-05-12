@@ -4,7 +4,13 @@ import { Block, Context, FuncEntry } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
 import { ExceptionEntry, ExceptionsMap } from "./exceptions";
 import { LineNumber } from "./linenum";
-import { Bytecode, emitBytecode, isCondBranch, Opcodes } from "./opcodes";
+import {
+  Bytecode,
+  emitBytecode,
+  isCondBranch,
+  Opcodes,
+  opReadsLocal,
+} from "./opcodes";
 import { cleanCfg } from "./optimize";
 
 type LocalXmlInfo = {
@@ -316,14 +322,17 @@ function getLocalsInfo(func: FuncEntry) {
     (block) => new Map(liveOutLocals.get(block.offset)),
     (block, bc, locals) => {
       switch (bc.op) {
+        case Opcodes.getlocalv:
         case Opcodes.lgetv: {
           const range = bc.range;
           if (range) {
-            locals.set(bc.arg, {
+            const localNum = opReadsLocal(bc);
+            assert(localNum != null);
+            locals.set(localNum, {
               name: range.name,
               id: range.id,
               isParam: range.isParam === true,
-              slot: bc.arg,
+              slot: localNum,
             });
           }
           break;

@@ -167,7 +167,7 @@ export function minimizeLocals(
     assert(color != null);
     let name = null as string | null | Set<string>;
     Array.from(value.live).some((bc) => {
-      if ((bc.op === Opcodes.lgetv || bc.op === Opcodes.lputv) && bc.range) {
+      if ("range" in bc && bc.range) {
         if (!name) {
           name = bc.range.name;
         } else if (name !== bc.range.name) {
@@ -184,7 +184,7 @@ export function minimizeLocals(
         name = Array.from(name).join("_");
       }
       range = { name, id: context.nextLocalId++ };
-      if (key.op === Opcodes.lgetv) {
+      if (key.op !== Opcodes.lputv) {
         range.isParam = true;
       }
     }
