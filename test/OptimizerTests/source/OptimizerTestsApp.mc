@@ -2,6 +2,9 @@ import Toybox.Application;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
+//typedef InitialViewReturn as Array<Views or InputDelegates>;
+typedef InitialViewReturn as [Views] or [Views, InputDelegates];
+
 class OptimizerTestsApp extends Application.AppBase {
     function initialize() {
         AppBase.initialize();
@@ -14,10 +17,10 @@ class OptimizerTestsApp extends Application.AppBase {
     function onStop(state as Lang.Dictionary?) as Void {}
 
     // Return the initial view of your application here
-    function getInitialView() as Array<Views or InputDelegates>? {
+    function getInitialView() {
         return (
             [new OptimizerTestsView(), new OptimizerTestsDelegate()] as
-            Array<Views or InputDelegates>
+            InitialViewReturn
         );
     }
 }

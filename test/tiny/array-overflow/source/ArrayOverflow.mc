@@ -3,6 +3,9 @@ import Toybox.Lang;
 import Toybox.Test;
 import Toybox.WatchUi;
 
+//typedef InitialViewReturn as Array<Views or InputDelegates>;
+typedef InitialViewReturn as [Views] or [Views, InputDelegates];
+
 const array_values = [
     0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225, 256, 289,
     324, 361, 400, 441, 484, 529, 576, 625, 676, 729, 784, 841, 900, 961, 1024,
@@ -26,8 +29,8 @@ class ArrayOverflowApp extends Application.AppBase {
     AppBase.initialize();
   }
 
-  function getInitialView() as Array<Views or InputDelegates>? {
-    return [new ArrayOverflowSimpleDataField()] as Array<Views or InputDelegates>;
+  function getInitialView() {
+    return [new ArrayOverflowSimpleDataField()] as InitialViewReturn;
   }
 }
 
