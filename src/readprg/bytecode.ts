@@ -620,12 +620,12 @@ export function findFunctions({
         continue;
       }
       func.set(next, block);
-      if (
-        func.size === 1 &&
-        block.bytecodes.length &&
-        block.bytecodes[0].op === Opcodes.argc
-      ) {
-        argc = block.bytecodes[0].arg;
+      if (func.size === 1 && block.bytecodes.length) {
+        if (block.bytecodes[0].op === Opcodes.argc) {
+          argc = block.bytecodes[0].arg;
+        } else if (block.bytecodes[0].op === Opcodes.argcincsp) {
+          argc = block.bytecodes[0].arg.argc;
+        }
       }
       blocks.delete(next);
       if (block.exsucc != null) {
