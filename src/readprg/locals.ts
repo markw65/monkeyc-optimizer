@@ -425,7 +425,12 @@ function mergeSplitRanges(splitRanges: Map<number, LocalInfo>) {
         (count, set) => count + (set.has(key) ? 1 : 0),
         0
       );
-      assert(num === 1);
+      if (num === 0) {
+        assert(x.live.size === 0);
+        putvSets.add(new Set([key]));
+      } else {
+        assert(num === 1);
+      }
     });
     const newRange: typeof range = new Map();
     putvSets.forEach((pvSet) => {
