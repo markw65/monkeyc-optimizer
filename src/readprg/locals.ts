@@ -97,17 +97,22 @@ export function minimizeLocals(
   // seems to make a difference. Needs revisiting
   locals.forEach((local, key) => {
     if (key.op !== Opcodes.lputv) return;
-    let inUse = 0n;
-    local.conflicts.forEach((conflict) => {
-      const color = colors.get(conflict);
-      if (color != null) {
-        inUse |= 1n << BigInt(color);
+    let lowest = context.config.allowForbiddenOpts ? 0 : 1;
+    if (key.arg === 0 && !context.config.allowForbiddenOpts) {
+      lowest = 0;
+    } else {
+      let inUse = 0n;
+      local.conflicts.forEach((conflict) => {
+        const color = colors.get(conflict);
+        if (color != null) {
+          inUse |= 1n << BigInt(color);
+        }
+      });
+      inUse >>= BigInt(lowest);
+      while (inUse & 1n) {
+        lowest++;
+        inUse >>= 1n;
       }
-    });
-    let lowest = 0;
-    while (inUse & 1n) {
-      lowest++;
-      inUse >>= 1n;
     }
     colors.set(key, lowest);
     if (!merge[lowest]) {
@@ -188,7 +193,14 @@ export function minimizeLocals(
         range.isParam = true;
       }
     }
-    value.live.forEach((bc) => fixupMap.set(bc, { color, range }));
+    value.live.forEach((bc) => {
+      if (bc.op === Opcodes.lputv ? bc.arg === 0 : opReadsLocal(bc) === 0) {
+        if (color !== 0) {
+          console.log("oops");
+        }
+      }
+      fixupMap.set(bc, { color, range });
+    });
   });
 
   func.blocks.forEach((block) => {
