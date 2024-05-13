@@ -22,6 +22,7 @@ import { InterpState, cloneState, interpBytecode, interpFunc } from "./interp";
 import { minimizeLocals } from "./locals";
 import {
   Bytecode,
+  Incsp,
   Mulv,
   Opcodes,
   isBoolOp,
@@ -50,7 +51,8 @@ export function optimizeFunc(func: FuncEntry, context: Context) {
     if (context.config.postBuildPRE !== false) {
       if (sizeBasedPRE(func, context)) continue;
     }
-    if (!minimizeLocals(func, equivSets, context) && !changes) {
+    changes = minimizeLocals(func, equivSets, context) || changes;
+    if (!changes) {
       return;
     }
   }
@@ -97,7 +99,7 @@ function doArrayInits(
   return changes;
 }
 
-function simpleOpts(func: FuncEntry, _context: Context) {
+function simpleOpts(func: FuncEntry, context: Context) {
   const equalsSym = 8388787;
 
   const logging = wouldLog("optimize", 5);
@@ -106,12 +108,28 @@ function simpleOpts(func: FuncEntry, _context: Context) {
       const cur = block.bytecodes[i];
       if (
         cur.op === Opcodes.nop ||
-        (cur.op === Opcodes.incsp && cur.arg === 0)
+        (cur.op === Opcodes.incsp && cur.arg === 0) ||
+        (cur.op === Opcodes.argc &&
+          context.config.removeArgc &&
+          context.config.allowForbiddenOpts)
       ) {
         block.bytecodes.splice(i, 1);
         changes = true;
         if (logging) {
           log(`${func.name}: deleting ${bytecodeToString(cur, null)}`);
+        }
+      } else if (
+        cur.op === Opcodes.argcincsp &&
+        context.config.removeArgc &&
+        context.config.allowForbiddenOpts
+      ) {
+        const arg = cur.arg.incsp;
+        const incsp = cur as Bytecode as Incsp;
+        incsp.op = Opcodes.incsp;
+        incsp.arg = arg;
+        changes = true;
+        if (logging) {
+          log(`${func.name}: argcincsp => incsp`);
         }
       } else if (i && cur.op === Opcodes.spush && cur.arg === equalsSym) {
         changes = equalSymbolToEq(block, i) || changes;
