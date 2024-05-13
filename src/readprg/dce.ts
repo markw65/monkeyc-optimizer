@@ -120,7 +120,10 @@ export function localDCE(func: FuncEntry, context: Context) {
       switch (bytecode.op) {
         case Opcodes.lputv: {
           const liveLocal = dceInfo.locals.has(bytecode.arg);
-          if (!liveLocal) {
+          if (
+            !liveLocal &&
+            (bytecode.arg || context.config.allowForbiddenOpts)
+          ) {
             logger(
               "dce",
               2,
