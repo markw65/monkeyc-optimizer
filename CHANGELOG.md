@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.61
+
+- Disable more post-build optimizations to allow apps to verify.
+- Add an `allowForbiddenOpts` option to re-enable the optimizations in simulator or device build mode.
+
 ### 1.1.60
 
 - Disable the "remove argc" optimization, as it's going to start breaking verification in the app store.
