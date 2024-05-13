@@ -86,6 +86,7 @@ export async function driver() {
   let postBuildPRE: boolean | undefined = true;
   let profile: string | undefined;
   let extraExcludes: string | undefined;
+  let allowForbiddenOpts: boolean | undefined;
   const sourceFiles: string[] = [];
 
   const sdk = await getSdkPath();
@@ -265,6 +266,9 @@ export async function driver() {
       case "checkBuildPragmas":
         checkBuildPragmas = !value || /^(true|1)$/i.test(value);
         break;
+      case "allowForbiddenOpts":
+        allowForbiddenOpts = !value || /^(true|1)$/i.test(value);
+        break;
       case "product":
         if (value == null) return key;
         if (!products) products = [];
@@ -365,6 +369,7 @@ export async function driver() {
       iterateOptimizer,
       removeArgc,
       postBuildPRE,
+      allowForbiddenOpts,
       ...options,
     };
     Object.entries(options).forEach(

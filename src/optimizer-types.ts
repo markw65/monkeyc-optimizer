@@ -50,6 +50,7 @@ export type BuildConfig = {
   // post build optimizer
   removeArgc?: boolean;
   postBuildPRE?: boolean;
+  allowForbiddenOpts?: boolean;
 };
 export type StateNodeDecl =
   | StateNode

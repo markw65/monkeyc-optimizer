@@ -195,6 +195,10 @@ function optimizePackage(
     throw new Error(`Can't sign ${filepath} without a developer key`);
   }
 
+  if (config?.allowForbiddenOpts) {
+    config = { ...config, allowForbiddenOpts: false };
+  }
+
   const inBase = path.basename(filepath, ".iq");
 
   if (!output) {
