@@ -135,6 +135,8 @@ export function visitReferences(
                 );
               }
             }
+          } else if (state.inType && node.operator === "as") {
+            return ["right"];
           }
           break;
 

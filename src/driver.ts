@@ -408,6 +408,7 @@ export async function driver() {
           typeCheckLevel,
           checkTypes,
           checkBuildPragmas: true,
+          checkInvalidSymbols,
         });
         reportDiagnostics(
           diagnostics,
