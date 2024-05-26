@@ -242,6 +242,10 @@ type TypeState = {
   // The map itself is owned by this TypeState. The entries are shared
   // though, so any changes need to be to new copies.
   map: TypeStateMap;
+  // in a class initializer, whether we've seen an assignment
+  // to this entry on all paths to this point.
+  inited?: Set<TypeStateKey>;
+
   visits: number;
   // For each entry in map with assocPaths, we provide a mechanism to go
   // from any of its path components back to itself.
@@ -368,8 +372,15 @@ function clearAssocPaths(
 }
 
 function cloneTypeState(blockState: TypeState): TypeState {
-  const { map, trackedMemberDecls, liveCopyPropEvents, ...rest } = blockState;
-  const clone: TypeState = { map: new Map(map), ...rest };
+  const { map, inited, trackedMemberDecls, liveCopyPropEvents, ...rest } =
+    blockState;
+  const clone: TypeState = {
+    map: new Map(map),
+    ...rest,
+  };
+  if (inited) {
+    clone.inited = new Set(inited);
+  }
   clone.map.forEach((value, key) => {
     if (value.equivSet) {
       if (key === Array.from(value.equivSet)[0]) {
@@ -598,6 +609,7 @@ function mergeTypeState(
     tov.curType = result;
     changes = true;
   });
+  to.inited?.forEach((k) => from.inited!.has(k) || to.inited?.delete(k));
   return changes;
 }
 
@@ -732,13 +744,25 @@ function propagateTypes(
   const order = getPostOrder(graph).reverse() as TypeFlowBlock[];
   const queue = new DataflowQueue();
 
-  let selfClassDecl: ClassStateNode | null = null;
   const isStatic = !!(func.attributes & StateNodeAttributes.STATIC);
   const klass = func.stack?.[func.stack?.length - 1].sn;
-  if (klass && klass.type === "ClassDeclaration") {
-    selfClassDecl = klass;
-  }
-  const isInitialize = selfClassDecl && func.name === "initialize";
+  const selfClassDecl =
+    klass && klass.type === "ClassDeclaration" ? klass : null;
+  const uninitClassDecls =
+    selfClassDecl && func.name === "initialize" && selfClassDecl.decls
+      ? new Set(
+          Object.values(selfClassDecl.decls)
+            .filter((decls) =>
+              decls.some(
+                (decl) =>
+                  decl.type === "VariableDeclarator" &&
+                  decl.node.kind === "var" &&
+                  !decl.node.init
+              )
+            )
+            .flat()
+        )
+      : null;
 
   order.forEach((block, i) => {
     block.order = i;
@@ -975,7 +999,10 @@ function propagateTypes(
     return [cur, updateAny];
   }
 
-  function typeConstraint(decls: TypeStateKey): ExactOrUnion {
+  function typeConstraint(
+    decls: TypeStateKey,
+    blockState: TypeState
+  ): ExactOrUnion {
     return reduce(
       decls,
       (cur, decl) => {
@@ -992,7 +1019,8 @@ function propagateTypes(
             : typeFromTypeStateNode(state, decl, true)
         );
         if (
-          isInitialize &&
+          blockState.inited &&
+          !blockState.inited.has(decl) &&
           decl.type === "VariableDeclarator" &&
           !decl.node.init &&
           decl.node.kind === "var" &&
@@ -1083,7 +1111,7 @@ function propagateTypes(
     ) {
       let tsVal = blockState.map.get(decl);
       if (!tsVal) {
-        tsVal = { curType: typeConstraint(decl) };
+        tsVal = { curType: typeConstraint(decl, blockState) };
         blockState.map.set(decl, tsVal);
       }
       return tsVal;
@@ -1611,7 +1639,9 @@ function propagateTypes(
               // which can't be modified by a call.
               assert(!tsv.copyPropItem);
               clearRelatedCopyPropEvents(curState, decl, nodeCopyProp);
-              curState.map.set(decl, { curType: typeConstraint(decl) });
+              curState.map.set(decl, {
+                curType: typeConstraint(decl, curState),
+              });
             } else if (
               type.type &
                 (TypeTag.Object | TypeTag.Array | TypeTag.Dictionary) &&
@@ -1642,6 +1672,14 @@ function propagateTypes(
         break;
       }
       case "def": {
+        if (uninitClassDecls?.size) {
+          forEach(
+            event.decl,
+            (decl) =>
+              uninitClassDecls.has(decl as StateNodeDecl) &&
+              curState.inited?.add(decl as StateNodeDecl)
+          );
+        }
         const lval =
           event.node.type === "UpdateExpression"
             ? event.node.argument
@@ -1769,7 +1807,9 @@ function propagateTypes(
                 clearAssocPaths(curState, decls, value);
               }
               assert(!value.copyPropItem);
-              curState.map.set(decls, { curType: typeConstraint(decls) });
+              curState.map.set(decls, {
+                curType: typeConstraint(decls, curState),
+              });
               clearRelatedCopyPropEvents(curState, decls, nodeCopyProp);
             }
           });
@@ -1956,6 +1996,7 @@ function propagateTypes(
 
   blockStates[0] = { map: new Map(), visits: 0 };
   const head = blockStates[0];
+  if (uninitClassDecls?.size) head.inited = new Set();
   // set the parameters to their initial types
   func.node.params.forEach((param) => {
     setStateEvent(
