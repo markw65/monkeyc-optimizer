@@ -6,7 +6,8 @@ import {
 } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import * as Prettier from "prettier";
-import { getLiteralNode, hasProperty, traverseAst } from "./ast";
+import { getLiteralNode, getNodeValue, hasProperty, traverseAst } from "./ast";
+import { unhandledType } from "./data-flow";
 import { JungleResourceMap } from "./jungles";
 import { analyze } from "./mc-rewrite";
 import { negativeFixups } from "./negative-fixups";
@@ -41,8 +42,6 @@ import { TypeMap } from "./type-flow/interp";
 import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
 import { log, pushUnique, sameArrays } from "./util";
-import { getNodeValue } from "./ast";
-import { unhandledType } from "./data-flow";
 
 export { visitReferences, visitorNode } from "./visitor";
 export { hasProperty, traverseAst, visit_resources };
@@ -576,6 +575,20 @@ function lookup(
         }
       }
       return [null, null];
+    }
+    case "Literal": {
+      const [, type] = getNodeValue(node);
+      if (type === "Null") break;
+
+      return [
+        name ?? `${node.value}`,
+        [
+          {
+            parent: null,
+            results: lookupByFullName(state, `Toybox.Lang.${type}`),
+          },
+        ],
+      ];
     }
   }
   return [false, false];
