@@ -2,6 +2,14 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.62
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.58](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1058)
+  - Fix an indentation issue with interfaces
+- Track uninitialized fields in class initializers (Part of fix for #35)
+- Fix lookups for MemberExpressions with literal objects (Rest of fix for #35)
+- Don't report parameters as missing symbols in interface functions (Fixes #36)
+
 ### 1.1.61
 
 - Disable more post-build optimizations to allow apps to verify.
