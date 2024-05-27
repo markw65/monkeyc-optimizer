@@ -53,3 +53,32 @@ function testStrAddition(logger as Logger) as Boolean {
     strAdd("foo", :foo, (1).method(:toString), new Lang.Object());
     return true;
 }
+
+class EnumWithSingleValueTest {
+    enum Enum {
+        VALUE,
+    }
+
+    var enumValue as Enum;
+
+    var value as Number;
+
+    function initialize() {
+        // @match "enumValue = 0"
+        enumValue = VALUE;
+
+        value = getValue();
+    }
+
+    function getValue() as Number {
+        return enumValue == VALUE ? 1 : 0;
+    }
+}
+
+(:test)
+function testSingleEnumInit(logger as Logger) as Boolean {
+    var testObj = new EnumWithSingleValueTest();
+    return (
+        testObj.enumValue == EnumWithSingleValueTest.VALUE && testObj.value == 1
+    );
+}

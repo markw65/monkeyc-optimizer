@@ -1672,14 +1672,6 @@ function propagateTypes(
         break;
       }
       case "def": {
-        if (uninitClassDecls?.size) {
-          forEach(
-            event.decl,
-            (decl) =>
-              uninitClassDecls.has(decl as StateNodeDecl) &&
-              curState.inited?.add(decl as StateNodeDecl)
-          );
-        }
         const lval =
           event.node.type === "UpdateExpression"
             ? event.node.argument
@@ -1949,6 +1941,14 @@ function propagateTypes(
             });
             locals.add(event.decl);
           }
+        }
+        if (uninitClassDecls?.size) {
+          forEach(
+            event.decl,
+            (decl) =>
+              uninitClassDecls.has(decl as StateNodeDecl) &&
+              curState.inited?.add(decl as StateNodeDecl)
+          );
         }
         if (logThisRun) {
           log(
