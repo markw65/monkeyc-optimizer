@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.63
+
+- Fixes #31 again, after the fix for #35 broke it
+- Adds some example code in the README, describing how to use the project without `@markw65/prettier-extension-monkeyc`, or `VSCode`
+
 ### 1.1.62
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.58](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1058)
