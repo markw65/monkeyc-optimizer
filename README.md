@@ -16,11 +16,11 @@ See [Change Log](CHANGELOG.md)
 
 ## API
 
-First you will need to [install nodejs/npm](https://nodejs.org/en/download).
+First you will need to [install nodejs/npm](https://nodejs.org/en/download). Note that you need node 16.17.1 or later, preferably 18.20.3 or later
 
 Then you can install the package. From the directory where you want to use it:
 
-```
+```sh
 npm install -D @markw65/monkeyc-optimizer
 ```
 
