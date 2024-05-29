@@ -53,8 +53,9 @@ export async function driver() {
   let outputPath: string | undefined;
   let releaseBuild: boolean | undefined;
   let compilerWarnings: boolean | undefined;
-  let typeCheckLevel = "Off";
-  let optimizationLevel: string | undefined;
+  let typeCheckLevel: "Off" | "Default" | "Gradual" | "Informative" | "Strict" =
+    "Off";
+  let optimizationLevel: "None" | "Basic" | "Fast" | "Slow" | undefined;
   let promise = Promise.resolve();
   let remoteProjects: RemoteProject[] | undefined;
   let generateOnly: boolean | undefined;
@@ -163,15 +164,32 @@ export async function driver() {
         analyzeOnly = !value || /^(true|1)$/i.test(value);
         break;
       case "typeCheckLevel":
-        if (value == null) return key;
-        typeCheckLevel = value;
+        switch (value?.toLowerCase() ?? null) {
+          case null:
+            return key;
+          case "off":
+          case "default":
+          case "gradual":
+          case "informative":
+          case "strict":
+            typeCheckLevel = value as typeof typeCheckLevel;
+            break;
+        }
         break;
       case "optimizationLevel":
         if (!supportsCompiler2) {
           error("optimizationLevel requires a more recent sdk");
         }
-        if (value == null) return key;
-        optimizationLevel = value;
+        switch (value?.toLowerCase() ?? null) {
+          case null:
+            return key;
+          case "none":
+          case "basic":
+          case "fast":
+          case "slow":
+            optimizationLevel = value as typeof optimizationLevel;
+            break;
+        }
         break;
       case "skipOptimization":
         skipOptimization = !value || /^(true|1)$/i.test(value);

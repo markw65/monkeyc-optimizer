@@ -11,6 +11,7 @@ import {
   resolveDiagnosticsMap,
 } from "./api";
 import { build_project } from "./build";
+import { buildConfigDescription } from "./build-config";
 import {
   JungleBuildDependencies,
   JungleError,
@@ -67,6 +68,7 @@ export {
   JungleResourceMap,
   ResolvedJungle,
   TypeMap,
+  buildConfigDescription,
   copyRecursiveAsNeeded,
   get_jungle,
   launchSimulator,
@@ -117,18 +119,11 @@ declare global {
  */
 export function getConfig(options: BuildConfig) {
   const config: BuildConfig = { ...defaultConfig, ...(options || {}) };
-  return [
-    "jungleFiles",
-    "developerKeyPath",
-    "typeCheckLevel",
-    "optimizationLevel",
-    "compilerOptions",
-    "compilerWarnings",
-    "ignoredExcludeAnnotations",
-    "ignoredAnnotations",
-    "ignoredSourcePaths",
-  ]
-    .reduce((promise: Promise<null | Record<string, unknown>>, key) => {
+  const defaults = buildConfigDescription.flatMap((desc) =>
+    Object.entries(desc.properties)
+  );
+  return defaults
+    .reduce((promise: Promise<null | Record<string, unknown>>, [key, info]) => {
       if (key in config) return promise;
       return promise
         .then(
@@ -143,7 +138,9 @@ export function getConfig(options: BuildConfig) {
         )
         .then((settings) => {
           const value =
-            settings[`monkeyC.${key}`] || settings[`prettierMonkeyC.${key}`];
+            settings[`prettierMonkeyC.${key}`] ??
+            settings[`monkeyC.${key}`] ??
+            info.default;
           if (value !== undefined) {
             (config as Record<string, unknown>)[key] = value;
           }
