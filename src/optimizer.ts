@@ -95,6 +95,42 @@ async function getVSCodeSettings(
   }
 }
 
+async function getCodeWorkspaceSettings(
+  folder: string | undefined
+): Promise<Record<string, unknown>> {
+  let curDir = folder;
+  try {
+    while (curDir) {
+      const code_workspaces = await globa(
+        path.resolve(curDir, "*.code-workspace"),
+        { onlyFiles: true }
+      );
+      if (code_workspaces.length === 1) {
+        const contents = await fs.readFile(code_workspaces[0], "utf-8");
+        const code_workspace = JSON.parse(contents);
+        if (
+          Array.isArray(code_workspace.folders) &&
+          code_workspace.settings &&
+          code_workspace.folders.some(
+            (workspace: { path: string }) =>
+              path.resolve(curDir!, workspace.path) === folder
+          )
+        ) {
+          return code_workspace.settings;
+        }
+        break;
+      }
+      if (code_workspaces.length > 1) break;
+      const next = path.dirname(curDir);
+      if (next === curDir) break;
+      curDir = next;
+    }
+  } catch (ex) {
+    /* */
+  }
+  return {};
+}
+
 export const defaultConfig = {
   outputPath: "bin/optimized",
   workspace: "./",
@@ -131,9 +167,11 @@ export function getConfig(options: BuildConfig) {
             v ||
             getVSCodeSettings(`${appSupport}/Code/User/settings.json`).then(
               (globals) =>
-                getVSCodeSettings(
-                  `${config.workspace}/.vscode/settings.json`
-                ).then((locals) => ({ ...globals, ...locals }))
+                getCodeWorkspaceSettings(config.workspace).then((workspace) =>
+                  getVSCodeSettings(
+                    `${config.workspace ?? "."}/.vscode/settings.json`
+                  ).then((locals) => ({ ...globals, ...workspace, ...locals }))
+                )
             )
         )
         .then((settings) => {
