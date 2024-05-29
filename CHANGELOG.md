@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.64
+
+- Pull all relevent config options from any found settings files
+- Look for a .code-workspace file, starting from the project folder and working upwards. Pull settings from it if found.
+- Update the example code in the README to fix some nits.
+
 ### 1.1.63
 
 - Fixes #31 again, after the fix for #35 broke it
