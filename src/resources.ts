@@ -254,7 +254,9 @@ export function add_resources_to_ast(
     ) {
       manifestXML.body
         .children("iq:application")
-        .elements.forEach((e) => add_one_resource(state, manifestXML, rez, e));
+        .elements.forEach((e) =>
+          add_one_resource(state, manifestXML, rez, e, "")
+        );
     }
 
     const rezModules = Object.fromEntries(
@@ -271,7 +273,7 @@ export function add_resources_to_ast(
         if (!hasProperty(rezModules, s)) return;
         const module = rezModules[s];
 
-        add_one_resource(state, rez, module, e);
+        add_one_resource(state, rez, module, e, barrel);
       });
     });
   });
@@ -312,7 +314,8 @@ function addPositions(base: mctree.Position, pos: mctree.Position) {
 function visit_resource_refs(
   state: ProgramState | undefined,
   doc: xmlUtil.Document,
-  e: xmlUtil.Element
+  e: xmlUtil.Element,
+  barrel: string
 ) {
   const result: Array<mctree.Expression> = [];
   const parseArg = (
@@ -322,6 +325,9 @@ function visit_resource_refs(
   ) => {
     if (name.startsWith("@")) {
       name = name.substring(1);
+      if (barrel && name.startsWith(barrel) && name[barrel.length] === ".") {
+        name = name.slice(barrel.length + 1);
+      }
       loc = adjustLoc(loc, 1, 0);
     }
     if (hasProperty(skip, name) || /^\d+(\.\d+)?%?$/.test(name)) {
@@ -479,7 +485,8 @@ function add_one_resource(
   state: ProgramState | undefined,
   doc: xmlUtil.Document,
   module: mctree.ModuleDeclaration,
-  e: xmlUtil.Element
+  e: xmlUtil.Element,
+  barrel: string
 ) {
   let id: xmlUtil.Attribute | undefined;
   let func: (() => mctree.Declaration | null) | undefined;
@@ -657,7 +664,7 @@ function add_one_resource(
       break;
   }
   if (!func) return;
-  const elements = visit_resource_refs(state, doc, e);
+  const elements = visit_resource_refs(state, doc, e, barrel);
   const startLoc = elements[0]?.loc;
   const endLoc = elements[elements.length - 1]?.loc;
   const init = elements.length

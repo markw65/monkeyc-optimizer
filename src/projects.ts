@@ -21,6 +21,11 @@ export type RemoteProject =
     };
 
 export const githubProjects: RemoteProject[] = [
+  {
+    root: "https://github.com/markw65/Barrels",
+    options: { typeCheckLevel: "Strict" },
+    include: "DataFieldWithBarrels/monkey.jungle",
+  },
   "https://bitbucket.org/mike_polatoglou/moonphase",
   "https://bitbucket.org/obagot/connectiq-hict",
   "https://bitbucket.org/villagehymn/marklaying",
