@@ -1087,7 +1087,7 @@ async function getProjectAnalysisHelper(
       results.reduce((cur, result) => {
         if (!cur) return result;
         Object.entries(result.fnMap).forEach(
-          ([key, value]) => (cur.fnMap[key] = value)
+          ([key, value]) => cur.fnMap[key] || (cur.fnMap[key] = value)
         );
         cur.paths.push(...result.paths);
         return cur;
