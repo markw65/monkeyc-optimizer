@@ -1007,7 +1007,7 @@ function resolve_barrel(
   if (hasProperty(cache.barrels, barrel)) {
     return cache.barrels[barrel];
   }
-  let promise = Promise.resolve();
+  let promise = Promise.resolve<unknown>(null);
   let rawBarrel = barrel;
   if (barrel.endsWith(".barrel")) {
     // A barrel with the given name could in theory resolve to a different physical
@@ -1033,12 +1033,14 @@ function resolve_barrel(
               .then((barrelStat) => localStat.mtimeMs < barrelStat.mtimeMs),
           () => true
         )
-        .then((needsUpdate) => {
-          needsUpdate &&
-            fs
-              .rm(localPath, { recursive: true, force: true })
-              .then(() => extract(barrel, { dir: localPath }));
-        })
+        .then((needsUpdate) =>
+          needsUpdate
+            ? fs
+                .rm(localPath, { recursive: true, force: true })
+                .catch(() => null)
+                .then(() => extract(barrel, { dir: localPath }))
+            : null
+        )
     );
   }
   return promise
