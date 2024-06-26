@@ -399,7 +399,11 @@ export function locRange(
   };
 }
 
-export function adjustLoc(loc: xmlUtil.SourceLocation, start = 1, end = -1) {
+export function adjustLoc(
+  loc: xmlUtil.SourceLocation,
+  start = 1,
+  end = -1
+): xmlUtil.SourceLocation {
   return {
     source: loc.source,
     start: {
@@ -412,7 +416,7 @@ export function adjustLoc(loc: xmlUtil.SourceLocation, start = 1, end = -1) {
       line: loc.end.line,
       column: loc.end.column + end,
     },
-  } as const;
+  };
 }
 
 export function makeIdentifier(

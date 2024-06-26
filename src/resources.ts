@@ -392,18 +392,27 @@ function visit_resource_refs(
     }
     if (id === "personality") {
       const elems = dotted.match(/\s+|\S+/g);
-      elems?.reduce((offset, name) => {
-        const end = offset + name.length;
-        if (!/\s/.test(name)) {
+      elems?.reduce((loc, name) => {
+        if (/\s/.test(name)) {
+          const newLines = name.match(/\r\n|[\r\n]/g);
+          if (newLines?.length) {
+            loc.start.line += newLines.length;
+            loc.start.column = 1;
+            loc.start.offset += name.length;
+            name = name.replace(/^.*(\r\n|[\r\n])(.*)$/, "$2");
+            loc.start.offset -= name.length;
+          }
+        } else {
           const base = makeScopedName(`Rez.Styles`);
-          const id = makeIdentifier(
-            name,
-            adjustLoc(l, offset, end - dotted.length)
-          );
+          const idLoc = adjustLoc(loc, 0, 0);
+          idLoc.end = { ...idLoc.start };
+          idLoc.end.column += name.length;
+          idLoc.end.offset += name.length;
+          const id = makeIdentifier(name, idLoc);
           result.push(makeMemberExpression(withLoc(base, id, false), id));
         }
-        return end;
-      }, 0);
+        return adjustLoc(loc, name.length, 0);
+      }, adjustLoc(l, 0, 0));
       return;
     }
     if (
