@@ -663,7 +663,7 @@ export function typeFromSingleTypeSpec(
       return {
         type: TypeTag.Array,
         value: type.elements.map((cur) =>
-          typeFromTypespec(state, cur as unknown as mctree.TypeSpecList)
+          typeFromTypespec(state, cur as unknown as mctree.TypeSpecList, stack)
         ),
       };
     }
@@ -673,7 +673,7 @@ export function typeFromSingleTypeSpec(
         const prop = property as unknown as mctree.AsExpression;
         fields.set(
           objectLiteralKeyFromKeyExpr(prop.left),
-          typeFromTypespec(state, prop.right)
+          typeFromTypespec(state, prop.right, stack)
         );
       });
       return { type: TypeTag.Dictionary, value: fields };
