@@ -1033,16 +1033,24 @@ async function getProjectAnalysisHelper(
 ): Promise<Analysis | PreAnalysis> {
   const qualifiers: Map<
     string,
-    { sourcePath: Set<string>; personality: Set<string> }
+    { sourcePath: Set<string>; personality: Set<string>; root: string }
   > = new Map();
 
-  const addQualifier = (name: string, qualifier: JungleQualifier) => {
+  const addQualifier = (
+    name: string,
+    qualifier: JungleQualifier,
+    root: string
+  ) => {
     const sp = qualifier.sourcePath;
     const pp = qualifier.personality;
     if (sp || pp) {
       let q = qualifiers.get(name);
       if (!q) {
-        q = { sourcePath: new Set(), personality: new Set() };
+        q = {
+          sourcePath: new Set(),
+          personality: new Set(),
+          root,
+        };
         qualifiers.set(name, q);
       }
       sp?.forEach((s) => q!.sourcePath!.add(s));
@@ -1051,10 +1059,10 @@ async function getProjectAnalysisHelper(
   };
 
   const products = targets.map(({ qualifier, product }) => {
-    addQualifier("", qualifier);
+    addQualifier("", qualifier, options.workspace!);
     if (qualifier.barrelMap) {
       Object.entries(qualifier.barrelMap).forEach(([name, bm]) => {
-        addQualifier(name, bm.qualifier);
+        addQualifier(name, bm.qualifier, path.dirname(bm.jungles[0]));
       });
     }
     return product;
@@ -1063,7 +1071,7 @@ async function getProjectAnalysisHelper(
   const { fnMap, paths } = await Promise.all(
     Array.from(qualifiers).map(([name, qualifier]) =>
       fileInfoFromConfig(
-        options.workspace!,
+        qualifier.root,
         options.workspace!,
         {
           sourcePath: Array.from(qualifier.sourcePath),
