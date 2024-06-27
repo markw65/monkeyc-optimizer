@@ -20,6 +20,7 @@ import {
   getLiteralNode,
   getNodeValue,
   isExpression,
+  makeScopedName,
   traverseAst,
   withLoc,
   withLocDeep,
@@ -47,6 +48,7 @@ import {
   ByNameStateNodeDecls,
   ClassStateNode,
   Diagnostic,
+  EnumStateNode,
   FilesToOptimizeMap,
   FunctionStateNode,
   LookupDefinition,
@@ -1146,27 +1148,53 @@ async function optimizeMonkeyCHelper(
     collectNamespaces(f.ast!, state);
   });
 
+  enum Changes {
+    None = 0,
+    Some = 1,
+    Force = 2,
+  }
   const cleanupAll = () => {
     const usedDecls = findRezRefs(state);
-    return Object.values(fnMap).reduce((changes, f) => {
-      traverseAst(f.ast!, undefined, (node) => {
-        if (usedDecls.has(node)) {
-          return null;
-        }
-        const ret = cleanup(state, node, f.ast!, usedDecls);
-        if (ret === false) {
-          changes = true;
-          state.removeNodeComments(node, f.ast!);
-        } else if (ret) {
-          changes = true;
-        }
-        return ret;
-      });
-      return changes;
-    }, false);
+    const pre = state.pre;
+    const post = state.post;
+    try {
+      delete state.pre;
+      return Object.values(fnMap).reduce((changes, f) => {
+        state.post = (node) => {
+          if (usedDecls.has(node)) {
+            return null;
+          }
+          const ret = cleanup(state, node, f.ast!, usedDecls);
+          if (ret === false) {
+            changes |= Changes.Some;
+            state.removeNodeComments(node, f.ast!);
+          } else if (ret) {
+            // If we replaced an enum with a union typedef, we should
+            // reprocess everything to cleanup things like `42 as EnumType`
+            // since there are places that Garmin's compiler will accept 42
+            // but not accept `42 as EnumType`.
+            if (
+              node.type === "EnumDeclaration" &&
+              ret.type === "TypedefDeclaration" &&
+              ret.ts.argument.ts.length > 1
+            ) {
+              changes |= Changes.Force;
+            } else {
+              changes |= Changes.Some;
+            }
+          }
+          return ret;
+        };
+        collectNamespaces(f.ast!, state);
+        return changes;
+      }, Changes.None);
+    } finally {
+      state.pre = pre;
+      state.post = post;
+    }
   };
 
-  do {
+  while (true) {
     state.usedByName = {};
     state.calledFunctions = {};
     state.exposed = state.nextExposed;
@@ -1176,8 +1204,15 @@ async function optimizeMonkeyCHelper(
     });
     state.exposed = state.nextExposed;
     state.nextExposed = {};
-    if (!cleanupAll()) break;
-  } while (state.config?.iterateOptimizer);
+    const changes = cleanupAll();
+    if (
+      changes & Changes.Force ||
+      (changes & Changes.Some && state.config?.iterateOptimizer)
+    ) {
+      continue;
+    }
+    break;
+  }
 
   delete state.pre;
   delete state.post;
@@ -1331,9 +1366,9 @@ function cleanup(
     case "ThisExpression":
       node.text = "self";
       break;
-    case "EnumStringBody":
+    case "EnumDeclaration": {
       if (
-        node.members.every((m) => {
+        !node.body.members.every((m) => {
           if (usedNodes.has(m)) return false;
           const name = "name" in m ? m.name : m.id.name;
           return (
@@ -1343,49 +1378,56 @@ function cleanup(
           );
         })
       ) {
-        const enumType = new Set(
-          node.members.map((m) => {
-            if (!("init" in m)) return "Number";
-            const [node, type] = getNodeValue(m.init);
-            return node ? type : null;
-          })
-        );
-        if (!enumType.has(null)) {
-          node.enumType = [...enumType]
-            .map((t) => (t === "Null" ? t : `Toybox.Lang.${t}`))
-            .join(" or ");
-          node.members.splice(0);
-        }
+        break;
       }
-      break;
-    case "EnumDeclaration":
-      if (!node.body.members.length) {
-        if (!node.id) return false;
-        if (!node.body.enumType) {
-          throw new Error("Missing enumType on optimized enum");
-        }
-        state.removeNodeComments(node, ast);
-        return withLocDeep(
-          {
-            type: "TypedefDeclaration",
-            id: node.id,
-            ts: {
-              type: "UnaryExpression",
-              argument: {
-                type: "TypeSpecList",
-                ts: [
-                  node.body.enumType,
-                ] as unknown as mctree.TypeSpecList["ts"],
-              },
-              prefix: true,
-              operator: " as",
+      const enumType = new Set(
+        node.body.members.map((m) => {
+          if (!("init" in m)) return "Number";
+          const [node, type] = getNodeValue(m.init);
+          return node ? type : null;
+        })
+      );
+      if (enumType.has(null)) break;
+
+      if (!node.id) return false;
+      state.removeNodeComments(node, ast);
+      const typedefDecl = withLocDeep(
+        {
+          type: "TypedefDeclaration",
+          id: node.id,
+          ts: {
+            type: "UnaryExpression",
+            argument: {
+              type: "TypeSpecList",
+              ts: Array.from(enumType).map((t) => ({
+                type: "TypeSpecPart",
+                name: t === "Null" ? t : makeScopedName(`Toybox.Lang.${t}`),
+              })),
             },
-          } as const,
-          node,
-          node
+            prefix: true,
+            operator: " as",
+          },
+        } as const,
+        node,
+        node
+      );
+      const decls =
+        state.stack[state.stack.length - 1].sn?.type_decls?.[node.id.name];
+      if (decls) {
+        const i = decls.findIndex(
+          (d) => d.type === "EnumDeclaration" && d.node === node
         );
+        if (i >= 0) {
+          const old = decls[i] as EnumStateNode;
+          decls.splice(i, 1, {
+            ...old,
+            type: "TypedefDeclaration",
+            node: typedefDecl,
+          });
+        }
       }
-      break;
+      return typedefDecl;
+    }
     case "VariableDeclarator": {
       const name = variableDeclarationName(node.id);
       return !hasProperty(state.index, name) ||
