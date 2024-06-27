@@ -1,6 +1,7 @@
-const { spawnByLine, globa } = require("../build/util.cjs");
+const { spawnByLine } = require("../build/util.cjs");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const glob = require("fast-glob");
 
 const args = [
   "test/test.js",
@@ -18,12 +19,14 @@ async function testOne(jungle) {
     recursive: true,
     force: true,
   });
-  await spawnByLine("node", args.concat("--jungle", jungle), (line) =>
-    console.log(line)
-  );
+  const cmd = args.concat("--jungle", jungle);
+  console.log(`Running: ${cmd.map((s) => JSON.stringify(s)).join(" ")}`);
+  await spawnByLine("node", cmd, (line) => console.log(line));
 }
 
-globa("test/tiny/*/monkey.jungle")
+const jungles = process.argv.slice(2).filter((arg) => arg.endsWith(".jungle"));
+
+glob(jungles.length ? jungles : "test/tiny/*/monkey.jungle")
   .then((jungles) =>
     jungles.reduce(
       (promise, jungle) => promise.then(() => testOne(jungle)),

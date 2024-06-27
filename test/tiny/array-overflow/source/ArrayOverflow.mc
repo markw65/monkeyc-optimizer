@@ -1,10 +1,5 @@
-import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Test;
-import Toybox.WatchUi;
-
-//typedef InitialViewReturn as Array<Views or InputDelegates>;
-typedef InitialViewReturn as [Views] or [Views, InputDelegates];
 
 const array_values = [
     0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225, 256, 289,
@@ -22,17 +17,4 @@ function testPostBuildArrayInitStackOverflow(logger as Logger) as Boolean {
         }
     }
     return true;
-}
-
-class ArrayOverflowApp extends Application.AppBase {
-  function initialize() {
-    AppBase.initialize();
-  }
-
-  function getInitialView() {
-    return [new ArrayOverflowSimpleDataField()] as InitialViewReturn;
-  }
-}
-
-class ArrayOverflowSimpleDataField extends WatchUi.SimpleDataField {
 }
