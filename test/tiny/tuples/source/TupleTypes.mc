@@ -18,9 +18,8 @@ class Test {
     }
 
     function getArray(values as Array<Number>) as Array<Number> {
-        var result = [] as Array<Number>;
+        var result = [];
 
-        // Argument 1 to $.Toybox.Lang.Array.addAll expected to be Array<Never> but got Array<Number>
         result.addAll(values);
 
         return result;

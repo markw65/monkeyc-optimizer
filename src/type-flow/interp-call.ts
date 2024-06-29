@@ -341,8 +341,16 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
             if (Array.isArray(adata)) {
               if (arg.type & TypeTag.Array) {
                 const argSubtypes = getUnionComponent(arg, TypeTag.Array);
-                if (argSubtypes && Array.isArray(argSubtypes)) {
-                  const newAData = [...adata, ...argSubtypes];
+                if (argSubtypes) {
+                  if (Array.isArray(argSubtypes)) {
+                    const newAData = [...adata, ...argSubtypes];
+                    ret.returnType.value = newAData;
+                    ret.argTypes = [arg];
+                    ret.calleeObj = ret.returnType;
+                    return ret;
+                  }
+                  const newAData = reducedType(adata);
+                  unionInto(newAData, argSubtypes);
                   ret.returnType.value = newAData;
                   ret.argTypes = [arg];
                   ret.calleeObj = ret.returnType;
