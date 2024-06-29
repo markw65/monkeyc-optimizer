@@ -2,7 +2,7 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
-### 1.1.65
+### 1.1.66
 
 - Match Garmin's handling of add and addAll for tuples (fixes #38)
 - Add preSkipLiterals option (workaround for part of #38)
