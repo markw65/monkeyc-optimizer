@@ -4,6 +4,12 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 
 ### 1.1.65
 
+- Match Garmin's handling of add and addAll for tuples (fixes #38)
+- Add preSkipLiterals option (workaround for part of #38)
+- Remove casts when an enum is replaced by a typedef (Fixes #44)
+
+### 1.1.65
+
 - Fix lookup scopes for tuples and object literals (fixes #39)
 - Fix a race creating the output directory
 - Don't put system personality files in barrel namespace (partial fix for #40)
