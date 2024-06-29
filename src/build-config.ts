@@ -31,6 +31,7 @@ export type BuildConfig = {
   compilerLookupRules?: LookupRules; // Perform lookups as compiler1 or compiler2
   enforceStatic?: EnforceStatic;
   sizeBasedPRE?: boolean | string;
+  preSkipLiterals?: boolean;
   prettier?: Record<string, unknown>;
   extensionVersion?: string;
   useLocalOptimizer?: boolean;
@@ -195,7 +196,7 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "resource",
       },
       trustDeclaredTypes: {
-        order: 10,
+        order: 100,
         type: "boolean",
         markdownDescription:
           "[Whether to rely on type declarations when optimizing](https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis#trust-declared-types)",
@@ -203,7 +204,7 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "resource",
       },
       propagateTypes: {
-        order: 11,
+        order: 110,
         type: "boolean",
         markdownDescription:
           "[Whether to propagate type information, or process it locally](https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis#propagate-types)",
@@ -211,15 +212,23 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "resource",
       },
       sizeBasedPRE: {
-        order: 11,
+        order: 111,
         type: "boolean",
         markdownDescription:
           "[Whether to enable the size based partial redundancy pass](https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis#size-based-pre)",
         default: true,
         scope: "resource",
       },
+      preSkipLiterals: {
+        order: 112,
+        type: "boolean",
+        markdownDescription:
+          "[Whether to skip the size based partial redundancy pass for literal values](https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis#size-based-pre-skip-literals)",
+        default: false,
+        scope: "resource",
+      },
       minimizeLocals: {
-        order: 12,
+        order: 120,
         type: "boolean",
         markdownDescription:
           "[Whether to enable the minimize locals pass](https://github.com/markw65/monkeyc-optimizer/wiki/Local-variable-elimination#minimize-locals)",
@@ -227,7 +236,7 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "resource",
       },
       singleUseCopyProp: {
-        order: 12,
+        order: 120,
         type: "boolean",
         markdownDescription:
           "[Whether to enable the single use copy propagation pass](https://github.com/markw65/monkeyc-optimizer/wiki/Local-variable-elimination#single-use-copy-propagation)",
@@ -235,7 +244,7 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "resource",
       },
       minimizeModules: {
-        order: 12,
+        order: 120,
         type: "boolean",
         markdownDescription:
           "[Whether to enable the minimize modules pass](https://github.com/markw65/monkeyc-optimizer/wiki/Optimizing-module-imports#minimize-modules)",
@@ -243,7 +252,7 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "resource",
       },
       iterateOptimizer: {
-        order: 12,
+        order: 120,
         type: "boolean",
         description:
           "Whether to keep running the optimizer pass until it makes no further changes (may be slow)",

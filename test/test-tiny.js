@@ -15,11 +15,18 @@ const args = [
 
 async function testOne(jungle) {
   console.log(`\n>>> Building ${jungle}\n`);
-  await fs.rm(path.resolve(path.dirname(jungle), "bin"), {
+  const dir = path.dirname(jungle);
+  await fs.rm(path.resolve(dir, "bin"), {
     recursive: true,
     force: true,
   });
-  const cmd = args.concat("--jungle", jungle);
+  const extraArgs = await fs
+    .readFile(path.resolve(dir, "extra-args"), "utf-8")
+    .then((content) =>
+      content.split(/[\r\n]+/).map((arg) => arg.replace(/^\s*(.*?)\s*$/, "$1"))
+    )
+    .catch(() => []);
+  const cmd = args.concat("--jungle", jungle, extraArgs);
   console.log(`Running: ${cmd.map((s) => JSON.stringify(s)).join(" ")}`);
   await spawnByLine("node", cmd, (line) => console.log(line));
 }

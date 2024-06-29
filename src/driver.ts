@@ -68,6 +68,7 @@ export async function driver() {
   let checkInvalidSymbols: DiagnosticType | "OFF" = "ERROR";
   let checkCompilerLookupRules: DiagnosticType | "OFF" = "ERROR";
   let sizeBasedPRE: string | boolean = true;
+  let preSkipLiterals = false;
   let checkBuildPragmas: boolean | undefined;
   let showInfo = false;
   let parallelism: number | undefined = undefined;
@@ -256,6 +257,9 @@ export async function driver() {
           ? false
           : value;
         break;
+      case "preSkipLiterals":
+        preSkipLiterals = !value || /^(true|1)$/i.test(value);
+        break;
       case "trustDeclaredTypes":
         if (value == null) return key;
         trustDeclaredTypes = /^(false|0)$/i.test(value) ? false : true;
@@ -376,6 +380,7 @@ export async function driver() {
       checkTypes,
       checkCompilerLookupRules,
       sizeBasedPRE,
+      preSkipLiterals,
       returnCommand: true,
       checkManifest: true,
       checkBuildPragmas,

@@ -152,7 +152,8 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
   const result = buildDataFlowGraph(
     state,
     func,
-    (literal) => refCost(literal) > LocalRefCost,
+    (literal) =>
+      !state.config?.preSkipLiterals && refCost(literal) > LocalRefCost,
     true,
     false
   );
