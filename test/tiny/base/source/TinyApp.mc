@@ -17,4 +17,7 @@ class TinyApp extends Application.AppBase {
 }
 
 class TinySimpleDataField extends WatchUi.SimpleDataField {
+  function initialize() {
+    SimpleDataField.initialize();
+  }
 }

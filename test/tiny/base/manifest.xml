@@ -5,9 +5,7 @@
         Use "Monkey C: Edit Application" from the Visual Studio Code command palette
         to update the application attributes.
     -->
-    <iq:application id="2918c0eb-6b03-44c7-92bc-243d3f97cc36" type="datafield"
-        name="@Strings.AppName" entry="TinyApp" launcherIcon="@Drawables.LauncherIcon"
-        minApiLevel="1.2.0">
+    <iq:application id="2918c0eb-6b03-44c7-92bc-243d3f97cc36" type="datafield" name="@Strings.AppName" entry="TinyApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="1.2.0">
         <!--
             Use the following from the Visual Studio Code comand palette to edit
             the build targets:
@@ -16,22 +14,24 @@
             "Monkey C: Edit Products" - Lets you add or remove any product
         -->
         <iq:products>
-            <iq:product id="fr955" />
+            <iq:product id="fr955"/>
         </iq:products>
         <!--
             Use "Monkey C: Edit Permissions" from the Visual Studio Code command
             palette to update permissions.
         -->
-        <iq:permissions />
+        <iq:permissions/>
         <!--
             Use "Monkey C: Edit Languages" from the Visual Studio Code command
             palette to edit your compatible language list.
         -->
-        <iq:languages />
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
         <!--
             Use "Monkey C: Configure Monkey Barrel" from the Visual Studio Code
             command palette to edit the included barrels.
         -->
-        <iq:barrels />
+        <iq:barrels/>
     </iq:application>
 </iq:manifest>
