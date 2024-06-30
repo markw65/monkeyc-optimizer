@@ -240,7 +240,7 @@ export function getFileSources(fnMap: FilesToOptimizeMap) {
 export function getFileASTs(fnMap: FilesToOptimizeMap) {
   return getFileSources(fnMap).then(() =>
     Object.entries(fnMap).reduce((ok, [name, value]) => {
-      if (!value.ast) {
+      if (!value.ast && !value.parserError) {
         const options: Record<string, unknown> = {
           filepath: name,
         };
@@ -254,7 +254,6 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
             options
           ) as mctree.Program;
         } catch (e) {
-          ok = false;
           if (e instanceof Error) {
             value.parserError = e;
           } else {
@@ -262,7 +261,7 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
           }
         }
       }
-      return ok;
+      return value.parserError ? false : ok;
     }, true)
   );
 }
@@ -271,7 +270,8 @@ export async function analyze(
   fnMap: FilesToOptimizeMap,
   resourcesMap: Record<string, JungleResourceMap>,
   manifestXML: xmlUtil.Document | undefined,
-  config: BuildConfig
+  config: BuildConfig,
+  allowParseErrors?: boolean
 ) {
   let hasTests = false;
   let markApi = true;
@@ -345,6 +345,7 @@ export async function analyze(
   Object.entries(fnMap).forEach(([name, value]) => {
     const { ast, parserError } = value;
     if (!ast) {
+      if (allowParseErrors) return;
       throw parserError || new Error(`Failed to parse ${name}`);
     }
     hasTests = false;

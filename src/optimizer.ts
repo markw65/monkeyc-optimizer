@@ -691,12 +691,8 @@ export type PreAnalysis = {
   paths: string[];
 };
 
-declare type RequiredNonNull<T> = {
-  [K1 in keyof T]-?: { [K2 in keyof T[K1]]-?: NonNullable<T[K1][K2]> };
-};
-
 export type Analysis = {
-  fnMap: RequiredNonNull<FilesToOptimizeMap>;
+  fnMap: FilesToOptimizeMap;
   paths: string[];
   state: ProgramStateAnalysis;
   typeMap?: TypeMap | null | undefined;
@@ -1104,9 +1100,7 @@ async function getProjectAnalysisHelper(
     });
   }
 
-  if (!(await getFileASTs(fnMap))) {
-    return { fnMap, paths };
-  }
+  const noErrors = await getFileASTs(fnMap);
 
   const resourcesMap: Record<string, JungleResourceMap> = {};
   const addResources = (
@@ -1128,8 +1122,10 @@ async function getProjectAnalysisHelper(
       );
     }
   });
-  const state = await analyze(fnMap, resourcesMap, manifestXML, options);
-  reportMissingSymbols(state, options);
+  const state = await analyze(fnMap, resourcesMap, manifestXML, options, true);
+  if (noErrors) {
+    reportMissingSymbols(state, options);
+  }
   let typeMap: TypeMap | null = null;
   if (
     state.config?.propagateTypes &&
@@ -1173,7 +1169,7 @@ async function getProjectAnalysisHelper(
       return null;
     };
     Object.values(state.fnMap).forEach((f) => {
-      collectNamespaces(f.ast!, state);
+      f.ast && collectNamespaces(f.ast, state);
     });
     delete state.pre;
   }
