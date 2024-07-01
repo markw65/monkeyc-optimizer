@@ -380,8 +380,7 @@ export function reportMissingSymbols(
     diagnosticType &&
     !config?.compilerOptions?.includes("--Eno-invalid-symbol")
   ) {
-    const checkTypes =
-      config?.typeCheckLevel && config.typeCheckLevel !== "Off";
+    const checkTypes = config?.checkTypes?.toLowerCase() !== "off";
     const report = (ast: mctree.Program) => {
       visitReferences(state, ast, null, false, (node, results, error) => {
         if (node.type === "BinaryExpression" && node.operator === "has") {
@@ -612,20 +611,16 @@ function markFunctionCalled(
   pushUnique(state.calledFunctions[func.id.name], func);
 }
 
-export async function optimizeMonkeyC(
+export function optimizeMonkeyC(
   fnMap: FilesToOptimizeMap,
   resourcesMap: Record<string, JungleResourceMap>,
   manifestXML: xmlUtil.Document,
   config: BuildConfig
 ) {
-  try {
-    return optimizeMonkeyCHelper(fnMap, resourcesMap, manifestXML, config);
-  } catch (ex) {
-    if (ex instanceof AwaitedError) {
-      await ex.resolve();
-    }
-    throw ex;
-  }
+  return optimizeMonkeyCHelper(fnMap, resourcesMap, manifestXML, config).catch(
+    (ex: unknown) =>
+      Promise.reject(ex instanceof AwaitedError ? ex.resolve() : ex)
+  );
 }
 
 async function optimizeMonkeyCHelper(
@@ -760,7 +755,7 @@ async function optimizeMonkeyCHelper(
     state.config.propagateTypes
   ) {
     gistate.typeChecker =
-      state.config.typeCheckLevel?.toLowerCase() === "strict"
+      state.config.strictTypeCheck?.toLowerCase() === "on"
         ? subtypeOf
         : couldBeWeak;
     gistate.checkTypes = state.config?.checkTypes || "WARNING";

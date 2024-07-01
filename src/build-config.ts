@@ -44,6 +44,7 @@ export type BuildConfig = {
   iterateOptimizer?: boolean;
   covarianceWarnings?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
+  strictTypeCheck?: "On" | "Off" | "Default";
   // post build optimizer
   removeArgc?: boolean;
   postBuildPRE?: boolean;
@@ -193,6 +194,19 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
           "Generate ERROR level diagnostics",
         ],
         default: "WARNING",
+        scope: "resource",
+      },
+      strictTypeCheck: {
+        type: "string",
+        description:
+          "Whether to do strict or relaxed type checking - Default deduces it from typeCheckLevel",
+        enum: ["On", "Off", "Default"],
+        enumDescriptions: [
+          "Do Strict type checking",
+          "Do Relaxed type checking",
+          "Do Strict type checking iff typeCheckLevel is Strict",
+        ],
+        default: "Default",
         scope: "resource",
       },
       trustDeclaredTypes: {

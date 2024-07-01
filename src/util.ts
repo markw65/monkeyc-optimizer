@@ -296,6 +296,9 @@ export class AwaitedError extends Error {
     super();
   }
   resolve() {
-    return this.messagePromise.then((message) => (this.message = message));
+    return this.messagePromise.then((message) => {
+      this.message = message;
+      return this;
+    });
   }
 }

@@ -185,7 +185,20 @@ export function getConfig(options: BuildConfig) {
           return settings;
         });
     }, Promise.resolve(null))
-    .then(() => config);
+    .then((settings) => {
+      if (
+        settings &&
+        (!config.strictTypeCheck || config.strictTypeCheck === "Default") &&
+        (settings["monkeyC.typeCheckLevel"]?.toString().toLowerCase() ===
+          "strict" ||
+          settings["prettierMonkeyC.typeCheckLevel"]
+            ?.toString()
+            .toLowerCase() === "strict")
+      ) {
+        config.strictTypeCheck = "On";
+      }
+      return config;
+    });
 }
 
 /**
@@ -1005,20 +1018,19 @@ export async function generateOneConfig(
   );
 }
 
-export async function getProjectAnalysis(
+export function getProjectAnalysis(
   targets: Target[],
   analysis: PreAnalysis | null,
   manifestXML: xmlUtil.Document,
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
-  try {
-    return getProjectAnalysisHelper(targets, analysis, manifestXML, options);
-  } catch (ex) {
-    if (ex instanceof AwaitedError) {
-      await ex.resolve();
-    }
-    throw ex;
-  }
+  return getConfig(options)
+    .then((options) =>
+      getProjectAnalysisHelper(targets, analysis, manifestXML, options)
+    )
+    .catch((ex) =>
+      Promise.reject(ex instanceof AwaitedError ? ex.resolve() : ex)
+    );
 }
 
 async function getProjectAnalysisHelper(
@@ -1137,7 +1149,7 @@ async function getProjectAnalysisHelper(
       state,
       stack: [],
       typeChecker:
-        state.config.typeCheckLevel?.toLowerCase() === "strict"
+        state.config.strictTypeCheck?.toLowerCase() === "on"
           ? subtypeOf
           : couldBeWeak,
       checkTypes: state.config?.checkTypes || "WARNING",

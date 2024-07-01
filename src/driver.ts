@@ -55,6 +55,7 @@ export async function driver() {
   let compilerWarnings: boolean | undefined;
   let typeCheckLevel: "Off" | "Default" | "Gradual" | "Informative" | "Strict" =
     "Off";
+  let strictTypeCheck: "On" | "Off" | "Default" = "Default";
   let optimizationLevel: "None" | "Basic" | "Fast" | "Slow" | undefined;
   let promise = Promise.resolve();
   let remoteProjects: RemoteProject[] | undefined;
@@ -173,7 +174,20 @@ export async function driver() {
           case "gradual":
           case "informative":
           case "strict":
-            typeCheckLevel = value as typeof typeCheckLevel;
+            typeCheckLevel = (value[0].toUpperCase() +
+              value.slice(1).toLowerCase()) as typeof typeCheckLevel;
+            break;
+        }
+        break;
+      case "strictTypeCheck":
+        switch (value?.toLowerCase() ?? null) {
+          case null:
+            return key;
+          case "off":
+          case "on":
+          case "default":
+            strictTypeCheck = (value[0].toUpperCase() +
+              value.slice(1).toLowerCase()) as typeof strictTypeCheck;
             break;
         }
         break;
@@ -360,6 +374,9 @@ export async function driver() {
     checkTypes =
       typeCheckLevel.toLowerCase() === "strict" ? "ERROR" : "WARNING";
   }
+  if (strictTypeCheck == null) {
+    strictTypeCheck = typeCheckLevel.toLowerCase() === "strict" ? "On" : "Off";
+  }
   const getOptions = (options: BuildConfig) => {
     options = {
       developerKeyPath,
@@ -369,6 +386,7 @@ export async function driver() {
       testBuild: testBuild !== false,
       compilerWarnings,
       typeCheckLevel,
+      strictTypeCheck,
       optimizationLevel,
       skipOptimization,
       checkInvalidSymbols,
@@ -429,6 +447,7 @@ export async function driver() {
           trustDeclaredTypes,
           propagateTypes,
           typeCheckLevel,
+          strictTypeCheck,
           checkTypes,
           checkBuildPragmas: true,
           checkInvalidSymbols,
