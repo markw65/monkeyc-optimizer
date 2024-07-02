@@ -292,15 +292,15 @@ function filterDecls(
 export function findObjectDeclsByProperty(
   state: ProgramStateAnalysis,
   object: ExactOrUnion,
-  next: mctree.DottedMemberExpression
+  next: mctree.Identifier
 ) {
   const decls = getStateNodeDeclsFromType(state, object);
   if (!decls) return [null, null] as const;
   const possibleDecls =
-    hasProperty(state.allDeclarations, next.property.name) &&
-    state.allDeclarations[next.property.name];
+    hasProperty(state.allDeclarations, next.name) &&
+    state.allDeclarations[next.name];
 
-  return filterDecls(decls, possibleDecls, next.property.name);
+  return filterDecls(decls, possibleDecls, next.name);
 }
 
 export function refineObjectTypeByDecls(
@@ -341,7 +341,7 @@ export function resolveDottedMember(
   const [objDecls, trueDecls] = findObjectDeclsByProperty(
     istate.state,
     object,
-    next
+    next.property
   );
   if (!objDecls) return null;
   const property = findNextObjectType(istate, trueDecls, next);

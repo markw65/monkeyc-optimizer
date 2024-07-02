@@ -357,6 +357,17 @@ export function lookupNext(
           );
           return;
         }
+        if (module.type === "VariableDeclarator" && module.resolvedType) {
+          const [, decls] = findObjectDeclsByProperty(
+            state as ProgramStateAnalysis,
+            module.resolvedType,
+            property
+          );
+          if (decls) {
+            addToItems(decls);
+            return;
+          }
+        }
         const res = checkOne(state, module, decls, property);
         if (res) {
           items.push({ parent: module, results: res });
@@ -608,7 +619,11 @@ export function lookupWithType(
   if (node.type === "MemberExpression" && !node.computed) {
     const objectType = typeMap.get(node.object);
     if (!objectType) return results;
-    const [, decls] = findObjectDeclsByProperty(state, objectType, node);
+    const [, decls] = findObjectDeclsByProperty(
+      state,
+      objectType,
+      node.property
+    );
     if (decls) {
       const next = lookupNext(
         state,

@@ -571,7 +571,11 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         property: symbol,
         computed: false,
       };
-      const [, trueDecls] = findObjectDeclsByProperty(state, calleeObj, next);
+      const [, trueDecls] = findObjectDeclsByProperty(
+        state,
+        calleeObj,
+        next.property
+      );
       if (!trueDecls) return ret;
       const callees = trueDecls
         .flatMap((decl) => decl.decls?.[symbol.name])

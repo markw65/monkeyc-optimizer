@@ -472,7 +472,7 @@ function getLhsConstraint(
         const [, trueDecls] = findObjectDeclsByProperty(
           istate.state,
           object,
-          node
+          node.property
         );
         if (trueDecls) {
           lookupDefs = lookupNext(

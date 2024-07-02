@@ -809,7 +809,7 @@ function propagateTypes(
           const [objDecls, trueDecls] = findObjectDeclsByProperty(
             istate.state,
             cur,
-            me
+            me.property
           );
           if (!objDecls) {
             return null;
