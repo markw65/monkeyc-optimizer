@@ -1,10 +1,10 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { checkCompilerVersion, diagnostic, formatAst } from "./api";
 import { traverseAst } from "./ast";
-import { Diagnostic, ProgramStateOptimizer } from "./optimizer-types";
+import { Diagnostic, ProgramStateAnalysis } from "./optimizer-types";
 
 export function pragmaChecker(
-  state: ProgramStateOptimizer,
+  state: ProgramStateAnalysis,
   ast: mctree.Program,
   diagnostics: Diagnostic[] | null | undefined
 ) {

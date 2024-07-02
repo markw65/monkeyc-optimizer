@@ -10,7 +10,6 @@ import {
   isLookupCandidate,
   isStateNode,
   markInvokeClassMethod,
-  resolveDiagnostics,
   resolveDiagnosticsMap,
   variableDeclarationName,
   visitReferences,
@@ -25,6 +24,7 @@ import {
   withLoc,
   withLocDeep,
 } from "./ast";
+import { unhandledType } from "./data-flow";
 import {
   findCallees,
   findCalleesForNew,
@@ -78,7 +78,6 @@ import { TypeTag, mcExprFromType, typeFromLiteral } from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { AwaitedError, pushUnique } from "./util";
 import { renameIdentifier, renameVariable } from "./variable-renamer";
-import { unhandledType } from "./data-flow";
 
 /*
  * Map each name to the list of StateNodes that declare that
@@ -1250,19 +1249,14 @@ async function optimizeMonkeyCHelper(
     delete state.inlineDiagnostics;
   }
 
-  if (state.config?.checkBuildPragmas) {
-    await Object.entries(fnMap).reduce((promise, [name, f]) => {
-      return Promise.all([
-        resolveDiagnostics(state.diagnostics?.[name]),
-        promise,
-      ]).then(([diagnostics]) => pragmaChecker(state, f.ast!, diagnostics));
-    }, Promise.resolve());
-  }
-
   const diagnostics: Record<string, Diagnostic[]> | undefined =
-    state.diagnostics
-      ? await resolveDiagnosticsMap(state.diagnostics)
-      : state.diagnostics;
+    state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));
+
+  if (state.config?.checkBuildPragmas) {
+    Object.entries(fnMap).forEach(([name, f]) => {
+      pragmaChecker(state, f.ast!, diagnostics?.[name]);
+    });
+  }
 
   return {
     diagnostics,

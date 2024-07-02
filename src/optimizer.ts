@@ -38,6 +38,7 @@ import {
 } from "./mc-rewrite";
 import {
   BuildConfig,
+  Diagnostic,
   ExcludeAnnotationsMap,
   FilesToOptimizeMap,
   FunctionStateNode,
@@ -57,6 +58,7 @@ import {
   last_modified,
 } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
+import { pragmaChecker } from "./pragma-checker";
 
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
@@ -1112,7 +1114,7 @@ async function getProjectAnalysisHelper(
     });
   }
 
-  const noErrors = await getFileASTs(fnMap);
+  await getFileASTs(fnMap);
 
   const resourcesMap: Record<string, JungleResourceMap> = {};
   const addResources = (
@@ -1134,16 +1136,27 @@ async function getProjectAnalysisHelper(
       );
     }
   });
+  return {
+    ...(await getFnMapAnalysis(fnMap, resourcesMap, manifestXML, options)),
+    paths,
+  };
+}
+
+export async function getFnMapAnalysis(
+  fnMap: FilesToOptimizeMap,
+  resourcesMap: Record<string, JungleResourceMap>,
+  manifestXML: xmlUtil.Document,
+  options: BuildConfig
+) {
   const state = await analyze(fnMap, resourcesMap, manifestXML, options, true);
-  if (noErrors) {
+  if (Object.values(fnMap).every(({ ast }) => ast != null)) {
     reportMissingSymbols(state, options);
   }
-  let typeMap: TypeMap | null = null;
+  let typeMap = null as TypeMap | null;
   if (
     state.config?.propagateTypes &&
     state.config.trustDeclaredTypes &&
-    state.config.checkTypes !== "OFF" &&
-    Object.values(state.fnMap).every((ast) => ast != null)
+    state.config.checkTypes !== "OFF"
   ) {
     const gistate: InterpState = {
       state,
@@ -1186,9 +1199,14 @@ async function getProjectAnalysisHelper(
     delete state.pre;
   }
 
-  if (state.diagnostics) {
-    await resolveDiagnosticsMap(state.diagnostics);
+  const diagnostics: Record<string, Diagnostic[]> | undefined =
+    state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));
+
+  if (state.config?.checkBuildPragmas) {
+    Object.entries(fnMap).forEach(([name, f]) => {
+      pragmaChecker(state, f.ast!, diagnostics?.[name]);
+    });
   }
 
-  return { fnMap: fnMap as Analysis["fnMap"], paths, state, typeMap };
+  return { fnMap: fnMap as Analysis["fnMap"], state, typeMap };
 }

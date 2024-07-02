@@ -6,6 +6,7 @@ import { getFileASTs, optimizeMonkeyC } from "./mc-rewrite";
 import {
   defaultConfig,
   getConfig,
+  getFnMapAnalysis,
   getProjectAnalysis,
   get_jungle,
   launchSimulator,
@@ -443,7 +444,7 @@ export async function driver() {
       await sourceFiles.reduce(async (promise, sourceFile) => {
         await promise;
         log(`Starting ${sourceFile}`);
-        const { diagnostics } = await analyzeSourceFile(sourceFile, {
+        const diagnosticArray = await analyzeSourceFile(sourceFile, {
           trustDeclaredTypes,
           propagateTypes,
           typeCheckLevel,
@@ -452,11 +453,13 @@ export async function driver() {
           checkBuildPragmas: true,
           checkInvalidSymbols,
         });
-        reportDiagnostics(
-          diagnostics,
-          (line: unknown, err?: boolean) =>
-            err ? console.error(line) : log(line),
-          []
+        diagnosticArray.forEach((diagnostics) =>
+          reportDiagnostics(
+            diagnostics,
+            (line: unknown, err?: boolean) =>
+              err ? console.error(line) : log(line),
+            []
+          )
         );
         log(`${sourceFile} complete`);
       }, Promise.resolve());
@@ -956,6 +959,7 @@ function trySim(
 }
 
 async function analyzeSourceFile(sourceFile: string, config: BuildConfig) {
+  config = await getConfig(config);
   const source = (await fs.readFile(sourceFile)).toString();
   const fnMap: FilesToOptimizeMap = {
     [sourceFile]: {
@@ -969,5 +973,19 @@ async function analyzeSourceFile(sourceFile: string, config: BuildConfig) {
   const manifestXML = parseXml(
     '<?xml version="1.0"?><iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq"/>'
   );
-  return optimizeMonkeyC(fnMap, {}, manifestXML, config ?? {});
+  const { state } = await getFnMapAnalysis(
+    fnMap,
+    {},
+    manifestXML,
+    config ?? {}
+  );
+
+  const { diagnostics } = await optimizeMonkeyC(
+    fnMap,
+    {},
+    manifestXML,
+    config ?? {}
+  );
+
+  return [diagnostics, state.diagnostics];
 }
