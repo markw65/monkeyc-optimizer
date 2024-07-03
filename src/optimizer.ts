@@ -186,7 +186,7 @@ export function getConfig(options: BuildConfig) {
           }
           return settings;
         });
-    }, Promise.resolve(null))
+    }, Promise.resolve(options.ignore_settings_files ? {} : null))
     .then((settings) => {
       if (
         settings &&

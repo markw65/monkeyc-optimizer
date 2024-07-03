@@ -64,6 +64,7 @@ export async function driver() {
   let jungleOnly: boolean | undefined;
   let analyzeOnly: boolean | undefined;
   let skipOptimization: boolean | undefined;
+  let ignore_settings_files: boolean | undefined;
   const extraMonkeycArgs: string[] = [];
   let execute = false;
   let testBuild: string | boolean = false;
@@ -209,6 +210,9 @@ export async function driver() {
         break;
       case "skipOptimization":
         skipOptimization = !value || /^(true|1)$/i.test(value);
+        break;
+      case "ignore-settings-files":
+        ignore_settings_files = !value || /^(true|1)$/i.test(value);
         break;
       case "garminOptLevel":
         if (!supportsCompiler2) {
@@ -390,6 +394,7 @@ export async function driver() {
       strictTypeCheck,
       optimizationLevel,
       skipOptimization,
+      ignore_settings_files,
       checkInvalidSymbols,
       trustDeclaredTypes,
       propagateTypes,
@@ -510,9 +515,14 @@ export async function driver() {
       .join(";");
     const workspace = path.dirname(jungleFiles.split(";")[0]);
     if (!outputPath) outputPath = defaultConfig.outputPath;
+    const strictTypeCheck =
+      jungleOptions.typeCheckLevel?.toLowerCase() === "strict"
+        ? "On"
+        : "Default";
     const options = getOptions({
       jungleFiles,
       workspace,
+      strictTypeCheck,
       ...jungleOptions,
     });
     let extraArgs = extraMonkeycArgs;

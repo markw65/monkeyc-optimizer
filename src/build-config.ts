@@ -3,6 +3,7 @@ export type LookupRules = "COMPILER1" | "COMPILER2" | "DEFAULT";
 export type EnforceStatic = "YES" | "NO";
 // Configuration options for build
 export type BuildConfig = {
+  ignore_settings_files?: boolean; // For consistent testing, ignore settings.json files
   workspace?: string; // The project's workspace directory
   jungleFiles?: string; // Semicolon separated list of jungle files
   developerKeyPath?: string; // Path to the developer key file to be used by the garmin tools
