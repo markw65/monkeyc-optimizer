@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.67
+
+- Use the type of a variable, when known, if its the base of a lookup (fixes #35)
+- Add strictTypeCheck option
+- Make getProjectAnalysis more forgiving when there are syntax errors (fixes #17)
+
 ### 1.1.66
 
 - Match Garmin's handling of add and addAll for tuples (fixes #38)
