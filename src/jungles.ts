@@ -1079,6 +1079,7 @@ function resolve_barrel(
  * @returns {Promise<void>}
  */
 function resolve_barrels(
+  jungle: string,
   product: string,
   qualifier: JungleQualifier,
   barrels: string[],
@@ -1167,11 +1168,13 @@ function resolve_barrels(
     .then(() => {
       const unresolved = Object.entries(barrelMap).filter((v) => v[1] === null);
       if (unresolved.length) {
-        throw new Error(
+        const e: Error & { source?: string } = new Error(
           `Failed to resolve some barrels: ${unresolved
             .map(([name]) => name)
             .join(",")}`
         );
+        e.source = jungle;
+        throw e;
       }
       const finalMap = barrelMap as Record<string, ResolvedJungle>;
       if (!cache.barrelMap) cache.barrelMap = {};
@@ -1258,6 +1261,7 @@ async function get_jungle_and_barrels(
         .then((qualifier) => {
           targets.push({ product, qualifier, shape });
           return resolve_barrels(
+            jungles[0],
             product,
             qualifier,
             barrels,
