@@ -20,7 +20,7 @@ import {
   getLanguages,
   xmlUtil,
 } from "./sdk-util";
-import { globa, globSome } from "./util";
+import { forEach, globa, globSome } from "./util";
 
 type JungleCache = {
   barrels?: Record<string, ResolvedJungle>;
@@ -442,7 +442,8 @@ async function resolve_literals(
   cache: JungleCache
 ): Promise<JungleQualifier> {
   const resolve_file_list = (
-    literals: JNode[] | NestedStringArray
+    literals: JNode[] | NestedStringArray,
+    checkExists = true
   ): Promise<NestedStringArray> =>
     Promise.all(
       literals.map((v) => {
@@ -471,7 +472,7 @@ async function resolve_literals(
           } else {
             cache.resolvedPaths[resolved] = fs.stat(resolved).then(
               () => true,
-              () => false
+              () => !checkExists
             );
           }
         }
@@ -483,11 +484,16 @@ async function resolve_literals(
       results.filter((name): name is NonNullable<typeof name> => name != null)
     );
 
-  const resolve_one_file_list = async (base: RawJungle, name: string) => {
+  const resolve_one_file_list = async (
+    base: RawJungle,
+    name: string,
+    checkExists = true
+  ) => {
     const bname = base[name];
     if (!bname) return;
     const result = await resolve_file_list(
-      bname as JNode[] | NestedStringArray
+      bname as JNode[] | NestedStringArray,
+      checkExists
     );
     if (!result || !result.length) {
       delete base[name];
@@ -500,7 +506,7 @@ async function resolve_literals(
     resolve_one_file_list(qualifier, "sourcePath"),
     resolve_one_file_list(qualifier, "resourcePath"),
     resolve_one_file_list(qualifier, "personality"),
-    resolve_one_file_list(qualifier, "barrelPath"),
+    resolve_one_file_list(qualifier, "barrelPath", false),
   ];
   const lang = qualifier["lang"] as RawJungle;
   if (lang) {
@@ -899,31 +905,44 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
  * @param {string|string[]} barrelPath the path or paths to search
  * @returns {Promise<string[]>}
  */
-function find_barrels(barrelPath: string | string[]) {
-  if (Array.isArray(barrelPath)) {
-    // This is a sublist. The barrel has more than one jungle file.
-    return Promise.all(
-      barrelPath.map((path) => globa(path, { mark: true }))
-    ).then((paths) => [
-      paths
-        .flat()
-        .filter((path) => path.endsWith(".jungle"))
-        .join(";"),
-    ]);
-  }
-  return globa(barrelPath, { mark: true })
-    .then((paths) =>
-      Promise.all(
-        paths.map((path) =>
-          path.endsWith("/") ? globa(`${path}**/*.barrel`) : path
+function find_barrels(
+  barrelPath: string | string[],
+  buildDependencies: JungleBuildDependencies
+) {
+  return (
+    Array.isArray(barrelPath)
+      ? // This is a sublist. The barrel has more than one jungle file.
+        Promise.all(barrelPath.map((path) => globa(path, { mark: true }))).then(
+          (paths) => [
+            paths
+              .flat()
+              .filter((path) => path.endsWith(".jungle"))
+              .join(";"),
+          ]
         )
-      )
-    )
-    .then((barrelPaths) =>
-      barrelPaths
-        .flat()
-        .filter((path) => path.endsWith(".jungle") || path.endsWith(".barrel"))
+      : globa(barrelPath, { mark: true })
+          .then((paths) =>
+            Promise.all(
+              paths.map((path) =>
+                path.endsWith("/") ? globa(`${path}**/*.barrel`) : path
+              )
+            )
+          )
+          .then((barrelPaths) =>
+            barrelPaths
+              .flat()
+              .filter(
+                (path) => path.endsWith(".jungle") || path.endsWith(".barrel")
+              )
+          )
+  ).then((paths) => {
+    forEach(
+      barrelPath,
+      (path) => /[*?[\]{}]/.test(path) || (buildDependencies[path] = true)
     );
+    paths.forEach((path) => (buildDependencies[path] = true));
+    return paths;
+  });
 }
 
 export type Target = {
@@ -1129,7 +1148,7 @@ function resolve_barrels(
     .reduce(
       (promise, barrelPath) =>
         promise
-          .then(() => find_barrels(barrelPath))
+          .then(() => find_barrels(barrelPath, buildDependencies))
           .then((barrelPaths) => {
             return Promise.all(
               barrelPaths.map((barrel) =>
