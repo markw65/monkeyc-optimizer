@@ -201,7 +201,10 @@ function collectClassInfo(state: ProgramStateAnalysis) {
     });
   };
 
+  const seen = new Set<ClassStateNode>();
   state.allClasses.forEach((elm) => {
+    if (seen.has(elm)) return;
+    seen.add(elm);
     if (elm.superClass) markOverrides(elm, elm.superClass);
     if (elm.hasInvoke && elm.decls) {
       Object.values(elm.decls).forEach((funcs) => {
