@@ -45,6 +45,7 @@ import {
   ProgramState,
   ProgramStateAnalysis,
 } from "./optimizer-types";
+import { pragmaChecker } from "./pragma-checker";
 import { appSupport, getSdkPath, xmlUtil } from "./sdk-util";
 import { buildTypeInfo } from "./type-flow";
 import { couldBeWeak } from "./type-flow/could-be";
@@ -58,7 +59,6 @@ import {
   last_modified,
 } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
-import { pragmaChecker } from "./pragma-checker";
 
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
@@ -482,7 +482,6 @@ export async function generateOptimizedProject(options: BuildConfig) {
       .sort()
       .map((key) => {
         const buildConfig = buildConfigs[key];
-        const outputPath = path.join(config.outputPath!, key);
 
         return buildConfig
           ? runTaskInPool({
@@ -491,10 +490,8 @@ export async function generateOptimizedProject(options: BuildConfig) {
                 buildConfig,
                 manifestXML: xml,
                 dependencyFiles,
-                config: {
-                  ...config,
-                  outputPath,
-                },
+                config,
+                key,
               },
             })
               .catch((e) => {
@@ -515,7 +512,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
                   hasPersonality = true;
                 }
               })
-          : fs.rm(path.resolve(workspace, outputPath), {
+          : fs.rm(path.resolve(workspace, config.outputPath!, key), {
               recursive: true,
               force: true,
             });
@@ -715,6 +712,7 @@ export type Analysis = {
 
 async function filesFromPaths(
   workspace: string,
+  buildDir: string,
   paths: string[] | null | undefined,
   extension: string
 ) {
@@ -735,17 +733,14 @@ async function filesFromPaths(
   return {
     files: files
       .flat()
-      .filter(
-        (file) =>
-          file.endsWith(extension) &&
-          !path.relative(workspace, file).startsWith("bin")
-      ),
+      .filter((file) => file.endsWith(extension) && !file.startsWith(buildDir)),
     paths,
   };
 }
 
 async function fileInfoFromConfig(
   workspace: string,
+  buildDir: string,
   output: string,
   buildConfig: JungleQualifier,
   extraExcludes: ExcludeAnnotationsMap,
@@ -753,12 +748,14 @@ async function fileInfoFromConfig(
 ): Promise<PreAnalysis> {
   const { files, paths } = await filesFromPaths(
     workspace,
+    buildDir,
     buildConfig.sourcePath,
     ".mc"
   );
 
   const { files: personalityFiles } = await filesFromPaths(
     workspace,
+    buildDir,
     buildConfig.personality,
     ".mss"
   );
@@ -847,14 +844,16 @@ export async function generateOneConfig(
   buildConfig: JungleQualifier,
   manifestXML: xmlUtil.Document,
   dependencyFiles: string[],
-  config: BuildConfig
+  config: BuildConfig,
+  key: string
 ): Promise<{
   hasTests: boolean;
   diagnostics: ProgramState["diagnostics"];
   sdkVersion: number | undefined;
 }> {
   const { workspace } = config;
-  const output = path.join(workspace!, config.outputPath!);
+  const outputRoot = path.resolve(workspace!, config.outputPath!);
+  const output = path.join(outputRoot, key);
 
   const buildModeExcludes = {
     // note: exclude debug in release builds, and release in debug builds
@@ -870,6 +869,7 @@ export async function generateOneConfig(
   }
   const { fnMap } = await fileInfoFromConfig(
     workspace!,
+    outputRoot,
     path.join(output, "source"),
     buildConfig,
     buildModeExcludes,
@@ -889,6 +889,7 @@ export async function generateOneConfig(
           );
           return fileInfoFromConfig(
             path.dirname(resolvedBarrel.jungles[0]),
+            outputRoot,
             path.join(output, "barrels", barrel),
             resolvedBarrel.qualifier,
             {
@@ -1078,11 +1079,13 @@ async function getProjectAnalysisHelper(
     return product;
   });
 
+  const { workspace, outputPath } = options;
   const { fnMap, paths } = await Promise.all(
     Array.from(qualifiers).map(([name, qualifier]) =>
       fileInfoFromConfig(
         qualifier.root,
-        options.workspace!,
+        path.resolve(workspace!, outputPath ?? "bin/optimized"),
+        workspace!,
         {
           sourcePath: Array.from(qualifier.sourcePath),
           personality: Array.from(qualifier.personality),

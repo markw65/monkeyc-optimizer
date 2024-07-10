@@ -27,6 +27,7 @@ interface GenerateOneConfig extends BaseNode {
     manifestXML: xmlUtil.Document;
     dependencyFiles: string[];
     config: BuildConfig;
+    key: string;
   };
 }
 
@@ -95,7 +96,8 @@ export const workerTaskHandlers = {
       data.buildConfig,
       data.manifestXML,
       data.dependencyFiles,
-      data.config
+      data.config,
+      data.key
     );
   },
   optimizePrgAndDebug(data: OptimizePrgAndDebug["data"]) {
