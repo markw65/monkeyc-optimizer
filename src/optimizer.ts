@@ -713,28 +713,50 @@ export type Analysis = {
 async function filesFromPaths(
   workspace: string,
   buildDir: string,
-  paths: string[] | null | undefined,
+  inPaths: string[] | null | undefined,
   extension: string
 ) {
-  paths = (
+  const filter = buildDir.startsWith(workspace);
+  const paths = (
     await Promise.all(
-      paths?.map((pattern) => globa(pattern, { cwd: workspace, mark: true })) ||
-        []
+      inPaths?.map((pattern) =>
+        globa(pattern, { cwd: workspace, mark: true }).then((paths) =>
+          paths.map((p) => ({
+            path: p,
+            filter:
+              filter &&
+              /^\*\*[\\/]\*.mc$/i.test(path.relative(workspace, pattern)),
+          }))
+        )
+      ) || []
     )
   ).flat();
 
   const files = await Promise.all(
-    paths.map((path) =>
-      path.endsWith("/")
-        ? globa(`${path}**/*${extension}`, { cwd: workspace, mark: true })
-        : path
+    paths.map((result) =>
+      result.path.endsWith("/")
+        ? globa(`${result.path}**/*${extension}`, {
+            cwd: workspace,
+            mark: true,
+          }).then((paths) =>
+            paths.map((path) => ({
+              path,
+              filter: result.filter,
+            }))
+          )
+        : result
     )
   );
   return {
     files: files
       .flat()
-      .filter((file) => file.endsWith(extension) && !file.startsWith(buildDir)),
-    paths,
+      .filter(
+        (file) =>
+          file.path.endsWith(extension) &&
+          (!file.filter || !file.path.startsWith(buildDir))
+      )
+      .map(({ path }) => path),
+    paths: paths.map(({ path }) => path),
   };
 }
 
