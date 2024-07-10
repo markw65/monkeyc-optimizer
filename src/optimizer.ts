@@ -999,13 +999,14 @@ export async function generateOneConfig(
     }
   }
 
-  const [, , prettierConfig] = await Promise.all([
-    fs.rm(output, { recursive: true, force: true }),
-    fs.mkdir(output, { recursive: true }),
+  const [prettierConfig] = await Promise.all([
     Prettier.resolveConfig(config.workspace!, {
       useCache: false,
       editorconfig: true,
     }),
+    fs
+      .rm(output, { recursive: true, force: true })
+      .then(() => fs.mkdir(output, { recursive: true })),
   ]);
   return optimizeMonkeyC(fnMap, resourcesMap, manifestXML, config).then(
     ({ diagnostics, sdkVersion }) => {
