@@ -218,18 +218,32 @@ function checkOne(
   decls: DeclKind,
   node: mctree.Identifier
 ): StateNodeDecl[] | null | false {
+  const seen = new Set<ClassStateNode>();
   // follow the super chain, looking up node in each class
   const superChain = (cls: ClassStateNode): StateNodeDecl[] | null => {
     if (!cls.superClass || cls.superClass === true) {
       return null;
     }
-    return cls.superClass.reduce<StateNodeDecl[] | null>((result, sup) => {
-      const sdecls = sup[decls];
-      const next = hasProperty(sdecls, node.name)
-        ? sdecls[node.name]
-        : superChain(sup);
-      return next ? (result ? result.concat(next) : next) : result;
-    }, null);
+    if (seen.has(cls)) {
+      console.log(
+        `Cyclic Class Graph: ${Array.from(seen)
+          .map((cls) => cls.fullName)
+          .join(" -> ")}`
+      );
+    }
+    seen.add(cls);
+    const result = cls.superClass.reduce<StateNodeDecl[] | null>(
+      (result, sup) => {
+        const sdecls = sup[decls];
+        const next = hasProperty(sdecls, node.name)
+          ? sdecls[node.name]
+          : superChain(sup);
+        return next ? (result ? result.concat(next) : next) : result;
+      },
+      null
+    );
+    seen.delete(cls);
+    return result;
   };
   const lookupInContext = (ns: ClassStateNode | ModuleStateNode) => {
     const [, lkup] = lookup(state, decls, node, null, ns.stack, false, true);

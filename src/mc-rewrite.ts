@@ -4,6 +4,7 @@ import {
   collectNamespaces,
   diagnostic,
   formatAst,
+  formatAstLongLines,
   getApiFunctionInfo,
   getApiMapping,
   hasProperty,
@@ -125,6 +126,7 @@ function collectClassInfo(state: ProgramStateAnalysis) {
   const toybox = state.stack[0].sn.decls!["Toybox"][0] as ModuleStateNode;
   const lang = toybox.decls!["Lang"][0] as ModuleStateNode;
   const object = lang.decls!["Object"] as ClassStateNode[];
+  const invalidSymbols = state.config?.checkInvalidSymbols ?? "WARNING";
   state.allClasses.forEach((elm) => {
     if (elm.stack![elm.stack!.length - 1].sn.type === "ClassDeclaration") {
       // nested classes don't get access to their contained
@@ -148,7 +150,19 @@ function collectClassInfo(state: ProgramStateAnalysis) {
           );
       // set it "true" if there is a superClass, but we can't find it.
       elm.superClass = superClass && superClass.length ? superClass : true;
-      if (name && elm.superClass !== true) {
+      if (elm.superClass === true) {
+        if (invalidSymbols !== "OFF") {
+          diagnostic(
+            state,
+            elm.node,
+            formatAstLongLines(elm.node.superClass).then(
+              (superClass) =>
+                `Unable to find super class ${superClass} for ${elm.fullName}`
+            ),
+            invalidSymbols
+          );
+        }
+      } else if (name) {
         /*
          * The runtime behavior of monkeyc is strange. Lookups
          * of the name of the superclass, either bare, or via self.<name>
@@ -182,30 +196,48 @@ function collectClassInfo(state: ProgramStateAnalysis) {
 
   const markOverrides = (
     cls: ClassStateNode,
-    scls: ClassStateNode[] | true
+    scls: ClassStateNode[] | true,
+    seen: Set<ClassStateNode>
   ) => {
     if (scls === true) return;
-    scls.forEach((c) => {
-      c.decls &&
-        Object.values(c.decls).forEach((funcs) => {
-          funcs.forEach((f) => {
-            if (
-              f.type === "FunctionDeclaration" &&
-              hasProperty(cls.decls, f.name)
-            ) {
-              f.node.hasOverride = true;
-            }
-          });
+    for (let i = scls.length; i--; ) {
+      const c = scls[i];
+      if (!c.decls) continue;
+      if (seen.has(c)) {
+        if (invalidSymbols !== "OFF") {
+          diagnostic(
+            state,
+            cls.node,
+            `Class ${cls.fullName}'s inheritance graph contains a cycle including ${c.fullName}`,
+            invalidSymbols
+          );
+        }
+        scls.splice(i, 1);
+        continue;
+      }
+      Object.values(c.decls).forEach((funcs) => {
+        funcs.forEach((f) => {
+          if (
+            f.type === "FunctionDeclaration" &&
+            hasProperty(cls.decls, f.name)
+          ) {
+            f.node.hasOverride = true;
+          }
         });
-      if (c.superClass) markOverrides(cls, c.superClass);
-    });
+      });
+      if (c.superClass) {
+        seen.add(c);
+        markOverrides(cls, c.superClass, seen);
+        seen.delete(c);
+      }
+    }
   };
 
-  const seen = new Set<ClassStateNode>();
   state.allClasses.forEach((elm) => {
-    if (seen.has(elm)) return;
-    seen.add(elm);
-    if (elm.superClass) markOverrides(elm, elm.superClass);
+    if (elm.superClass) {
+      const seen = new Set<ClassStateNode>();
+      markOverrides(elm, elm.superClass, seen);
+    }
     if (elm.hasInvoke && elm.decls) {
       Object.values(elm.decls).forEach((funcs) => {
         funcs.forEach((f) => {
@@ -217,6 +249,15 @@ function collectClassInfo(state: ProgramStateAnalysis) {
           }
         });
       });
+    }
+  });
+  state.allClasses.forEach((elm) => {
+    if (
+      elm.superClass &&
+      elm.superClass !== true &&
+      elm.superClass.length === 0
+    ) {
+      elm.superClass = true;
     }
   });
 }
