@@ -441,10 +441,14 @@ export function makeMemberExpression(
   );
 }
 
-export function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
+export function makeScopedName(
+  dotted: string,
+  l?: mctree.SourceLocation,
+  base?: mctree.ScopedName
+) {
   const loc = l && adjustLoc(l, 0, l.start.offset - l.end.offset);
   const result = dotted.split(/\s*\.\s*/).reduce<{
-    cur: mctree.ScopedName | null;
+    cur: mctree.ScopedName | undefined;
     offset: number;
   }>(
     ({ cur, offset }, next) => {
@@ -460,7 +464,7 @@ export function makeScopedName(dotted: string, l?: mctree.SourceLocation) {
       offset += next.length + 1;
       return { cur, offset };
     },
-    { cur: null, offset: 0 }
+    { cur: base, offset: 0 }
   ).cur;
   if (!result) throw new Error("Failed to make a ScopedName");
   return result;

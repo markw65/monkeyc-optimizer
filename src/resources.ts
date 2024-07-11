@@ -234,9 +234,23 @@ export function add_resources_to_ast(
     makeImport("Using", "Toybox.Graphics", "Gfx")
   );
 
+  const barrelName =
+    manifestXML &&
+    manifestXML.body instanceof xmlUtil.Nodes &&
+    manifestXML?.body.children("iq:barrel").attrs()[0]?.module?.value.value;
+
+  const barrelNames = new Set(
+    Object.keys(resources)
+      .map((k) => k || barrelName)
+      .filter((e): e is string => !!e)
+  );
+
   Object.entries(resources).forEach(([barrel, resourceMap]) => {
     let body: (mctree.Statement | mctree.ImportStatement)[] = ast.body;
 
+    if (barrel === "" && barrelName) {
+      barrel = barrelName;
+    }
     if (barrel !== "") {
       const module = makeModule(barrel);
       body.push(module);
@@ -255,7 +269,7 @@ export function add_resources_to_ast(
       manifestXML.body
         .children("iq:application")
         .elements.forEach((e) =>
-          add_one_resource(state, manifestXML, rez, e, "")
+          add_one_resource(state, manifestXML, rez, e, barrelNames)
         );
     }
 
@@ -273,7 +287,7 @@ export function add_resources_to_ast(
         if (!hasProperty(rezModules, s)) return;
         const module = rezModules[s];
 
-        add_one_resource(state, rez, module, e, barrel);
+        add_one_resource(state, rez, module, e, barrelNames);
       });
     });
   });
@@ -315,7 +329,7 @@ function visit_resource_refs(
   state: ProgramState | undefined,
   doc: xmlUtil.Document,
   e: xmlUtil.Element,
-  barrel: string
+  barrelNames: Set<string>
 ) {
   const result: Array<mctree.Expression> = [];
   const parseArg = (
@@ -323,18 +337,27 @@ function visit_resource_refs(
     loc: mctree.SourceLocation,
     skip?: Record<string, true> | null
   ) => {
+    let base: mctree.ScopedName | undefined;
     if (name.startsWith("@")) {
       name = name.substring(1);
-      if (barrel && name.startsWith(barrel) && name[barrel.length] === ".") {
-        name = name.slice(barrel.length + 1);
-      }
       loc = adjustLoc(loc, 1, 0);
+      if (barrelNames.size) {
+        const dot = name.indexOf(".");
+        if (dot > 0 && dot < name.length - 1) {
+          const start = name.substring(0, dot);
+          if (barrelNames.has(start)) {
+            base = makeScopedName(`${start}.Rez`, loc);
+            loc = adjustLoc(loc, dot + 1, 0);
+            name = name.substring(dot + 1);
+          }
+        }
+      }
     }
     if (hasProperty(skip, name) || /^\d+(\.\d+)?%?$/.test(name)) {
       return;
     }
     if (/^([-\w_$]+\s*\.\s*)*[-\w_$]+$/.test(name)) {
-      result.push(makeScopedName(name, loc));
+      result.push(makeScopedName(name, loc, base));
       return;
     }
     // We wrap the expression in parentheses, so adjust
@@ -495,7 +518,7 @@ function add_one_resource(
   doc: xmlUtil.Document,
   module: mctree.ModuleDeclaration,
   e: xmlUtil.Element,
-  barrel: string
+  barrelNames: Set<string>
 ) {
   let id: xmlUtil.Attribute | undefined;
   let func: (() => mctree.Declaration | null) | undefined;
@@ -673,7 +696,7 @@ function add_one_resource(
       break;
   }
   if (!func) return;
-  const elements = visit_resource_refs(state, doc, e, barrel);
+  const elements = visit_resource_refs(state, doc, e, barrelNames);
   const startLoc = elements[0]?.loc;
   const endLoc = elements[elements.length - 1]?.loc;
   const init = elements.length
