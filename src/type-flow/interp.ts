@@ -1,7 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
   diagnostic,
-  formatAst,
+  formatAstLongLines,
   isLocal,
   isLookupCandidate,
   lookupByFullName,
@@ -662,7 +662,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           diagnostic(
             istate.state,
             node,
-            formatAst(
+            formatAstLongLines(
               left.value.type === TypeTag.Null ? node.right : node.left
             ).then(
               (nodeStr) =>
@@ -1031,7 +1031,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           diagnostic(
             istate.state,
             node,
-            formatAst(node.left).then(
+            formatAstLongLines(node.left).then(
               (nodeStr) =>
                 `Invalid assignment to ${nodeStr}. Expected ${display(
                   constraint
@@ -1120,8 +1120,8 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
                 istate.state,
                 node,
                 Promise.all([
-                  formatAst(node.id.left),
-                  formatAst(node.id.right),
+                  formatAstLongLines(node.id.left),
+                  formatAstLongLines(node.id.right),
                 ]).then(
                   ([leftStr, rightStr]) =>
                     `Invalid initializer for ${leftStr}. Expected ${rightStr} but got ${display(

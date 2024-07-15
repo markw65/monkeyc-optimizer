@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { formatAst, isLocal, isStateNode, lookupNext } from "./api";
+import { formatAstLongLines, isLocal, isStateNode, lookupNext } from "./api";
 import { getNodeValue, isExpression } from "./ast";
 import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
 import {
@@ -199,12 +199,12 @@ export async function declFullName(decl: EventDecl): Promise<string> {
       return decl.left.name;
     case "EnumStringMember":
       return decl.init
-        ? `${decl.id.name}:${await formatAst(decl.init)}`
+        ? `${decl.id.name}:${await formatAstLongLines(decl.init)}`
         : decl.id.name;
     case "MemberDecl":
       return `${await declFullName(decl.base)}->${decl.path.join(".")}`;
     case "Unknown":
-      return `Unknown:${await formatAst(decl.node)}`;
+      return `Unknown:${await formatAstLongLines(decl.node)}`;
     default:
       unhandledType(decl);
   }

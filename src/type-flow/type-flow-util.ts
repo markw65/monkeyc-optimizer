@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
-  formatAst,
+  formatAstLongLines,
   getSuperClasses,
   hasProperty,
   isLocal,
@@ -120,7 +120,7 @@ export function describeEvent(event: Event) {
       event.type === "mod" ||
       (!Array.isArray(event.decl) &&
         (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
-      ? formatAst(event.node)
+      ? formatAstLongLines(event.node)
       : event.decl
       ? declFullName(event.decl)
       : "??"

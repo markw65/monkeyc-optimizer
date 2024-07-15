@@ -1,7 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import assert from "node:assert";
 import {
-  formatAst,
   formatAstLongLines,
   getSuperClasses,
   hasProperty,
@@ -2077,7 +2076,7 @@ function propagateTypes(
     log("====== TypeMap =====");
     typeMap.forEach((value, key) => {
       log(
-        formatAst(key).then(
+        formatAstLongLines(key).then(
           (keyStr) =>
             `${keyStr} = ${display(value)} ${
               key.loc && key.loc.source ? ` (${sourceLocation(key.loc)})` : ""
@@ -2088,7 +2087,7 @@ function propagateTypes(
     log("====== EquivMap =====");
     nodeEquivs.forEach((value, key) => {
       log(
-        formatAst(key).then(
+        formatAstLongLines(key).then(
           (keyStr) =>
             `${keyStr} = [${value.equiv.map((equiv) =>
               tsKey(equiv as TypeStateKey)
@@ -2114,7 +2113,7 @@ function propagateTypes(
       const node =
         value.type === "VariableDeclarator" ? value.init! : value.right;
       log(
-        formatAst(key).then((keyStr) =>
+        formatAstLongLines(key).then((keyStr) =>
           formatAstLongLines(node).then(
             (nodeStr) =>
               `${keyStr} = [${nodeStr}] ${
@@ -2151,7 +2150,7 @@ function propagateTypes(
         log("====== Self Assignments =====");
         selfAssignments.forEach((self) =>
           log(
-            formatAst(self).then(
+            formatAstLongLines(self).then(
               (selfStr) => `${selfStr} (${sourceLocation(self.loc)})`
             )
           )
@@ -2301,7 +2300,7 @@ function propagateTypes(
         if (selfAssignments.has(node)) {
           if (logThisRun) {
             log(
-              formatAst(node).then(
+              formatAstLongLines(node).then(
                 (nodeStr) =>
                   `Deleting self assignment: ${nodeStr} (${sourceLocation(
                     node.loc
@@ -2379,7 +2378,7 @@ function propagateTypes(
         if (!name) return null;
         if (logThisRun) {
           log(
-            formatAst(node).then(
+            formatAstLongLines(node).then(
               (nodeStr) =>
                 `Replacing ${nodeStr} with ${name} at ${sourceLocation(
                   node.loc

@@ -1,6 +1,6 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import assert from "node:assert";
-import { formatAst, traverseAst } from "../api";
+import { formatAstLongLines, traverseAst } from "../api";
 import { withLoc } from "../ast";
 import { getPostOrder } from "../control-flow";
 import { DataflowQueue, DefEvent, RefNode } from "../data-flow";
@@ -373,7 +373,7 @@ export function eliminateDeadStores(
           dead.type === "UpdateExpression" ||
           dead.type === "VariableDeclarator") &&
         log(
-          formatAst(dead).then(
+          formatAstLongLines(dead).then(
             (deadStr) => `${deadStr} (${sourceLocation(dead.loc)})`
           )
         )

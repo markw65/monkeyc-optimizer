@@ -546,7 +546,7 @@ function lookup(
             diagnostic(
               state,
               node,
-              formatAst(node).then(
+              formatAstLongLines(node).then(
                 (nodeStr) =>
                   `${nodeStr} is ambiguous and exists in multiple imported modules [${imp
                     .map(({ name }) => name)
@@ -568,7 +568,7 @@ function lookup(
               diagnostic(
                 state,
                 node,
-                formatAst(node).then(
+                formatAstLongLines(node).then(
                   (nodeStr) =>
                     `${nodeStr} will only be found when compiled with compiler2 at -O1 or above`
                 ),
@@ -1476,7 +1476,7 @@ function findUsing(
     diagnostic(
       state,
       using.node.id,
-      formatAst(using.node.id).then(
+      formatAstLongLines(using.node.id).then(
         (nodeStr) => `Unable to resolve import of ${nodeStr}`
       ),
       state.config?.checkInvalidSymbols || "WARNING"

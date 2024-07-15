@@ -1,25 +1,27 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import {
+  diagnostic,
+  formatAstLongLines,
+  getSuperClasses,
+  hasProperty,
+  isStateNode,
+} from "../api";
+import {
   FunctionStateNode,
   ProgramState,
   ProgramStateAnalysis,
   StateNodeAttributes,
   StateNodeDecl,
 } from "../optimizer-types";
-import {
-  diagnostic,
-  formatAst,
-  getSuperClasses,
-  hasProperty,
-  isStateNode,
-} from "../api";
 import { reduce, some } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
 import { subtypeOf } from "./sub-type";
+import { findObjectDeclsByProperty } from "./type-flow-util";
 import {
+  ExactOrUnion,
+  TypeTag,
   cloneType,
   display,
-  ExactOrUnion,
   getUnionComponent,
   hasValue,
   isExact,
@@ -28,13 +30,11 @@ import {
   relaxType,
   setUnionComponent,
   typeFromObjectLiteralKey,
-  typeFromTypespec,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
-  TypeTag,
+  typeFromTypespec,
 } from "./types";
 import { unionInto } from "./union-type";
-import { findObjectDeclsByProperty } from "./type-flow-util";
 export function evaluateCall(
   istate: InterpState,
   node: mctree.CallExpression,
@@ -61,7 +61,7 @@ export function evaluateCall(
       diagnostic(
         istate.state,
         node,
-        formatAst(node.callee).then(
+        formatAstLongLines(node.callee).then(
           (calleeStr) => `'${calleeStr}' is not callable`
         ),
         istate.checkTypes

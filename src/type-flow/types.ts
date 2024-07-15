@@ -1,7 +1,12 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
-import { unhandledType } from "../data-flow";
-import { diagnostic, formatAst, isStateNode, lookupByFullName } from "../api";
+import {
+  diagnostic,
+  formatAstLongLines,
+  isStateNode,
+  lookupByFullName,
+} from "../api";
 import { getNodeValue, hasProperty, makeScopedName } from "../ast";
+import { unhandledType } from "../data-flow";
 import {
   ClassStateNode,
   EnumStateNode,
@@ -15,8 +20,8 @@ import {
 } from "../optimizer-types";
 import { forEach, map } from "../util";
 import { evaluateExpr, roundToFloat } from "./interp";
-import { clearValuesUnder, unionInto } from "./union-type";
 import { intersection } from "./intersection-type";
+import { clearValuesUnder, unionInto } from "./union-type";
 
 // prettier-ignore
 export const enum TypeTag {
@@ -718,7 +723,9 @@ export function typeFromSingleTypeSpec(
           diagnostic(
             state,
             id,
-            formatAst(id).then((idStr) => `Unable to resolve type ${idStr}`),
+            formatAstLongLines(id).then(
+              (idStr) => `Unable to resolve type ${idStr}`
+            ),
             level || "WARNING"
           );
         }

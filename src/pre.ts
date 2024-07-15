@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { formatAst } from "./api";
+import { formatAstLongLines } from "./api";
 import { isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
 import { getPostOrder, postOrderTraverse } from "./control-flow";
 import {
@@ -440,7 +440,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
                 event.decl
                   ? declFullName(event.decl)
                   : event.node
-                  ? formatAst(event.node)
+                  ? formatAstLongLines(event.node)
                   : "??"
               ).then((eventDetails) => `    ${event.type}: ${eventDetails}`)
             )
@@ -775,7 +775,7 @@ function applyReplacements(
             const name = declMap.get(event.decl);
             if (!name) {
               throw new AwaitedError(
-                formatAst(node).then(
+                formatAstLongLines(node).then(
                   (targetStr) => `No replacement found for "${targetStr}"`
                 )
               );
@@ -803,7 +803,7 @@ function applyReplacements(
             const name = declMap.get(event.decl);
             if (!name) {
               throw new AwaitedError(
-                formatAst(target).then(
+                formatAstLongLines(target).then(
                   (targetStr) => `No replacement found for "${targetStr}"`
                 )
               );

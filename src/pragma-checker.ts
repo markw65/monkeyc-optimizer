@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { checkCompilerVersion, diagnostic, formatAst } from "./api";
+import { checkCompilerVersion, diagnostic, formatAstLongLines } from "./api";
 import { traverseAst } from "./ast";
 import { Diagnostic, ProgramStateAnalysis } from "./optimizer-types";
 
@@ -87,7 +87,7 @@ export function pragmaChecker(
       const { kind, quote, needle } = matchers.shift()!;
       if (kind === "match") {
         promise = promise.then(() =>
-          formatAst(node).then((haystack) => {
+          formatAstLongLines(node).then((haystack) => {
             haystack = haystack
               .replace(/([\r\n]|\s)+/g, " ")
               .replace(/\b\w+\s\/\*>([\w.]+)<\*\//g, "$1");

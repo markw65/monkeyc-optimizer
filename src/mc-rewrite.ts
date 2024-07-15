@@ -3,7 +3,6 @@ import * as fs from "fs/promises";
 import {
   collectNamespaces,
   diagnostic,
-  formatAst,
   formatAstLongLines,
   getApiFunctionInfo,
   getApiMapping,
@@ -459,7 +458,7 @@ export function reportMissingSymbols(
             diagnostic(
               state,
               node,
-              formatAst(node).then(
+              formatAstLongLines(node).then(
                 (nodeStr) =>
                   `The expression ${nodeStr} will fail at runtime using sdk-4.1.6`
               ),
@@ -479,7 +478,9 @@ export function reportMissingSymbols(
         diagnostic(
           state,
           node,
-          formatAst(node).then((nodeStr) => `Undefined symbol ${nodeStr}`),
+          formatAstLongLines(node).then(
+            (nodeStr) => `Undefined symbol ${nodeStr}`
+          ),
           diagnosticType
         );
         return false;
