@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.69
+
+- Make sure barrel resource references are found.
+
 ### 1.1.68
 
 - Fix a race between removing and creating outputPath that could potentially cause a build to fail
