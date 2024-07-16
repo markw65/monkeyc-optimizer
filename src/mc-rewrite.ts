@@ -350,26 +350,28 @@ export async function analyze(
       }
       return false;
     },
-    pre(node, state) {
+    pre(node) {
       switch (node.type) {
         case "FunctionDeclaration":
         case "ModuleDeclaration":
         case "ClassDeclaration": {
-          const scope = state.top().sn;
-          scope.stack = state.stackClone().slice(0, -1);
+          const scope = (this as ProgramStateAnalysis).top().sn;
+          scope.stack = (this as ProgramStateAnalysis)
+            .stackClone()
+            .slice(0, -1);
           if (scope.type === "FunctionDeclaration") {
             if (markApi && node.loc?.source === "api.mir") {
               node.body = null;
-              scope.info = getApiFunctionInfo(state, scope);
+              scope.info = getApiFunctionInfo(this, scope);
             }
-            const allFuncs = state.allFunctions!;
+            const allFuncs = this.allFunctions!;
             if (!hasProperty(allFuncs, scope.name)) {
               allFuncs[scope.name] = [scope];
             } else {
               allFuncs[scope.name].push(scope);
             }
           } else if (scope.type === "ClassDeclaration") {
-            state.allClasses!.push(scope as ClassStateNode);
+            this.allClasses!.push(scope as ClassStateNode);
           }
           break;
         }
@@ -707,12 +709,17 @@ async function optimizeMonkeyCHelper(
     return result;
   };
 
-  const topLocals = () => state.localsStack[state.localsStack.length - 1];
+  const topLocals = (state: ProgramStateOptimizer) =>
+    state.localsStack[state.localsStack.length - 1];
   /*
    * Does elm (a class) have a maybeCalled function called name,
    * anywhere in its superClass chain.
    */
-  const checkInherited = (elm: ClassStateNode, name: string): boolean =>
+  const checkInherited = (
+    state: ProgramStateOptimizer,
+    elm: ClassStateNode,
+    name: string
+  ): boolean =>
     elm.superClass === true ||
     (elm.superClass != null &&
       elm.superClass.some(
@@ -724,14 +731,15 @@ async function optimizeMonkeyCHelper(
                 f.type === "FunctionDeclaration" &&
                 maybeCalled(state, f.node)
             )) ||
-          (sc.superClass && checkInherited(sc, name))
+          (sc.superClass && checkInherited(state, sc, name))
       ));
 
   const renamer = (
+    state: ProgramStateOptimizer,
     idNode: mctree.TypedIdentifier | mctree.InstanceofIdentifier
   ) => {
     const ident = idNode.type === "Identifier" ? idNode : idNode.left;
-    const locals = topLocals();
+    const locals = topLocals(state);
     const { map } = locals;
     if (map) {
       const declName = ident.name;
@@ -809,7 +817,7 @@ async function optimizeMonkeyCHelper(
   // inside a function.
   let istate: InterpState = gistate;
 
-  state.pre = (node) => {
+  state.pre = function (node) {
     const ret = preEvaluate(istate, node);
     switch (node.type) {
       case "EnumDeclaration":
@@ -819,20 +827,23 @@ async function optimizeMonkeyCHelper(
       case "EnumStringMember":
         return ["init"];
       case "ForStatement": {
-        const map = topLocals().map;
+        const map = topLocals(this).map;
         if (map) {
-          state.localsStack.push({ node, map: { ...map } });
+          this.localsStack.push({ node, map: { ...map } });
         }
         break;
       }
       case "VariableDeclarator": {
-        renamer(node.id);
+        renamer(this, node.id);
         break;
       }
       case "CatchClause":
         if (node.param) {
-          state.localsStack.push({ node, map: { ...(topLocals().map || {}) } });
-          renamer(node.param);
+          this.localsStack.push({
+            node,
+            map: { ...(topLocals(this).map || {}) },
+          });
+          renamer(this, node.param);
         }
         break;
       case "BinaryExpression":
@@ -848,13 +859,13 @@ async function optimizeMonkeyCHelper(
         }
         break;
       case "Identifier": {
-        const map = topLocals().map;
+        const map = topLocals(this).map;
         if (hasProperty(map, node.name)) {
           const name = map[node.name];
           if (typeof name === "string") {
             renameIdentifier(node, name);
           }
-          const [, results] = state.lookupValue(node);
+          const [, results] = this.lookupValue(node);
           if (results) {
             if (results.length !== 1 || results[0].results.length !== 1) {
               throw new Error(`Local ${node.name} had multiple lookup results`);
@@ -886,7 +897,7 @@ async function optimizeMonkeyCHelper(
         const lhs =
           node.type === "AssignmentExpression" ? node.left : node.argument;
         if (lhs.type === "Identifier") {
-          const map = topLocals().map;
+          const map = topLocals(this).map;
           if (map) {
             if (hasProperty(map, lhs.name)) {
               const name = map[lhs.name];
@@ -896,12 +907,12 @@ async function optimizeMonkeyCHelper(
             }
           }
         } else if (lhs.type === "MemberExpression") {
-          const object = state.traverse(lhs.object);
+          const object = this.traverse(lhs.object);
           if (object) {
             lhs.object = object as mctree.Expression;
           }
           if (!isLookupCandidate(lhs)) {
-            const property = state.traverse(lhs.property);
+            const property = this.traverse(lhs.property);
             if (property) {
               lhs.property = property as mctree.Expression;
             }
@@ -910,9 +921,9 @@ async function optimizeMonkeyCHelper(
         return node.type === "AssignmentExpression" ? ["right"] : [];
       }
       case "BlockStatement": {
-        const map = topLocals().map;
+        const map = topLocals(this).map;
         if (map) {
-          state.localsStack.push({
+          this.localsStack.push({
             node,
             map: { ...map },
           });
@@ -923,23 +934,23 @@ async function optimizeMonkeyCHelper(
         const map: Record<string, string | true> = {};
         node.params &&
           node.params.forEach((p) => (map[variableDeclarationName(p)] = true));
-        state.localsStack.push({ node, map });
-        const [{ sn: parent }, { sn: self }] = state.stack.slice(-2);
-        if (state.currentFunction) {
+        this.localsStack.push({ node, map });
+        const [{ sn: parent }, { sn: self }] = this.stack.slice(-2);
+        if (this.currentFunction) {
           throw new Error(
-            `Nested functions: ${self.fullName} was activated during processing of ${state.currentFunction.fullName}`
+            `Nested functions: ${self.fullName} was activated during processing of ${this.currentFunction.fullName}`
           );
         }
-        state.currentFunction = self as FunctionStateNode;
+        this.currentFunction = self as FunctionStateNode;
         const is =
-          !state.config?.propagateTypes ||
+          !this.config?.propagateTypes ||
           node.attrs?.attributes?.elements.find(
             (attr) =>
               attr.type === "UnaryExpression" &&
               attr.argument.name === "noConstProp"
           )
             ? null
-            : buildTypeInfo(state, state.currentFunction, true);
+            : buildTypeInfo(this, this.currentFunction, true);
         if (is) {
           /*
            * istate contains a copy of state, but we need the real
@@ -949,25 +960,25 @@ async function optimizeMonkeyCHelper(
            * "lookup context", which will be a stack, plus a couple
            * of fields from state, and then pass that around.
            */
-          is.state = state;
+          is.state = this;
           if (
-            state.config?.checkTypes !== "OFF" &&
-            state.config?.trustDeclaredTypes
+            this.config?.checkTypes !== "OFF" &&
+            this.config?.trustDeclaredTypes
           ) {
             is.typeChecker = gistate.typeChecker;
-            is.checkTypes = state.config?.checkTypes || "WARNING";
+            is.checkTypes = this.config?.checkTypes || "WARNING";
           }
           istate = is;
         }
-        if (parent.type === "ClassDeclaration" && !maybeCalled(state, node)) {
+        if (parent.type === "ClassDeclaration" && !maybeCalled(this, node)) {
           let used = false;
           if (node.id.name === "initialize") {
             used = true;
           } else if (parent.superClass) {
-            used = checkInherited(parent, node.id.name);
+            used = checkInherited(this, parent, node.id.name);
           }
           if (used) {
-            markFunctionCalled(state, node);
+            markFunctionCalled(this, node);
           }
         }
         // We don't want to call evaluateNode on
@@ -982,10 +993,10 @@ async function optimizeMonkeyCHelper(
     }
     return ret;
   };
-  state.post = (node) => {
-    const locals = topLocals();
+  state.post = function (node) {
+    const locals = topLocals(this);
     if (locals.node === node) {
-      state.localsStack.pop();
+      this.localsStack.pop();
     }
     const opt = optimizeNode(istate, node);
     if (opt != null) {
@@ -996,30 +1007,30 @@ async function optimizeMonkeyCHelper(
         if (node.body && evaluateFunction(istate, node, null) !== false) {
           node.optimizable = true;
         }
-        if (!state.currentFunction) {
+        if (!this.currentFunction) {
           throw new Error(
             `Finished function ${
-              state.top().sn.fullName
+              this.top().sn.fullName
             }, but it was not marked current`
           );
         }
-        state.currentFunction.info = state.currentFunction.next_info || false;
-        delete state.currentFunction.next_info;
-        delete state.currentFunction;
+        this.currentFunction.info = this.currentFunction.next_info || false;
+        delete this.currentFunction.next_info;
+        delete this.currentFunction;
         if (istate.stack.length) {
           throw new Error("Stack was not empty");
         }
         istate = gistate;
         if (again) {
           again = false;
-          const top = state.stack.pop();
-          state.traverse(node);
-          state.stack.push(top!);
+          const top = this.stack.pop();
+          this.traverse(node);
+          this.stack.push(top!);
         }
         break;
       case "BlockStatement":
       case "ForStatement":
-        if (locals.map && cleanupUnusedVars(state, node) && !state.inlining) {
+        if (locals.map && cleanupUnusedVars(this, node) && !this.inlining) {
           again = true;
         }
         break;
@@ -1039,29 +1050,26 @@ async function optimizeMonkeyCHelper(
         break;
 
       case "Identifier":
-        if (hasProperty(state.index, node.name)) {
-          state.usedByName[node.name] = true;
+        if (hasProperty(this.index, node.name)) {
+          this.usedByName[node.name] = true;
         }
         break;
       case "MemberExpression": {
         const property = isLookupCandidate(node);
         if (property) {
-          if (hasProperty(state.index, property.name)) {
-            state.usedByName[property.name] = true;
+          if (hasProperty(this.index, property.name)) {
+            this.usedByName[property.name] = true;
           }
         }
         break;
       }
       case "NewExpression":
-        if (state.currentFunction) {
-          const [, results] = state.lookup(node.callee);
+        if (this.currentFunction) {
+          const [, results] = this.lookup(node.callee);
           if (results) {
-            recordCalledFuncs(
-              state.currentFunction,
-              findCalleesForNew(results)
-            );
+            recordCalledFuncs(this.currentFunction, findCalleesForNew(results));
           } else {
-            recordModifiedUnknown(state.currentFunction);
+            recordModifiedUnknown(this.currentFunction);
           }
         }
         break;
@@ -1071,11 +1079,11 @@ async function optimizeMonkeyCHelper(
       }
 
       case "VariableDeclaration": {
-        const locals = topLocals();
+        const locals = topLocals(this);
         if (!locals.map) {
           if (again) {
             again = false;
-            state.traverse(node);
+            this.traverse(node);
           }
           break;
         }
@@ -1133,12 +1141,12 @@ async function optimizeMonkeyCHelper(
           if (call) {
             let ok = false;
             if (node.expression.left.type === "Identifier") {
-              if (hasProperty(topLocals().map, node.expression.left.type)) {
+              if (hasProperty(topLocals(this).map, node.expression.left.type)) {
                 ok = true;
               }
             }
             if (!ok && node.expression.operator === "=") {
-              const [, result] = state.lookup(node.expression.left);
+              const [, result] = this.lookup(node.expression.left);
               ok = !!result;
             }
             if (ok) {
@@ -1146,7 +1154,7 @@ async function optimizeMonkeyCHelper(
             }
           }
         } else {
-          return unused(state, node.expression, true);
+          return unused(this, node.expression, true);
         }
         break;
       case "UpdateExpression": {
@@ -1165,18 +1173,18 @@ async function optimizeMonkeyCHelper(
         // fall through
       }
       case "AssignmentExpression":
-        if (state.currentFunction) {
+        if (this.currentFunction) {
           const lhs =
             node.type === "AssignmentExpression" ? node.left : node.argument;
-          const [, results] = state.lookup(lhs);
+          const [, results] = this.lookup(lhs);
           if (results) {
-            recordModifiedDecls(state.currentFunction, results);
+            recordModifiedDecls(this.currentFunction, results);
           } else {
             const id = lhs.type === "Identifier" ? lhs : isLookupCandidate(lhs);
             if (id) {
-              recordModifiedName(state.currentFunction, id.name);
+              recordModifiedName(this.currentFunction, id.name);
             } else {
-              recordModifiedUnknown(state.currentFunction);
+              recordModifiedUnknown(this.currentFunction);
             }
           }
         }
@@ -1193,21 +1201,21 @@ async function optimizeMonkeyCHelper(
     Some = 1,
     Force = 2,
   }
-  const cleanupAll = () => {
+  const cleanupAll = (state: ProgramStateOptimizer) => {
     const usedDecls = findRezRefs(state);
     const pre = state.pre;
     const post = state.post;
     try {
       delete state.pre;
       return Object.values(fnMap).reduce((changes, f) => {
-        state.post = (node) => {
+        state.post = function (node) {
           if (usedDecls.has(node)) {
             return null;
           }
-          const ret = cleanup(state, node, f.ast!, usedDecls);
+          const ret = cleanup(this, node, f.ast!, usedDecls);
           if (ret === false) {
             changes |= Changes.Some;
-            state.removeNodeComments(node, f.ast!);
+            this.removeNodeComments(node, f.ast!);
           } else if (ret) {
             // If we replaced an enum with a union typedef, we should
             // reprocess everything to cleanup things like `42 as EnumType`
@@ -1244,7 +1252,7 @@ async function optimizeMonkeyCHelper(
     });
     state.exposed = state.nextExposed;
     state.nextExposed = {};
-    const changes = cleanupAll();
+    const changes = cleanupAll(state);
     if (
       changes & Changes.Force ||
       (changes & Changes.Some && state.config?.iterateOptimizer)
@@ -1272,7 +1280,7 @@ async function optimizeMonkeyCHelper(
     Promise.resolve()
   );
 
-  cleanupAll();
+  cleanupAll(state);
   config.checkCompilerLookupRules = checkLookupRules;
   reportMissingSymbols(state, config);
   Object.values(fnMap).forEach(

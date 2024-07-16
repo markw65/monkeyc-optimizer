@@ -164,9 +164,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     const eventsStack = [] as number[];
 
     let tryActive = 0;
-    state.pre = (node) => {
+    state.pre = function (node) {
       eventsStack.push(allEvents.length);
-      if (state.inType || localState.unreachable) {
+      if (this.inType || localState.unreachable) {
         return [];
       }
       if (
@@ -191,12 +191,12 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "SwitchStatement": {
           const top = localState.push(node);
           top.break = {};
-          state.traverse(node.discriminant);
+          this.traverse(node.discriminant);
           const testBlocks: Block<T>[] = [];
           let defaultSeen = false;
           node.cases.forEach((sc, i) => {
             if (sc.test) {
-              state.traverse(sc.test);
+              this.traverse(sc.test);
               testBlocks[i] = localState.curBlock;
               localState.newBlock();
             } else {
@@ -215,7 +215,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               localState.curBlock
             );
             sc.consequent.every((s) => {
-              state.traverse(s);
+              this.traverse(s);
               return !localState.unreachable;
             });
           });
@@ -241,13 +241,13 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               true: body,
               false: top.break,
             });
-            state.traverse(node.test);
+            this.traverse(node.test);
             localState.unreachable = true;
             localState.newBlock(body);
           } else {
             head = localState.newBlock();
           }
-          state.traverse(node.body);
+          this.traverse(node.body);
           if (node.type === "DoWhileStatement") {
             localState.newBlock(top.continue);
             testStack.push({
@@ -255,7 +255,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               true: head,
               false: top.break,
             });
-            state.traverse(node.test);
+            this.traverse(node.test);
             localState.unreachable = true;
           } else if (!localState.unreachable) {
             localState.addEdge(localState.curBlock, head);
@@ -276,7 +276,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           localState.addEdge(localState.curBlock, top.throw);
           localState.newBlock();
           tryActive++;
-          state.traverse(node.block);
+          this.traverse(node.block);
           tryActive--;
           delete top.throw;
           top.posttry = {};
@@ -287,7 +287,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           localState.unreachable = true;
           localState.newBlock(catches);
           if (node.handler) {
-            state.traverse(node.handler);
+            this.traverse(node.handler);
             // Each "catch (ex instanceof Foo)" chains to the next,
             // but "catch (ex)" terminates the list. If the end
             // of the chain has a predecessor, its possible that
@@ -301,7 +301,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             localState.unreachable = true;
             localState.newBlock(top.finally);
             delete top.finally;
-            state.traverse(node.finalizer);
+            this.traverse(node.finalizer);
             if (!localState.unreachable) {
               if (tryFallsThrough) {
                 localState.addEdge(localState.curBlock, top.posttry);
@@ -326,11 +326,11 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           }
           const next = {};
           if (node.param && node.param.type === "BinaryExpression") {
-            state.traverse(node.param);
+            this.traverse(node.param);
             localState.addEdge(localState.curBlock, next);
             localState.newBlock();
           }
-          state.traverse(node.body);
+          this.traverse(node.body);
           if (!localState.unreachable) {
             localState.addEdge(
               localState.curBlock,
@@ -343,7 +343,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         }
         case "ForStatement": {
           const top = localState.push(node);
-          if (node.init) state.traverse(node.init);
+          if (node.init) this.traverse(node.init);
           const head = localState.newBlock();
           top.break = {};
           top.continue = {};
@@ -354,14 +354,14 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               true: body,
               false: top.break,
             });
-            state.traverse(node.test);
+            this.traverse(node.test);
             localState.unreachable = true;
             localState.newBlock(body);
           }
-          state.traverse(node.body);
+          this.traverse(node.body);
           localState.newBlock(top.continue);
           if (node.update) {
-            state.traverse(node.update);
+            this.traverse(node.update);
           }
           if (!localState.unreachable) {
             localState.addEdge(localState.curBlock, head);
@@ -386,7 +386,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             true: consequent,
             false: alternate,
           });
-          state.traverse(node.test);
+          this.traverse(node.test);
           localState.unreachable = true;
           if (topTest.true) {
             testStack.push({ ...topTest, node: node.consequent });
@@ -394,7 +394,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             testStack.push({ node: node.consequent, true: next, false: next });
           }
           localState.newBlock(consequent);
-          state.traverse(node.consequent);
+          this.traverse(node.consequent);
           localState.unreachable = true;
           if (node.alternate) {
             if (topTest.true) {
@@ -403,7 +403,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               testStack.push({ node: node.alternate, true: next, false: next });
             }
             localState.newBlock(alternate);
-            state.traverse(node.alternate);
+            this.traverse(node.alternate);
             localState.unreachable = true;
           }
           if (next.preds) {
@@ -443,7 +443,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
               false: right,
             });
           }
-          state.traverse(node.left);
+          this.traverse(node.left);
           localState.unreachable = true;
           localState.newBlock(right);
           testStack.push({
@@ -451,7 +451,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             true: topTest.true || next,
             false: topTest.false || next,
           });
-          state.traverse(node.right);
+          this.traverse(node.right);
           localState.unreachable = true;
           if (next.preds) {
             localState.newBlock(next);
@@ -476,9 +476,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           // MemberExpression, we *do* want to traverse the sub-expressions
           // as potential refs.
           if (node.argument.type === "MemberExpression") {
-            state.traverse(node.argument.object);
+            this.traverse(node.argument.object);
             if (node.argument.computed) {
-              state.traverse(node.argument.property);
+              this.traverse(node.argument.property);
             }
           }
           return [];
@@ -491,9 +491,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
             return null;
           }
           if (node.left.type === "MemberExpression") {
-            state.traverse(node.left.object);
+            this.traverse(node.left.object);
             if (node.left.computed) {
-              state.traverse(node.left.property);
+              this.traverse(node.left.property);
             }
           }
           return ["right"];
@@ -501,7 +501,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         case "ThrowStatement":
         case "ReturnStatement":
           if (node.argument) {
-            state.traverse(node.argument);
+            this.traverse(node.argument);
           }
         // fall through
         case "BreakStatement":
@@ -510,9 +510,9 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           return [];
         case "CallExpression":
           if (node.callee.type === "Identifier") {
-            const extra = state.stack.splice(func.stack!.length);
-            state.traverse(node.callee);
-            state.stack.push(...extra);
+            const extra = this.stack.splice(func.stack!.length);
+            this.traverse(node.callee);
+            this.stack.push(...extra);
             return ["arguments"];
           }
           break;
@@ -527,12 +527,12 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         block.events.push(event);
       }
     };
-    state.post = (node) => {
+    state.post = function (node) {
       const eventIndex = eventsStack.pop()!;
       const getContainedEvents = () => allEvents.slice(eventIndex);
       const curStmt = stmtStack[stmtStack.length - 1];
       const topTest = testStack[testStack.length - 1];
-      if (!state.inType) {
+      if (!this.inType) {
         const throws = tryActive > 0 && mayThrow(node);
         const events = notice(node, curStmt, throws, getContainedEvents);
         if (throws) {

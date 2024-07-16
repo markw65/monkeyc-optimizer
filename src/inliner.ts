@@ -182,7 +182,7 @@ function getArgSafety(
   const { pre, post, stack } = state;
   try {
     delete state.pre;
-    state.post = (node) => {
+    state.post = function (node) {
       switch (node.type) {
         case "AssignmentExpression":
         case "UpdateExpression": {
@@ -195,7 +195,7 @@ function getArgSafety(
             break;
           }
           if (modifiedUnknown) break;
-          const [, results] = state.lookup(v);
+          const [, results] = this.lookup(v);
           if (results) {
             results.forEach((r) =>
               r.results.forEach(
@@ -211,11 +211,11 @@ function getArgSafety(
         case "CallExpression":
         case "NewExpression":
           if (!modifiedUnknown) {
-            const [, results] = state.lookup(
+            const [, results] = this.lookup(
               node.callee,
               null,
               // calls are looked up as non-locals, but new is not
-              node.type === "CallExpression" ? func.stack : state.stack
+              node.type === "CallExpression" ? func.stack : this.stack
             );
             if (!results) {
               const callee_name =
@@ -225,7 +225,7 @@ function getArgSafety(
                   ? isLookupCandidate(node.callee)
                   : null;
               if (callee_name) {
-                const callees = state.allFunctions[callee_name.name];
+                const callees = this.allFunctions[callee_name.name];
                 if (callees) {
                   callees.forEach((callee) => callsSeen.add(callee));
                 }
@@ -252,7 +252,7 @@ function getArgSafety(
               !argDecls[params[node.name]] ||
               modifiedDecls.has(argDecls[params[node.name]]) ||
               Array.from(callsSeen).some((callee) =>
-                functionMayModify(state, callee, argDecls[params[node.name]])
+                functionMayModify(this, callee, argDecls[params[node.name]])
               ))
           ) {
             safeArgs[params[node.name]] = null;
@@ -483,20 +483,20 @@ function processInlineBody<T extends InlineBody>(
   // doesn't include the FunctionDeclaration itself.
   const lookupStack = func.stack!.concat({ sn: func });
   try {
-    state.pre = (node: mctree.Node) => {
+    state.pre = function (node: mctree.Node) {
       if (failed) return [];
       if (replacements.has(node)) return false;
-      const result = pre(node, state);
+      const result = pre.call(this, node);
       if (!insertedVariableDecls && node.type === "BlockStatement") {
         // the block just created a new locals map, so we don't
         // need to restore it at the end.
-        fixupLocalsMap(state);
-        const locals = state.localsStack![state.localsStack!.length - 1];
+        fixupLocalsMap(this);
+        const locals = this.localsStack![this.localsStack!.length - 1];
         const declarations: mctree.VariableDeclarator[] = func.node.params
           .map((param, i): mctree.VariableDeclarator | null => {
             const paramName = variableDeclarationName(param);
             if (params[paramName] >= 0) return null;
-            const name = renameVariable(state, locals, paramName) || paramName;
+            const name = renameVariable(this, locals, paramName) || paramName;
             locals.map![name] = true;
             return {
               type: "VariableDeclarator",
@@ -540,8 +540,8 @@ function processInlineBody<T extends InlineBody>(
       }
       return replacement;
     };
-    state.post = (node: mctree.Node) => {
-      if (failed) return post(node, state);
+    state.post = function (node: mctree.Node) {
+      if (failed) return post.call(this, node);
       let replacement = null;
       switch (node.type) {
         case "AssignmentExpression":
@@ -566,7 +566,7 @@ function processInlineBody<T extends InlineBody>(
           replacement = fixId(node);
           break;
       }
-      const ret = post(replacement || node, state);
+      const ret = post.call(this, replacement || node);
       return ret === false || ret ? ret : replacement;
     };
     let ret = state.traverse(root) as InlineBodyReturn<T>;

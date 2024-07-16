@@ -1194,13 +1194,13 @@ export async function getFnMapAnalysis(
       checkTypes: state.config?.checkTypes || "WARNING",
     };
 
-    state.pre = (node) => {
+    state.pre = function (node) {
       switch (node.type) {
         case "FunctionDeclaration": {
-          const self = state.top().sn as FunctionStateNode;
-          const istate = buildTypeInfo(state, self, false);
+          const self = this.top().sn as FunctionStateNode;
+          const istate = buildTypeInfo(this, self, false);
           if (istate) {
-            istate.state = state;
+            istate.state = this;
             istate.typeChecker = gistate.typeChecker;
             istate.checkTypes = gistate.checkTypes;
             evaluate(istate, node.body!);

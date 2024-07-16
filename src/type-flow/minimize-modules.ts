@@ -24,8 +24,8 @@ export function minimizeModules(
       { module: ModuleStateNode; addImport: boolean }
     >();
     const conflictingNames = new Set<string>();
-    state.pre = (node) => {
-      if (state.inType) return null;
+    state.pre = function (node) {
+      if (this.inType) return null;
       switch (node.type) {
         case "ModuleDeclaration":
         case "ClassDeclaration":
@@ -61,7 +61,7 @@ export function minimizeModules(
           let toReplace: mctree.ScopedName | null = null;
           let module: ModuleStateNode | null = null;
           let addImport = false;
-          let [, results] = state.lookupValue(current, null);
+          let [, results] = this.lookupValue(current, null);
           let i = 0;
           for (
             ;
@@ -76,10 +76,10 @@ export function minimizeModules(
             if (
               current.type === "Identifier" &&
               results[0].results[0].type === "ModuleDeclaration" &&
-              isImportCandidate(results[0].results[0], state.stack)
+              isImportCandidate(results[0].results[0], this.stack)
             ) {
               const directResults = i
-                ? state.lookupValue(current, null)
+                ? this.lookupValue(current, null)
                 : results;
               if (
                 directResults &&
@@ -93,9 +93,9 @@ export function minimizeModules(
                 module = results[0].results[0];
                 if (
                   findUsingForNode(
-                    state,
-                    state.stack,
-                    state.stack.length - 1,
+                    this,
+                    this.stack,
+                    this.stack.length - 1,
                     current
                   ) === directResults[0].results[0]
                 ) {
@@ -113,7 +113,7 @@ export function minimizeModules(
             }
             if (i === parts.length) break;
             current = parts[i].property;
-            results = lookupNext(state, results, "decls", current);
+            results = lookupNext(this, results, "decls", current);
           }
           if (toReplace) {
             assert(module);
@@ -129,6 +129,7 @@ export function minimizeModules(
       }
       return null;
     };
+    delete state.post;
     collectNamespaces(ast, state);
     const mappedNames = new Map<ModuleStateNode, string>();
     replacementMap.forEach((value, key) => {

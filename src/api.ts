@@ -723,7 +723,7 @@ function stateFuncs() {
             switch (node.type) {
               case "MemberExpression": {
                 if (isLookupCandidate(node)) {
-                  return (this.pre && this.pre(node, this)) ?? ["object"];
+                  return (this.pre && this.pre(node)) ?? ["object"];
                 }
                 break;
               }
@@ -1027,7 +1027,7 @@ function stateFuncs() {
                 break;
               }
             }
-            if (this.pre) return this.pre(node, this);
+            if (this.pre) return this.pre(node);
           } catch (e) {
             handleException(this, node, e);
           }
@@ -1041,7 +1041,7 @@ function stateFuncs() {
               ret = false as const;
             } else {
               const type = node.type;
-              if (this.post) ret = this.post(node, this);
+              if (this.post) ret = this.post(node);
               switch (type) {
                 case "EnumDeclaration":
                   currentEnum = null;

@@ -104,7 +104,7 @@ export function visitReferences(
   };
   const { pre, post } = state;
   try {
-    state.pre = (node) => {
+    state.pre = function (node) {
       if (filter && !filter(node)) return [];
       switch (node.type) {
         case "AttributeList":
@@ -135,7 +135,7 @@ export function visitReferences(
                 );
               }
             }
-          } else if (state.inType && node.operator === "as") {
+          } else if (this.inType && node.operator === "as") {
             return ["right"];
           }
           break;
@@ -174,13 +174,13 @@ export function visitReferences(
           break;
         }
         case "MethodDefinition": {
-          if (!state.inType) {
+          if (!this.inType) {
             throw new Error("Method definition outside of type!");
           }
           if (node.params) {
             node.params.forEach((param) => {
               if (param.type === "BinaryExpression") {
-                state.traverse(param.right);
+                this.traverse(param.right);
               }
             });
           }
@@ -213,7 +213,7 @@ export function visitReferences(
             visitDef(node.id, node);
           }
           if (node.id.type === "BinaryExpression") {
-            state.traverse(node.id.right);
+            this.traverse(node.id.right);
           }
           return ["init"];
         case "EnumDeclaration":
@@ -227,7 +227,7 @@ export function visitReferences(
         case "EnumStringMember": {
           if (!filter || filter(node.id)) {
             checkResults(
-              [node.id.name, [{ parent: state.top().sn, results: [node] }]],
+              [node.id.name, [{ parent: this.top().sn, results: [node] }]],
               node
             );
           }
@@ -236,7 +236,7 @@ export function visitReferences(
         case "CatchClause":
           if (includeDefs) break;
           if (node.param && node.param.type !== "Identifier") {
-            state.traverse(node.param.right);
+            this.traverse(node.param.right);
           }
           return ["body"];
       }

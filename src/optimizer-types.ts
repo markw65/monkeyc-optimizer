@@ -175,14 +175,8 @@ export type ProgramState = {
   currentFunction?: FunctionStateNode;
   removeNodeComments?: (node: mctree.Node, ast: mctree.Program) => void;
   shouldExclude?: (node: mctree.Node) => boolean;
-  pre?: (
-    node: mctree.Node,
-    state: ProgramStateLive
-  ) => null | false | (keyof mctree.NodeAll)[];
-  post?: (
-    node: mctree.Node,
-    state: ProgramStateLive
-  ) => null | false | mctree.Node | mctree.Node[];
+  pre?: (node: mctree.Node) => null | false | (keyof mctree.NodeAll)[];
+  post?: (node: mctree.Node) => null | false | mctree.Node | mctree.Node[];
   lookup?: (
     node: mctree.Node,
     name?: string | null,
