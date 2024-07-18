@@ -80,13 +80,13 @@ function calleeObjectType(istate: InterpState, callee: mctree.Expression) {
       }
     );
   }
-  if (callee.type === "Identifier" && istate.func) {
-    const func = istate.func;
-    const [{ sn: self }] = func.stack!.slice(-1);
+  if (callee.type === "Identifier" && istate.root) {
+    const root = istate.root;
+    const [{ sn: self }] = root.stack!.slice(-1);
     return typeFromTypeStateNode(
       istate.state,
       self,
-      (func.attributes & StateNodeAttributes.STATIC) !== 0 ||
+      (root.attributes & StateNodeAttributes.STATIC) !== 0 ||
         self.type !== "ClassDeclaration"
     );
   }

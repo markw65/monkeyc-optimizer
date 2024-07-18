@@ -1,7 +1,12 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { formatAstLongLines, isLocal, isStateNode, lookupNext } from "./api";
 import { getNodeValue, isExpression } from "./ast";
-import { BaseEvent, Block, buildReducedGraph } from "./control-flow";
+import {
+  BaseEvent,
+  Block,
+  RootStateNode,
+  buildReducedGraph,
+} from "./control-flow";
 import {
   findCallees,
   findCalleesByNode,
@@ -239,7 +244,7 @@ export function unhandledType(node: never): never {
 
 export function buildDataFlowGraph(
   state: ProgramStateAnalysis,
-  func: FunctionStateNode,
+  root: RootStateNode,
   wantsLiteral: (literal: mctree.Literal) => boolean,
   trackInsertionPoints: boolean,
   wantsAllRefs: boolean
@@ -365,7 +370,7 @@ export function buildDataFlowGraph(
     identifiers,
     graph: buildReducedGraph<Event>(
       state,
-      func,
+      root,
       wantsAllRefs,
       (node, stmt, mayThrow, getContainedEvents): Event | Event[] | null => {
         if (mayThrow === 1) {
@@ -399,7 +404,7 @@ export function buildDataFlowGraph(
             scope.node === node &&
             scope.type === "BlockStatement" &&
             scope.decls &&
-            state.stack.length - 2 !== func.stack?.length
+            state.stack.length - 2 !== root.stack?.length
           ) {
             return Object.values(scope.decls)
               .map((value): KillEvent | null => {

@@ -1,7 +1,17 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { isExpression, isStatement, mayThrow } from "./ast";
-import { ProgramStateAnalysis, FunctionStateNode } from "./optimizer-types";
+import {
+  ProgramStateAnalysis,
+  FunctionStateNode,
+  ModuleStateNode,
+  ClassStateNode,
+} from "./optimizer-types";
 import { forEach, pushUnique } from "./util";
+
+export type RootStateNode =
+  | FunctionStateNode
+  | ModuleStateNode
+  | ClassStateNode;
 
 const Terminals = {
   BreakStatement: "break",
@@ -60,8 +70,8 @@ class LocalState<T extends EventConstraint<T>> {
   curBlock: Block<T> = {};
   unreachable = false;
 
-  constructor(func: mctree.FunctionDeclaration) {
-    this.push(func);
+  constructor(root: RootStateNode["node"]) {
+    this.push(root);
   }
 
   push(node: mctree.Node) {
@@ -144,7 +154,7 @@ class LocalState<T extends EventConstraint<T>> {
 
 export function buildReducedGraph<T extends EventConstraint<T>>(
   state: ProgramStateAnalysis,
-  func: FunctionStateNode,
+  root: RootStateNode,
   refsForUpdate: boolean,
   notice: (
     node: mctree.Node,
@@ -155,11 +165,14 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
 ) {
   const { stack, pre, post } = state;
   try {
-    const localState = new LocalState<T>(func.node);
+    const rootNode = root.node;
+    const rootStack = root.stack!;
+
+    const localState = new LocalState<T>(rootNode);
     const ret = localState.curBlock;
-    state.stack = [...func.stack!];
-    const stmtStack: mctree.Node[] = [func.node];
-    const testStack: TestContext<T>[] = [{ node: func.node }];
+    state.stack = [...rootStack];
+    const stmtStack: mctree.Node[] = [rootNode];
+    const testStack: TestContext<T>[] = [{ node: rootNode }];
     const allEvents = [] as T[];
     const eventsStack = [] as number[];
 
@@ -184,8 +197,13 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         stmtStack.push(node);
       }
       switch (node.type) {
+        case "ClassDeclaration":
+        case "ModuleDeclaration":
+          // don't descend into classes and modules
+          return [];
         case "FunctionDeclaration":
-          return ["body"];
+          // don't descend into functions, unless its the target
+          return rootNode === node ? ["body"] : [];
         case "AttributeList":
           return [];
         case "SwitchStatement": {
@@ -510,7 +528,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
           return [];
         case "CallExpression":
           if (node.callee.type === "Identifier") {
-            const extra = this.stack.splice(func.stack!.length);
+            const extra = this.stack.splice(rootStack.length);
             this.traverse(node.callee);
             this.stack.push(...extra);
             return ["arguments"];
@@ -603,7 +621,7 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
       }
       return null;
     };
-    state.traverse(func.node);
+    state.traverse(rootNode);
     return cleanCfg(ret);
   } finally {
     state.pre = pre;

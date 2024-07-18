@@ -10,7 +10,7 @@ import {
   traverseAst,
 } from "./api";
 import { cloneDeep, withLoc, withLocDeep } from "./ast";
-import { getPostOrder } from "./control-flow";
+import { RootStateNode, getPostOrder } from "./control-flow";
 import {
   DataflowQueue,
   DefEvent,
@@ -111,28 +111,28 @@ export type NodeEquivMap = Map<
 
 type CopyPropMap = Map<mctree.Node, mctree.Node | false>;
 
-function loggingEnabledFor(env: string, func: FunctionStateNode) {
+function loggingEnabledFor(env: string, root: RootStateNode) {
   const pattern = process.env[env];
   if (!pattern) return false;
   const match = pattern.match(/^\/(.*)\/(i?)$/);
   if (match) {
-    return new RegExp(match[1], match[2]).test(func.fullName);
+    return new RegExp(match[1], match[2]).test(root.fullName);
   }
-  return pattern === func.fullName;
+  return pattern === root.fullName;
 }
 
 export function buildTypeInfo(
   state: ProgramStateAnalysis,
-  func: FunctionStateNode,
+  root: RootStateNode,
   optimizeEquivalencies: boolean
 ) {
-  if (!func.node.body || !func.stack) return;
-  const logThisRun = logging && loggingEnabledFor("TYPEFLOW_FUNC", func);
+  if (!root.node.body || !root.stack) return;
+  const logThisRun = logging && loggingEnabledFor("TYPEFLOW_FUNC", root);
   while (true) {
-    const { graph } = buildDataFlowGraph(state, func, () => false, false, true);
+    const { graph } = buildDataFlowGraph(state, root, () => false, false, true);
     let copyPropStores: CopyPropStores | undefined;
-    if (optimizeEquivalencies) {
-      const result = eliminateDeadStores(state, func, graph, logThisRun);
+    if (optimizeEquivalencies && root.type === "FunctionDeclaration") {
+      const result = eliminateDeadStores(state, root, graph, logThisRun);
       if (result.changes) {
         /*
          * eliminateDeadStores can change the control flow graph,
@@ -145,8 +145,8 @@ export function buildTypeInfo(
       }
     }
     const result = propagateTypes(
-      { ...state, stack: func.stack },
-      func,
+      { ...state, stack: root.stack },
+      root,
       graph,
       optimizeEquivalencies,
       copyPropStores,
@@ -733,7 +733,7 @@ function updateAffected(
 
 function propagateTypes(
   state: ProgramStateAnalysis,
-  func: FunctionStateNode,
+  root: RootStateNode,
   graph: TypeFlowBlock,
   optimizeEquivalencies: boolean,
   copyPropStores: CopyPropStores | undefined,
@@ -744,12 +744,12 @@ function propagateTypes(
   const order = getPostOrder(graph).reverse() as TypeFlowBlock[];
   const queue = new DataflowQueue();
 
-  const isStatic = !!(func.attributes & StateNodeAttributes.STATIC);
-  const klass = func.stack?.[func.stack?.length - 1].sn;
+  const isStatic = !!(root.attributes & StateNodeAttributes.STATIC);
+  const klass = root.stack?.[root.stack?.length - 1].sn;
   const selfClassDecl =
     klass && klass.type === "ClassDeclaration" ? klass : null;
   const uninitClassDecls =
-    selfClassDecl && func.name === "initialize" && selfClassDecl.decls
+    selfClassDecl && root.name === "initialize" && selfClassDecl.decls
       ? new Set(
           Object.values(selfClassDecl.decls).flatMap((decls) =>
             decls.filter(
@@ -1129,7 +1129,7 @@ function propagateTypes(
     state,
     typeMap,
     stack: [],
-    func,
+    root,
   };
 
   const modifiableDecl = (
@@ -1995,17 +1995,19 @@ function propagateTypes(
   blockStates[0] = { map: new Map(), visits: 0 };
   const head = blockStates[0];
   if (uninitClassDecls?.size) head.inited = new Set();
-  // set the parameters to their initial types
-  func.node.params.forEach((param) => {
-    setStateEvent(
-      head,
-      param,
-      param.type === "BinaryExpression"
-        ? typeFromTypespec(state, param.right)
-        : { type: TypeTag.Any },
-      UpdateKind.None
-    );
-  });
+  if (root.type === "FunctionDeclaration") {
+    // set the parameters to their initial types
+    root.node.params.forEach((param) => {
+      setStateEvent(
+        head,
+        param,
+        param.type === "BinaryExpression"
+          ? typeFromTypespec(state, param.right)
+          : { type: TypeTag.Any },
+        UpdateKind.None
+      );
+    });
+  }
 
   queue.enqueue(order[0]);
 
@@ -2125,7 +2127,7 @@ function propagateTypes(
   }
 
   if (logThisRun) {
-    log(formatAstLongLines(func.node));
+    log(formatAstLongLines(root.node));
     if (copyPropStores) {
       copyPropStores.forEach(({ ref, ant }, node) => {
         log(
@@ -2203,7 +2205,7 @@ function propagateTypes(
     );
 
     traverseAst(
-      func.node.body!,
+      root.node.body!,
       (node) => {
         if (
           node.type === "AssignmentExpression" &&

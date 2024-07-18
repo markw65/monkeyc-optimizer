@@ -1,4 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
+import { RootStateNode } from "src/control-flow";
 import {
   diagnostic,
   formatAstLongLines,
@@ -72,7 +73,7 @@ export type InterpState = {
   stack: InterpStackElem[];
   typeMap?: TypeMap;
   localLvals?: Set<mctree.Node>;
-  func?: FunctionStateNode;
+  root?: RootStateNode;
   pre?: (node: mctree.Node) => mctree.Node | false | null | void;
   post?: (node: mctree.Node) => mctree.Node | false | null | void;
   typeChecker?: (a: ExactOrUnion, b: ExactOrUnion) => boolean;
@@ -821,7 +822,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           const si = state.stack[i].sn;
           if (si.type === "ClassDeclaration") {
             const klass = { type: TypeTag.Class, value: si } as const;
-            if ((istate.func?.attributes || 0) & StateNodeAttributes.STATIC) {
+            if ((istate.root?.attributes || 0) & StateNodeAttributes.STATIC) {
               return klass;
             } else {
               return { type: TypeTag.Object, value: { klass } } as const;
@@ -1146,21 +1147,21 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     case "ReturnStatement": {
       const value = node.argument && popIstate(istate, node.argument);
       if (istate.typeChecker) {
-        if (!istate.func) {
+        if (istate.root?.type !== "FunctionDeclaration") {
           throw new Error("ReturnStatement found outside of function");
         }
-        if (istate.func.node.returnType) {
+        if (istate.root.node.returnType) {
           const returnType = typeFromTypespec(
             istate.state,
-            istate.func.node.returnType.argument,
-            istate.func.stack
+            istate.root.node.returnType.argument,
+            istate.root.stack
           );
           if (value) {
             if (!istate.typeChecker(value.value, returnType)) {
               diagnostic(
                 istate.state,
                 node,
-                `Expected ${istate.func.fullName} to return ${display(
+                `Expected ${istate.root.fullName} to return ${display(
                   returnType
                 )} but got ${display(value.value)}`,
                 istate.checkTypes
