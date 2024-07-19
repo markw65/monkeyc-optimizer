@@ -46,6 +46,7 @@ export interface ProgramStateNode extends BaseStateNode {
 export interface ModuleStateNode extends BaseStateNode {
   type: "ModuleDeclaration";
   node: mctree.ModuleDeclaration;
+  nodes: Map<mctree.ModuleDeclaration, ProgramStateStack>;
   name: string;
   fullName: string;
 }

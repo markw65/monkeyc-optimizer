@@ -841,6 +841,20 @@ function stateFuncs() {
                 if (name) {
                   if (!parent.decls) parent.decls = {};
                   if (hasProperty(parent.decls, name)) {
+                    if (node.type === "ModuleDeclaration") {
+                      const e = parent.decls[name].find(
+                        (d): d is ModuleStateNode =>
+                          isStateNode(d) && d.type === "ModuleDeclaration"
+                      );
+                      if (e != null) {
+                        e.node = node;
+                        if (!e.nodes.has(node)) {
+                          e.nodes.set(node, this.stackClone().slice(0, -1));
+                        }
+                        this.top().sn = e;
+                        break;
+                      }
+                    }
                     const what =
                       node.type === "ModuleDeclaration" ? "type" : "node";
                     const e = parent.decls[name].find(
@@ -875,6 +889,13 @@ function stateFuncs() {
                       parent.type_decls[name] = [];
                     }
                     parent.type_decls[name].push(elm);
+                    if (elm.type === "ModuleDeclaration") {
+                      elm.nodes = new Map();
+                      elm.nodes.set(
+                        node as mctree.ModuleDeclaration,
+                        this.stackClone().slice(0, -1)
+                      );
+                    }
                   }
                   break;
                 }
