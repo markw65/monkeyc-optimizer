@@ -309,6 +309,82 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     return systemCallInfo;
   }
 
+  const toNumber: SysCallHelper = (
+    state: ProgramStateAnalysis,
+    callee: FunctionStateNode,
+    calleeObj: ExactOrUnion,
+    getArgs: () => Array<ExactOrUnion>
+  ) => {
+    const ret: SysCallHelperResult = { effectFree: true };
+    if (isExact(calleeObj)) {
+      if (calleeObj.type === TypeTag.Number) {
+        const args = getArgs();
+        if (args.length === 0) {
+          ret.returnType = calleeObj;
+        }
+      } else if (hasValue(calleeObj)) {
+        switch (calleeObj.type) {
+          case TypeTag.Null:
+            return {};
+          case TypeTag.False:
+            ret.returnType = { type: TypeTag.Number, value: 0 };
+            break;
+          case TypeTag.True:
+            ret.returnType = { type: TypeTag.Number, value: 1 };
+            break;
+          case TypeTag.Long:
+            ret.returnType = {
+              type: TypeTag.Number,
+              value: Number(calleeObj.value) & -1,
+            };
+            break;
+          case TypeTag.Float:
+          case TypeTag.Double:
+            ret.returnType = {
+              type: TypeTag.Number,
+              value: Math.max(
+                -0x8000000,
+                Math.min(
+                  0x7fffffff,
+                  calleeObj.value >= 0
+                    ? Math.floor(calleeObj.value)
+                    : Math.ceil(calleeObj.value)
+                )
+              ),
+            };
+            break;
+          case TypeTag.Char:
+            ret.returnType = {
+              type: TypeTag.Number,
+              value: calleeObj.value.charCodeAt(0),
+            };
+            break;
+          case TypeTag.String: {
+            const value = parseInt(calleeObj.value, 10);
+            ret.returnType = isNaN(value)
+              ? { type: TypeTag.Null }
+              : {
+                  type: TypeTag.Number,
+                  value,
+                };
+            break;
+          }
+          case TypeTag.Array:
+          case TypeTag.Dictionary:
+          case TypeTag.Method:
+          case TypeTag.Module:
+          case TypeTag.Function:
+          case TypeTag.Class:
+          case TypeTag.Object:
+          case TypeTag.Enum:
+          case TypeTag.Symbol:
+          case TypeTag.Typedef:
+        }
+      }
+    }
+    return ret;
+  };
+
   const arrayAdd: SysCallHelper = (
     state: ProgramStateAnalysis,
     callee: FunctionStateNode,
@@ -712,6 +788,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     "$.Toybox.Lang.Dictionary.values": dictionaryValues,
     "$.Toybox.Lang.Method.invoke": methodInvoke,
     "$.Toybox.Lang.Object.method": method,
+    "$.Toybox.Lang.*.toNumber": toNumber,
 
     "$.Toybox.Math.acos": mathHelper,
     "$.Toybox.Math.asin": mathHelper,
