@@ -265,7 +265,7 @@ export async function driver() {
             checkTypes = value;
             break;
           default:
-            error(`Invalid option for checkCompilerLookupRules: ${value}`);
+            error(`Invalid option for checkTypes: ${value}`);
         }
         break;
       case "sizeBasedPRE":
@@ -459,14 +459,29 @@ export async function driver() {
           checkInvalidSymbols,
           iterateOptimizer,
         });
-        diagnosticArray.forEach((diagnostics) =>
-          reportDiagnostics(
-            diagnostics,
-            (line: unknown, err?: boolean) =>
-              err ? console.error(line) : log(line),
-            []
-          )
-        );
+        Promise.allSettled(
+          diagnosticArray.map((diagnostics, index) => {
+            let started = false;
+            Promise.resolve().then(() =>
+              reportDiagnostics(
+                diagnostics,
+                (line: unknown, err?: boolean) => {
+                  if (!started) {
+                    log(`Diagnostics from ${index ? "Analysis" : "Optimizer"}`);
+                    started = true;
+                  }
+                  err ? console.error(line) : log(line);
+                },
+                []
+              )
+            );
+          })
+        ).then((results) => {
+          const e = results.find(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          );
+          if (e) throw e.reason;
+        });
         log(`${sourceFile} complete`);
       }, Promise.resolve());
       return;

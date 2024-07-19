@@ -4,7 +4,6 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as Prettier from "prettier";
 import {
-  collectNamespaces,
   formatAst,
   hasProperty,
   parseSdkVersion,
@@ -41,16 +40,13 @@ import {
   Diagnostic,
   ExcludeAnnotationsMap,
   FilesToOptimizeMap,
-  FunctionStateNode,
   ProgramState,
   ProgramStateAnalysis,
 } from "./optimizer-types";
 import { pragmaChecker } from "./pragma-checker";
 import { appSupport, getSdkPath, xmlUtil } from "./sdk-util";
-import { buildTypeInfo } from "./type-flow";
-import { couldBeWeak } from "./type-flow/could-be";
-import { InterpState, TypeMap, evaluate } from "./type-flow/interp";
-import { subtypeOf } from "./type-flow/sub-type";
+import { TypeMap } from "./type-flow/interp";
+import { analyze_module_types } from "./type-flow/module-types";
 import {
   AwaitedError,
   copyRecursiveAsNeeded,
@@ -1178,52 +1174,8 @@ export async function getFnMapAnalysis(
   if (Object.values(fnMap).every(({ ast }) => ast != null)) {
     reportMissingSymbols(state, options);
   }
-  let typeMap = null as TypeMap | null;
-  if (
-    state.config?.propagateTypes &&
-    state.config.trustDeclaredTypes &&
-    state.config.checkTypes !== "OFF"
-  ) {
-    const gistate: InterpState = {
-      state,
-      stack: [],
-      typeChecker:
-        state.config.strictTypeCheck?.toLowerCase() === "on"
-          ? subtypeOf
-          : couldBeWeak,
-      checkTypes: state.config?.checkTypes || "WARNING",
-    };
 
-    state.pre = function (node) {
-      switch (node.type) {
-        case "FunctionDeclaration": {
-          const self = this.top().sn as FunctionStateNode;
-          const istate = buildTypeInfo(this, self, false);
-          if (istate) {
-            istate.state = this;
-            istate.typeChecker = gistate.typeChecker;
-            istate.checkTypes = gistate.checkTypes;
-            evaluate(istate, node.body!);
-            if (istate.typeMap) {
-              if (typeMap == null) {
-                typeMap = istate.typeMap;
-              } else {
-                istate.typeMap.forEach((value, key) =>
-                  typeMap!.set(key, value)
-                );
-              }
-            }
-          }
-          return [];
-        }
-      }
-      return null;
-    };
-    Object.values(state.fnMap).forEach((f) => {
-      f.ast && collectNamespaces(f.ast, state);
-    });
-    delete state.pre;
-  }
+  const typeMap = analyze_module_types(state);
 
   const diagnostics: Record<string, Diagnostic[]> | undefined =
     state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));

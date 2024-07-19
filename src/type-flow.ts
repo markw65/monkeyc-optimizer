@@ -126,7 +126,7 @@ export function buildTypeInfo(
   root: RootStateNode,
   optimizeEquivalencies: boolean
 ) {
-  if (!root.node.body || !root.stack) return;
+  if (!root.node?.body || !root.stack) return;
   const logThisRun = logging && loggingEnabledFor("TYPEFLOW_FUNC", root);
   while (true) {
     const { graph } = buildDataFlowGraph(state, root, () => false, false, true);
@@ -1740,6 +1740,19 @@ function propagateTypes(
           type,
           UpdateKind.Reassign
         );
+        if (
+          event.node.type === "VariableDeclarator" &&
+          event.node.kind === "const" &&
+          type.type !== TypeTag.Any
+        ) {
+          forEach(
+            event.decl,
+            (decl) =>
+              decl.type === "VariableDeclarator" &&
+              decl.node === event.node &&
+              (decl.resolvedType = type)
+          );
+        }
         some(event.decl, (decl) => {
           if (
             decl.type !== "VariableDeclarator" ||
@@ -2127,7 +2140,11 @@ function propagateTypes(
   }
 
   if (logThisRun) {
-    log(formatAstLongLines(root.node));
+    if (root.nodes) {
+      root.nodes.forEach((stack, node) => log(formatAstLongLines(node)));
+    } else {
+      log(formatAstLongLines(root.node!));
+    }
     if (copyPropStores) {
       copyPropStores.forEach(({ ref, ant }, node) => {
         log(
@@ -2142,7 +2159,7 @@ function propagateTypes(
     }
   }
 
-  if (optimizeEquivalencies) {
+  if (root.type === "FunctionDeclaration" && optimizeEquivalencies) {
     if (!nodeEquivs.size && !selfAssignments.size && !nodeCopyProp.size) {
       return { istate, nodeEquivs };
     }

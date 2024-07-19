@@ -322,6 +322,7 @@ export async function analyze(
     config,
     allFunctions: {},
     allClasses: [],
+    allModules: new Set(),
     shouldExclude(node: mctree.Node) {
       if (
         "attrs" in node &&
@@ -371,7 +372,9 @@ export async function analyze(
               allFuncs[scope.name].push(scope);
             }
           } else if (scope.type === "ClassDeclaration") {
-            this.allClasses!.push(scope as ClassStateNode);
+            this.allClasses!.push(scope);
+          } else if (scope.type === "ModuleDeclaration") {
+            this.allModules!.add(scope);
           }
           break;
         }

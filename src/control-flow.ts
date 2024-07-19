@@ -5,10 +5,13 @@ import {
   FunctionStateNode,
   ModuleStateNode,
   ClassStateNode,
+  ProgramStateStack,
+  ProgramStateNode,
 } from "./optimizer-types";
 import { forEach, pushUnique } from "./util";
 
 export type RootStateNode =
+  | ProgramStateNode
   | FunctionStateNode
   | ModuleStateNode
   | ClassStateNode;
@@ -69,10 +72,6 @@ class LocalState<T extends EventConstraint<T>> {
   info = new Map<mctree.Node, LocalInfo<T>>();
   curBlock: Block<T> = {};
   unreachable = false;
-
-  constructor(root: RootStateNode["node"]) {
-    this.push(root);
-  }
 
   push(node: mctree.Node) {
     const top: LocalInfo<T> = { node };
@@ -164,12 +163,13 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
   ) => T | T[] | null
 ) {
   const { stack, pre, post } = state;
-  try {
-    const rootNode = root.node;
-    const rootStack = root.stack!;
-
-    const localState = new LocalState<T>(rootNode);
-    const ret = localState.curBlock;
+  const localState = new LocalState<T>();
+  const ret = localState.curBlock;
+  const processOne = (
+    rootNode: NonNullable<RootStateNode["node"]>,
+    rootStack: ProgramStateStack
+  ) => {
+    localState.push(rootNode);
     state.stack = [...rootStack];
     const stmtStack: mctree.Node[] = [rootNode];
     const testStack: TestContext<T>[] = [{ node: rootNode }];
@@ -199,8 +199,6 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
       switch (node.type) {
         case "ClassDeclaration":
         case "ModuleDeclaration":
-          // don't descend into classes and modules
-          return [];
         case "FunctionDeclaration":
           // don't descend into functions, unless its the target
           return rootNode === node ? ["body"] : [];
@@ -623,6 +621,17 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     };
     state.traverse(rootNode);
     return cleanCfg(ret);
+  };
+
+  try {
+    if (root.nodes) {
+      root.nodes.forEach((rootStack, rootNode) =>
+        processOne(rootNode, rootStack)
+      );
+    } else {
+      processOne(root.node!, root.stack!);
+    }
+    return ret;
   } finally {
     state.pre = pre;
     state.post = post;

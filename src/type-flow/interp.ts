@@ -263,7 +263,7 @@ export function evaluate(
   istate: InterpState,
   node: mctree.Node
 ): InterpStackElem | undefined;
-export function evaluate(istate: InterpState, node: mctree.Node) {
+export function evaluate(istate: InterpState, root: mctree.Node) {
   let skipNode: mctree.Expression | null = null;
   const post = (node: mctree.Node) => {
     if (istate.pre && node !== skipNode) {
@@ -277,10 +277,15 @@ export function evaluate(istate: InterpState, node: mctree.Node) {
     }
     return istate.post ? istate.post(node) : null;
   };
-  const pre = (node: mctree.Node): null | (keyof mctree.NodeAll)[] => {
+  const pre = (node: mctree.Node): null | false | (keyof mctree.NodeAll)[] => {
     const ret = preEvaluate(istate, node);
     if (ret) return ret;
     switch (node.type) {
+      case "FunctionDeclaration":
+      case "ModuleDeclaration":
+      case "ClassDeclaration":
+        if (node !== root) return false;
+        break;
       case "AssignmentExpression":
         skipNode = node.left;
         break;
@@ -291,11 +296,11 @@ export function evaluate(istate: InterpState, node: mctree.Node) {
     return null;
   };
 
-  traverseAst(node, pre, post);
+  traverseAst(root, pre, post);
 
   const ret = istate.stack.pop();
-  if (isExpression(node)) {
-    if (!ret || node !== ret.node) {
+  if (isExpression(root)) {
+    if (!ret || root !== ret.node) {
       throw new Error("evaluate failed to produce a value for an expression");
     }
   }

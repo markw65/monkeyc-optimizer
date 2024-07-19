@@ -739,6 +739,9 @@ function stateFuncs() {
                   throw new Error("Unexpected stack length for Program node");
                 }
                 this.stack[0].sn.node = node;
+                if (!this.stack[0].sn.nodes?.has(node)) {
+                  this.stack[0].sn.nodes?.set(node, []);
+                }
                 break;
               case "TypeSpecList":
               case "TypeSpecPart":
@@ -855,11 +858,9 @@ function stateFuncs() {
                         break;
                       }
                     }
-                    const what =
-                      node.type === "ModuleDeclaration" ? "type" : "node";
                     const e = parent.decls[name].find(
                       (d): d is StateNode =>
-                        isStateNode(d) && d[what] === elm[what]
+                        isStateNode(d) && d.node === elm.node
                     );
                     if (e != null) {
                       e.node = node;
@@ -1123,6 +1124,7 @@ export function collectNamespaces(
           name: "$",
           fullName: "$",
           node: undefined,
+          nodes: new Map(),
           attributes: StateNodeAttributes.NONE,
         },
       },
@@ -1140,7 +1142,11 @@ export function collectNamespaces(
     }
   }
 
-  Object.assign(state, stateFuncs());
+  if (!state.traverse) {
+    state.diagnostics = {};
+    state.inlineDiagnostics = {};
+    Object.assign(state, stateFuncs());
+  }
 
   state.inType = 0;
 

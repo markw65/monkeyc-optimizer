@@ -29,6 +29,7 @@ export const enum StateNodeAttributes {
 interface BaseStateNode {
   type: string;
   node: mctree.Node | null | undefined;
+  nodes?: Map<mctree.ModuleDeclaration | mctree.Program, ProgramStateStack>;
   name: string | null | undefined;
   fullName: string | null | undefined;
   decls?: StateNodeDecls | undefined;
@@ -39,6 +40,7 @@ interface BaseStateNode {
 export interface ProgramStateNode extends BaseStateNode {
   type: "Program";
   node: mctree.Program | undefined;
+  nodes: Map<mctree.Program | mctree.ModuleDeclaration, ProgramStateStack>;
   name: "$";
   fullName: "$";
   stack?: undefined;
@@ -46,7 +48,7 @@ export interface ProgramStateNode extends BaseStateNode {
 export interface ModuleStateNode extends BaseStateNode {
   type: "ModuleDeclaration";
   node: mctree.ModuleDeclaration;
-  nodes: Map<mctree.ModuleDeclaration, ProgramStateStack>;
+  nodes: Map<mctree.Program | mctree.ModuleDeclaration, ProgramStateStack>;
   name: string;
   fullName: string;
 }
@@ -166,6 +168,7 @@ export type ByNameStateNodeDecls =
 export type ProgramState = {
   allFunctions?: Record<string, FunctionStateNode[]>;
   allClasses?: ClassStateNode[];
+  allModules?: Set<ModuleStateNode>;
   invokeInfo?: FunctionInfo;
   allDeclarations?: Record<string, ByNameStateNodeDecls[]>;
   fnMap?: FilesToOptimizeMap;
@@ -245,7 +248,12 @@ export type ProgramStateLive = Finalized<
 >;
 export type ProgramStateAnalysis = Finalized<
   ProgramStateLive,
-  "allClasses" | "allFunctions" | "fnMap" | "allDeclarations" | "invokeInfo"
+  | "allClasses"
+  | "allModules"
+  | "allFunctions"
+  | "fnMap"
+  | "allDeclarations"
+  | "invokeInfo"
 >;
 export type ProgramStateOptimizer = Finalized<
   ProgramStateAnalysis,
