@@ -1174,6 +1174,7 @@ export function formatAst(
       ...(options || {}),
       parser: "monkeyc-json",
       plugins: [MonkeyC],
+      pluginSearchDirs: false,
       endOfLine: "lf",
     })
   );
