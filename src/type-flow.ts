@@ -39,6 +39,7 @@ import {
 } from "./type-flow/dead-store";
 import {
   InterpState,
+  TypeMap,
   evaluate,
   evaluateExpr,
   isByteArrayData,
@@ -750,16 +751,14 @@ function propagateTypes(
   const uninitClassDecls =
     selfClassDecl && func.name === "initialize" && selfClassDecl.decls
       ? new Set(
-          Object.values(selfClassDecl.decls)
-            .filter((decls) =>
-              decls.some(
-                (decl) =>
-                  decl.type === "VariableDeclarator" &&
-                  decl.node.kind === "var" &&
-                  !decl.node.init
-              )
+          Object.values(selfClassDecl.decls).flatMap((decls) =>
+            decls.filter(
+              (decl) =>
+                decl.type === "VariableDeclarator" &&
+                decl.node.kind === "var" &&
+                !decl.node.init
             )
-            .flat()
+          )
         )
       : null;
 
@@ -1125,7 +1124,7 @@ function propagateTypes(
   }
 
   const blockStates: TypeState[] = [];
-  const typeMap = new Map<mctree.Node, ExactOrUnion>();
+  const typeMap: TypeMap = new Map();
   const istate: InterpState = {
     state,
     typeMap,
