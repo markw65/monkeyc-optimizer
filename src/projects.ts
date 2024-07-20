@@ -89,7 +89,10 @@ export const githubProjects: RemoteProject[] = [
     rename: [{ from: "source/Env.mc.sample", to: "source/Env.mc" }],
     options: { checkInvalidSymbols: "WARNING" },
   },
-  "https://github.com/bombsimon/garmin-seaside",
+  {
+    root: "https://github.com/bombsimon/garmin-seaside",
+    options: { checkCompilerLookupRules: "WARNING" },
+  },
   {
     root: "https://github.com/breber/helicopter-iq",
     build: false,

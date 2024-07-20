@@ -457,6 +457,7 @@ export async function driver() {
           checkTypes,
           checkBuildPragmas: true,
           checkInvalidSymbols,
+          iterateOptimizer,
         });
         diagnosticArray.forEach((diagnostics) =>
           reportDiagnostics(
@@ -989,6 +990,8 @@ async function analyzeSourceFile(sourceFile: string, config: BuildConfig) {
     manifestXML,
     config ?? {}
   );
+
+  await log();
 
   const { diagnostics } = await optimizeMonkeyC(
     fnMap,

@@ -67,6 +67,7 @@ export function log(...messages: unknown[]) {
       }
     }
   });
+  return logPromise;
 }
 
 export function setLogger(log: (message: string) => void) {
