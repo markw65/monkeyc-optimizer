@@ -1229,9 +1229,9 @@ export async function getFnMapAnalysis(
     state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));
 
   if (state.config?.checkBuildPragmas) {
-    Object.entries(fnMap).forEach(([name, f]) => {
-      pragmaChecker(state, f.ast!, diagnostics?.[name]);
-    });
+    Object.entries(fnMap).forEach(
+      ([name, f]) => f.ast && pragmaChecker(state, f.ast, diagnostics?.[name])
+    );
   }
 
   return { fnMap: fnMap as Analysis["fnMap"], state, typeMap };
