@@ -42,6 +42,7 @@ import { TypeMap } from "./type-flow/interp";
 import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
 import { log, pushUnique, sameArrays } from "./util";
+import { RootStateNode } from "./control-flow";
 
 export { visitReferences, visitorNode } from "./visitor";
 export { hasProperty, traverseAst, visit_resources };
@@ -91,6 +92,31 @@ export function checkCompilerVersion(version: string, sdkVer: number) {
     return v1 === sdkVer;
   }
   return sdkVer <= v2;
+}
+
+export function pushRootNode(stack: ProgramStateStack, root: RootStateNode) {
+  if (root.type === "Program") return;
+  const sn = root.stack
+    ?.at(-1)
+    ?.sn?.decls?.[root.name]?.find(
+      (sn): sn is RootStateNode =>
+        sn.type === root.type && (root.nodes != null || sn.node === root.node)
+    );
+  if (!sn) {
+    throw new Error(`Invalid stack for node ${root.fullName}`);
+  }
+  if (root.nodes) {
+    sn.node = root.node;
+  }
+  stack.push({ sn });
+}
+
+export function popRootNode(stack: ProgramStateStack, root: RootStateNode) {
+  if (root.type === "Program") return;
+  if (stack.at(-1)?.sn.node !== root.node) {
+    throw new Error(`Invalid stack for node ${root.fullName}`);
+  }
+  stack.pop();
 }
 
 // Extract all enum values from api.mir
@@ -653,6 +679,35 @@ export function lookupWithType(
   return results;
 }
 
+export function handleImportUsing(
+  state: ProgramStateLive,
+  node: mctree.Using | mctree.ImportModule
+) {
+  const parent = { ...state.stack.pop()! };
+  state.stack.push(parent);
+  parent.usings = parent.usings ? { ...parent.usings } : {};
+  const name =
+    (node.type === "Using" && node.as && node.as.name) ||
+    (node.id.type === "Identifier" ? node.id.name : node.id.property.name);
+  const using = { node };
+  parent.usings[name] = using;
+  if (node.type === "ImportModule") {
+    if (!parent.imports) {
+      parent.imports = [using];
+    } else {
+      parent.imports = parent.imports.slice();
+      const index = parent.imports.findIndex(
+        (using) =>
+          (using.node.id.type === "Identifier"
+            ? using.node.id.name
+            : using.node.id.property.name) === name
+      );
+      if (index >= 0) parent.imports.splice(index, 1);
+      parent.imports.push(using);
+    }
+  }
+}
+
 function stateFuncs() {
   let currentEnum: EnumStateNode | null = null;
 
@@ -739,8 +794,12 @@ function stateFuncs() {
                   throw new Error("Unexpected stack length for Program node");
                 }
                 this.stack[0].sn.node = node;
-                if (!this.stack[0].sn.nodes?.has(node)) {
-                  this.stack[0].sn.nodes?.set(node, []);
+                if (
+                  this.rezAst !== node &&
+                  !this.stack[0].sn.nodes?.has(node) &&
+                  node.loc?.source !== "api.mir"
+                ) {
+                  this.stack[0].sn.nodes?.set(node, this.stackClone());
                 }
                 break;
               case "TypeSpecList":
@@ -749,31 +808,7 @@ function stateFuncs() {
                 break;
               case "ImportModule":
               case "Using": {
-                const parent = { ...this.stack.pop()! };
-                this.stack.push(parent);
-                parent.usings = parent.usings ? { ...parent.usings } : {};
-                const name =
-                  (node.type === "Using" && node.as && node.as.name) ||
-                  (node.id.type === "Identifier"
-                    ? node.id.name
-                    : node.id.property.name);
-                const using = { node };
-                parent.usings[name] = using;
-                if (node.type === "ImportModule") {
-                  if (!parent.imports) {
-                    parent.imports = [using];
-                  } else {
-                    parent.imports = parent.imports.slice();
-                    const index = parent.imports.findIndex(
-                      (using) =>
-                        (using.node.id.type === "Identifier"
-                          ? using.node.id.name
-                          : using.node.id.property.name) === name
-                    );
-                    if (index >= 0) parent.imports.splice(index, 1);
-                    parent.imports.push(using);
-                  }
-                }
+                handleImportUsing(this, node);
                 break;
               }
               case "CatchClause":
@@ -851,7 +886,11 @@ function stateFuncs() {
                       );
                       if (e != null) {
                         e.node = node;
-                        if (!e.nodes.has(node)) {
+                        if (
+                          !e.nodes.has(node) &&
+                          node.loc?.source &&
+                          /\.mc$/.test(node.loc?.source)
+                        ) {
                           e.nodes.set(node, this.stackClone().slice(0, -1));
                         }
                         this.top().sn = e;
@@ -892,10 +931,12 @@ function stateFuncs() {
                     parent.type_decls[name].push(elm);
                     if (elm.type === "ModuleDeclaration") {
                       elm.nodes = new Map();
-                      elm.nodes.set(
-                        node as mctree.ModuleDeclaration,
-                        this.stackClone().slice(0, -1)
-                      );
+                      if (node.loc?.source !== "api.mir") {
+                        elm.nodes.set(
+                          node as mctree.ModuleDeclaration,
+                          this.stackClone().slice(0, -1)
+                        );
+                      }
                     }
                   }
                   break;
@@ -1129,6 +1170,7 @@ export function collectNamespaces(
         },
       },
     ];
+    state.stack[0].sn.stack = [state.stack[0]];
   }
   if (!state.lookupRules) {
     const rules = state?.config?.compilerLookupRules || "DEFAULT";
@@ -1287,6 +1329,26 @@ export function formatScopedName(
 }
 
 export function formatAstLongLines(node: mctree.Node) {
+  const filter = (s: mctree.Node) =>
+    s.type !== "ClassDeclaration" &&
+    s.type !== "ModuleDeclaration" &&
+    s.type !== "FunctionDeclaration";
+  switch (node.type) {
+    case "ClassDeclaration":
+      node = { ...node };
+      node.body = { ...node.body };
+      node.body.body = node.body.body.filter((c) => filter(c.item));
+      break;
+    case "ModuleDeclaration":
+      node = { ...node };
+      node.body = { ...node.body };
+      node.body.body = node.body.body.filter(filter);
+      break;
+    case "Program":
+      node = { ...node };
+      node.body = node.body.filter(filter);
+      break;
+  }
   return formatAst(node, null, { printWidth: 10000 });
 }
 

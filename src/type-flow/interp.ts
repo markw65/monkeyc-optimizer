@@ -3,6 +3,7 @@ import { RootStateNode } from "src/control-flow";
 import {
   diagnostic,
   formatAstLongLines,
+  handleImportUsing,
   isLocal,
   isLookupCandidate,
   lookupByFullName,
@@ -265,6 +266,7 @@ export function preEvaluate(
     case "CatchClause":
       return ["body"];
     case "TypedefDeclaration":
+      //console.log(`preEvaluate: ${node.id.name}`);
       return [];
   }
   return null;
@@ -296,6 +298,10 @@ export function evaluate(istate: InterpState, root: mctree.Node) {
     const ret = preEvaluate(istate, node);
     if (ret) return ret;
     switch (node.type) {
+      case "ImportModule":
+      case "Using":
+        handleImportUsing(istate.state, node);
+        return false;
       case "FunctionDeclaration":
       case "ModuleDeclaration":
       case "ClassDeclaration":

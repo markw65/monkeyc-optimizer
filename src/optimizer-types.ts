@@ -43,7 +43,6 @@ export interface ProgramStateNode extends BaseStateNode {
   nodes: Map<mctree.Program | mctree.ModuleDeclaration, ProgramStateStack>;
   name: "$";
   fullName: "$";
-  stack?: undefined;
 }
 export interface ModuleStateNode extends BaseStateNode {
   type: "ModuleDeclaration";
@@ -80,7 +79,6 @@ export interface FunctionStateNode extends BaseStateNode {
   node: mctree.FunctionDeclaration;
   name: string;
   fullName: string;
-  stack?: ProgramStateStack;
   decls?: undefined;
   info?: FunctionInfo | false;
   next_info?: FunctionInfo;

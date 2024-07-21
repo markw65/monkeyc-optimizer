@@ -1,4 +1,4 @@
-import { formatAstLongLines } from "src/api";
+import { formatAstLongLines, popRootNode, pushRootNode } from "src/api";
 import { RootStateNode } from "src/control-flow";
 import { buildTypeInfo } from "src/type-flow";
 import { ProgramStateAnalysis, ProgramStateNode } from "../optimizer-types";
@@ -12,6 +12,7 @@ import {
 } from "./interp";
 import { subtypeOf } from "./sub-type";
 import { display } from "./types";
+import { log } from "src/logger";
 
 export async function analyze_module_types(state: ProgramStateAnalysis) {
   if (
@@ -40,6 +41,7 @@ export async function analyze_module_types(state: ProgramStateAnalysis) {
   for (const module of modulesSet) {
     modulesSet.delete(module);
     const istate = buildTypeInfo(state, module, false);
+    await log();
     if (istate?.typeMap) {
       moduleMap.set(module, istate);
       istate.dependencies?.forEach((flags, other) => {
@@ -90,11 +92,18 @@ export async function analyze_module_types(state: ProgramStateAnalysis) {
       istate.typeChecker = typeChecker;
       istate.checkTypes = checkTypes;
       if (root.nodes) {
+        const saved = istate.state.stack;
         root.nodes.forEach((stack, node) => {
+          istate.state.stack = stack.slice();
+          pushRootNode(istate.state.stack, root);
           evaluate(istate, node);
+          popRootNode(istate.state.stack, root);
         });
+        istate.state.stack = saved;
       } else {
+        pushRootNode(istate.state.stack, root);
         evaluate(istate, root.node!);
+        popRootNode(istate.state.stack, root);
       }
       istate.typeMap?.forEach((value, key) => typeMap.set(key, value));
     }

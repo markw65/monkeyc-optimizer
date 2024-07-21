@@ -11,6 +11,7 @@ import {
 import {
   Event,
   EventDecl,
+  ImpEvent,
   DataFlowBlock as TypeFlowBlock,
   declFullName,
 } from "../data-flow";
@@ -113,13 +114,28 @@ export function printBlockHeader(block: TypeFlowBlock) {
   );
 }
 
+function printImp(event: ImpEvent) {
+  switch (event.node.type) {
+    case "ImportModule":
+    case "Using":
+      return formatAstLongLines(event.node.id).then(
+        (id) => `${event.node.type} ${id}`
+      );
+    case "ModuleDeclaration":
+    case "Program":
+      return event.node.type;
+  }
+}
+
 export function describeEvent(event: Event) {
   if (event.type === "exn") return Promise.resolve("exn:");
   return Promise.resolve(
-    event.type === "flw" ||
-      event.type === "mod" ||
-      (!Array.isArray(event.decl) &&
-        (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
+    event.type === "imp"
+      ? printImp(event)
+      : event.type === "flw" ||
+        event.type === "mod" ||
+        (!Array.isArray(event.decl) &&
+          (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
       ? formatAstLongLines(event.node)
       : event.decl
       ? declFullName(event.decl)

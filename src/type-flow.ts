@@ -3,10 +3,13 @@ import assert from "node:assert";
 import {
   formatAstLongLines,
   getSuperClasses,
+  handleImportUsing,
   hasProperty,
   isClassVariable,
   isLocal,
   lookupNext,
+  popRootNode,
+  pushRootNode,
   traverseAst,
 } from "./api";
 import { cloneDeep, withLoc, withLocDeep } from "./ast";
@@ -146,14 +149,17 @@ export function buildTypeInfo(
         copyPropStores = result.copyPropStores;
       }
     }
+    const stack = root.stack.slice();
+    pushRootNode(stack, root);
     const { istate, redo } = propagateTypes(
-      { ...state, stack: root.stack },
+      { ...state, stack },
       root,
       graph,
       optimizeEquivalencies,
       copyPropStores,
       logThisRun
     );
+    popRootNode(stack, root);
 
     if (!redo) {
       return istate;
@@ -1533,6 +1539,21 @@ function propagateTypes(
     }
     validateTypeState(curState);
     switch (event.type) {
+      case "imp":
+        switch (event.node.type) {
+          case "ImportModule":
+          case "Using":
+            handleImportUsing(istate.state, event.node);
+            break;
+          case "ModuleDeclaration":
+          case "Program":
+            if (event.stack) {
+              istate.state.stack = event.stack;
+              istate.state.stack = istate.state.stackClone();
+            }
+            break;
+        }
+        break;
       case "kil": {
         const curEntry = getStateEntry(curState, event.decl);
         if (curEntry.equivSet) {

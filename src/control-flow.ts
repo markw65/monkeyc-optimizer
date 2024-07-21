@@ -177,6 +177,14 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     const eventsStack = [] as number[];
 
     let tryActive = 0;
+    const addEvent = (block: Block<T>, event: T) => {
+      allEvents.push(event);
+      if (!block.events) {
+        block.events = [event];
+      } else {
+        block.events.push(event);
+      }
+    };
     state.pre = function (node) {
       eventsStack.push(allEvents.length);
       if (
@@ -200,11 +208,30 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
         stmtStack.push(node);
       }
       switch (node.type) {
-        case "ClassDeclaration":
+        case "ImportModule":
+        case "Using":
+          forEach(
+            notice(node, node, false, () => []),
+            (e) => allEvents.push(e)
+          );
+          return [];
+        case "Program":
         case "ModuleDeclaration":
+          // don't descend, unless its the target
+          if (rootNode !== node) return [];
+          forEach(
+            notice(node, node, false, () => []),
+            (e) => {
+              addEvent(localState.curBlock, e);
+              allEvents.pop();
+            }
+          );
+          return ["body"];
+        case "ClassDeclaration":
         case "FunctionDeclaration":
-          // don't descend into functions, unless its the target
-          return rootNode === node ? ["body"] : [];
+          // don't descend, unless its the target
+          if (rootNode !== node) return [];
+          return ["body"];
         case "AttributeList":
           return [];
         case "SwitchStatement": {
@@ -538,20 +565,12 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
       }
       return null;
     };
-    const addEvent = (block: Block<T>, event: T) => {
-      allEvents.push(event);
-      if (!block.events) {
-        block.events = [event];
-      } else {
-        block.events.push(event);
-      }
-    };
     state.post = function (node) {
       const eventIndex = eventsStack.pop()!;
       const getContainedEvents = () => allEvents.slice(eventIndex);
       const curStmt = stmtStack[stmtStack.length - 1];
       const topTest = testStack[testStack.length - 1];
-      if (!this.inType) {
+      if (!this.inType && node !== rootNode) {
         const throws = tryActive > 0 && mayThrow(node);
         const events = notice(node, curStmt, throws, getContainedEvents);
         if (throws) {

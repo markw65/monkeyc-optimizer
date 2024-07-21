@@ -16,6 +16,7 @@ import {
   FunctionStateNode,
   LookupDefinition,
   ProgramStateAnalysis,
+  ProgramStateStack,
   StateNodeDecl,
   VariableStateNode,
 } from "./optimizer-types";
@@ -114,6 +115,24 @@ export interface ModEvent extends BaseEvent {
   calleeObj?: EventDecl | undefined;
 }
 
+/**
+ * When analyzing Program and ModuleDeclaration scopes,
+ * we need to keep the imports up to date.
+ */
+export interface ImpEvent extends BaseEvent {
+  type: "imp";
+  node:
+    | mctree.Using
+    | mctree.ImportModule
+    | mctree.Program
+    | mctree.ModuleDeclaration;
+  // When node is Program or ModuleDeclaration, this contains
+  // the outer portion of the stack just after entering the
+  // node
+  stack?: ProgramStateStack;
+  decl?: undefined;
+}
+
 export enum FlowKind {
   LEFT_EQ_RIGHT_DECL,
   LEFT_NE_RIGHT_DECL,
@@ -184,6 +203,7 @@ export type Event =
   | DefEvent
   | ModEvent
   | FlowEvent
+  | ImpEvent
   | ExnEvent;
 
 export interface DataFlowBlock extends Block<Event> {
@@ -418,6 +438,20 @@ export function buildDataFlowGraph(
           }
         }
         switch (node.type) {
+          case "ImportModule":
+          case "Using":
+            return { type: "imp", node, mayThrow: false } satisfies ImpEvent;
+          case "ModuleDeclaration":
+          case "Program":
+            if (root.node === node || root.nodes?.has(node)) {
+              return {
+                type: "imp",
+                node,
+                stack: state.stackClone(),
+                mayThrow: false,
+              } satisfies ImpEvent;
+            }
+            break;
           case "BinaryExpression":
           case "UnaryExpression":
           case "SizedArrayExpression":
@@ -447,7 +481,7 @@ export function buildDataFlowGraph(
                 node,
                 decl: decl,
                 mayThrow,
-              } as RefEvent;
+              } satisfies RefEvent;
             }
             break;
           case "Identifier":
