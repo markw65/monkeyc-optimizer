@@ -536,24 +536,27 @@ function add_one_resource(
             {
               type: "VariableDeclarator",
               kind: "var",
-              id: {
-                type: "BinaryExpression",
-                operator: "as",
-                left: makeIdentifier(id ? id.value.value : "*invalid*", loc),
-                right: {
-                  type: "TypeSpecList",
-                  ts: [
-                    {
-                      type: "TypeSpecPart",
-                      name: makeScopedName(
-                        (state?.sdkVersion ?? 0) >= 7000000
-                          ? "Toybox.Lang.ResourceId"
-                          : "Toybox.Lang.Symbol"
-                      ),
-                    },
-                  ],
-                },
-              },
+              id:
+                id && !init
+                  ? {
+                      type: "BinaryExpression",
+                      operator: "as",
+                      left: makeIdentifier(id.value.value, loc),
+                      right: {
+                        type: "TypeSpecList",
+                        ts: [
+                          {
+                            type: "TypeSpecPart",
+                            name: makeScopedName(
+                              (state?.sdkVersion ?? 0) >= 7000000
+                                ? "Toybox.Lang.ResourceId"
+                                : "Toybox.Lang.Symbol"
+                            ),
+                          },
+                        ],
+                      },
+                    }
+                  : makeIdentifier(id ? id.value.value : "*invalid*", loc),
               init,
             },
             outer
