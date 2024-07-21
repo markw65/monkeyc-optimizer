@@ -62,6 +62,18 @@ import { clearValuesUnder, unionInto } from "./union-type";
 
 export type TypeMap = Map<mctree.Node, ExactOrUnion>;
 
+export const enum DependencyFlags {
+  None = 0,
+  // We depend on the types of things defined in the other module
+  // This could be the return type of a method, or the type of an
+  // enum or const.
+  Type = 1,
+  // We depend on the FunctionInfo of the other module
+  Info = 2,
+}
+
+export type DependencyMap = Map<RootStateNode, DependencyFlags>;
+
 export type InterpStackElem = {
   value: ExactOrUnion;
   embeddedEffects: boolean;
@@ -78,6 +90,7 @@ export type InterpState = {
   post?: (node: mctree.Node) => mctree.Node | false | null | void;
   typeChecker?: (a: ExactOrUnion, b: ExactOrUnion) => boolean;
   checkTypes?: DiagnosticType;
+  dependencies?: DependencyMap;
   frpushType?: ExactOrUnion;
 };
 
@@ -251,6 +264,8 @@ export function preEvaluate(
       return ["init"];
     case "CatchClause":
       return ["body"];
+    case "TypedefDeclaration":
+      return [];
   }
   return null;
 }

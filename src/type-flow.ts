@@ -38,6 +38,8 @@ import {
   findDeadStores,
 } from "./type-flow/dead-store";
 import {
+  DependencyFlags,
+  DependencyMap,
   InterpState,
   TypeMap,
   evaluate,
@@ -144,7 +146,7 @@ export function buildTypeInfo(
         copyPropStores = result.copyPropStores;
       }
     }
-    const result = propagateTypes(
+    const { istate, redo } = propagateTypes(
       { ...state, stack: root.stack },
       root,
       graph,
@@ -153,8 +155,8 @@ export function buildTypeInfo(
       logThisRun
     );
 
-    if (!result.redo) {
-      return result.istate;
+    if (!redo) {
+      return istate;
     }
   }
 }
@@ -738,7 +740,11 @@ function propagateTypes(
   optimizeEquivalencies: boolean,
   copyPropStores: CopyPropStores | undefined,
   logThisRun: boolean
-) {
+): {
+  istate: InterpState;
+  nodeEquivs: NodeEquivMap;
+  redo: boolean;
+} {
   // We want to traverse the blocks in reverse post order, in
   // order to propagate the "availability" of the types.
   const order = getPostOrder(graph).reverse() as TypeFlowBlock[];
@@ -1125,11 +1131,14 @@ function propagateTypes(
 
   const blockStates: TypeState[] = [];
   const typeMap: TypeMap = new Map();
+  const dependencies: DependencyMap = new Map();
+
   const istate: InterpState = {
     state,
     typeMap,
     stack: [],
     root,
+    dependencies,
   };
 
   const modifiableDecl = (
@@ -1728,7 +1737,8 @@ function propagateTypes(
           }
         }
         const expr: mctree.Expression | null =
-          event.node.type === "VariableDeclarator"
+          event.node.type === "VariableDeclarator" ||
+          event.node.type === "EnumStringMember"
             ? event.node.init || null
             : event.node;
         const type = expr
@@ -1740,18 +1750,21 @@ function propagateTypes(
           type,
           UpdateKind.Reassign
         );
-        if (
-          event.node.type === "VariableDeclarator" &&
-          event.node.kind === "const" &&
-          type.type !== TypeTag.Any
-        ) {
-          forEach(
-            event.decl,
-            (decl) =>
-              decl.type === "VariableDeclarator" &&
-              decl.node === event.node &&
-              (decl.resolvedType = type)
-          );
+        if (type.type !== TypeTag.Any) {
+          if (
+            event.node.type === "EnumStringMember" ||
+            (event.node.type === "VariableDeclarator" &&
+              event.node.kind === "const")
+          ) {
+            forEach(
+              event.decl,
+              (decl) =>
+                (decl.type === "VariableDeclarator"
+                  ? decl.node === event.node
+                  : decl === event.node) &&
+                ((decl as { resolvedType?: ExactOrUnion }).resolvedType = type)
+            );
+          }
         }
         some(event.decl, (decl) => {
           if (
@@ -2075,6 +2088,49 @@ function propagateTypes(
     }
   });
 
+  order.forEach((block) =>
+    block.events?.forEach((event) => {
+      if (event.type !== "ref") return;
+      forEach(event.decl, (decl) => {
+        if (
+          decl.type === "VariableDeclarator" &&
+          decl.node.kind === "const" &&
+          (!decl.resolvedType || !hasValue(decl.resolvedType))
+        ) {
+          const root = decl.stack.at(-1)?.sn;
+          if (
+            !root ||
+            (root.type !== "ModuleDeclaration" &&
+              root.type !== "ClassDeclaration" &&
+              root.type !== "Program")
+          ) {
+            return;
+          }
+          const dep = dependencies.get(root);
+          dependencies.set(root, (dep ?? 0) | DependencyFlags.Type);
+        } else if (
+          decl.type === "EnumStringMember" &&
+          decl.init &&
+          decl.init.type !== "Literal"
+        ) {
+          const e = state.enumMap?.get(decl);
+          if (!e) return;
+          const root = e.stack.at(-1)?.sn;
+          if (
+            !root ||
+            (root.type !== "ModuleDeclaration" &&
+              root.type !== "ClassDeclaration" &&
+              root.type !== "Program")
+          ) {
+            return;
+          }
+          const dep = dependencies.get(root);
+          dependencies.set(root, (dep ?? 0) | DependencyFlags.Type);
+        }
+      });
+    })
+  );
+
   if (logThisRun) {
     order.forEach((block) => {
       printBlockHeader(block);
@@ -2137,9 +2193,7 @@ function propagateTypes(
         )
       );
     });
-  }
 
-  if (logThisRun) {
     if (root.nodes) {
       root.nodes.forEach((stack, node) => log(formatAstLongLines(node)));
     } else {
@@ -2161,7 +2215,7 @@ function propagateTypes(
 
   if (root.type === "FunctionDeclaration" && optimizeEquivalencies) {
     if (!nodeEquivs.size && !selfAssignments.size && !nodeCopyProp.size) {
-      return { istate, nodeEquivs };
+      return { istate, nodeEquivs, redo: false };
     }
     if (logThisRun) {
       if (selfAssignments.size) {
@@ -2415,7 +2469,7 @@ function propagateTypes(
   return {
     istate,
     nodeEquivs,
-    redo: optimizeEquivalencies && nodeCopyProp.size,
+    redo: optimizeEquivalencies && nodeCopyProp.size !== 0,
   };
 }
 

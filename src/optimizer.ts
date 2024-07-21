@@ -1175,7 +1175,7 @@ export async function getFnMapAnalysis(
     reportMissingSymbols(state, options);
   }
 
-  const typeMap = analyze_module_types(state);
+  const typeMap = await analyze_module_types(state);
 
   const diagnostics: Record<string, Diagnostic[]> | undefined =
     state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));

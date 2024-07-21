@@ -179,7 +179,10 @@ export function buildReducedGraph<T extends EventConstraint<T>>(
     let tryActive = 0;
     state.pre = function (node) {
       eventsStack.push(allEvents.length);
-      if (this.inType || localState.unreachable) {
+      if (
+        localState.unreachable ||
+        (this.inType && node.type !== "EnumDeclaration")
+      ) {
         return [];
       }
       if (

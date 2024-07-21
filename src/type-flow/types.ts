@@ -403,7 +403,12 @@ function resolveEnum(e: EnumStateNode): ExactOrUnion {
         result,
         next.type === "EnumStringMember" && next.init?.type === "Literal"
           ? typeFromLiteral(next.init)
-          : { type: TypeTag.Number }
+          : {
+              type:
+                next.type === "EnumStringMember" && next.init
+                  ? EnumTagsConst
+                  : TypeTag.Number,
+            }
       );
       return result;
     },
@@ -464,9 +469,8 @@ export function typeFromTypeStateNode(
       const value =
         sn.init?.type === "Literal"
           ? typeFromLiteral(sn.init)
-          : e
-          ? resolveEnum(e)
-          : { type: TypeTag.Number | TypeTag.Long };
+          : (sn as { resolvedType?: ExactOrUnion }).resolvedType ??
+            (e ? resolveEnum(e) : { type: EnumTagsConst });
       return { type: TypeTag.Enum, value: { enum: e, value } };
     }
 

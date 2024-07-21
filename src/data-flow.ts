@@ -83,7 +83,8 @@ export interface DefEvent extends BaseEvent {
   node:
     | mctree.AssignmentExpression
     | mctree.UpdateExpression
-    | mctree.VariableDeclarator;
+    | mctree.VariableDeclarator
+    | mctree.EnumStringMember;
   decl: EventDecl;
   rhs?: EventDecl;
   containedEvents?: Array<RefEvent | ModEvent>;
@@ -487,6 +488,22 @@ export function buildDataFlowGraph(
               decl: decls,
               mayThrow,
             };
+          }
+          case "EnumStringMember": {
+            if (node.init && node.init.type !== "Literal") {
+              const decl = findDecl(node.id);
+              if (decl) {
+                liveDef(decl, stmt);
+                const def: DefEvent = {
+                  type: "def",
+                  node,
+                  decl,
+                  mayThrow,
+                };
+                return def;
+              }
+            }
+            break;
           }
           case "VariableDeclarator": {
             const decl = findDecl(

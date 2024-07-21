@@ -1,11 +1,19 @@
+import { formatAstLongLines } from "src/api";
 import { RootStateNode } from "src/control-flow";
+import { buildTypeInfo } from "src/type-flow";
 import { ProgramStateAnalysis, ProgramStateNode } from "../optimizer-types";
 import { couldBeWeak } from "./could-be";
-import { InterpState, TypeMap, evaluate } from "./interp";
+import {
+  DependencyFlags,
+  DependencyMap,
+  InterpState,
+  TypeMap,
+  evaluate,
+} from "./interp";
 import { subtypeOf } from "./sub-type";
-import { buildTypeInfo } from "src/type-flow";
+import { display } from "./types";
 
-export function analyze_module_types(state: ProgramStateAnalysis) {
+export async function analyze_module_types(state: ProgramStateAnalysis) {
   if (
     !state.config?.propagateTypes ||
     !state.config.trustDeclaredTypes ||
@@ -26,16 +34,55 @@ export function analyze_module_types(state: ProgramStateAnalysis) {
   ];
   const modulesSet = new Set<RootStateNode>(rootList);
 
+  const typeMap: TypeMap = new Map();
   const moduleMap = new Map<RootStateNode, InterpState>();
+  const dependencies = new Map<RootStateNode, DependencyMap>();
   for (const module of modulesSet) {
     modulesSet.delete(module);
     const istate = buildTypeInfo(state, module, false);
     if (istate?.typeMap) {
       moduleMap.set(module, istate);
+      istate.dependencies?.forEach((flags, other) => {
+        if (other === module) return;
+        const depMap = dependencies.get(other);
+        if (depMap) {
+          depMap.set(module, (depMap.get(module) ?? 0) | flags);
+        } else {
+          dependencies.set(other, new Map([[module, flags]]));
+        }
+      });
+      let changes = false;
+      let promise: Promise<unknown> | null = null;
+      istate.typeMap?.forEach((value, key) => {
+        const old = typeMap.get(key);
+        if (!old) {
+          changes = true;
+        } else if (!subtypeOf(value, old)) {
+          if (promise) return;
+          promise = formatAstLongLines(key).then((nodeStr) => {
+            throw new Error(
+              `New type for ${nodeStr} was not a subtype. Old: ${display(
+                old
+              )} vs New: ${display(value)}`
+            );
+          });
+        } else if (!changes && !subtypeOf(old, value)) {
+          changes = true;
+        }
+        typeMap.set(key, value);
+      });
+      promise && (await promise);
+      if (changes) {
+        const depMap = dependencies.get(module);
+        depMap?.forEach((flags, other) => {
+          if (flags & DependencyFlags.Type) {
+            modulesSet.add(other);
+          }
+        });
+      }
     }
   }
 
-  const typeMap: TypeMap = new Map();
   rootList.push(...Object.values(state.allFunctions).flat());
   for (const root of rootList) {
     const istate = moduleMap.get(root) ?? buildTypeInfo(state, root, false);
