@@ -74,7 +74,8 @@ export function evaluateCall(
 function calleeObjectType(istate: InterpState, callee: mctree.Expression) {
   if (callee.type === "MemberExpression") {
     return (
-      istate.typeMap?.get(callee.object) || {
+      istate.typeMap?.get(callee.object) ??
+      istate.frpushType ?? {
         type: TypeTag.Any,
       }
     );

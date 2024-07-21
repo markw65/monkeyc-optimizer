@@ -77,6 +77,7 @@ export type InterpState = {
   post?: (node: mctree.Node) => mctree.Node | false | null | void;
   typeChecker?: (a: ExactOrUnion, b: ExactOrUnion) => boolean;
   checkTypes?: DiagnosticType;
+  frpushType?: ExactOrUnion;
 };
 
 export function popIstate(istate: InterpState, node: mctree.Node) {
@@ -511,6 +512,7 @@ function pushScopedNameType(
 ) {
   let embeddedEffects = object ? object.embeddedEffects : false;
 
+  istate.frpushType = object?.value;
   let result;
   if (istate.typeMap) {
     result = istate.typeMap.get(node);
