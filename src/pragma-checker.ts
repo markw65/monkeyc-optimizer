@@ -86,6 +86,7 @@ export function pragmaChecker(
     if (node.start && node.start >= (comment.end || Infinity)) {
       const { kind, quote, needle } = matchers.shift()!;
       if (kind === "match") {
+        const thisComment = comment;
         promise = promise.then(() =>
           formatAstLongLines(node).then((haystack) => {
             haystack = haystack
@@ -95,7 +96,7 @@ export function pragmaChecker(
               matcher(quote, needle, haystack);
               diagnostic(
                 state,
-                comment,
+                thisComment,
                 `Didn't find '${needle}' in '${haystack}'`,
                 "ERROR"
               );
