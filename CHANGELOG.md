@@ -2,6 +2,15 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.72
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.59](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1059)
+
+  - Ignore `resolveType` field in serializeMonkeyC to avoid errors due to cycles.
+
+- Make `evaluate` skip everything except the `body` when processing class, module or function declarations.
+- Always fully evaluate expressions in enum initializers.
+
 ### 1.1.71
 
 - Fix various import paths so that .d.ts files work
