@@ -2,6 +2,15 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.70
+
+- Use formatAstLongLines to avoid line wrapping error messages
+- Better handling of calleeObjType when there's no typeMap
+- Add special handling for toNumber
+- Fix incorrect types in generated rezAsts
+- Keep track of all the definition nodes for a module (better support for goto def)
+- Run type analysis on module and class scope initializers
+
 ### 1.1.69
 
 - Make sure barrel resource references are found.
