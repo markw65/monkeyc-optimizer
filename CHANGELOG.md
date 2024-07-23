@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.71
+
+- Fix various import paths so that .d.ts files work
+
 ### 1.1.70
 
 - Use formatAstLongLines to avoid line wrapping error messages
