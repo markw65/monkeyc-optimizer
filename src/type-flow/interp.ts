@@ -306,7 +306,7 @@ export function evaluate(istate: InterpState, root: mctree.Node) {
       case "ModuleDeclaration":
       case "ClassDeclaration":
         if (node !== root) return false;
-        break;
+        return ["body"];
       case "AssignmentExpression":
         skipNode = node.left;
         break;
