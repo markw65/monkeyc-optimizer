@@ -34,7 +34,7 @@ class Test {
 module TestMod {
     const CONST_2 = TestMod2.CONST_1 + 1;
     enum {
-        ENUM_1 = TestMod2.CONST_1
+        ENUM_1 = TestMod2.CONST_1,
     }
     module Inner {
         const CONST = Test.CONST_2;
@@ -43,4 +43,16 @@ module TestMod {
 
 module TestMod2 {
     const CONST_1 = (Math.sin(1) * 5).toNumber();
+}
+
+class Test2 {
+    enum Enum {
+        ENUM_VALUE = 1 << 0,
+    }
+
+    // The type :value cannot be converted to Number because they have nothing in common
+    function test(value as Enum or Number) as { :value as Number } {
+        // Unexpected types for operator '&': [Null or Float or Double or Char or String vs Number]
+        return { :value => (value & ENUM_VALUE) == ENUM_VALUE ? 1 : 0 };
+    }
 }

@@ -59,6 +59,7 @@ import {
   ProgramStateOptimizer,
   StateNode,
   StateNodeAttributes,
+  TypedefStateNode,
 } from "./optimizer-types";
 import { pragmaChecker } from "./pragma-checker";
 import { sizeBasedPRE } from "./pre";
@@ -1465,11 +1466,13 @@ function cleanup(
         );
         if (i >= 0) {
           const old = decls[i] as EnumStateNode;
-          decls.splice(i, 1, {
+          const rep = {
             ...old,
             type: "TypedefDeclaration",
             node: typedefDecl,
-          });
+          } satisfies TypedefStateNode;
+          delete rep.resolvedType;
+          decls.splice(i, 1, rep);
         }
       }
       return typedefDecl;

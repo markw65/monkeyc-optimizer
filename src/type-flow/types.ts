@@ -19,7 +19,7 @@ import {
   TypedefStateNode,
 } from "../optimizer-types";
 import { forEach, map } from "../util";
-import { evaluateExpr, roundToFloat } from "./interp";
+import { deEnumerate, evaluateExpr, roundToFloat } from "./interp";
 import { intersection } from "./intersection-type";
 import { clearValuesUnder, unionInto } from "./union-type";
 
@@ -395,27 +395,6 @@ export function relaxType(type: ExactOrUnion) {
   return relaxed;
 }
 
-function resolveEnum(e: EnumStateNode): ExactOrUnion {
-  if (e.resolvedType) return e.resolvedType;
-  return (e.resolvedType = e.node.body.members.reduce(
-    (result, next) => {
-      unionInto(
-        result,
-        next.type === "EnumStringMember" && next.init?.type === "Literal"
-          ? typeFromLiteral(next.init)
-          : {
-              type:
-                next.type === "EnumStringMember" && next.init
-                  ? EnumTagsConst
-                  : TypeTag.Number,
-            }
-      );
-      return result;
-    },
-    { type: TypeTag.Never }
-  ));
-}
-
 export function typeFromTypeStateNode(
   state: ProgramStateAnalysis,
   sn: StateNodeDecl,
@@ -459,19 +438,49 @@ export function typeFromTypeStateNode(
       return { type: TypeTag.Module, value: sn };
     case "Program":
       return { type: TypeTag.Module };
-    case "EnumDeclaration":
-      return {
+    case "EnumDeclaration": {
+      if (sn.resolvedType) return sn.resolvedType;
+      if (hasProperty(sn, "resolvedType")) {
+        return {
+          type: TypeTag.Enum,
+          value: { enum: sn, value: { type: EnumTagsConst } },
+        };
+      }
+      sn.resolvedType = undefined;
+      const value = sn.node.body.members.reduce(
+        (type, member) => {
+          unionInto(type, deEnumerate(typeFromTypeStateNode(state, member)));
+          return type;
+        },
+        {
+          type: TypeTag.Never,
+        }
+      );
+      return (sn.resolvedType = {
         type: TypeTag.Enum,
-        value: { enum: sn, value: resolveEnum(sn) },
-      };
+        value: { enum: sn, value },
+      });
+    }
     case "EnumStringMember": {
-      const e = state.enumMap?.get(sn);
-      const value =
-        sn.init?.type === "Literal"
-          ? typeFromLiteral(sn.init)
-          : (sn as { resolvedType?: ExactOrUnion }).resolvedType ??
-            (e ? resolveEnum(e) : { type: EnumTagsConst });
-      return { type: TypeTag.Enum, value: { enum: e, value } };
+      const n = sn as mctree.EnumStringMember & { resolvedType?: ExactOrUnion };
+      if (!n.resolvedType) {
+        if (hasProperty(n, "resolvedType")) {
+          return { type: EnumTagsConst };
+        }
+        n.resolvedType = undefined;
+        const value =
+          n.init?.type === "Literal"
+            ? typeFromLiteral(n.init)
+            : n.init
+            ? deEnumerate(evaluateExpr(state, n.init).value)
+            : { type: TypeTag.Number };
+
+        n.resolvedType = value;
+      }
+      const e = state.enumMap?.get(n);
+      return e
+        ? { type: TypeTag.Enum, value: { enum: e, value: n.resolvedType } }
+        : n.resolvedType;
     }
 
     case "TypedefDeclaration": {
