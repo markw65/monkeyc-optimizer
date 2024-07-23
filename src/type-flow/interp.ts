@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { RootStateNode } from "src/control-flow";
+import { RootStateNode } from "../control-flow";
 import {
   diagnostic,
   formatAstLongLines,

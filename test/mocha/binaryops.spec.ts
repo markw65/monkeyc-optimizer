@@ -10,7 +10,7 @@ import {
   mustBeTrue,
 } from "../../src/type-flow/types";
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { evaluateUnaryTypes } from "src/type-flow/interp";
+import { evaluateUnaryTypes } from "../../src/type-flow/interp";
 
 export function binaryOperatorTests() {
   describe("Invalid inputs to", () => {

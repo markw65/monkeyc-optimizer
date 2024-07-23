@@ -1,4 +1,4 @@
-import { unhandledType } from "src/data-flow";
+import { unhandledType } from "../data-flow";
 import { logger, setBanner, wouldLog } from "../util";
 import {
   bytecodeToString,

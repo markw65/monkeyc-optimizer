@@ -1,6 +1,6 @@
-import { formatAstLongLines, popRootNode, pushRootNode } from "src/api";
-import { RootStateNode } from "src/control-flow";
-import { buildTypeInfo } from "src/type-flow";
+import { formatAstLongLines, popRootNode, pushRootNode } from "../api";
+import { RootStateNode } from "../control-flow";
+import { buildTypeInfo } from "../type-flow";
 import { ProgramStateAnalysis, ProgramStateNode } from "../optimizer-types";
 import { couldBeWeak } from "./could-be";
 import {
@@ -12,7 +12,7 @@ import {
 } from "./interp";
 import { subtypeOf } from "./sub-type";
 import { display } from "./types";
-import { log } from "src/logger";
+import { log } from "../logger";
 
 export async function analyze_module_types(state: ProgramStateAnalysis) {
   if (
