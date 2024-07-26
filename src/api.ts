@@ -1335,18 +1335,24 @@ export function formatAstLongLines(node: mctree.Node) {
     s.type !== "FunctionDeclaration";
   switch (node.type) {
     case "ClassDeclaration":
-      node = { ...node };
-      node.body = { ...node.body };
-      node.body.body = node.body.body.filter((c) => filter(c.item));
+      if (node.body?.body) {
+        node = { ...node };
+        node.body = { ...node.body };
+        node.body.body = node.body.body.filter((c) => filter(c.item));
+      }
       break;
     case "ModuleDeclaration":
-      node = { ...node };
-      node.body = { ...node.body };
-      node.body.body = node.body.body.filter(filter);
+      if (node.body?.body) {
+        node = { ...node };
+        node.body = { ...node.body };
+        node.body.body = node.body.body.filter(filter);
+      }
       break;
     case "Program":
-      node = { ...node };
-      node.body = node.body.filter(filter);
+      if (node.body) {
+        node = { ...node };
+        node.body = node.body.filter(filter);
+      }
       break;
   }
   return formatAst(node, null, { printWidth: 10000 });
