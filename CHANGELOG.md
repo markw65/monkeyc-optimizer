@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.73
+
+- Fix an issue formatting body-less class/module/program nodes.
+
 ### 1.1.72
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.59](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1059)
