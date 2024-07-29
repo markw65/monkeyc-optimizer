@@ -459,6 +459,13 @@ function visit_resource_refs(
       case "drawable":
         if (id === "class") {
           parseArg(dotted, l);
+        } else if (id === "id" && !element.attr.class) {
+          if (/^\w+$/.test(dotted)) {
+            const base = makeScopedName(`Rez.Drawables`);
+            const idLoc = adjustLoc(l, 0, 0);
+            const id = makeIdentifier(dotted, idLoc);
+            result.push(makeMemberExpression(withLoc(base, id, false), id));
+          }
         }
         return;
       case "shape":
