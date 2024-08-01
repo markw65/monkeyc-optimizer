@@ -1,0 +1,10 @@
+<resources>
+    <layout id="MainLayout">
+        <!-- Undefined symbol MyDrawable1 -->
+        <drawable class="CustomDrawable">
+            <param name="identifier">MyDrawable1</param>
+        </drawable>
+        <!-- OK -->
+        <drawable id="MyDrawable2" class="CustomDrawable" />
+    </layout>
+</resources>

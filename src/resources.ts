@@ -293,7 +293,7 @@ export function add_resources_to_ast(
   });
 }
 
-const drawableSkips: Record<string, Record<string, true>> = {
+const drawableSkips: Record<string, Record<string, true> | true> = {
   x: { center: true, left: true, right: true, start: true },
   locX: { center: true, left: true, right: true, start: true },
   y: { center: true, top: true, bottom: true, start: true },
@@ -311,6 +311,7 @@ const drawableSkips: Record<string, Record<string, true>> = {
   background: {},
   font: {},
   justification: {},
+  identifier: true,
 };
 
 function addPositions(base: mctree.Position, pos: mctree.Position) {
@@ -335,7 +336,7 @@ function visit_resource_refs(
   const parseArg = (
     name: string,
     loc: mctree.SourceLocation,
-    skip?: Record<string, true> | null
+    skip?: Record<string, true> | true | null
   ) => {
     let base: mctree.ScopedName | undefined;
     if (name.startsWith("@")) {
@@ -353,7 +354,11 @@ function visit_resource_refs(
         }
       }
     }
-    if (hasProperty(skip, name) || /^\d+(\.\d+)?%?$/.test(name)) {
+    if (
+      skip === true ||
+      hasProperty(skip, name) ||
+      /^\d+(\.\d+)?%?$/.test(name)
+    ) {
       return;
     }
     if (/^([-\w_$]+\s*\.\s*)*[-\w_$]+$/.test(name)) {
