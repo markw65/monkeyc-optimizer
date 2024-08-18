@@ -721,7 +721,7 @@ async function filesFromPaths(
             path: p,
             filter:
               filter &&
-              /^\*\*[\\/]\*.mc$/i.test(path.relative(workspace, pattern)),
+              /^\*\*[\\/]\*\.mc$/i.test(path.relative(workspace, pattern)),
           }))
         )
       ) || []
@@ -743,16 +743,19 @@ async function filesFromPaths(
         : result
     )
   );
+  const buildDirNormalized = buildDir.replace(/\\/g, "/");
   return {
     files: files
       .flat()
       .filter(
         (file) =>
           file.path.endsWith(extension) &&
-          (!file.filter || !file.path.startsWith(buildDir))
+          (!file.filter || !file.path.startsWith(buildDirNormalized))
       )
       .map(({ path }) => path),
-    paths: paths.map(({ path }) => path),
+    paths: paths
+      .filter(({ path }) => path.endsWith("/"))
+      .map(({ path }) => path),
   };
 }
 

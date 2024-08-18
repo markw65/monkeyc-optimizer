@@ -35,7 +35,7 @@
     "test-post-only": "node test/test.js --showInfo --typeCheckLevel Strict --skipOptimization --postOptimize --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
     "test-garmin-opt": "node test/test.js --typeCheckLevel Strict --skipOptimization --garminOptLevel=2 --run-tests --product=fenix5 --product=fr235 --jungle ./test/OptimizerTests/monkey.jungle",
     "test-personality": "node test/test-personality.js",
-    "test-analysis": "node test/test.js --showInfo --typeCheckLevel Strict --product=fr955 --sourceFile 'test/analysis/*.mc'",
+    "test-analysis": "node test/test.js --showInfo --typeCheckLevel Strict --product=fr955 --sourceFile \"test/analysis/*.mc\"",
     "test-tiny": "node test/test-tiny.js",
     "eslint": "npx eslint ."
   },
