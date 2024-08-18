@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.74
+
+- Add refs from drawable-ids to the corresponding drawable (Fixes prettier-extension-monkeyc#20)
+- Fix handling of 'identifier' params in resource files (Fixes prettier-extension-monkeyc#21)
+- Fix a bug filtering out generated files on Windows (Fixes #45)
+
 ### 1.1.73
 
 - Fix an issue formatting body-less class/module/program nodes.
