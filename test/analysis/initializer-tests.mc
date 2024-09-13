@@ -55,4 +55,10 @@ class Test2 {
         // Unexpected types for operator '&': [Null or Float or Double or Char or String vs Number]
         return { :value => (value & ENUM_VALUE) == ENUM_VALUE ? 1 : 0 };
     }
+
+    var value as Float;
+
+    function initialize() {
+        value = ENUM_VALUE.toFloat(); // Invalid assignment to value. Expected Float but got Null or Float [pmc-analysis]
+    }
 }

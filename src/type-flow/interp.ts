@@ -549,8 +549,9 @@ function pushScopedNameType(
       node.type === "MemberExpression" &&
       !node.computed
     ) {
-      istate.typeMap.set(node.object, object.value);
-      const resolved = resolveDottedMember(istate, object.value, node);
+      const objectType = deEnumerate(object.value);
+      istate.typeMap.set(node.object, objectType);
+      const resolved = resolveDottedMember(istate, objectType, node);
       if (resolved) {
         result = resolved.property;
         if (resolved.mayThrow) {
@@ -929,7 +930,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       if (!isLookupCandidate(node)) {
         const property = popIstate(istate, node.property);
         const object = popIstate(istate, node.object);
-        const objectType = object.value;
+        const objectType = deEnumerate(object.value);
         let byteArray = false;
         if (objectType.type & TypeTag.Object && objectType.value) {
           const odata = getObjectValue(objectType);

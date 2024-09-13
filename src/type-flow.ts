@@ -1113,7 +1113,8 @@ function propagateTypes(
 
   function getStateEntry(
     blockState: TypeState,
-    decl: EventDecl
+    decl: EventDecl,
+    node?: mctree.Node
   ): TypeStateValue {
     if (
       Array.isArray(decl) ||
@@ -1121,7 +1122,19 @@ function propagateTypes(
     ) {
       let tsVal = blockState.map.get(decl);
       if (!tsVal) {
-        tsVal = { curType: typeConstraint(decl, blockState) };
+        const t = typeConstraint(decl, blockState);
+        if (node?.type === "MemberExpression" && !node.computed) {
+          const baseType = typeMap.get(node.object);
+          if (baseType) {
+            const r = evaluate(istate, node).value;
+            if (subtypeOf(r, t)) {
+              tsVal = { curType: r };
+            }
+          }
+        }
+        if (!tsVal) {
+          tsVal = { curType: t };
+        }
         blockState.map.set(decl, tsVal);
       }
       return tsVal;
@@ -1570,7 +1583,7 @@ function propagateTypes(
         break;
       }
       case "ref": {
-        const curEntry = getStateEntry(curState, event.decl);
+        const curEntry = getStateEntry(curState, event.decl, event.node);
         typeMap.set(event.node, curEntry.curType);
         nodeEquivs.delete(event.node);
         if (curEntry.equivSet) {
