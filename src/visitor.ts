@@ -11,6 +11,7 @@ import {
   StateNodeDecl,
 } from "./optimizer-types";
 import { TypeMap } from "./type-flow/interp";
+import { ClassStateNode } from "./optimizer-types";
 
 export function visitorNode(node: mctree.Node): mctree.Node {
   if (node.type === "Identifier") {
@@ -31,6 +32,10 @@ export function visitorNode(node: mctree.Node): mctree.Node {
     node.right.operator === ":"
   ) {
     return node.right.argument;
+  }
+
+  if (node.type === "NewExpression") {
+    return visitorNode(node.callee);
   }
 
   return node;
@@ -156,6 +161,40 @@ export function visitReferences(
             return ["arguments"];
           }
           break;
+        case "NewExpression": {
+          const [name, results] = lookup(node.callee, true);
+          if (!results) break;
+          const initializers = new Map<ClassStateNode, StateNodeDecl[]>();
+          results.forEach((result) => {
+            result.results.forEach((klass) => {
+              if (klass.type !== "ClassDeclaration") return;
+              const inits = klass.decls?.["initialize"];
+              inits?.forEach((init) => {
+                if (init.type === "FunctionDeclaration") {
+                  const existing = initializers.get(klass);
+                  if (existing) {
+                    existing.push(init);
+                  } else {
+                    initializers.set(klass, [init]);
+                  }
+                }
+              });
+            });
+          });
+          if (initializers.size) {
+            checkResults(
+              [
+                name,
+                Array.from(initializers).map(([parent, results]) => ({
+                  parent,
+                  results,
+                })),
+              ],
+              node
+            );
+          }
+          break;
+        }
 
         case "Identifier":
           if (!name || node.name === name) {
