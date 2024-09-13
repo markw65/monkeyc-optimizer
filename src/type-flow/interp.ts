@@ -19,7 +19,7 @@ import {
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
-import { every } from "../util";
+import { every, map } from "../util";
 import { couldBe } from "./could-be";
 import {
   OpMatch,
@@ -1092,31 +1092,28 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       if (isExact(klass.value) && klass.value.type === TypeTag.Class) {
         obj.value = { klass: klass.value };
         if (istate.checkTypes && klass.value.value) {
-          const results = lookupNext(
-            istate.state,
-            [
-              {
-                parent: null,
-                results: Array.isArray(klass.value.value)
-                  ? klass.value.value
-                  : [klass.value.value],
-              },
-            ],
-            "decls",
-            { type: "Identifier", name: "initialize" }
-          );
-          if (results) {
-            const callees = results.flatMap((lookupDef) =>
-              lookupDef.results.filter(
-                (result): result is FunctionStateNode =>
-                  result.type === "FunctionDeclaration"
-              )
+          const callees = map(
+            klass.value.value,
+            (klass) => klass.decls?.initialize
+          )
+            .flat()
+            .filter(
+              (result): result is FunctionStateNode =>
+                result?.type === "FunctionDeclaration"
             );
+          if (callees.length) {
             checkCallArgs(
               istate,
               node,
               callees,
               args.map(({ value }) => value)
+            );
+          } else if (args.length) {
+            diagnostic(
+              istate.state,
+              node,
+              `initialize method expected no args, but got ${args.length}`,
+              istate.checkTypes
             );
           }
         }
