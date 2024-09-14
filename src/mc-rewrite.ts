@@ -264,16 +264,14 @@ function collectClassInfo(state: ProgramStateAnalysis) {
 
 export function getFileSources(fnMap: FilesToOptimizeMap) {
   return Promise.all(
-    Object.entries(fnMap).map(([name, value]) => {
-      return (
-        value.monkeyCSource ||
-        fs
-          .readFile(name)
-          .then(
-            (data) =>
-              (value.monkeyCSource = data.toString().replace(/\r\n/g, "\n"))
-          )
-      );
+    Object.values(fnMap).map((value) => {
+      if (value.monkeyCSource) return value.monkeyCSource;
+      return fs
+        .readFile(value.name)
+        .then(
+          (data) =>
+            (value.monkeyCSource = data.toString().replace(/\r\n/g, "\n"))
+        );
     })
   ).then(() => {
     return;
@@ -282,12 +280,12 @@ export function getFileSources(fnMap: FilesToOptimizeMap) {
 
 export function getFileASTs(fnMap: FilesToOptimizeMap) {
   return getFileSources(fnMap).then(() =>
-    Object.entries(fnMap).reduce((ok, [name, value]) => {
+    Object.values(fnMap).reduce((ok, value) => {
       if (!value.ast && !value.parserError) {
         const options: Record<string, unknown> = {
-          filepath: name,
+          filepath: value.name,
         };
-        if (/\.mss$/i.test(name)) {
+        if (/\.mss$/i.test(value.name)) {
           options.mss = value.barrel;
         }
         try {
@@ -390,11 +388,11 @@ export async function analyze(
   const state = preState as ProgramStateAnalysis;
 
   await getFileASTs(fnMap);
-  Object.entries(fnMap).forEach(([name, value]) => {
+  Object.values(fnMap).forEach((value) => {
     const { ast, parserError } = value;
     if (!ast) {
       if (allowParseErrors) return;
-      throw parserError || new Error(`Failed to parse ${name}`);
+      throw parserError || new Error(`Failed to parse ${value.name}`);
     }
     hasTests = false;
     collectNamespaces(ast, state);
@@ -1310,8 +1308,8 @@ async function optimizeMonkeyCHelper(
     state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));
 
   if (state.config?.checkBuildPragmas) {
-    Object.entries(fnMap).forEach(([name, f]) => {
-      pragmaChecker(state, f.ast!, diagnostics?.[name]);
+    Object.values(fnMap).forEach((f) => {
+      pragmaChecker(state, f.ast!, diagnostics?.[f.name]);
     });
   }
 

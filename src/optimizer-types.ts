@@ -260,6 +260,7 @@ export type ProgramStateOptimizer = Finalized<
 export type ExcludeAnnotationsMap = { [key: string]: boolean };
 export type FilesToOptimizeMap = {
   [key: string]: {
+    name: string;
     // Name of the optimized file
     output: string;
     // The name of the barrel this file belongs to, or ""

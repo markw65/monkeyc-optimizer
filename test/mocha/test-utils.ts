@@ -22,6 +22,7 @@ export function create_program_analysis(
 ) {
   const fnMap: FilesToOptimizeMap = {
     [filename]: {
+      name: filename,
       monkeyCSource: source,
       output: "",
       excludeAnnotations: {},

@@ -993,6 +993,7 @@ async function analyzeSourceFile(sourceFile: string, config: BuildConfig) {
   const source = (await fs.readFile(sourceFile)).toString();
   const fnMap: FilesToOptimizeMap = {
     [sourceFile]: {
+      name: sourceFile,
       monkeyCSource: source,
       output: "",
       excludeAnnotations: {},

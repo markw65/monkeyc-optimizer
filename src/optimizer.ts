@@ -802,6 +802,7 @@ async function fileInfoFromConfig(
         .map((file) => [
           file,
           {
+            name: file,
             output: path.join(
               output,
               relative_path_no_dotdot(path.relative(workspace, file))
@@ -928,11 +929,9 @@ export async function generateOneConfig(
     );
     barrelFnMaps.forEach((barrelFnMap) =>
       Object.entries(barrelFnMap).forEach(([key, value]) => {
-        // barrels shouldn't generally have any files in common
-        // with the main project. But personality files from
-        // the Device directory might be shared.
-        // Make sure to not overwrite the one from the main project
-        if (!hasProperty(fnMap, key)) {
+        if (fnMap[key]) {
+          fnMap[key + "::" + value.barrel] = value;
+        } else {
           fnMap[key] = value;
         }
       })
@@ -1121,9 +1120,13 @@ async function getProjectAnalysisHelper(
     (results) =>
       results.reduce((cur, result) => {
         if (!cur) return result;
-        Object.entries(result.fnMap).forEach(
-          ([key, value]) => cur.fnMap[key] || (cur.fnMap[key] = value)
-        );
+        Object.entries(result.fnMap).forEach(([key, value]) => {
+          if (cur.fnMap[key]) {
+            cur.fnMap[key + "::" + value.barrel] = value;
+          } else {
+            cur.fnMap[key] = value;
+          }
+        });
         cur.paths.push(...result.paths);
         return cur;
       }, null as PreAnalysis | null)!
@@ -1184,8 +1187,8 @@ export async function getFnMapAnalysis(
     state.diagnostics && (await resolveDiagnosticsMap(state.diagnostics));
 
   if (state.config?.checkBuildPragmas) {
-    Object.entries(fnMap).forEach(
-      ([name, f]) => f.ast && pragmaChecker(state, f.ast, diagnostics?.[name])
+    Object.values(fnMap).forEach(
+      (f) => f.ast && pragmaChecker(state, f.ast, diagnostics?.[f.name])
     );
   }
 
