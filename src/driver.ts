@@ -981,7 +981,11 @@ function trySim(
     .then(() => launchSimulator(!runTests))
     .then(() =>
       simulateProgram(program, product!, runTests, [handler, handler])
-    );
+    )
+    .catch((e) => {
+      if (e === 1) return;
+      throw e;
+    });
 }
 
 async function analyzeSourceFile(sourceFile: string, config: BuildConfig) {
