@@ -147,7 +147,7 @@ function subtypeOfValue(pair: ValuePairs) {
       const asd = pair.avalue;
       const bsd = pair.bvalue;
       // quadratic :-(
-      return some(asd, (sna) => some(bsd, (snb) => sna === snb));
+      return every(asd, (sna) => some(bsd, (snb) => sna === snb));
     }
     case TypeTag.Class: {
       const asd = pair.avalue;
