@@ -36,7 +36,7 @@ function checksArgs(
 }
 
 (:test)
-function testFloatVsNumber(logger as Logger) as Boolean {
+function testFloatVsNumberExpectedFail7_2_1_(logger as Logger) as Boolean {
     /* @match "checksArgs(pre_1, pre_1f, pre_1l, pre_1d)" */
     return (
         checksArgs(1, 1f, 1l, 1d) &&
