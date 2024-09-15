@@ -2,6 +2,15 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.75
+
+- Fix issues using personality files from barrels
+- Fix issues with enums values as the base of member expressions
+- Handle `new` expressions as references to the `initialize` method
+- Classes without an explicit `initialize` method get an implicit, empty `initialize`, rather than inheriting the parent's
+- Fix `subtypeOf` for function types.
+- Update tests to work with sdk-7.2.1 and later
+
 ### 1.1.74
 
 - Add refs from drawable-ids to the corresponding drawable (Fixes prettier-extension-monkeyc#20)
