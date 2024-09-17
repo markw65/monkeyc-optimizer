@@ -210,7 +210,13 @@ function evaluate_locals(assignments: Assignment[]) {
   while (true) {
     assignments = assignments.filter((a) => {
       if (a.names.length === 1 && a.values.every((v) => v.type === "Literal")) {
-        locals[a.names[0]] = a.values;
+        locals[a.names[0]] = a.values.map((v) => {
+          if ("source" in v) {
+            v = { ...v };
+            delete v.source;
+          }
+          return v;
+        });
         return false;
       }
       return true;
