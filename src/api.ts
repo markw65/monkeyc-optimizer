@@ -310,7 +310,7 @@ export function sameLookupResult(a: LookupDefinition[], b: LookupDefinition[]) {
   return sameArrays(a, b, sameLookupDefinition);
 }
 
-function declKey(decl: StateNodeDecl) {
+export function declKey(decl: StateNodeDecl) {
   return isStateNode(decl)
     ? decl.type === "ModuleDeclaration"
       ? decl.fullName
