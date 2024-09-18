@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.76
+
+- Fix member expression lookup when base type is exact
+- Fix path-resolution inside locals in jungle files
+
 ### 1.1.75
 
 - Fix issues using personality files from barrels
