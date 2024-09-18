@@ -1258,7 +1258,14 @@ export function getStateNodeDeclsFromType(
   state: ProgramStateAnalysis,
   object: ExactOrUnion
 ) {
-  const decls: StateNode[] = [];
+  return getStateNodeDeclsWithExactFromType(state, object).map(({ sn }) => sn);
+}
+
+export function getStateNodeDeclsWithExactFromType(
+  state: ProgramStateAnalysis,
+  object: ExactOrUnion
+) {
+  const decls: { sn: StateNode; exact: boolean }[] = [];
   if (
     object.value != null &&
     object.type & (TypeTag.Module | TypeTag.Class | TypeTag.Object)
@@ -1274,20 +1281,14 @@ export function getStateNodeDeclsFromType(
               type.value.klass.type === TypeTag.Class &&
               type.value.klass.value
             ) {
-              if (Array.isArray(type.value.klass.value)) {
-                decls.push(...type.value.klass.value);
-              } else {
-                decls.push(type.value.klass.value);
-              }
+              forEach(type.value.klass.value, (sn) =>
+                decls.push({ sn, exact: false })
+              );
             }
             break;
           case TypeTag.Module:
           case TypeTag.Class:
-            if (Array.isArray(type.value)) {
-              decls.push(...type.value);
-            } else {
-              decls.push(type.value);
-            }
+            forEach(type.value, (sn) => decls.push({ sn, exact: true }));
             break;
         }
       }
@@ -1307,7 +1308,7 @@ export function getStateNodeDeclsFromType(
       }
       const name = `Toybox.Lang.${typeTagName(bit)}`;
       const sns = lookupByFullName(state, name);
-      sns.forEach((sn) => isStateNode(sn) && decls.push(sn));
+      sns.forEach((sn) => isStateNode(sn) && decls.push({ sn, exact: true }));
       bits = next;
     } while (bits);
   }
