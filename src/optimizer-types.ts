@@ -166,6 +166,7 @@ export type ByNameStateNodeDecls =
 export type ProgramState = {
   allFunctions?: Record<string, FunctionStateNode[]>;
   allClasses?: ClassStateNode[];
+  nestedClasses?: Record<string, ClassStateNode[]>;
   allModules?: Set<ModuleStateNode>;
   invokeInfo?: FunctionInfo;
   allDeclarations?: Record<string, ByNameStateNodeDecls[]>;
@@ -247,6 +248,7 @@ export type ProgramStateLive = Finalized<
 export type ProgramStateAnalysis = Finalized<
   ProgramStateLive,
   | "allClasses"
+  | "nestedClasses"
   | "allModules"
   | "allFunctions"
   | "fnMap"

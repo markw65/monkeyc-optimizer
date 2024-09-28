@@ -132,6 +132,10 @@ function collectClassInfo(state: ProgramStateAnalysis) {
       // nested classes don't get access to their contained
       // context. Put them in the global scope instead.
       elm.stack = elm.stack!.slice(0, 1);
+      if (!hasProperty(state.nestedClasses, elm.name)) {
+        state.nestedClasses[elm.name] = [];
+      }
+      state.nestedClasses[elm.name].push(elm);
     }
     if (elm.node.superClass) {
       const [name, lookupDefns] = state.lookup(
@@ -321,6 +325,7 @@ export async function analyze(
     config,
     allFunctions: {},
     allClasses: [],
+    nestedClasses: {},
     allModules: new Set(),
     shouldExclude(node: mctree.Node) {
       if (

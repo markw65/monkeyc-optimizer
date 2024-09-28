@@ -150,7 +150,7 @@ export function buildTypeInfo(
       }
     }
     const stack = root.stack.slice();
-    pushRootNode(stack, root);
+    pushRootNode(state, stack, root);
     const { istate, redo } = propagateTypes(
       { ...state, stack },
       root,

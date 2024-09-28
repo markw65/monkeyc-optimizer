@@ -95,13 +95,13 @@ export async function analyze_module_types(state: ProgramStateAnalysis) {
         const saved = istate.state.stack;
         root.nodes.forEach((stack, node) => {
           istate.state.stack = stack.slice();
-          pushRootNode(istate.state.stack, root);
+          pushRootNode(istate.state, istate.state.stack, root);
           evaluate(istate, node);
           popRootNode(istate.state.stack, root);
         });
         istate.state.stack = saved;
       } else {
-        pushRootNode(istate.state.stack, root);
+        pushRootNode(istate.state, istate.state.stack, root);
         evaluate(istate, root.node!);
         popRootNode(istate.state.stack, root);
       }

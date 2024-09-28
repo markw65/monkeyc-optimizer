@@ -94,14 +94,19 @@ export function checkCompilerVersion(version: string, sdkVer: number) {
   return sdkVer <= v2;
 }
 
-export function pushRootNode(stack: ProgramStateStack, root: RootStateNode) {
+export function pushRootNode(
+  state: ProgramStateAnalysis,
+  stack: ProgramStateStack,
+  root: RootStateNode
+) {
   if (root.type === "Program") return;
-  const sn = root.stack
-    ?.at(-1)
-    ?.sn?.decls?.[root.name]?.find(
-      (sn): sn is RootStateNode =>
-        sn.type === root.type && (root.nodes != null || sn.node === root.node)
-    );
+  const sn =
+    root.stack
+      ?.at(-1)
+      ?.sn?.decls?.[root.name]?.find(
+        (sn): sn is RootStateNode =>
+          sn.type === root.type && (root.nodes != null || sn.node === root.node)
+      ) ?? state.nestedClasses[root.name]?.find((d) => d.node === root.node);
   if (!sn) {
     throw new Error(`Invalid stack for node ${root.fullName}`);
   }
@@ -860,6 +865,21 @@ function stateFuncs() {
               case "ModuleDeclaration": {
                 const parent = this.top().sn;
                 const name = "id" in node ? node.id && node.id.name : undefined;
+                if (name && node.type === "ClassDeclaration") {
+                  // nested class declarations are strage. They are looked up in
+                  // their parent's context (obviously) but their lookup context
+                  // jumps straight to the global scope. So when called from
+                  // (for example) buildDataFlowGraph the stack will only
+                  // contain the global scope, which won't reference the nested
+                  // class. So we look it up in allDeclarations to be safe.
+                  const sn = this.nestedClasses?.[name]?.find(
+                    (d) => d.node === node
+                  );
+                  if (sn) {
+                    this.stack.push({ sn });
+                    break;
+                  }
+                }
                 const fullName = this.stack
                   .map((e) => e.sn.name)
                   .concat(name)
