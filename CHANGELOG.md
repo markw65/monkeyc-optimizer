@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.77
+
+- Fix an infinite recursion issue with nested classes
+- Fix a problem analyzing 'instanceof Boolean'
+
 ### 1.1.76
 
 - Fix member expression lookup when base type is exact
