@@ -1400,7 +1400,7 @@ function propagateTypes(
           let result: ExactOrUnion | null = null;
           if (truthy === (event.kind === FlowKind.INSTANCEOF)) {
             result = intersection(left, right);
-          } else if (isExact(right)) {
+          } else if (isExact(right) || right.type === TypeTag.Boolean) {
             if (right.type === TypeTag.Object) {
               if (right.value == null) {
                 result = cloneType(left);
