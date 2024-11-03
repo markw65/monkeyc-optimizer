@@ -66,8 +66,8 @@ export function couldBeHelper(
     if (result) return true;
   }
   if (
-    (a.type & TypeTag.Enum && b.type & EnumTagsConst) ||
-    (b.type & TypeTag.Enum && a.type & EnumTagsConst)
+    (a.type & TypeTag.Enum && b.type & (EnumTagsConst | TypeTag.Enum)) ||
+    (b.type & TypeTag.Enum && a.type & (EnumTagsConst | TypeTag.Enum))
   ) {
     return true;
   }
