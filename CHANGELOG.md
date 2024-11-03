@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.78
+
+- Consistently use the name of the project directory to name the prg file
+- Fix a bug that reported errors for conversions between enums of different types
+
 ### 1.1.77
 
 - Fix an infinite recursion issue with nested classes
