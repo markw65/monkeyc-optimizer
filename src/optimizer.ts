@@ -409,7 +409,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
     return {
       jungleFiles: config.jungleFiles,
       xml,
-      program: path.basename(path.dirname(manifest)),
+      program: path.basename(path.basename(workspace)),
       hasTests: !!config.testBuild,
     };
   }
@@ -688,7 +688,7 @@ export async function generateOptimizedProject(options: BuildConfig) {
   return {
     jungleFiles,
     xml,
-    program: path.basename(path.dirname(manifest)),
+    program: path.basename(path.basename(workspace)),
     hasTests,
     diagnostics,
   };
