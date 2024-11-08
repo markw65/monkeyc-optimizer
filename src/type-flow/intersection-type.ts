@@ -258,33 +258,35 @@ function intersectionValue(pair: ValuePairs): SingleValue | null {
     case TypeTag.Module:
     case TypeTag.Function: {
       // quadratic :-(
-      const common: Array<ModuleStateNode | FunctionStateNode> = [];
+      const common = new Set<ModuleStateNode | FunctionStateNode>();
       forEach(
         pair.avalue,
         (sna) =>
           some(pair.bvalue, (snb) => sna === snb) &&
-          common.push(sna as ModuleStateNode | FunctionStateNode)
+          common.add(sna as ModuleStateNode | FunctionStateNode)
       );
-      if (!common.length) return null;
-      return (common.length === 1 ? common[0] : common) as SingleValue;
+      if (!common.size) return null;
+      const arr = Array.from(common);
+      return (arr.length === 1 ? arr[0] : arr) as SingleValue;
     }
 
     case TypeTag.Class: {
-      const common: Array<ClassStateNode> = [];
+      const common = new Set<ClassStateNode>();
       forEach(pair.avalue, (sna) => {
         const superA = getSuperClasses(sna);
         forEach(pair.bvalue, (snb) => {
           if (sna === snb || (superA && superA.has(snb))) {
-            common.push(sna);
+            common.add(sna);
           }
           const superB = getSuperClasses(snb);
           if (superB && superB.has(sna)) {
-            common.push(snb);
+            common.add(snb);
           }
         });
       });
-      if (!common.length) return null;
-      return common.length === 1 ? common[0] : common;
+      if (!common.size) return null;
+      const arr = Array.from(common);
+      return arr.length === 1 ? arr[0] : arr;
     }
 
     case TypeTag.Object: {
