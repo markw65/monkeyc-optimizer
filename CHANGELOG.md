@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.80
+
+- Proper fix for union of distinct enum values (the fix in 1.1.79 didn't always work)
+
 ### 1.1.79
 
 - Keep better track of enum value types in unions of distinct enums
