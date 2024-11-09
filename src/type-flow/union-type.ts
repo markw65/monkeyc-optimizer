@@ -292,11 +292,10 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
       const fromE = pair.bvalue;
       if (toE.enum !== fromE.enum) {
         if (toE.value && fromE.value) {
-          const toValue = tryUnion(toE.value, fromE.value);
-          if (toValue) {
-            const e: EnumValueType = { value: toValue };
-            return [e, true];
-          }
+          const result = cloneType(toE.value);
+          unionInto(result, fromE.value);
+          const e: EnumValueType = { value: result };
+          return [e, true];
         }
         return [null, true];
       }
