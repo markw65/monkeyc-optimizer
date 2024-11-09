@@ -291,6 +291,13 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
       const toE = pair.avalue;
       const fromE = pair.bvalue;
       if (toE.enum !== fromE.enum) {
+        if (toE.value && fromE.value) {
+          const toValue = tryUnion(toE.value, fromE.value);
+          if (toValue) {
+            const e: EnumValueType = { value: toValue };
+            return [e, true];
+          }
+        }
         return [null, true];
       }
       if (!toE.value) {

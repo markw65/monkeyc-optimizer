@@ -1,3 +1,5 @@
+import Toybox.Lang;
+
 enum Enum1 {
     VALUE_1,
 }
@@ -12,3 +14,8 @@ function test1() as Void {
 }
 
 function test2(value as Enum1) as Void {}
+
+function test3(flag as Boolean) as { :x as Number } {
+    // Expected $.test to return { :x as Number } but got { :x as Enum }
+    return { :x => flag ? VALUE_1 : VALUE_2 };
+}
