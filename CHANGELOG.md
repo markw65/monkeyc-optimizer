@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.79
+
+- Keep better track of enum value types in unions of distinct enums
+- Fix an issue that could cause huge amounts of wasted memory, and time, when intersecting class, module or function types.
+
 ### 1.1.78
 
 - Consistently use the name of the project directory to name the prg file
