@@ -19,7 +19,7 @@ import {
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
-import { every, map } from "../util";
+import { every, forEach, map } from "../util";
 import { couldBe } from "./could-be";
 import {
   OpMatch,
@@ -942,7 +942,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           objectType.value &&
           !(
             objectType.type &
-            (TypeTag.Module | TypeTag.Class | (byteArray ? 0 : TypeTag.Object))
+            (TypeTag.Class | (byteArray ? 0 : TypeTag.Object))
           )
         ) {
           let result: ExactOrUnion | null = null;
@@ -972,6 +972,35 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
               result = cloneType(result);
               result.type |= TypeTag.Null;
             }
+          }
+          if (
+            objectType.type & TypeTag.Module &&
+            couldBe(property.value, { type: TypeTag.Symbol })
+          ) {
+            const mvalue = getUnionComponent(objectType, TypeTag.Module);
+            if (!mvalue) {
+              result = { type: TypeTag.Any };
+              push({
+                value: result,
+                embeddedEffects:
+                  object.embeddedEffects || property.embeddedEffects,
+                node,
+              });
+              break;
+            }
+            if (result) result = cloneType(result);
+            forEach(mvalue, (m) => {
+              if (m.decls) {
+                Object.values(m.decls).forEach((sn) => {
+                  const t = typeFromTypeStateNodes(istate.state, sn, true);
+                  if (result) {
+                    unionInto(result, t);
+                  } else {
+                    result = cloneType(t);
+                  }
+                });
+              }
+            });
           }
           if (byteArray) {
             const t = { type: TypeTag.Number };
