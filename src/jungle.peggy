@@ -70,6 +70,7 @@ IdentifierPart
 RawPart
   = IdentifierPart
   / "."
+  / ":"
   / "/"
   / "*"
   / "\\" { return "/"; }
