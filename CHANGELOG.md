@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.81
+
+- Make computed lookups in modules smarter (Fixes #51)
+- Fix parsing of filenames with a colon (Fixes #52)
+
 ### 1.1.80
 
 - Proper fix for union of distinct enum values (the fix in 1.1.79 didn't always work)
