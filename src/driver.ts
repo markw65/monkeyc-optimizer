@@ -82,7 +82,7 @@ export async function driver() {
   let singleUseCopyProp = true;
   let checkTypes: DiagnosticType | "OFF" | undefined;
   let skipRemote = false;
-  let covarianceWarnings: boolean | undefined;
+  let extraReferenceTypeChecks: boolean | undefined;
   let postOptimize = false;
   let iterateOptimizer = false;
   let postProcess: string | null = null;
@@ -347,8 +347,8 @@ export async function driver() {
       case "skipRemote":
         skipRemote = !value || /^(true|1)$/i.test(value);
         break;
-      case "covarianceWarnings":
-        covarianceWarnings = !value || /^(true|1)$/i.test(value);
+      case "extraReferenceTypeChecks":
+        extraReferenceTypeChecks = !value || /^(true|1)$/i.test(value);
         break;
       case "removeArgc":
         removeArgc = /^(false|0)$/i.test(value) ? false : true;
@@ -408,7 +408,7 @@ export async function driver() {
       returnCommand: true,
       checkManifest: true,
       checkBuildPragmas,
-      covarianceWarnings,
+      extraReferenceTypeChecks,
       extraExcludes,
       iterateOptimizer,
       removeArgc,

@@ -88,12 +88,19 @@ import {
   objectLiteralKeyFromExpr,
   relaxType,
   setUnionComponent,
+  tupleForEach,
+  tupleMap,
+  tupleReduce,
   typeFromLiteral,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
   typeFromTypespec,
 } from "./type-flow/types";
-import { clearValuesUnder, unionInto, widenType } from "./type-flow/union-type";
+import {
+  clearValuesUnder,
+  unionHelper,
+  unionInto,
+} from "./type-flow/union-type";
 import { every, forEach, log, map, reduce, some } from "./util";
 
 const logging = true;
@@ -608,12 +615,8 @@ function mergeTypeState(
         return;
       }
     }
-    let result = cloneType(tov.curType);
-    if (!unionInto(result, fromv.curType)) return;
-    if (widen) {
-      const wide = widenType(result);
-      if (wide) result = wide;
-    }
+    const result = cloneType(tov.curType);
+    if (!unionHelper(result, fromv.curType, widen ? 0 : -Infinity)) return;
     tov.curType = result;
     changes = true;
   });
@@ -695,12 +698,11 @@ function updateAffected(
           if (type.type & TypeTag.Array) {
             const atype = getUnionComponent(type, TypeTag.Array);
             if (atype) {
-              if (Array.isArray(atype)) {
-                // Array TODO: Handle literal keys
-                atype.forEach((value) => unionInto(newType, value));
-              } else {
-                unionInto(newType, atype);
-              }
+              tupleForEach(
+                atype,
+                (v) => v.forEach((value) => unionInto(newType, value)),
+                (v) => unionInto(newType, v)
+              );
             }
           }
           if (type.type & TypeTag.Dictionary) {
@@ -854,29 +856,38 @@ function propagateTypes(
             next = t;
           }
           if (cur.type & TypeTag.Array) {
-            let avalue = getUnionComponent(cur, TypeTag.Array) || {
+            const avalue = getUnionComponent(cur, TypeTag.Array) || {
               type: TypeTag.Any,
             };
-            if (Array.isArray(avalue)) {
-              const index = arrayLiteralKeyFromExpr(me.property);
-              if (index != null && avalue[index] != null) {
-                if (!next) {
-                  assocValue[i].keyStr = index;
+            const index = arrayLiteralKeyFromExpr(me.property);
+            tupleForEach(
+              avalue,
+              (av) => {
+                let possibleValues: ExactOrUnion | ExactOrUnion[] = av;
+                if (index != null) {
+                  if (av[index] != null) {
+                    if (!next) {
+                      assocValue[i].keyStr = index;
+                    }
+                    possibleValues = av[index];
+                  } else {
+                    possibleValues = { type: TypeTag.Never };
+                  }
                 }
-                avalue = avalue[index];
+                if (next || i !== l || !newValue) {
+                  const n = next ? cloneType(next) : { type: TypeTag.Never };
+                  forEach(possibleValues, (v) => unionInto(n, v));
+                  next = n;
+                }
+              },
+              (av) => {
+                if (next) {
+                  unionInto((next = cloneType(next)), av);
+                } else {
+                  next = av;
+                }
               }
-              if (next || i !== l || !newValue) {
-                const n = next ? cloneType(next) : { type: TypeTag.Never };
-                forEach(avalue, (v) => unionInto(n, v));
-                next = n;
-              }
-            } else {
-              if (next) {
-                unionInto((next = cloneType(next)), avalue);
-              } else {
-                next = avalue;
-              }
-            }
+            );
           }
           let isExact = false;
           if (cur.type & TypeTag.Dictionary) {
@@ -1203,7 +1214,7 @@ function propagateTypes(
         effectFree = false;
         return;
       }
-      const result = info(istate.state, callee, calleeObj, () =>
+      const result = info(istate, callee, calleeObj, () =>
         node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
       );
       if (!result.effectFree) {
@@ -2567,24 +2578,36 @@ function updateByAssocPath(
     } else if (update) {
       if (object.type & TypeTag.Array) {
         let avalue = getUnionComponent(object, TypeTag.Array);
-        if (Array.isArray(avalue)) {
-          const key = pathElem.keyStr;
-          const relaxed = relaxType(property);
-          if (typeof key === "number" && key >= 0 && key < avalue.length) {
-            avalue = avalue.slice();
-            avalue[key] = relaxed;
-          } else {
-            avalue = avalue.map((v) => {
-              v = cloneType(v);
-              unionInto(v, relaxed);
-              return v;
-            });
-          }
-        } else {
-          avalue = valueToStore(avalue);
+        const key = pathElem.keyStr;
+        const relaxed = relaxType(property);
+        if (avalue) {
+          avalue = tupleMap(
+            avalue,
+            (v) => {
+              if (typeof key === "number") {
+                if (key < 0 || key >= v.length) {
+                  return null;
+                }
+                v = v.slice();
+                v[key] = relaxed;
+                return v;
+              }
+              return v.map((v) => {
+                v = cloneType(v);
+                unionInto(v, relaxed);
+                return v;
+              });
+            },
+            (v) => valueToStore(v),
+            tupleReduce
+          );
         }
         object = cloneType(object);
-        setUnionComponent(object, TypeTag.Array, avalue);
+        setUnionComponent(
+          object,
+          TypeTag.Array,
+          avalue ?? { type: TypeTag.Any }
+        );
       }
       if (object.type & TypeTag.Dictionary) {
         const dvalue = getUnionComponent(object, TypeTag.Dictionary);

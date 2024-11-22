@@ -11,6 +11,7 @@ import {
   getObjectValue,
   getUnionComponent,
   ObjectLikeTagsConst,
+  tupleForEach,
   typeFromObjectLiteralKey,
   TypeTag,
   typeTagName,
@@ -91,21 +92,37 @@ function subtypeOfValue(pair: ValuePairs) {
     case TypeTag.Symbol:
       return pair.avalue === pair.bvalue;
     case TypeTag.Array: {
-      if (Array.isArray(pair.avalue)) {
-        const bv = pair.bvalue;
-        if (Array.isArray(bv)) {
-          if (pair.avalue.length !== bv.length) {
-            return false;
-          }
-          return pair.avalue.every((t, i) => subtypeOf(t, bv[i]));
+      let result = true;
+      tupleForEach(
+        pair.avalue,
+        (av) => {
+          let some = false;
+          tupleForEach(
+            pair.bvalue,
+            (bv) => {
+              some =
+                av.length === bv.length &&
+                bv.every((b, i) => subtypeOf(av[i], b));
+              return some === false;
+            },
+            (bv) => (some = av.every((a) => subtypeOf(a, bv))) === false
+          );
+          return (result = some);
+        },
+        (av) => {
+          let some = false;
+          tupleForEach(
+            pair.bvalue,
+            () => {
+              // Array<T> is never a subtype of a tuple
+              return true;
+            },
+            (bv) => (some = subtypeOf(av, bv)) === false
+          );
+          return (result = some);
         }
-        return pair.avalue.every((t) => subtypeOf(t, bv));
-      } else if (Array.isArray(pair.bvalue)) {
-        // An Array<T> is never a subtype of a tuple, because it could have
-        // arbitrary length.
-        return false;
-      }
-      return subtypeOf(pair.avalue, pair.bvalue);
+      );
+      return result;
     }
     case TypeTag.Dictionary: {
       const adict = pair.avalue;

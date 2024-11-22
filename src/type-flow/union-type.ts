@@ -12,17 +12,10 @@ import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
   ClassType,
-  cloneType,
   EnumValueType,
   ExactOrUnion,
-  forEachUnionComponent,
-  getUnionComponent,
-  hasUnionData,
-  reducedType,
-  setUnionComponent,
-  SingletonTypeTagsConst,
   SingleValue,
-  typeFromObjectLiteralKey,
+  SingletonTypeTagsConst,
   TypeTag,
   UnionData,
   UnionDataKey,
@@ -30,9 +23,25 @@ import {
   UnionType,
   ValuePairs,
   ValueTypeTagsConst,
+  cloneType,
+  forEachUnionComponent,
+  getUnionComponent,
+  hasUnionData,
+  tupleForEach,
+  tupleReduce,
+  typeFromObjectLiteralKey,
 } from "./types";
 
+const MaxWidenDepth = 4;
 export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
+  return unionHelper(to, from, -Infinity);
+}
+
+export function unionHelper(
+  to: ExactOrUnion,
+  from: ExactOrUnion,
+  widenDepth: number
+) {
   if (to == null || from == null) {
     throw new Error("Null");
   }
@@ -61,7 +70,7 @@ export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
       return true;
     }
 
-    return mergeMultiple(to, from);
+    return mergeMultiple(to, from, widenDepth);
   }
 
   if (to.value != null) {
@@ -71,7 +80,7 @@ export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
     }
 
     // always returns true because type changed.
-    mergeMultiple(to, from);
+    mergeMultiple(to, from, widenDepth);
     return true;
   }
 
@@ -87,7 +96,11 @@ export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
   return true;
 }
 
-function mergeMultiple(to: ExactOrUnion, from: ExactOrUnion) {
+function mergeMultiple(
+  to: ExactOrUnion,
+  from: ExactOrUnion,
+  widenDepth: number
+) {
   const newTags = to.type | from.type;
   let anyChanged = newTags !== to.type;
   let mask = 0;
@@ -96,11 +109,17 @@ function mergeMultiple(to: ExactOrUnion, from: ExactOrUnion) {
     const fromv = getUnionComponent(from, ac.type);
     if (ac.value != null) {
       if (fromv != null) {
-        const [value, changed] = mergeSingle({
-          type: ac.type,
-          avalue: ac.value,
-          bvalue: fromv,
-        } as ValuePairs);
+        const [value, changed] =
+          ac.value === fromv
+            ? [fromv, false]
+            : mergeSingle(
+                {
+                  type: ac.type,
+                  avalue: ac.value,
+                  bvalue: fromv,
+                } as ValuePairs,
+                widenDepth
+              );
         if (changed) anyChanged = true;
         if (value) {
           mask |= ac.type;
@@ -144,13 +163,16 @@ function mergeMultiple(to: ExactOrUnion, from: ExactOrUnion) {
   return true;
 }
 
-function tryUnion(to: ExactOrUnion, from: ExactOrUnion): ExactOrUnion | null {
-  to = cloneType(to);
-  if (unionInto(to, from)) return to;
-  return null;
-}
+function mergeSingle(
+  pair: ValuePairs,
+  widenDepth: number
+): [SingleValue | null, boolean] {
+  function tryUnion(to: ExactOrUnion, from: ExactOrUnion): ExactOrUnion | null {
+    to = cloneType(to);
+    if (unionHelper(to, from, widenDepth + 1)) return to;
+    return null;
+  }
 
-function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
   switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
@@ -163,32 +185,66 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
     case TypeTag.Char:
     case TypeTag.String:
     case TypeTag.Symbol:
-      if (pair.avalue === pair.bvalue) {
-        return [pair.avalue, false];
-      }
+      // we already checked that they're not equal
       return [null, true];
     case TypeTag.Array: {
-      // Array TODO: Support an actual union-of-tuples type
-      if (Array.isArray(pair.avalue)) {
-        const bv = pair.bvalue;
-        if (Array.isArray(bv)) {
-          if (pair.avalue.length === bv.length) {
-            let changed = false;
-            const u = pair.avalue.map((a, i) => {
-              const merged = tryUnion(a, bv[i]);
-              if (merged) changed = true;
-              return merged || a;
-            });
-            return [u, changed];
+      if (widenDepth > MaxWidenDepth) {
+        return [null, true];
+      }
+      const tupleTypes = new Map<number, ExactOrUnion[][]>();
+      const arrayTypes: ExactOrUnion[] = [];
+      // collect all the array and tuple types
+      tupleForEach(
+        pair.avalue,
+        (v) => {
+          const t = tupleTypes.get(v.length);
+          if (t) {
+            t.push(v);
+          } else {
+            tupleTypes.set(v.length, [v]);
+          }
+        },
+        (v) => arrayTypes.push(v)
+      );
+
+      const extraTypes: Array<ExactOrUnion | ExactOrUnion[]> = [];
+      tupleForEach(
+        pair.bvalue,
+        (v) => {
+          const tuples = tupleTypes.get(v.length);
+          if (
+            !tuples?.some((t) =>
+              t.every((at, i) => {
+                const bt = v[i];
+                return subtypeOf(at, bt) && subtypeOf(bt, at);
+              })
+            )
+          ) {
+            extraTypes.push(v);
+          }
+        },
+        (v) => {
+          if (!arrayTypes.some((at) => subtypeOf(at, v) && subtypeOf(v, at))) {
+            extraTypes.push(v);
           }
         }
+      );
+      if (extraTypes.length) {
+        if (widenDepth >= 0) {
+          return [null, true];
+        }
+        const allTypes = (
+          pair.avalue instanceof Set ? Array.from(pair.avalue) : [pair.avalue]
+        ).concat(extraTypes);
+        return [tupleReduce(allTypes), true];
       }
-      const av = reducedType(pair.avalue);
-      const merged = tryUnion(av, reducedType(pair.bvalue));
-      return [merged || av, merged != null];
+      return [pair.avalue, false];
     }
 
     case TypeTag.Dictionary: {
+      if (widenDepth > MaxWidenDepth) {
+        return [null, true];
+      }
       const avalue = pair.avalue;
       const bvalue = pair.bvalue;
       if (!avalue.value) {
@@ -203,7 +259,7 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
               return;
             }
             av = cloneType(av);
-            if (unionInto(av, bv)) merged = true;
+            if (unionHelper(av, bv, widenDepth + 1)) merged = true;
             result.set(key, av);
           });
           return [result, merged];
@@ -275,7 +331,8 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
       let klass = pair.avalue.klass;
       const [obj, objChanged] = mergeObjectValues(
         pair.avalue.obj,
-        pair.bvalue.obj
+        pair.bvalue.obj,
+        widenDepth
       );
       const klassChanged = tryUnion(klass, pair.bvalue.klass);
       if (klassChanged || objChanged) {
@@ -293,7 +350,7 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
       if (toE.enum !== fromE.enum) {
         if (toE.value && fromE.value) {
           const result = cloneType(toE.value);
-          unionInto(result, fromE.value);
+          unionHelper(result, fromE.value, widenDepth + 1);
           const e: EnumValueType = { value: result };
           return [e, true];
         }
@@ -320,7 +377,8 @@ function mergeSingle(pair: ValuePairs): [SingleValue | null, boolean] {
 
 function mergeObjectValues(
   to: Record<string, ExactOrUnion> | undefined,
-  from: Record<string, ExactOrUnion> | undefined
+  from: Record<string, ExactOrUnion> | undefined,
+  widenDepth: number
 ) {
   if (!to) {
     return [to, false];
@@ -337,7 +395,7 @@ function mergeObjectValues(
       return;
     }
     const rep = cloneType(value);
-    if (unionInto(rep, from[key])) {
+    if (unionHelper(rep, from[key], widenDepth + 1)) {
       if (result === to) result = { ...result };
       result[key] = rep;
     }
@@ -470,105 +528,4 @@ export function clearValuesUnder(
   } else {
     v.value = newData;
   }
-}
-
-/**
- * Its possible for type inference in a loop to keep inferring more and
- * more specialized types.
- *
- * eg
- *
- * var x = [];
- * for (i=0; i<N; i++) {
- *   x = [x, i];
- *   // on the first iteration, x is [[], Number], then [[[], Number], Number] and so on
- * }
- *
- * If we don't know how many iterations will run, we can't know the final type of x, so
- * we don't want to just keep iterating the type analysis. After a few iterations, we start
- * applying widenTypeHelper to ensure that the widening stops.
- *
- * This looks at the type, and kills off anything that's too deeply nested.
- *
- * @returns The modified type if modifications were needed, otherwise null.
- */
-function widenTypeHelper(t: ExactOrUnion, depth: number) {
-  let result: ExactOrUnion | null = null;
-  forEachUnionComponent(
-    t,
-    t.type & (TypeTag.Array | TypeTag.Dictionary),
-    (ac) => {
-      if (ac.value == null) return;
-      switch (ac.type) {
-        case TypeTag.Array:
-          if (depth > 4) {
-            if (!result) result = cloneType(t);
-            clearValuesUnder(result, ac.type);
-          } else {
-            if (Array.isArray(ac.value)) {
-              let newAData = ac.value;
-              ac.value.forEach((avalue, index) => {
-                const data = widenTypeHelper(avalue, depth + 1);
-                if (data) {
-                  if (newAData === ac.value) {
-                    newAData = newAData.slice();
-                  }
-                  newAData[index] = data;
-                }
-              });
-              if (newAData !== ac.value) {
-                if (!result) result = cloneType(t);
-                setUnionComponent(result, ac.type, newAData);
-              }
-            } else {
-              const v = widenTypeHelper(ac.value, depth + 1);
-              if (v) {
-                if (!result) result = cloneType(t);
-                setUnionComponent(result, ac.type, v);
-              }
-            }
-          }
-          return;
-        case TypeTag.Dictionary:
-          if (depth > 4) {
-            if (!result) result = cloneType(t);
-            clearValuesUnder(result, ac.type);
-          } else {
-            const ddata = ac.value;
-            if (ddata.value) {
-              const key = widenTypeHelper(ddata.key, depth + 1);
-              const data = widenTypeHelper(ddata.value, depth + 1);
-              if (key || data) {
-                if (!result) result = cloneType(t);
-                const newDData = { ...ddata };
-                if (key) newDData.key = key;
-                if (data) newDData.value = data;
-                setUnionComponent(result, ac.type, newDData);
-              }
-            } else {
-              let newDData = ddata;
-              ddata.forEach((dvalue, dkey) => {
-                const data = widenTypeHelper(dvalue, depth + 1);
-                if (data) {
-                  if (newDData === ddata) {
-                    newDData = new Map(newDData);
-                  }
-                  newDData.set(dkey, data);
-                }
-              });
-              if (newDData !== ddata) {
-                if (!result) result = cloneType(t);
-                setUnionComponent(result, ac.type, newDData);
-              }
-            }
-          }
-          return;
-      }
-    }
-  );
-  return result;
-}
-
-export function widenType(t: ExactOrUnion) {
-  return widenTypeHelper(t, 0);
 }

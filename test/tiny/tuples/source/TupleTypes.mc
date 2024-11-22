@@ -18,7 +18,7 @@ class Test {
     }
 
     function getArray(values as Array<Number>) as Array<Number> {
-        var result = [];
+        var result = [] as Array<Number>;
 
         result.addAll(values);
 

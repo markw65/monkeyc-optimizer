@@ -42,7 +42,7 @@ export function couldBeTests(statefn: () => ProgramStateAnalysis | null) {
       const mixed_type = find_type_by_name(state, "Mixed");
       assert.strictEqual(
         display(mixed_type),
-        "Number or String or Array<Number or String> or Dictionary<String, Number> or Toybox.WatchUi.Menu or Toybox.WatchUi.Menu2"
+        "Number or String or Array<String> or Array<Number> or Dictionary<String, Number> or Toybox.WatchUi.Menu or Toybox.WatchUi.Menu2"
       );
     });
 

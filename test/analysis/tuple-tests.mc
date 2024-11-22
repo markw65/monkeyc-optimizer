@@ -30,8 +30,10 @@ function tuple1() as [Number, String, Boolean] {
 (:keep)
 function tuple2() as [Number, String, Boolean, Float] {
     var tuple = tuple1();
+    // @expect "Adding to a tuple would change its type"
     tuple.add(42.0);
     wantsFloat(tuple[3]);
+    // @expect "Invalid assignment to tuple[1]. Expected String but got Number<42>"
     tuple[1] = 42;
     // @expect "to return [Number, String, Boolean, Float] but got [Number, Number, Boolean, Float]"
     return tuple;
@@ -41,6 +43,7 @@ function tuple2() as [Number, String, Boolean, Float] {
 function tuple3(
     tuple as [Number, String, Boolean, Float]
 ) as [Number, String, Boolean, Float] {
+    // @expect "Invalid assignment to tuple[1]. Expected String but got Number<42>"
     tuple[1] = 42;
     // @expect "to return [Number, String, Boolean, Float] but got [Number, Number, Boolean, Float]"
     return tuple;
@@ -81,4 +84,31 @@ function passTupleAsArray() as Void {
     wantsArray([42, "Hello"]);
     // @expect "expected to be Array<Number or String> but got [Number, String, Boolean]"
     wantsArray([42, "Hello", true]);
+}
+
+(:keep)
+function unionOfTuples1() as Array<[Boolean, Number] or [Boolean]> {
+    // Expected $.test to return Array<[Boolean, Number]> but got [[Boolean, Number], [Boolean]]
+    return [[true, 0], [false]];
+}
+
+(:keep)
+function unionOfTuples2() as Array<[Boolean] or [Boolean, Number]> {
+    // OK
+    return [[false], [true, 0]];
+}
+
+(:keep)
+function unionOfTuples3() as Array<[Boolean, Number] or [Float]> {
+    // OK
+    return [[true, 0], [1.0]];
+}
+
+(:keep)
+function unionOfTuples4(tuple as [Number, Boolean] or [Number, String]) {
+    tuple[0] = 42;
+    // @expect "Invalid assignment to tuple[0]. Expected Number but got"
+    tuple[0] = "Hello";
+    // @expect "Invalid assignment to tuple[1]. Expected"
+    tuple[1] = false;
 }

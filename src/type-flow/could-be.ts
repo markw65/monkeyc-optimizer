@@ -9,6 +9,7 @@ import {
   getUnionComponent,
   ObjectLikeTagsConst,
   SingletonTypeTagsConst,
+  tupleForEach,
   TypeTag,
   typeTagName,
   UnionDataTypeTagsConst,
@@ -147,23 +148,41 @@ function couldBeValue(pair: ValuePairs, shallow: boolean) {
       return pair.avalue === pair.bvalue;
     // todo: Array<Number> couldBe Array<String> because they could both be
     // empty.
-    case TypeTag.Array:
+    case TypeTag.Array: {
       if (shallow) return true;
-      if (Array.isArray(pair.avalue)) {
-        const bv = pair.bvalue;
-        if (Array.isArray(bv)) {
-          if (pair.avalue.length !== bv.length) {
-            return false;
-          }
-          return pair.avalue.every((a, i) => couldBe(a, bv[i]));
+      let result = false;
+      tupleForEach(
+        pair.avalue,
+        (av) => {
+          tupleForEach(
+            pair.bvalue,
+            (bv) => {
+              result =
+                av.length === bv.length &&
+                bv.every((b, i) => couldBe(av[i], b));
+              return result === false;
+            },
+            (bv) => {
+              result = av.every((a) => couldBe(a, bv));
+              return result === false;
+            }
+          );
+          return result === false;
+        },
+        (av) => {
+          tupleForEach(
+            pair.bvalue,
+            (bv) => {
+              result = bv.every((b) => couldBe(av, b));
+              return result === false;
+            },
+            (bv) => (result = couldBe(av, bv)) === false
+          );
+          return result === false;
         }
-        return pair.avalue.every((a) => couldBe(a, bv));
-      }
-      if (Array.isArray(pair.bvalue)) {
-        const av = pair.avalue;
-        return pair.bvalue.every((b) => couldBe(av, b));
-      }
-      return couldBe(pair.avalue, pair.bvalue);
+      );
+      return result;
+    }
     // todo: as above, arbitrary Dictionaries *couldBe* each other because they
     // could both be empty.
     case TypeTag.Dictionary: {

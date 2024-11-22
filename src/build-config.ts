@@ -43,7 +43,7 @@ export type BuildConfig = {
   postBuildOptimizer?: boolean;
   singleUseCopyProp?: boolean;
   iterateOptimizer?: boolean;
-  covarianceWarnings?: boolean;
+  extraReferenceTypeChecks?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
   strictTypeCheck?: "On" | "Off" | "Default";
   // post build optimizer
@@ -284,6 +284,13 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
           "Assume static functions will always be invoked statically",
         ],
         default: "YES",
+        scope: "resource",
+      },
+      extraReferenceTypeChecks: {
+        type: "boolean",
+        description:
+          "Whether to warn about [unsafe operations on Arrays and Dictionaries](https://github.com/markw65/monkeyc-optimizer/wiki/Extra-Reference-Type-Checks-(prettierMonkeyC.extraReferenceTypeChecks)) that Garmin's compiler allows",
+        default: true,
         scope: "resource",
       },
       compilerLookupRules: {

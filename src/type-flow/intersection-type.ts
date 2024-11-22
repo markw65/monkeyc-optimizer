@@ -29,6 +29,8 @@ import {
   NumberType,
   ObjectLikeTagsConst,
   SingleValue,
+  tupleMap,
+  tupleReduce,
   TypeTag,
   typeTagName,
   ValuePairs,
@@ -199,26 +201,42 @@ function intersectionValue(pair: ValuePairs): SingleValue | null {
     case TypeTag.Char:
     case TypeTag.Symbol:
       return pair.avalue === pair.bvalue ? pair.avalue : null;
-    case TypeTag.Array: {
-      if (Array.isArray(pair.avalue)) {
-        const bv = pair.bvalue;
-        if (Array.isArray(bv)) {
-          if (pair.avalue.length !== bv.length) {
-            return null;
-          }
-          const isect = pair.avalue.map((t, i) => intersection(t, bv[i]));
-          return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+    case TypeTag.Array:
+      return tupleMap(
+        pair.avalue,
+        (av) =>
+          tupleMap(
+            pair.bvalue,
+            (bv) => {
+              if (av.length !== bv.length) return null;
+              const isect = av.map((t, i) => intersection(t, bv[i]));
+              return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+            },
+            (bv) => {
+              const isect = av.map((t) => intersection(bv, t));
+              return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+            },
+            (bv) => (bv.length === 0 ? null : bv)
+          ),
+        (av) =>
+          tupleMap(
+            pair.bvalue,
+            (bv) => {
+              const isect = bv.map((t) => intersection(av, t));
+              return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
+            },
+            (bv) => {
+              const atype = intersection(av, bv);
+              return atype.type === TypeTag.Never ? null : atype;
+            },
+            (bv) => (bv.length === 0 ? null : bv)
+          ),
+        (av) => {
+          const result = av.flat(1);
+          return result.length === 0 ? null : tupleReduce(result);
         }
-        const isect = pair.avalue.map((t) => intersection(t, bv));
-        return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
-      } else if (Array.isArray(pair.bvalue)) {
-        const av = pair.avalue;
-        const isect = pair.bvalue.map((t) => intersection(av, t));
-        return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
-      }
-      const atype = intersection(pair.avalue, pair.bvalue);
-      return atype.type === TypeTag.Never ? null : atype;
-    }
+      );
+
     case TypeTag.Dictionary: {
       if (!pair.avalue.value) {
         if (!pair.bvalue.value) {

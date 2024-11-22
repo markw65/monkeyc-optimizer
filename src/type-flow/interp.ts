@@ -1,5 +1,4 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { RootStateNode } from "../control-flow";
 import {
   diagnostic,
   formatAstLongLines,
@@ -10,6 +9,7 @@ import {
   lookupNext,
 } from "../api";
 import { isExpression, traverseAst } from "../ast";
+import { RootStateNode } from "../control-flow";
 import { unhandledType } from "../data-flow";
 import {
   ClassStateNode,
@@ -41,6 +41,7 @@ import {
   ObjectLiteralType,
   ObjectType,
   TypeTag,
+  arrayLiteralKeyFromExpr,
   cloneType,
   display,
   getObjectValue,
@@ -52,7 +53,9 @@ import {
   mustBeTrue,
   objectLiteralKeyFromExpr,
   objectLiteralKeyFromType,
+  reducedType,
   relaxType,
+  tupleMap,
   typeFromLiteral,
   typeFromSingleTypeSpec,
   typeFromTypeStateNode,
@@ -396,27 +399,32 @@ export function deEnumerate(t: ExactOrUnion) {
 
 function arrayTypeAtIndex(
   arr: NonNullable<ArrayType["value"]>,
-  elemType: ExactOrUnion | undefined
+  elemType: ExactOrUnion | null | undefined,
+  forStrictAssign: boolean,
+  enforceTuples: boolean
 ) {
-  if (Array.isArray(arr)) {
-    if (
-      elemType &&
-      isExact(elemType) &&
-      elemType.type === TypeTag.Number &&
-      elemType.value != null &&
-      arr[elemType.value] != null
-    ) {
-      return arr[elemType.value];
-    }
-    return arr.reduce(
-      (p, v) => {
-        unionInto(p, v);
-        return p;
-      },
-      { type: TypeTag.Never }
-    );
-  }
-  return arr;
+  const reduce = (v: ExactOrUnion[]) =>
+    forStrictAssign
+      ? v.reduce(
+          (t, c) => (t ? intersection(t, c) : c),
+          null as ExactOrUnion | null
+        ) ?? { type: TypeTag.Never }
+      : reducedType(v);
+  const key =
+    elemType && isExact(elemType) && elemType.type === TypeTag.Number
+      ? elemType.value
+      : null;
+  return tupleMap(
+    arr,
+    (v) => (key != null ? v[key] ?? null : reduce(v)),
+    (v) => v,
+    (v) =>
+      v.length
+        ? reduce(v)
+        : enforceTuples
+        ? { type: TypeTag.Never }
+        : { type: TypeTag.Any }
+  );
 }
 
 function getLhsConstraint(
@@ -452,7 +460,15 @@ function getLhsConstraint(
           if (object.type & TypeTag.Array) {
             const arr = getUnionComponent(object, TypeTag.Array);
             if (arr) {
-              result = arrayTypeAtIndex(arr, istate.typeMap.get(node.property));
+              result = arrayTypeAtIndex(
+                arr,
+                istate.typeMap.get(node.property) ?? {
+                  type: TypeTag.Number,
+                  value: arrayLiteralKeyFromExpr(node.property) ?? undefined,
+                },
+                strict,
+                istate.state.config?.extraReferenceTypeChecks !== false
+              );
             }
           }
           const updateResult = (value: ExactOrUnion) => {
@@ -950,7 +966,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
             const avalue = getUnionComponent(objectType, TypeTag.Array) || {
               type: TypeTag.Any,
             };
-            const atype = arrayTypeAtIndex(avalue, property.value);
+            const atype = arrayTypeAtIndex(avalue, property.value, false, true);
             if (result) {
               unionInto((result = cloneType(result)), atype);
             } else {

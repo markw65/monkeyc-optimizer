@@ -851,7 +851,7 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
   "minimizeModules",
   "extensionVersion",
   "typeCheckLevel",
-  "covarianceWarnings",
+  "extraReferenceTypeChecks",
   "iterateOptimizer",
   "extraExcludes",
 ];

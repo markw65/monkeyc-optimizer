@@ -15,20 +15,27 @@ import {
 } from "../optimizer-types";
 import { reduce, some } from "../util";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
+import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import { findObjectDeclsByProperty } from "./type-flow-util";
 import {
   ExactOrUnion,
   TypeTag,
+  checkArrayCovariance,
   cloneType,
   display,
   getUnionComponent,
   hasValue,
   isExact,
   objectLiteralKeyFromType,
+  reducedArrayType,
   reducedType,
   relaxType,
+  safeReferenceArg,
   setUnionComponent,
+  tupleForEach,
+  tupleMap,
+  tupleReduce,
   typeFromObjectLiteralKey,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
@@ -113,11 +120,12 @@ export function checkCallArgs(
       if (object) {
         const info = sysCallInfo(istate.state, cur);
         if (info) {
-          const result = info(istate.state, cur, object, () => args);
+          const result = info(istate, cur, object, () => args);
           if (result.argTypes) argTypes = result.argTypes;
           if (result.returnType) returnType = result.returnType;
           if (result.effectFree) effects = false;
           if (!result.argEffects) argEffects = false;
+          if (result.diagnostic) curDiags.push([node, result.diagnostic]);
         }
       }
       if (cur.info === false) {
@@ -150,20 +158,16 @@ export function checkCallArgs(
           }
           if (checker(arg, paramType)) {
             if (
-              istate.state.config?.covarianceWarnings &&
+              istate.state.config?.extraReferenceTypeChecks &&
               effects &&
-              argEffects
+              argEffects &&
+              !safeReferenceArg(node.arguments[i])
             ) {
               if (arg.type & TypeTag.Array) {
                 const atype = getUnionComponent(arg, TypeTag.Array);
                 if (atype) {
                   const ptype = getUnionComponent(paramType, TypeTag.Array);
-                  if (
-                    !ptype ||
-                    Array.isArray(ptype) ||
-                    Array.isArray(atype) ||
-                    !subtypeOf(ptype, atype)
-                  ) {
+                  if (!ptype || !checkArrayCovariance(atype, ptype)) {
                     curDiags.push([
                       node.arguments[i],
                       `Argument ${i + 1} to ${cur.fullName}: passing ${display(
@@ -281,10 +285,11 @@ type SysCallHelperResult = {
   argTypes?: ExactOrUnion[];
   effectFree?: true;
   argEffects?: true;
+  diagnostic?: string;
 };
 
 type SysCallHelper = (
-  state: ProgramStateAnalysis,
+  istate: InterpState,
   func: FunctionStateNode,
   calleeObj: ExactOrUnion,
   getArgs: () => Array<ExactOrUnion>
@@ -309,12 +314,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     return systemCallInfo;
   }
 
-  const toNumber: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const toNumber: SysCallHelper = (state, callee, calleeObj, getArgs) => {
     const ret: SysCallHelperResult = { effectFree: true };
     if (isExact(calleeObj)) {
       if (calleeObj.type === TypeTag.Number) {
@@ -385,12 +385,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     return ret;
   };
 
-  const arrayAdd: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const arrayAdd: SysCallHelper = (istate, callee, calleeObj, getArgs) => {
     const ret: SysCallHelperResult = {};
     if (calleeObj.type & TypeTag.Array) {
       const adata = getUnionComponent(calleeObj, TypeTag.Array);
@@ -399,61 +394,118 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         const args = getArgs();
         if (args.length === 1) {
           const arg = args[0];
+          let hasTuple = false;
           if (callee.name === "add") {
-            if (Array.isArray(adata)) {
-              const relaxed = relaxType(arg);
-              const newAData = [...adata, relaxed];
-              ret.returnType.value = newAData;
-              ret.argTypes = [relaxed];
-              ret.calleeObj = ret.returnType;
-            } else if (!subtypeOf(arg, adata)) {
-              const newAData = cloneType(adata);
-              unionInto(newAData, arg);
-              const newObj = cloneType(calleeObj);
-              setUnionComponent(newObj, TypeTag.Array, newAData);
-              ret.calleeObj = newObj;
-              ret.argTypes = [adata];
-            }
-          } else {
-            if (Array.isArray(adata)) {
-              if (arg.type & TypeTag.Array) {
-                const argSubtypes = getUnionComponent(arg, TypeTag.Array);
-                if (argSubtypes) {
-                  if (Array.isArray(argSubtypes)) {
-                    const newAData = [...adata, ...argSubtypes];
-                    ret.returnType.value = newAData;
-                    ret.argTypes = [arg];
-                    ret.calleeObj = ret.returnType;
-                    return ret;
-                  }
-                  const newAData = reducedType(adata);
-                  unionInto(newAData, argSubtypes);
-                  ret.returnType.value = newAData;
-                  ret.argTypes = [arg];
-                  ret.calleeObj = ret.returnType;
-                  return ret;
+            /*
+             * We're trying to match Garmin's behavior here.
+             *  - adding to a tuple is always ok, and extends the tuple's type
+             *  - adding to an array is only ok if it's a subtype of the array elements
+             *  - adding to a union of tuples and arrays extends every tuple, and is an error if any array can't hold the value
+             */
+            const relaxed = relaxType(arg);
+            tupleMap(
+              adata,
+              (v) => {
+                hasTuple = true;
+                return [...v, relaxed];
+              },
+              (v) => {
+                if (subtypeOf(arg, v)) return v;
+                const newAData = cloneType(v);
+                unionInto(newAData, arg);
+                if (!ret.argTypes) {
+                  ret.argTypes = [v];
+                } else {
+                  ret.argTypes = [intersection(ret.argTypes[0], v)];
+                }
+                return newAData;
+              },
+              (v) => {
+                const newAData = tupleReduce(v);
+                ret.returnType!.value = newAData;
+                const newObj = cloneType(calleeObj);
+                setUnionComponent(newObj, TypeTag.Array, newAData);
+                ret.calleeObj = newObj;
+                if (!ret.argTypes) {
+                  ret.argTypes = [relaxed];
                 }
               }
-              ret.returnType.value = reducedType(adata);
+            );
+          } else {
+            /*
+             * We're trying to match Garmin's behavior here.
+             *  - adding a union of tuples to a tuple is always ok, and extends the tuple's type
+             *  - adding an array or tuple to an array is only ok if it's a subtype of the array elements
+             *  - adding an array to a tuple is ok and turns it into a tuple
+             */
+
+            const argSubtypes =
+              arg.type & TypeTag.Array
+                ? getUnionComponent(arg, TypeTag.Array)
+                : null;
+
+            if (argSubtypes) {
+              tupleMap(
+                adata,
+                (v) => {
+                  hasTuple = true;
+                  return tupleMap(
+                    argSubtypes,
+                    (a) => [...v, ...a],
+                    (a) => {
+                      const at = cloneType(reducedType(v));
+                      unionInto(at, a);
+                      return at;
+                    },
+                    (a) => a
+                  );
+                },
+                (v) => {
+                  const addedType = reducedArrayType(argSubtypes);
+                  if (subtypeOf(addedType, v)) return [v];
+                  if (!ret.argTypes) {
+                    ret.argTypes = [v];
+                  } else {
+                    ret.argTypes = [intersection(ret.argTypes[0], v)];
+                  }
+                  v = cloneType(v);
+                  unionInto(v, addedType);
+                  return [v];
+                },
+                (va) => {
+                  const newAData = tupleReduce(va.flat());
+                  ret.returnType!.value = newAData;
+                  const newObj = cloneType(calleeObj);
+                  setUnionComponent(newObj, TypeTag.Array, newAData);
+                  ret.calleeObj = newObj;
+                  if (!ret.argTypes) {
+                    ret.argTypes = [
+                      { type: TypeTag.Array, value: argSubtypes },
+                    ];
+                  }
+                }
+              );
+            } else {
+              tupleForEach(
+                adata,
+                () => (hasTuple = true),
+                () => false
+              );
             }
-            if (!subtypeOf(arg, ret.returnType)) {
-              ret.argTypes = [ret.returnType];
-              const newObj = cloneType(calleeObj);
-              unionInto(newObj, arg);
-              ret.calleeObj = newObj;
-            }
+          }
+          if (
+            hasTuple &&
+            istate.typeChecker &&
+            istate.state.config?.extraReferenceTypeChecks !== false
+          ) {
+            ret.diagnostic = "Adding to a tuple would change its type";
           }
         }
       }
     }
     return ret;
   };
-  const arrayRet: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    _getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const arrayRet: SysCallHelper = (state, callee, calleeObj, _getArgs) => {
     const ret: SysCallHelperResult = { effectFree: true };
     if (calleeObj.type & TypeTag.Array) {
       const adata = getUnionComponent(calleeObj, TypeTag.Array);
@@ -464,12 +516,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     return ret;
   };
 
-  const dictionaryGet: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const dictionaryGet: SysCallHelper = (state, callee, calleeObj, getArgs) => {
     const ret: SysCallHelperResult = { effectFree: true };
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
@@ -496,11 +543,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     }
     return ret;
   };
-  const dictionaryValues: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion
-  ) => {
+  const dictionaryValues: SysCallHelper = (state, callee, calleeObj) => {
     const ret: SysCallHelperResult = { effectFree: true };
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
@@ -522,11 +565,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     }
     return ret;
   };
-  const dictionaryKeys: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion
-  ) => {
+  const dictionaryKeys: SysCallHelper = (state, callee, calleeObj) => {
     const ret: SysCallHelperResult = { effectFree: true };
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
@@ -548,12 +587,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     }
     return ret;
   };
-  const dictionaryPut: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const dictionaryPut: SysCallHelper = (state, callee, calleeObj, getArgs) => {
     const ret: SysCallHelperResult = {};
     if (calleeObj.type & TypeTag.Dictionary) {
       const ddata = getUnionComponent(calleeObj, TypeTag.Dictionary);
@@ -607,12 +641,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     }
     return ret;
   };
-  const methodInvoke: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const methodInvoke: SysCallHelper = (state, callee, calleeObj, getArgs) => {
     const ret: SysCallHelperResult = { argEffects: true };
     if (calleeObj.type & TypeTag.Method) {
       const data = getUnionComponent(calleeObj, TypeTag.Method);
@@ -625,12 +654,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     ret.argTypes = getArgs();
     return ret;
   };
-  const method: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const method: SysCallHelper = (istate, callee, calleeObj, getArgs) => {
     const ret: SysCallHelperResult = {};
     const args = getArgs();
     if (
@@ -649,7 +673,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         computed: false,
       };
       const [, trueDecls] = findObjectDeclsByProperty(
-        state,
+        istate.state,
         calleeObj,
         next.property
       );
@@ -666,14 +690,14 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         (type, callee) => {
           const result = callee.node.returnType
             ? typeFromTypespec(
-                state,
+                istate.state,
                 callee.node.returnType.argument,
                 callee.stack
               )
             : { type: TypeTag.Any };
           const args = callee.node.params.map((param) =>
             param.type === "BinaryExpression"
-              ? typeFromTypespec(state, param.right, callee.stack)
+              ? typeFromTypespec(istate.state, param.right, callee.stack)
               : { type: TypeTag.Any }
           );
           unionInto(type, {
@@ -690,12 +714,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
   const nop: SysCallHelper = () => ({ effectFree: true });
   const mod: SysCallHelper = () => ({});
 
-  const rounder: SysCallHelper = (
-    state: ProgramStateAnalysis,
-    callee: FunctionStateNode,
-    calleeObj: ExactOrUnion,
-    getArgs: () => Array<ExactOrUnion>
-  ) => {
+  const rounder: SysCallHelper = (istate, callee, calleeObj, getArgs) => {
     const results: SysCallHelperResult = {};
     const fn = Math[callee.name as "ceil" | "round" | "floor"];
     results.effectFree = true;
@@ -714,7 +733,7 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     return results;
   };
   const mathHelper = (
-    state: ProgramStateAnalysis,
+    istate: InterpState,
     callee: FunctionStateNode,
     calleeObj: ExactOrUnion,
     getArgs: () => Array<ExactOrUnion>,
