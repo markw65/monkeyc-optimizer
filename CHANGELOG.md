@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.82
+
+- Fix type for resource ids that contain refs (Fixes #53)
+- Properly represent unions of tuples (Fixes #47)
+
 ### 1.1.81
 
 - Make computed lookups in modules smarter (Fixes #51)
