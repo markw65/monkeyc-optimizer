@@ -3,6 +3,7 @@ import Toybox.WatchUi;
 import Toybox.Test;
 
 class CustomDrawable extends WatchUi.Drawable {
+    private var myBitmap as ResourceId = Rez.Drawables.system_icon_dark__check;
     function initialize(
         options as
             {

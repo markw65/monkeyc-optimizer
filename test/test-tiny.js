@@ -27,8 +27,12 @@ async function testOne(jungle) {
     )
     .catch(() => []);
   const cmd = args.concat("--jungle", jungle, extraArgs);
-  console.log(`Running: ${cmd.map((s) => JSON.stringify(s)).join(" ")}`);
-  await spawnByLine("node", cmd, (line) => console.log(line));
+  await [cmd.concat("--analyze-only"), cmd].reduce((p, c) => {
+    return p.then(() => {
+      console.log(`Running: ${c.map((s) => JSON.stringify(s)).join(" ")}`);
+      return spawnByLine("node", c, (line) => console.log(line));
+    });
+  }, Promise.resolve());
 }
 
 const jungles = process.argv.slice(2).filter((arg) => arg.endsWith(".jungle"));

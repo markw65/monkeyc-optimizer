@@ -7,4 +7,5 @@
         <!-- OK -->
         <drawable id="MyDrawable2" class="CustomDrawable" />
     </layout>
+    <bitmap id="system_icon_dark__check" personality="system_icon_dark__check" />
 </resources>

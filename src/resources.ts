@@ -540,40 +540,45 @@ function add_one_resource(
     outer: xmlUtil.Element["loc"]
   ): mctree.VariableDeclaration => {
     const loc = id && adjustLoc(id.value.loc!);
+    const declarations: mctree.VariableDeclarator[] = [];
+
+    if (id) {
+      declarations.push({
+        type: "VariableDeclarator",
+        kind: "var",
+        id: {
+          type: "BinaryExpression",
+          operator: "as",
+          left: makeIdentifier(id.value.value, loc),
+          right: {
+            type: "TypeSpecList",
+            ts: [
+              {
+                type: "TypeSpecPart",
+                name: makeScopedName(
+                  (state?.sdkVersion ?? 0) >= 7000000
+                    ? "Toybox.Lang.ResourceId"
+                    : "Toybox.Lang.Symbol"
+                ),
+              },
+            ],
+          },
+        },
+      });
+    }
+    if (init) {
+      declarations.push({
+        type: "VariableDeclarator",
+        kind: "var",
+        id: makeIdentifier("*invalid*"),
+        init,
+      });
+    }
+
     return wrap(
       {
         type: "VariableDeclaration",
-        declarations: [
-          wrap(
-            {
-              type: "VariableDeclarator",
-              kind: "var",
-              id:
-                id && !init
-                  ? {
-                      type: "BinaryExpression",
-                      operator: "as",
-                      left: makeIdentifier(id.value.value, loc),
-                      right: {
-                        type: "TypeSpecList",
-                        ts: [
-                          {
-                            type: "TypeSpecPart",
-                            name: makeScopedName(
-                              (state?.sdkVersion ?? 0) >= 7000000
-                                ? "Toybox.Lang.ResourceId"
-                                : "Toybox.Lang.Symbol"
-                            ),
-                          },
-                        ],
-                      },
-                    }
-                  : makeIdentifier(id ? id.value.value : "*invalid*", loc),
-              init,
-            },
-            outer
-          ),
-        ],
+        declarations: declarations.map((d) => wrap(d, outer)),
         kind: "var",
       },
       outer
