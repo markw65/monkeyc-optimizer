@@ -2,5 +2,6 @@
 
     <label id="ActivityLevelLabel" personality="row1_of_2 fontinfo" />
     <label id="BirthYearLabel" personality="row2_of_2 fontinfo" />
-
+    <bitmap id="LauncherIconWithStyle" filename="../images/icon.png"
+        personality="TestBarrel:barrel_style" />
 </layout>

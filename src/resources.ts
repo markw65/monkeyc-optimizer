@@ -431,8 +431,11 @@ function visit_resource_refs(
             loc.start.offset -= name.length;
           }
         } else {
-          const base = makeScopedName(`Rez.Styles`);
-          const idLoc = adjustLoc(loc, 0, 0);
+          const colonPos = name.indexOf(":");
+          const barrel = colonPos < 0 ? "" : name.slice(0, colonPos) + ".";
+          name = name.slice(colonPos + 1);
+          const base = makeScopedName(`${barrel}Rez.Styles`);
+          const idLoc = adjustLoc(loc, colonPos + 1, 0);
           idLoc.end = { ...idLoc.start };
           idLoc.end.column += name.length;
           idLoc.end.offset += name.length;

@@ -5,3 +5,8 @@ foobar {
     w : :label;
     v : Graphics.FONT_XTINY;
 }
+
+barrel_style {
+    x: 100;
+    y: 100;
+}
