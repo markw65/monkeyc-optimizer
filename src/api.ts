@@ -1005,6 +1005,8 @@ function stateFuncs() {
                 parent.type_decls[name].push(decl);
                 if (decl.type === "EnumDeclaration") {
                   currentEnum = decl;
+                } else {
+                  this.allTypedefs?.add(decl);
                 }
                 break;
               }

@@ -168,6 +168,7 @@ export type ProgramState = {
   allClasses?: ClassStateNode[];
   nestedClasses?: Record<string, ClassStateNode[]>;
   allModules?: Set<ModuleStateNode>;
+  allTypedefs?: Set<TypedefStateNode>;
   invokeInfo?: FunctionInfo;
   allDeclarations?: Record<string, ByNameStateNodeDecls[]>;
   fnMap?: FilesToOptimizeMap;
@@ -250,6 +251,7 @@ export type ProgramStateAnalysis = Finalized<
   | "allClasses"
   | "nestedClasses"
   | "allModules"
+  | "allTypedefs"
   | "allFunctions"
   | "fnMap"
   | "allDeclarations"

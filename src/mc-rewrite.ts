@@ -48,7 +48,6 @@ import {
   ByNameStateNodeDecls,
   ClassStateNode,
   Diagnostic,
-  EnumStateNode,
   FilesToOptimizeMap,
   FunctionStateNode,
   LookupDefinition,
@@ -327,6 +326,7 @@ export async function analyze(
     allClasses: [],
     nestedClasses: {},
     allModules: new Set(),
+    allTypedefs: new Set(),
     shouldExclude(node: mctree.Node) {
       if (
         "attrs" in node &&
@@ -1230,8 +1230,7 @@ async function optimizeMonkeyCHelper(
             // but not accept `42 as EnumType`.
             if (
               node.type === "EnumDeclaration" &&
-              ret.type === "TypedefDeclaration" &&
-              ret.ts.argument.ts.length > 1
+              ret.type === "TypedefDeclaration"
             ) {
               changes |= Changes.Force;
             } else {
@@ -1241,6 +1240,9 @@ async function optimizeMonkeyCHelper(
           return ret;
         };
         collectNamespaces(f.ast!, state);
+        if (changes & Changes.Force) {
+          state.allTypedefs?.forEach((t) => delete t.resolvedType);
+        }
         return changes;
       }, Changes.None);
     } finally {
@@ -1411,7 +1413,7 @@ function cleanup(
   node: mctree.Node,
   ast: mctree.Program,
   usedNodes: Set<mctree.Node>
-) {
+): mctree.Node | false | null {
   switch (node.type) {
     case "ThisExpression":
       node.text = "self";
@@ -1468,14 +1470,12 @@ function cleanup(
           (d) => d.type === "EnumDeclaration" && d.node === node
         );
         if (i >= 0) {
-          const old = decls[i] as EnumStateNode;
-          const rep = {
-            ...old,
-            type: "TypedefDeclaration",
-            node: typedefDecl,
-          } satisfies TypedefStateNode;
+          // Convert the reference in place, because there could be
+          // typedefs referring to the original Enum.
+          const rep = decls[i] as TypedefStateNode;
+          rep.type = "TypedefDeclaration";
+          rep.node = typedefDecl;
           delete rep.resolvedType;
-          decls.splice(i, 1, rep);
         }
       }
       return typedefDecl;
