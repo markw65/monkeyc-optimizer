@@ -297,12 +297,8 @@ export interface EnumType extends AbstractValue {
   type: TypeTag.Enum;
   value?:
     | {
-        enum: EnumStateNode;
+        enum: EnumStateNode | EnumStateNode[];
         value?: ExactOrUnion | undefined;
-      }
-    | {
-        enum?: undefined;
-        value: ExactOrUnion;
       }
     | undefined;
 }
@@ -896,12 +892,10 @@ export function mcExprFromType(type: ValueTypes): mctree.Expression | null {
       if (type.value.value && hasValue(type.value.value)) {
         const left = mcExprFromType(type.value.value);
         if (left) {
-          if (!type.value.enum) {
-            return left;
-          }
-          const enumStr = type.value.enum.fullName.slice(2);
+          const enumStrs = map(type.value.enum, (e) => e.fullName.slice(2));
           if (
-            enumStr === "Toybox.Graphics.ColorValue" &&
+            enumStrs.length === 1 &&
+            enumStrs[0] === "Toybox.Graphics.ColorValue" &&
             left.type === "Literal" &&
             typeof left.value === "number" &&
             left.value >= 0 &&
@@ -916,7 +910,7 @@ export function mcExprFromType(type: ValueTypes): mctree.Expression | null {
             left,
             right: {
               type: "TypeSpecList",
-              ts: [type.value.enum.fullName.slice(2)],
+              ts: enumStrs,
             },
           } as unknown as mctree.AsExpression;
         }
@@ -1122,13 +1116,10 @@ export function display(type: ExactOrUnion): string {
       }
       case TypeTag.Enum: {
         const v = tv.value;
-        return v.enum != null
-          ? v.value != null
-            ? `${display(v.value)} as ${v.enum.fullName.slice(2)}`
-            : v.enum.fullName.slice(2)
-          : v.value != null
-          ? `enum<${display(v.value)}>`
-          : `enum`;
+        const name = v.enum
+          ? map(v.enum, (e) => e.fullName.slice(2)).join(" or ")
+          : "";
+        return v.value != null ? `${display(v.value)} as ${name}` : name;
       }
       case TypeTag.Symbol:
         return `:${tv.value}`;
@@ -1430,5 +1421,23 @@ export function safeReferenceArg(arg: mctree.Expression) {
     arg.type === "ArrayExpression" ||
     arg.type === "ObjectExpression" ||
     arg.type === "NewExpression"
+  );
+}
+
+export function typeFromEnumValue(arg: EnumType["value"] | null) {
+  return (
+    arg?.value ??
+    (arg &&
+      reducedType(
+        map(
+          arg.enum,
+          (e) =>
+            e.resolvedType ?? {
+              type: EnumTagsConst,
+            }
+        )
+      )) ?? {
+      type: EnumTagsConst,
+    }
   );
 }

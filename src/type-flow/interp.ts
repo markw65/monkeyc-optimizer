@@ -56,6 +56,7 @@ import {
   reducedType,
   relaxType,
   tupleMap,
+  typeFromEnumValue,
   typeFromLiteral,
   typeFromSingleTypeSpec,
   typeFromTypeStateNode,
@@ -387,12 +388,7 @@ export function deEnumerate(t: ExactOrUnion) {
     const data = getUnionComponent(t, TypeTag.Enum);
     t = cloneType(t);
     clearValuesUnder(t, TypeTag.Enum, true);
-    unionInto(
-      t,
-      (data && (data.value || data.enum?.resolvedType)) || {
-        type: EnumTagsConst,
-      }
-    );
+    unionInto(t, typeFromEnumValue(data));
   }
   return t;
 }

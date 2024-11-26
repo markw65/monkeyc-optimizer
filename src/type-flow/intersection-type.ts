@@ -2,6 +2,7 @@ import { getSuperClasses, hasProperty } from "../api";
 import { unhandledType } from "../data-flow";
 import {
   ClassStateNode,
+  EnumStateNode,
   FunctionStateNode,
   ModuleStateNode,
 } from "../optimizer-types";
@@ -11,29 +12,29 @@ import { roundToFloat } from "./interp";
 import {
   CharType,
   ClassType,
-  cloneType,
   DoubleType,
   EnumTagsConst,
   EnumType,
-  EnumValueType,
   ExactOrUnion,
   ExactTypes,
   FloatType,
-  forEachUnionComponent,
-  getObjectValue,
-  getUnionComponent,
-  hasUnionData,
-  isExact,
   LongType,
   NeverType,
   NumberType,
   ObjectLikeTagsConst,
   SingleValue,
+  TypeTag,
+  ValuePairs,
+  cloneType,
+  forEachUnionComponent,
+  getObjectValue,
+  getUnionComponent,
+  hasUnionData,
+  isExact,
   tupleMap,
   tupleReduce,
-  TypeTag,
+  typeFromEnumValue,
   typeTagName,
-  ValuePairs,
 } from "./types";
 import { clearValuesUnder, unionInto } from "./union-type";
 
@@ -54,14 +55,7 @@ export function expandTypedef(t: ExactOrUnion) {
 function intersectEnum(t: ExactOrUnion, e: ExactOrUnion) {
   const enumData = getUnionComponent(e, TypeTag.Enum);
   const e2 = cloneType(e);
-  const i = intersection(
-    t,
-    !enumData
-      ? { type: EnumTagsConst }
-      : enumData.value
-      ? enumData.value
-      : enumData.enum?.resolvedType || { type: EnumTagsConst }
-  );
+  const i = intersection(t, typeFromEnumValue(enumData));
   if (e2.value != null) {
     clearValuesUnder(e2, TypeTag.Enum, true);
   } else {
@@ -318,23 +312,26 @@ function intersectionValue(pair: ValuePairs): SingleValue | null {
     }
 
     case TypeTag.Enum: {
-      if (
-        pair.avalue.enum !== pair.bvalue.enum &&
-        pair.avalue.enum &&
-        pair.bvalue.enum
-      ) {
-        return null;
-      }
-      const enumDecl = pair.avalue.enum || pair.bvalue.enum;
-      if (pair.avalue.value != null) {
-        if (pair.bvalue.value != null) {
-          const value = intersection(pair.avalue.value, pair.bvalue.value);
-          const e: EnumValueType = { enum: enumDecl, value };
-          return e;
+      let enumDecl: typeof pair.avalue.enum | undefined;
+      if (Array.isArray(pair.avalue.enum)) {
+        const s = new Set(pair.avalue.enum);
+        const enums: EnumStateNode[] = [];
+        forEach(pair.bvalue.enum, (b) => s.has(b) && enums.push(b));
+        if (enums.length) {
+          enumDecl = enums.length === 1 ? enums[0] : enums;
         }
-        return pair.avalue.value;
+      } else {
+        some(pair.bvalue.enum, (b) => b === pair.avalue.enum) &&
+          (enumDecl = pair.bvalue.enum);
       }
-      return pair.bvalue;
+      if (!enumDecl) return null;
+      const enumValue =
+        pair.avalue.value != null
+          ? pair.bvalue.value != null
+            ? intersection(pair.avalue.value, pair.bvalue.value)
+            : pair.avalue.value
+          : pair.bvalue.value;
+      return { enum: enumDecl, value: enumValue };
     }
     default:
       unhandledType(pair);
@@ -367,12 +364,7 @@ function fixupEnum(
 ): ExactOrUnion {
   if (b.type & TypeTag.Enum) {
     const bvalue = getUnionComponent(b, TypeTag.Enum);
-    const br = restrictByEquality(
-      a,
-      (bvalue && (bvalue.value || bvalue.enum?.resolvedType)) || {
-        type: EnumTagsConst,
-      }
-    );
+    const br = restrictByEquality(a, typeFromEnumValue(bvalue));
     if (br.type) {
       b_restricted = cloneType(b_restricted);
       unionInto(
@@ -596,12 +588,7 @@ function restrictExactTypesByEquality(
     case TypeTag.Symbol:
       return intersection(a, b);
     case TypeTag.Enum: {
-      return restrictByEquality(
-        (a.value && (a.value.value || a.value.enum?.resolvedType)) || {
-          type: EnumTagsConst,
-        },
-        b
-      );
+      return restrictByEquality(typeFromEnumValue(a.value), b);
     }
 
     case TypeTag.Typedef:

@@ -236,10 +236,12 @@ function couldBeValue(pair: ValuePairs, shallow: boolean) {
 
     case TypeTag.Enum: {
       return (
-        pair.avalue.enum === pair.bvalue.enum &&
         (!pair.avalue.value ||
           !pair.bvalue.value ||
-          couldBe(pair.avalue.value, pair.bvalue.value))
+          couldBe(pair.avalue.value, pair.bvalue.value)) &&
+        some(pair.avalue.enum, (sna) =>
+          some(pair.bvalue.enum, (snb) => sna === snb)
+        )
       );
     }
     default:

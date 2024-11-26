@@ -2,6 +2,7 @@ import { hasProperty } from "../ast";
 import { unhandledType } from "../data-flow";
 import {
   ClassStateNode,
+  EnumStateNode,
   FunctionStateNode,
   ModuleStateNode,
   TypedefStateNode,
@@ -12,7 +13,6 @@ import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
   ClassType,
-  EnumValueType,
   ExactOrUnion,
   SingleValue,
   SingletonTypeTagsConst,
@@ -347,28 +347,35 @@ function mergeSingle(
     case TypeTag.Enum: {
       const toE = pair.avalue;
       const fromE = pair.bvalue;
-      if (toE.enum !== fromE.enum) {
-        if (toE.value && fromE.value) {
-          const result = cloneType(toE.value);
-          unionHelper(result, fromE.value, widenDepth + 1);
-          const e: EnumValueType = { value: result };
-          return [e, true];
-        }
-        return [null, true];
+      let changed = false;
+      let resultEnum = toE.enum;
+      const s = new Set<EnumStateNode>(
+        Array.isArray(toE.enum) ? toE.enum : [toE.enum]
+      );
+      const size = s.size;
+      forEach(fromE.enum, (e) => s.add(e));
+      if (size !== s.size) {
+        resultEnum = Array.from(s);
+        changed = true;
       }
-      if (!toE.value) {
+      let resultValue = toE.value;
+      if (resultValue) {
+        if (fromE.value) {
+          resultValue = cloneType(resultValue);
+          if (unionHelper(resultValue, fromE.value, widenDepth + 1)) {
+            changed = true;
+          }
+        } else {
+          resultValue = undefined;
+          changed = true;
+        }
+      }
+      if (!changed) {
         return [toE, false];
       }
-      if (!fromE.value) {
-        delete toE.value;
-        return [toE, true];
-      }
-      const toValue = tryUnion(toE.value, fromE.value);
-      if (toValue) {
-        const e: EnumValueType = { enum: toE.enum, value: toValue };
-        return [e, true];
-      }
-      return [toE, false];
+      return resultValue
+        ? [{ enum: resultEnum, value: resultValue }, changed]
+        : [{ enum: resultEnum }, changed];
     }
     default:
       unhandledType(pair);

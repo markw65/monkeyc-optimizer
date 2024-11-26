@@ -4,18 +4,19 @@ import { every, some } from "../util";
 import { couldBe } from "./could-be";
 import { expandTypedef } from "./intersection-type";
 import {
-  cloneType,
   EnumTagsConst,
   ExactOrUnion,
+  ObjectLikeTagsConst,
+  TypeTag,
+  ValuePairs,
+  cloneType,
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
-  ObjectLikeTagsConst,
   tupleForEach,
+  typeFromEnumValue,
   typeFromObjectLiteralKey,
-  TypeTag,
   typeTagName,
-  ValuePairs,
 } from "./types";
 import { clearValuesUnder } from "./union-type";
 
@@ -35,14 +36,7 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
     b.type & EnumTagsConst
   ) {
     const value = getUnionComponent(a, TypeTag.Enum);
-    if (
-      !subtypeOf(
-        (value != null && (value.value || value.enum?.resolvedType)) || {
-          type: EnumTagsConst,
-        },
-        b
-      )
-    ) {
+    if (!subtypeOf(typeFromEnumValue(value), b)) {
       return false;
     }
     if (a.type === TypeTag.Enum) return true;
@@ -191,10 +185,12 @@ function subtypeOfValue(pair: ValuePairs) {
     case TypeTag.Enum: {
       const aenum = pair.avalue;
       const benum = pair.bvalue;
-      return (
-        aenum.enum === benum.enum &&
-        (!aenum.value || !benum.value || subtypeOf(aenum.value, benum.value))
-      );
+      if (benum.value) {
+        if (!aenum.value || !subtypeOf(aenum.value, benum.value)) {
+          return false;
+        }
+      }
+      return every(aenum.enum, (ea) => some(benum.enum, (eb) => ea === eb));
     }
     default:
       unhandledType(pair);
