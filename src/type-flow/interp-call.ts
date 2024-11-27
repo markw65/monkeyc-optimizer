@@ -100,17 +100,21 @@ function calleeObjectType(istate: InterpState, callee: mctree.Expression) {
   return null;
 }
 
+type DiagInfo =
+  | [mctree.Node, string]
+  | [mctree.Node, string, { uri: string; message: string }];
+
 export function checkCallArgs(
   istate: InterpState,
   node: mctree.CallExpression,
   callees: FunctionStateNode | FunctionStateNode[],
   args: ExactOrUnion[]
 ) {
-  const allDiags: Array<Array<[mctree.Node, string]>> = [];
+  const allDiags: Array<Array<DiagInfo>> = [];
   const resultType = reduce(
     callees,
     (result, cur) => {
-      const curDiags: Array<[mctree.Node, string]> = [];
+      const curDiags: Array<DiagInfo> = [];
       const checker = istate.typeChecker;
       let argTypes: ExactOrUnion[] | null = null;
       let returnType: ExactOrUnion | null = null;
@@ -158,56 +162,26 @@ export function checkCallArgs(
           }
           if (checker(arg, paramType)) {
             if (
-              istate.state.config?.extraReferenceTypeChecks &&
+              istate.state.config?.extraReferenceTypeChecks !== false &&
               effects &&
               argEffects &&
               !safeReferenceArg(node.arguments[i])
             ) {
-              if (arg.type & TypeTag.Array) {
-                const atype = getUnionComponent(arg, TypeTag.Array);
-                if (atype) {
-                  const ptype = getUnionComponent(paramType, TypeTag.Array);
-                  if (!ptype || !checkArrayCovariance(atype, ptype)) {
-                    curDiags.push([
-                      node.arguments[i],
-                      `Argument ${i + 1} to ${cur.fullName}: passing ${display(
-                        arg
-                      )} to parameter ${display(paramType)} is not type safe`,
-                    ]);
-                  }
-                }
-              }
-              if (arg.type & TypeTag.Dictionary) {
-                const adata = getUnionComponent(arg, TypeTag.Dictionary);
-                if (adata && adata.value) {
-                  const pdata = getUnionComponent(
-                    paramType,
-                    TypeTag.Dictionary
-                  );
-                  if (
-                    !pdata ||
-                    !pdata.value ||
-                    !subtypeOf(pdata.key, adata.key) ||
-                    !subtypeOf(pdata.value, adata.value)
-                  ) {
-                    curDiags.push([
-                      node.arguments[i],
-                      `Argument ${i + 1} to ${
-                        cur.fullName
-                      }: passing Dictionary<${display(adata.key)}, ${display(
-                        adata.value
-                      )}> to parameter ${display(
-                        pdata
-                          ? {
-                              type: TypeTag.Dictionary,
-                              value: pdata,
-                            }
-                          : { type: TypeTag.Dictionary }
-                      )} is not type safe`,
-                    ]);
-                  }
-                }
-              }
+              extraReferenceTypeChecks(
+                (sourceType, targetType) =>
+                  curDiags.push([
+                    node.arguments[i],
+                    `Argument ${i + 1} to ${
+                      cur.fullName
+                    }: passing ${sourceType} to parameter ${targetType} is not type safe`,
+                    {
+                      uri: "https://github.com/markw65/monkeyc-optimizer/wiki/Extra-Reference-Type-Checks-(prettierMonkeyC.extraReferenceTypeChecks)",
+                      message: "more info",
+                    },
+                  ]),
+                paramType,
+                arg
+              );
             }
             return;
           }
@@ -251,7 +225,7 @@ export function checkCallArgs(
       allDiags
         .flat()
         .forEach((diag) =>
-          diagnostic(istate.state, diag[0], diag[1], istate.checkTypes)
+          diagnostic(istate.state, diag[0], diag[1], istate.checkTypes, diag[2])
         );
     }
   }
@@ -906,4 +880,44 @@ function expandKeys(
     }
   });
   return result;
+}
+
+export function extraReferenceTypeChecks(
+  report: (sourceType: string, targetType: string) => void,
+  targetType: ExactOrUnion,
+  sourceType: ExactOrUnion
+) {
+  if (sourceType.type & TypeTag.Array) {
+    const atype = getUnionComponent(sourceType, TypeTag.Array);
+    if (atype) {
+      const ptype = getUnionComponent(targetType, TypeTag.Array);
+      if (!ptype || !checkArrayCovariance(atype, ptype)) {
+        report(display(sourceType), display(targetType));
+      }
+    }
+  }
+  if (sourceType.type & TypeTag.Dictionary) {
+    const adata = getUnionComponent(sourceType, TypeTag.Dictionary);
+    if (adata && adata.value) {
+      const pdata = getUnionComponent(targetType, TypeTag.Dictionary);
+      if (
+        !pdata ||
+        !pdata.value ||
+        !subtypeOf(pdata.key, adata.key) ||
+        !subtypeOf(pdata.value, adata.value)
+      ) {
+        report(
+          `Dictionary<${display(adata.key)}, ${display(adata.value)}>`,
+          display(
+            pdata
+              ? {
+                  type: TypeTag.Dictionary,
+                  value: pdata,
+                }
+              : { type: TypeTag.Dictionary }
+          )
+        );
+      }
+    }
+  }
 }

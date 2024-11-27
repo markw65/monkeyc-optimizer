@@ -120,3 +120,14 @@ enum Indices {
 function tupleAssign(tuple as [Number, String]) as Void {
     tuple[ZERO] = tuple[ZERO] * 1;
 }
+
+var array1 as Array<Number> = [];
+(:keep)
+function arrayAssignTuple(t as [Number]) as Array<Number or String> {
+    // @expect "Unsafe assignment to array1: assigning"
+    array1 = t;
+    // @expect "Argument 1 to $.wantsArray: passing"
+    wantsArray(array1);
+    // @expect "Unsafe return from $.arrayAssignTuple: converting"
+    return array1;
+}

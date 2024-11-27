@@ -26,7 +26,11 @@ import {
   evaluateBinaryTypes,
   evaluateLogicalTypes,
 } from "./interp-binary";
-import { checkCallArgs, evaluateCall } from "./interp-call";
+import {
+  checkCallArgs,
+  evaluateCall,
+  extraReferenceTypeChecks,
+} from "./interp-call";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import {
@@ -55,6 +59,7 @@ import {
   objectLiteralKeyFromType,
   reducedType,
   relaxType,
+  safeReferenceArg,
   tupleMap,
   typeFromEnumValue,
   typeFromLiteral,
@@ -1101,18 +1106,44 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
       if (istate.typeChecker) {
         const constraint = getLhsConstraint(istate, node.left);
         const actual = istate.stack[istate.stack.length - 1].value;
-        if (constraint && !istate.typeChecker(actual, constraint)) {
-          diagnostic(
-            istate.state,
-            node,
-            formatAstLongLines(node.left).then(
-              (nodeStr) =>
-                `Invalid assignment to ${nodeStr}. Expected ${display(
-                  constraint
-                )} but got ${display(actual)}`
-            ),
-            istate.checkTypes
-          );
+        if (constraint) {
+          if (istate.typeChecker(actual, constraint)) {
+            if (
+              istate.state.config?.extraReferenceTypeChecks !== false &&
+              !safeReferenceArg(node.right)
+            ) {
+              extraReferenceTypeChecks(
+                (sourceType, targetType) =>
+                  diagnostic(
+                    istate.state,
+                    node,
+                    formatAstLongLines(node.left).then(
+                      (nodeStr) =>
+                        `Unsafe assignment to ${nodeStr}: assigning ${sourceType} to ${targetType} is not type safe`
+                    ),
+                    istate.checkTypes,
+                    {
+                      uri: "https://github.com/markw65/monkeyc-optimizer/wiki/Extra-Reference-Type-Checks-(prettierMonkeyC.extraReferenceTypeChecks)",
+                      message: "more info",
+                    }
+                  ),
+                constraint,
+                actual
+              );
+            }
+          } else {
+            diagnostic(
+              istate.state,
+              node,
+              formatAstLongLines(node.left).then(
+                (nodeStr) =>
+                  `Invalid assignment to ${nodeStr}. Expected ${display(
+                    constraint
+                  )} but got ${display(actual)}`
+              ),
+              istate.checkTypes
+            );
+          }
         }
       }
       break;
@@ -1215,21 +1246,43 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     case "ReturnStatement": {
       const value = node.argument && popIstate(istate, node.argument);
       if (istate.typeChecker) {
-        if (istate.root?.type !== "FunctionDeclaration") {
+        const root = istate.root;
+        if (root?.type !== "FunctionDeclaration") {
           throw new Error("ReturnStatement found outside of function");
         }
-        if (istate.root.node.returnType) {
+        if (root.node.returnType) {
           const returnType = typeFromTypespec(
             istate.state,
-            istate.root.node.returnType.argument,
-            istate.root.stack
+            root.node.returnType.argument,
+            root.stack
           );
           if (value) {
-            if (!istate.typeChecker(value.value, returnType)) {
+            if (istate.typeChecker(value.value, returnType)) {
+              if (
+                istate.state.config?.extraReferenceTypeChecks !== false &&
+                !safeReferenceArg(node.argument!)
+              ) {
+                extraReferenceTypeChecks(
+                  (sourceType, targetType) =>
+                    diagnostic(
+                      istate.state,
+                      node,
+                      `Unsafe return from ${root.fullName}: converting ${sourceType} to ${targetType} is not type safe`,
+                      istate.checkTypes,
+                      {
+                        uri: "https://github.com/markw65/monkeyc-optimizer/wiki/Extra-Reference-Type-Checks-(prettierMonkeyC.extraReferenceTypeChecks)",
+                        message: "more info",
+                      }
+                    ),
+                  returnType,
+                  value.value
+                );
+              }
+            } else {
               diagnostic(
                 istate.state,
                 node,
-                `Expected ${istate.root.fullName} to return ${display(
+                `Expected ${root.fullName} to return ${display(
                   returnType
                 )} but got ${display(value.value)}`,
                 istate.checkTypes
