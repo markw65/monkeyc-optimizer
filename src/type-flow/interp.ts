@@ -399,6 +399,9 @@ function arrayTypeAtIndex(
   forStrictAssign: boolean,
   enforceTuples: boolean
 ) {
+  if (elemType) {
+    elemType = deEnumerate(elemType);
+  }
   const reduce = (v: ExactOrUnion[]) =>
     forStrictAssign
       ? v.reduce(

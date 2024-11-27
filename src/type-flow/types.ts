@@ -591,10 +591,8 @@ export function arrayLiteralKeyFromType(k: ExactOrUnion | null | undefined) {
 }
 
 export function arrayLiteralKeyFromExpr(key: mctree.Expression) {
-  if (key.type === "Literal") {
-    return arrayLiteralKeyFromType(typeFromLiteral(key));
-  }
-  return null;
+  const lit = key.type === "Literal" ? key : getNodeValue(key)[0];
+  return lit && arrayLiteralKeyFromType(typeFromLiteral(lit));
 }
 
 export function objectLiteralKeyFromExpr(

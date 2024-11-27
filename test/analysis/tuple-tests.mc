@@ -112,3 +112,11 @@ function unionOfTuples4(tuple as [Number, Boolean] or [Number, String]) {
     // @expect "Invalid assignment to tuple[1]. Expected"
     tuple[1] = false;
 }
+
+enum Indices {
+    ZERO = 0,
+}
+
+function tupleAssign(tuple as [Number, String]) as Void {
+    tuple[ZERO] = tuple[ZERO] * 1;
+}
