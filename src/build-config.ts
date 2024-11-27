@@ -288,7 +288,7 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
       },
       extraReferenceTypeChecks: {
         type: "boolean",
-        description:
+        markdownDescription:
           "Whether to warn about [unsafe operations on Arrays and Dictionaries](https://github.com/markw65/monkeyc-optimizer/wiki/Extra-Reference-Type-Checks-(prettierMonkeyC.extraReferenceTypeChecks)) that Garmin's compiler allows",
         default: true,
         scope: "resource",
