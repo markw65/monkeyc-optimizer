@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.83
+
+- Rewrite enums to handle arbitrary unions (Fixes #48)
+- Clear typedef cache when an enum is converted to a typedef
+- Support barrel qualifiers in personality references (Fixes #54)
+
 ### 1.1.82
 
 - Fix type for resource ids that contain refs (Fixes #53)
