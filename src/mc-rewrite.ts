@@ -326,7 +326,7 @@ export async function analyze(
     allClasses: [],
     nestedClasses: {},
     allModules: new Set(),
-    allTypedefs: new Set(),
+    allCached: new Set(),
     shouldExclude(node: mctree.Node) {
       if (
         "attrs" in node &&
@@ -1241,7 +1241,7 @@ async function optimizeMonkeyCHelper(
         };
         collectNamespaces(f.ast!, state);
         if (changes & Changes.Force) {
-          state.allTypedefs?.forEach((t) => delete t.resolvedType);
+          state.allCached?.forEach((t) => delete t.resolvedType);
         }
         return changes;
       }, Changes.None);

@@ -168,7 +168,7 @@ export type ProgramState = {
   allClasses?: ClassStateNode[];
   nestedClasses?: Record<string, ClassStateNode[]>;
   allModules?: Set<ModuleStateNode>;
-  allTypedefs?: Set<TypedefStateNode>;
+  allCached?: Set<TypedefStateNode | VariableStateNode | EnumStateNode>;
   invokeInfo?: FunctionInfo;
   allDeclarations?: Record<string, ByNameStateNodeDecls[]>;
   fnMap?: FilesToOptimizeMap;
@@ -251,7 +251,7 @@ export type ProgramStateAnalysis = Finalized<
   | "allClasses"
   | "nestedClasses"
   | "allModules"
-  | "allTypedefs"
+  | "allCached"
   | "allFunctions"
   | "fnMap"
   | "allDeclarations"

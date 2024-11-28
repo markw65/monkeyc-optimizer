@@ -1005,9 +1005,8 @@ function stateFuncs() {
                 parent.type_decls[name].push(decl);
                 if (decl.type === "EnumDeclaration") {
                   currentEnum = decl;
-                } else {
-                  this.allTypedefs?.add(decl);
                 }
+                this.allCached?.add(decl);
                 break;
               }
               case "VariableDeclaration": {
@@ -1027,19 +1026,21 @@ function stateFuncs() {
                     return;
                   }
                   decl.kind = node.kind;
-                  decls[name].push({
+                  const vsn: VariableStateNode = {
                     type: "VariableDeclarator",
                     node: decl,
                     name,
                     fullName: parent.fullName + "." + name,
                     stack,
                     attributes: stateNodeAttrs(node.attrs),
-                  });
+                  };
+                  decls[name].push(vsn);
                   if (node.kind === "const") {
                     if (!hasProperty(this.index, name)) {
                       this.index[name] = [];
                     }
                     pushUnique(this.index[name], parent);
+                    this.allCached?.add(vsn);
                   }
                 });
                 break;
