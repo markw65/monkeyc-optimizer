@@ -22,7 +22,12 @@ import {
   tupleMap,
   tupleReduce,
 } from "./array-type";
-import { InterpStackElem, InterpState, roundToFloat } from "./interp";
+import {
+  InterpStackElem,
+  InterpState,
+  getLhsConstraint,
+  roundToFloat,
+} from "./interp";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
 import { findObjectDeclsByProperty } from "./type-flow-util";
@@ -126,7 +131,7 @@ export function checkCallArgs(
       if (object) {
         const info = sysCallInfo(istate.state, cur);
         if (info) {
-          const result = info(istate, cur, object, () => args);
+          const result = info(istate, cur, object, () => args, node);
           if (result.argTypes) argTypes = result.argTypes;
           if (result.returnType) returnType = result.returnType;
           if (result.effectFree) effects = false;
@@ -268,7 +273,8 @@ type SysCallHelper = (
   istate: InterpState,
   func: FunctionStateNode,
   calleeObj: ExactOrUnion,
-  getArgs: () => Array<ExactOrUnion>
+  getArgs: () => Array<ExactOrUnion>,
+  callNode: mctree.CallExpression
 ) => SysCallHelperResult;
 
 let systemCallInfo: Record<string, SysCallHelper> | null = null;
@@ -283,6 +289,21 @@ export function sysCallInfo(
     return info[func.fullName];
   }
   return null;
+}
+
+function getCallObjectConstraint(
+  istate: InterpState,
+  call: mctree.CallExpression
+) {
+  if (call.callee.type !== "MemberExpression") return null;
+  const calleeObjNode = call.callee.object;
+  if (
+    calleeObjNode.type !== "Identifier" &&
+    calleeObjNode.type !== "MemberExpression"
+  ) {
+    return null;
+  }
+  return getLhsConstraint(istate, calleeObjNode);
 }
 
 function getSystemCallTable(state: ProgramStateAnalysis) {
@@ -361,11 +382,22 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     return ret;
   };
 
-  const arrayAdd: SysCallHelper = (istate, callee, calleeObj, getArgs) => {
+  const arrayAdd: SysCallHelper = (
+    istate,
+    callee,
+    calleeObj,
+    getArgs,
+    call
+  ) => {
     const ret: SysCallHelperResult = {};
     if (calleeObj.type & TypeTag.Array) {
-      const adata = getUnionComponent(calleeObj, TypeTag.Array);
+      let adata = getUnionComponent(calleeObj, TypeTag.Array);
       if (adata) {
+        const constraint = getCallObjectConstraint(istate, call);
+        if (constraint && subtypeOf(calleeObj, constraint)) {
+          adata = getUnionComponent(constraint, TypeTag.Array);
+          if (!adata) return ret;
+        }
         ret.returnType = { type: TypeTag.Array, value: adata };
         const args = getArgs();
         if (args.length === 1) {
@@ -759,6 +791,8 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
 
     return results;
   };
+  const mathDefault: SysCallHelper = (istate, callee, calleeObj, getArgs) =>
+    mathHelper(istate, callee, calleeObj, getArgs);
 
   systemCallVersion = state.sdk;
   return (systemCallInfo = expandKeys(state, {
@@ -785,12 +819,12 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
     "$.Toybox.Lang.Object.method": method,
     "$.Toybox.Lang.*.toNumber": toNumber,
 
-    "$.Toybox.Math.acos": mathHelper,
-    "$.Toybox.Math.asin": mathHelper,
-    "$.Toybox.Math.atan": mathHelper,
-    "$.Toybox.Math.atan2": mathHelper,
+    "$.Toybox.Math.acos": mathDefault,
+    "$.Toybox.Math.asin": mathDefault,
+    "$.Toybox.Math.atan": mathDefault,
+    "$.Toybox.Math.atan2": mathDefault,
     "$.Toybox.Math.ceil": rounder,
-    "$.Toybox.Math.cos": mathHelper,
+    "$.Toybox.Math.cos": mathDefault,
     "$.Toybox.Math.floor": rounder,
     "$.Toybox.Math.ln": (state, callee, calleeObj, getArgs) =>
       mathHelper(state, callee, calleeObj, getArgs, "log"),
@@ -802,11 +836,11 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         getArgs,
         (x, base) => Math.log(x) / Math.log(base)
       ),
-    "$.Toybox.Math.pow": mathHelper,
+    "$.Toybox.Math.pow": mathDefault,
     "$.Toybox.Math.round": rounder,
-    "$.Toybox.Math.sin": mathHelper,
-    "$.Toybox.Math.sqrt": mathHelper,
-    "$.Toybox.Math.tan": mathHelper,
+    "$.Toybox.Math.sin": mathDefault,
+    "$.Toybox.Math.sqrt": mathDefault,
+    "$.Toybox.Math.tan": mathDefault,
 
     "$.Toybox.Math.toDegrees": (state, callee, calleeObj, getArgs) =>
       mathHelper(

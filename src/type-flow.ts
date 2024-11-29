@@ -1212,8 +1212,13 @@ function propagateTypes(
         effectFree = false;
         return;
       }
-      const result = info(istate, callee, calleeObj, () =>
-        node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value)
+      const result = info(
+        istate,
+        callee,
+        calleeObj,
+        () =>
+          node.arguments.map((arg) => evaluateExpr(state, arg, typeMap).value),
+        node
       );
       if (!result.effectFree) {
         effectFree = false;
