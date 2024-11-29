@@ -1,6 +1,7 @@
 import { getSuperClasses, hasProperty } from "../api";
 import { unhandledType } from "../data-flow";
 import { every, some } from "../util";
+import { tupleForEach } from "./array-type";
 import { couldBe } from "./could-be";
 import { expandTypedef } from "./intersection-type";
 import {
@@ -13,7 +14,6 @@ import {
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
-  tupleForEach,
   typeFromEnumValue,
   typeFromObjectLiteralKey,
   typeTagName,

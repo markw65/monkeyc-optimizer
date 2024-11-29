@@ -8,6 +8,7 @@ import {
   TypedefStateNode,
 } from "../optimizer-types";
 import { forEach, some } from "../util";
+import { tupleForEach, tupleReduce } from "./array-type";
 import { couldBe } from "./could-be";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
@@ -27,8 +28,6 @@ import {
   forEachUnionComponent,
   getUnionComponent,
   hasUnionData,
-  tupleForEach,
-  tupleReduce,
   typeFromObjectLiteralKey,
 } from "./types";
 

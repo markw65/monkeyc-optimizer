@@ -7,6 +7,7 @@ import {
   ModuleStateNode,
 } from "../optimizer-types";
 import { forEach, reduce, some } from "../util";
+import { tupleMap, tupleReduce } from "./array-type";
 import { couldBe } from "./could-be";
 import { roundToFloat } from "./interp";
 import {
@@ -31,8 +32,6 @@ import {
   getUnionComponent,
   hasUnionData,
   isExact,
-  tupleMap,
-  tupleReduce,
   typeFromEnumValue,
   typeTagName,
 } from "./types";

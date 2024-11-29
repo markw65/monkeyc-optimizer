@@ -15,11 +15,11 @@ import {
   ClassStateNode,
   DiagnosticType,
   FunctionStateNode,
-  LookupDefinition,
   ProgramStateAnalysis,
   StateNodeAttributes,
 } from "../optimizer-types";
 import { every, forEach, map } from "../util";
+import { safeReferenceArg, tupleMap } from "./array-type";
 import { couldBe } from "./could-be";
 import {
   OpMatch,
@@ -59,8 +59,6 @@ import {
   objectLiteralKeyFromType,
   reducedType,
   relaxType,
-  safeReferenceArg,
-  tupleMap,
   typeFromEnumValue,
   typeFromLiteral,
   typeFromSingleTypeSpec,
@@ -431,113 +429,120 @@ function arrayTypeAtIndex(
   );
 }
 
-function getLhsConstraint(
+function getLhsConstraintHelper(
   istate: InterpState,
   node: mctree.MemberExpression | mctree.Identifier
-) {
+): [ExactOrUnion | undefined | null, boolean] {
   if (istate.localLvals?.has(node)) {
-    return null;
+    return [istate.typeMap?.get(node), false];
   }
-  let lookupDefs: LookupDefinition[] | null | false = null;
-  if (node.type === "MemberExpression") {
-    if (!istate.typeMap) {
-      throw new Error("Checking types without a typeMap");
-    }
-    const object = istate.typeMap.get(node.object);
-    if (object) {
-      if (node.computed) {
-        const strict = istate.typeChecker === subtypeOf;
-        if (
-          strict &&
-          object.type &
-            ~(
-              TypeTag.Array |
-              TypeTag.Dictionary |
-              TypeTag.Object |
-              TypeTag.Typedef
-            )
-        ) {
-          return { type: TypeTag.Never };
-        }
-        if (object.value) {
-          let result: ExactOrUnion | null = null;
-          if (object.type & TypeTag.Array) {
-            const arr = getUnionComponent(object, TypeTag.Array);
-            if (arr) {
-              result = arrayTypeAtIndex(
-                arr,
-                istate.typeMap.get(node.property) ?? {
-                  type: TypeTag.Number,
-                  value: arrayLiteralKeyFromExpr(node.property) ?? undefined,
-                },
-                strict,
-                istate.state.config?.extraReferenceTypeChecks !== false
-              );
-            }
+  let lookupDefs = istate.state.lookupNonlocal(node)[1];
+  if (!lookupDefs) {
+    if (node.type === "MemberExpression") {
+      if (!istate.typeMap) {
+        throw new Error("Checking types without a typeMap");
+      }
+      const trackedObject = istate.typeMap?.get(node.object);
+      const object =
+        node.object.type === "Identifier" ||
+        node.object.type === "MemberExpression"
+          ? getLhsConstraintHelper(istate, node.object)[0]
+          : trackedObject;
+
+      if (object) {
+        const tracked = trackedObject ?? object;
+        const objType = object.type & tracked.type;
+        if (node.computed) {
+          const strict = istate.typeChecker === subtypeOf;
+          if (
+            strict &&
+            objType &
+              ~(
+                TypeTag.Array |
+                TypeTag.Dictionary |
+                TypeTag.Object |
+                TypeTag.Typedef
+              )
+          ) {
+            return [{ type: TypeTag.Never }, true];
           }
-          const updateResult = (value: ExactOrUnion) => {
-            if (result) {
-              if (strict) {
-                result = intersection(result, value);
-              } else {
-                result = cloneType(result);
-                unionInto(result, value);
+          if (object.value) {
+            let result: ExactOrUnion | null = null;
+            if (objType & TypeTag.Array) {
+              const arr = getUnionComponent(object, TypeTag.Array);
+              if (arr) {
+                result = arrayTypeAtIndex(
+                  arr,
+                  istate.typeMap.get(node.property) ?? {
+                    type: TypeTag.Number,
+                    value: arrayLiteralKeyFromExpr(node.property) ?? undefined,
+                  },
+                  strict,
+                  istate.state.config?.extraReferenceTypeChecks !== false
+                );
               }
-            } else {
-              result = value;
             }
-          };
-          if (object.type & TypeTag.Dictionary) {
-            const dict = getUnionComponent(object, TypeTag.Dictionary);
-            if (dict) {
-              if (dict.value) {
-                updateResult(dict.value);
+            const updateResult = (value: ExactOrUnion) => {
+              if (result) {
+                if (strict) {
+                  result = intersection(result, value);
+                } else {
+                  result = cloneType(result);
+                  unionInto(result, value);
+                }
               } else {
-                const keyType = istate.typeMap.get(node.property);
-                const keyStr = keyType
-                  ? objectLiteralKeyFromType(keyType)
-                  : objectLiteralKeyFromExpr(node.property);
-                if (keyStr) {
-                  const value = dict.get(keyStr);
-                  if (value != null) {
-                    updateResult(value);
+                result = value;
+              }
+            };
+            if (object.type & TypeTag.Dictionary) {
+              const dict = getUnionComponent(object, TypeTag.Dictionary);
+              if (dict) {
+                if (dict.value) {
+                  updateResult(dict.value);
+                } else {
+                  const keyType = istate.typeMap.get(node.property);
+                  const keyStr = keyType
+                    ? objectLiteralKeyFromType(keyType)
+                    : objectLiteralKeyFromExpr(node.property);
+                  if (keyStr) {
+                    const value = dict.get(keyStr);
+                    if (value != null) {
+                      updateResult(value);
+                    }
                   }
                 }
               }
             }
-          }
-          if (object.type & TypeTag.Object) {
-            const obj = getUnionComponent(object, TypeTag.Object);
-            if (obj && isByteArrayData(obj)) {
-              updateResult({ type: TypeTag.Number | TypeTag.Char });
+            if (object.type & TypeTag.Object) {
+              const obj = getUnionComponent(object, TypeTag.Object);
+              if (obj && isByteArrayData(obj)) {
+                updateResult({ type: TypeTag.Number | TypeTag.Char });
+              }
+            }
+            if (result) {
+              return [result, true];
             }
           }
-          if (result) {
-            return result;
-          }
-        }
-      } else {
-        const [, trueDecls] = findObjectDeclsByProperty(
-          istate.state,
-          object,
-          node.property
-        );
-        if (trueDecls) {
-          lookupDefs = lookupNext(
+        } else {
+          const [, trueDecls] = findObjectDeclsByProperty(
             istate.state,
-            [{ parent: null, results: trueDecls }],
-            "decls",
+            object,
             node.property
           );
+          if (trueDecls) {
+            lookupDefs = lookupNext(
+              istate.state,
+              [{ parent: null, results: trueDecls }],
+              "decls",
+              node.property
+            );
+          }
         }
       }
     }
   }
   if (!lookupDefs) {
-    [, lookupDefs] = istate.state.lookup(node);
-  }
-  if (!lookupDefs) {
-    return null;
+    return [null, false];
   }
   const trueDecls = lookupDefs.flatMap((lookupDef) =>
     lookupDef.results.filter(
@@ -548,8 +553,16 @@ function getLhsConstraint(
     )
   );
   return trueDecls.length === 0
-    ? null
-    : typeFromTypeStateNodes(istate.state, trueDecls);
+    ? [null, false]
+    : [typeFromTypeStateNodes(istate.state, trueDecls), true];
+}
+
+export function getLhsConstraint(
+  istate: InterpState,
+  node: mctree.MemberExpression | mctree.Identifier
+) {
+  const [constraintType, constrained] = getLhsConstraintHelper(istate, node);
+  return constrained ? constraintType : null;
 }
 
 function pushScopedNameType(

@@ -34,6 +34,7 @@ import {
   StateNodeAttributes,
   StateNodeDecl,
 } from "./optimizer-types";
+import { tupleForEach, tupleMap, tupleReduce } from "./type-flow/array-type";
 import { couldBeShallow } from "./type-flow/could-be";
 import {
   CopyPropStores,
@@ -88,9 +89,6 @@ import {
   objectLiteralKeyFromExpr,
   relaxType,
   setUnionComponent,
-  tupleForEach,
-  tupleMap,
-  tupleReduce,
   typeFromLiteral,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,

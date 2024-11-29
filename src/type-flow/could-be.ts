@@ -1,20 +1,20 @@
 import { getSuperClasses, hasProperty } from "../api";
 import { unhandledType } from "../data-flow";
 import { some } from "../util";
+import { tupleForEach } from "./array-type";
 import {
   EnumTagsConst,
   ExactOrUnion,
-  forEachUnionComponent,
-  getObjectValue,
-  getUnionComponent,
   ObjectLikeTagsConst,
   SingletonTypeTagsConst,
-  tupleForEach,
   TypeTag,
-  typeTagName,
   UnionDataTypeTagsConst,
   ValuePairs,
   ValueTypeTagsConst,
+  forEachUnionComponent,
+  getObjectValue,
+  getUnionComponent,
+  typeTagName,
 } from "./types";
 
 /*

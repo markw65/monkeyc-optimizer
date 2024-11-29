@@ -14,6 +14,14 @@ import {
   StateNodeDecl,
 } from "../optimizer-types";
 import { reduce, some } from "../util";
+import {
+  checkArrayCovariance,
+  reducedArrayType,
+  safeReferenceArg,
+  tupleForEach,
+  tupleMap,
+  tupleReduce,
+} from "./array-type";
 import { InterpStackElem, InterpState, roundToFloat } from "./interp";
 import { intersection } from "./intersection-type";
 import { subtypeOf } from "./sub-type";
@@ -21,21 +29,15 @@ import { findObjectDeclsByProperty } from "./type-flow-util";
 import {
   ExactOrUnion,
   TypeTag,
-  checkArrayCovariance,
   cloneType,
   display,
   getUnionComponent,
   hasValue,
   isExact,
   objectLiteralKeyFromType,
-  reducedArrayType,
   reducedType,
   relaxType,
-  safeReferenceArg,
   setUnionComponent,
-  tupleForEach,
-  tupleMap,
-  tupleReduce,
   typeFromObjectLiteralKey,
   typeFromTypeStateNode,
   typeFromTypeStateNodes,
