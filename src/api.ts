@@ -1735,6 +1735,22 @@ export function resolveDiagnosticsMap(
   ).then(() => diagnosticsMap as Record<string, Diagnostic[]>);
 }
 
+export function clearDiagnostics(state: ProgramState, node: mctree.Node) {
+  const loc = node.loc;
+  if (!loc?.source) return;
+  const diagnostics = state.diagnostics?.[loc.source];
+  if (!diagnostics) return;
+  for (let i = diagnostics.length; i--; ) {
+    const diagnostic = diagnostics[i];
+    if (
+      diagnostic.loc.start.offset >= loc.start.offset &&
+      diagnostic.loc.end.offset <= loc.end.offset
+    ) {
+      diagnostics.splice(i, 1);
+    }
+  }
+}
+
 export function diagnostic(
   state: ProgramState,
   node: mctree.Node,

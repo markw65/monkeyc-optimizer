@@ -1,6 +1,7 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
 import {
+  clearDiagnostics,
   collectNamespaces,
   diagnostic,
   formatAstLongLines,
@@ -1223,6 +1224,7 @@ async function optimizeMonkeyCHelper(
           if (ret === false) {
             changes |= Changes.Some;
             this.removeNodeComments(node, f.ast!);
+            clearDiagnostics(this, node);
           } else if (ret) {
             // If we replaced an enum with a union typedef, we should
             // reprocess everything to cleanup things like `42 as EnumType`

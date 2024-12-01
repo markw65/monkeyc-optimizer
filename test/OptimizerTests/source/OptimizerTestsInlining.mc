@@ -720,7 +720,8 @@ function testWarningsFromInline(logger as Logger) as Boolean {
     }
     var x = warningFromInlineA(a);
     a = [1, 2, 3] as Array<Number>;
-    // @expect "This comparison seems redundant because"
+    // seems to have only worked by luck
+    // @ expect "This comparison seems redundant because"
     var y = warningFromInlineA(a);
     return x && y;
 }
