@@ -48,7 +48,8 @@ import {
   typeFromTypeStateNodes,
   typeFromTypespec,
 } from "./types";
-import { unionInto } from "./union-type";
+import { union, unionInto } from "./union-type";
+import { getEffectiveTrackedType } from "./effective-type";
 export function evaluateCall(
   istate: InterpState,
   node: mctree.CallExpression,
@@ -171,10 +172,10 @@ export function checkCallArgs(
             if (
               istate.state.config?.extraReferenceTypeChecks !== false &&
               effects &&
-              argEffects &&
-              !safeReferenceArg(node.arguments[i])
+              argEffects
             ) {
               extraReferenceTypeChecks(
+                istate,
                 (sourceType, targetType) =>
                   curDiags.push([
                     node.arguments[i],
@@ -187,7 +188,8 @@ export function checkCallArgs(
                     },
                   ]),
                 paramType,
-                arg
+                arg,
+                node.arguments[i]
               );
             }
             return;
@@ -291,9 +293,10 @@ export function sysCallInfo(
   return null;
 }
 
-function getCallObjectConstraint(
+function getCallObjectConstrainedType(
   istate: InterpState,
-  call: mctree.CallExpression
+  call: mctree.CallExpression,
+  trackedType: ExactOrUnion
 ) {
   if (call.callee.type !== "MemberExpression") return null;
   const calleeObjNode = call.callee.object;
@@ -303,7 +306,8 @@ function getCallObjectConstraint(
   ) {
     return null;
   }
-  return getLhsConstraint(istate, calleeObjNode);
+  const constraint = getLhsConstraint(istate, calleeObjNode);
+  return constraint && getEffectiveTrackedType(constraint, trackedType);
 }
 
 function getSystemCallTable(state: ProgramStateAnalysis) {
@@ -391,54 +395,69 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
   ) => {
     const ret: SysCallHelperResult = {};
     if (calleeObj.type & TypeTag.Array) {
-      let adata = getUnionComponent(calleeObj, TypeTag.Array);
+      const adata = getUnionComponent(calleeObj, TypeTag.Array);
       if (adata) {
-        const constraint = getCallObjectConstraint(istate, call);
-        if (constraint && subtypeOf(calleeObj, constraint)) {
-          adata = getUnionComponent(constraint, TypeTag.Array);
-          if (!adata) return ret;
-        }
+        const constraint = getCallObjectConstrainedType(
+          istate,
+          call,
+          calleeObj
+        );
+        const cdata =
+          (constraint && getUnionComponent(constraint, TypeTag.Array)) ?? adata;
         ret.returnType = { type: TypeTag.Array, value: adata };
         const args = getArgs();
+        const checker = istate.typeChecker;
         if (args.length === 1) {
           const arg = args[0];
           let hasTuple = false;
           if (callee.name === "add") {
-            /*
-             * We're trying to match Garmin's behavior here.
-             *  - adding to a tuple is always ok, and extends the tuple's type
-             *  - adding to an array is only ok if it's a subtype of the array elements
-             *  - adding to a union of tuples and arrays extends every tuple, and is an error if any array can't hold the value
-             */
             const relaxed = relaxType(arg);
+            /*
+             * Compute the new array type, ignoring constraints. This is the
+             * actual type as seen by the runtime, and will be used by the
+             * optimizer, even if the add would be a type error.
+             */
             tupleMap(
               adata,
-              (v) => {
-                hasTuple = true;
-                return [...v, relaxed];
-              },
-              (v) => {
-                if (subtypeOf(arg, v)) return v;
-                const newAData = cloneType(v);
-                unionInto(newAData, arg);
-                if (!ret.argTypes) {
-                  ret.argTypes = [v];
-                } else {
-                  ret.argTypes = [intersection(ret.argTypes[0], v)];
-                }
-                return newAData;
-              },
+              (v) => [...v, relaxed],
+              (v) => (subtypeOf(arg, v) ? v : union(v, arg)),
               (v) => {
                 const newAData = tupleReduce(v);
                 ret.returnType!.value = newAData;
                 const newObj = cloneType(calleeObj);
                 setUnionComponent(newObj, TypeTag.Array, newAData);
                 ret.calleeObj = newObj;
-                if (!ret.argTypes) {
-                  ret.argTypes = [relaxed];
-                }
               }
             );
+            if (checker) {
+              /*
+               * We're trying to match Garmin's diagnostic behavior here.
+               *  - adding to a tuple is always ok
+               *  - adding to an array is only ok if it's a subtype of the array elements
+               *  - adding to a union of tuples and arrays extends every tuple, and is an error if any array can't hold the value
+               *
+               * we also need to take care of extraReferenceTypeChecks
+               */
+              tupleForEach(
+                cdata,
+                () => {
+                  hasTuple = true;
+                },
+                (v) => {
+                  if (checker(arg, v)) return;
+                  if (!ret.argTypes) {
+                    ret.argTypes = [v];
+                  } else {
+                    ret.argTypes = [
+                      (checker === subtypeOf ? intersection : union)(
+                        ret.argTypes[0],
+                        v
+                      ),
+                    ];
+                  }
+                }
+              );
+            }
           } else {
             /*
              * We're trying to match Garmin's behavior here.
@@ -460,25 +479,13 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
                   return tupleMap(
                     argSubtypes,
                     (a) => [...v, ...a],
-                    (a) => {
-                      const at = cloneType(reducedType(v));
-                      unionInto(at, a);
-                      return at;
-                    },
+                    (a) => union(reducedType(v), a),
                     (a) => a
                   );
                 },
                 (v) => {
                   const addedType = reducedArrayType(argSubtypes);
-                  if (subtypeOf(addedType, v)) return [v];
-                  if (!ret.argTypes) {
-                    ret.argTypes = [v];
-                  } else {
-                    ret.argTypes = [intersection(ret.argTypes[0], v)];
-                  }
-                  v = cloneType(v);
-                  unionInto(v, addedType);
-                  return [v];
+                  return [subtypeOf(addedType, v) ? v : union(v, addedType)];
                 },
                 (va) => {
                   const newAData = tupleReduce(va.flat());
@@ -486,18 +493,35 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
                   const newObj = cloneType(calleeObj);
                   setUnionComponent(newObj, TypeTag.Array, newAData);
                   ret.calleeObj = newObj;
-                  if (!ret.argTypes) {
-                    ret.argTypes = [
-                      { type: TypeTag.Array, value: argSubtypes },
-                    ];
-                  }
                 }
               );
-            } else {
+              if (checker) {
+                tupleForEach(
+                  adata,
+                  () => {
+                    hasTuple = true;
+                  },
+                  (v) => {
+                    const addedType = reducedArrayType(argSubtypes);
+                    if (subtypeOf(addedType, v)) return;
+                    if (!ret.argTypes) {
+                      ret.argTypes = [v];
+                    } else {
+                      ret.argTypes = [
+                        (checker === subtypeOf ? intersection : union)(
+                          ret.argTypes[0],
+                          v
+                        ),
+                      ];
+                    }
+                  }
+                );
+              }
+            } else if (checker) {
               tupleForEach(
-                adata,
+                cdata,
                 () => (hasTuple = true),
-                () => false
+                () => true
               );
             }
           }
@@ -919,41 +943,80 @@ function expandKeys(
 }
 
 export function extraReferenceTypeChecks(
+  istate: InterpState,
   report: (sourceType: string, targetType: string) => void,
   targetType: ExactOrUnion,
-  sourceType: ExactOrUnion
+  sourceType: ExactOrUnion,
+  sourceNode: mctree.Expression
 ) {
-  if (sourceType.type & TypeTag.Array) {
-    const atype = getUnionComponent(sourceType, TypeTag.Array);
-    if (atype) {
-      const ptype = getUnionComponent(targetType, TypeTag.Array);
-      if (!ptype || !checkArrayCovariance(atype, ptype)) {
-        report(display(sourceType), display(targetType));
-      }
-    }
+  if (safeReferenceArg(sourceNode)) {
+    return;
   }
-  if (sourceType.type & TypeTag.Dictionary) {
-    const adata = getUnionComponent(sourceType, TypeTag.Dictionary);
-    if (adata && adata.value) {
-      const pdata = getUnionComponent(targetType, TypeTag.Dictionary);
-      if (
-        !pdata ||
-        !pdata.value ||
-        !subtypeOf(pdata.key, adata.key) ||
-        !subtypeOf(pdata.value, adata.value)
-      ) {
-        report(
-          `Dictionary<${display(adata.key)}, ${display(adata.value)}>`,
-          display(
-            pdata
-              ? {
-                  type: TypeTag.Dictionary,
-                  value: pdata,
-                }
-              : { type: TypeTag.Dictionary }
-          )
-        );
+  let constrainedType: ExactOrUnion | null = null;
+  const getConstrained = () => {
+    if (!constrainedType) {
+      const constraint =
+        (sourceNode.type === "Identifier" ||
+          sourceNode.type === "MemberExpression") &&
+        getLhsConstraint(istate, sourceNode);
+      constrainedType = constraint
+        ? getEffectiveTrackedType(constraint, sourceType)
+        : { type: TypeTag.Never };
+    }
+    return constrainedType;
+  };
+  const doCheck = (
+    checker: (source: ExactOrUnion) => [string, string] | false
+  ) => {
+    const result = checker(sourceType);
+    if (!result) return false;
+    const ct = getConstrained();
+    if (ct.type === TypeTag.Never) return result;
+    return checker(ct);
+  };
+  const arrayReport = doCheck((sourceType: ExactOrUnion) => {
+    if (sourceType.type & TypeTag.Array) {
+      const atype = getUnionComponent(sourceType, TypeTag.Array);
+      if (atype) {
+        const ptype = getUnionComponent(targetType, TypeTag.Array);
+        if (!ptype || !checkArrayCovariance(atype, ptype)) {
+          return [display(sourceType), display(targetType)];
+        }
       }
     }
+    return false;
+  });
+  if (arrayReport) {
+    report(...arrayReport);
+  }
+  const dictReport = doCheck((sourceType) => {
+    if (sourceType.type & TypeTag.Dictionary) {
+      const adata = getUnionComponent(sourceType, TypeTag.Dictionary);
+      if (adata && adata.value) {
+        const pdata = getUnionComponent(targetType, TypeTag.Dictionary);
+        if (
+          !pdata ||
+          !pdata.value ||
+          !subtypeOf(pdata.key, adata.key) ||
+          !subtypeOf(pdata.value, adata.value)
+        ) {
+          return [
+            `Dictionary<${display(adata.key)}, ${display(adata.value)}>`,
+            display(
+              pdata
+                ? {
+                    type: TypeTag.Dictionary,
+                    value: pdata,
+                  }
+                : { type: TypeTag.Dictionary }
+            ),
+          ];
+        }
+      }
+    }
+    return false;
+  });
+  if (dictReport) {
+    report(...dictReport);
   }
 }

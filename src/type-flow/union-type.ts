@@ -32,6 +32,12 @@ import {
 } from "./types";
 
 const MaxWidenDepth = 4;
+export function union(to: ExactOrUnion, from: ExactOrUnion) {
+  const result = cloneType(to);
+  unionHelper(result, from, -Infinity);
+  return result;
+}
+
 export function unionInto(to: ExactOrUnion, from: ExactOrUnion) {
   return unionHelper(to, from, -Infinity);
 }

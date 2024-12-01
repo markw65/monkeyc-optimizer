@@ -19,7 +19,7 @@ import {
   StateNodeAttributes,
 } from "../optimizer-types";
 import { every, forEach, map } from "../util";
-import { safeReferenceArg, tupleMap } from "./array-type";
+import { ArrayTypeData, restrictArrayData, tupleMap } from "./array-type";
 import { couldBe } from "./could-be";
 import {
   OpMatch,
@@ -38,7 +38,6 @@ import {
   resolveDottedMember,
 } from "./type-flow-util";
 import {
-  ArrayType,
   EnumTagsConst,
   ExactOrUnion,
   ObjectLikeTagsConst,
@@ -397,7 +396,7 @@ export function deEnumerate(t: ExactOrUnion) {
 }
 
 function arrayTypeAtIndex(
-  arr: NonNullable<ArrayType["value"]>,
+  arr: ArrayTypeData,
   elemType: ExactOrUnion | null | undefined,
   forStrictAssign: boolean,
   enforceTuples: boolean
@@ -444,10 +443,10 @@ function getLhsConstraintHelper(
       }
       const trackedObject = istate.typeMap?.get(node.object);
       const object =
-        node.object.type === "Identifier" ||
-        node.object.type === "MemberExpression"
-          ? getLhsConstraintHelper(istate, node.object)[0]
-          : trackedObject;
+        ((node.object.type === "Identifier" ||
+          node.object.type === "MemberExpression") &&
+          getLhsConstraintHelper(istate, node.object)[0]) ||
+        trackedObject;
 
       if (object) {
         const tracked = trackedObject ?? object;
@@ -469,8 +468,17 @@ function getLhsConstraintHelper(
           if (object.value) {
             let result: ExactOrUnion | null = null;
             if (objType & TypeTag.Array) {
-              const arr = getUnionComponent(object, TypeTag.Array);
+              let arr = getUnionComponent(object, TypeTag.Array);
               if (arr) {
+                if (trackedObject) {
+                  const current = getUnionComponent(
+                    trackedObject,
+                    TypeTag.Array
+                  );
+                  if (current) {
+                    arr = restrictArrayData(arr, current);
+                  }
+                }
                 result = arrayTypeAtIndex(
                   arr,
                   istate.typeMap.get(node.property) ?? {
@@ -1121,11 +1129,9 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         const actual = istate.stack[istate.stack.length - 1].value;
         if (constraint) {
           if (istate.typeChecker(actual, constraint)) {
-            if (
-              istate.state.config?.extraReferenceTypeChecks !== false &&
-              !safeReferenceArg(node.right)
-            ) {
+            if (istate.state.config?.extraReferenceTypeChecks !== false) {
               extraReferenceTypeChecks(
+                istate,
                 (sourceType, targetType) =>
                   diagnostic(
                     istate.state,
@@ -1141,7 +1147,8 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
                     }
                   ),
                 constraint,
-                actual
+                actual,
+                node.right
               );
             }
           } else {
@@ -1271,11 +1278,9 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           );
           if (value) {
             if (istate.typeChecker(value.value, returnType)) {
-              if (
-                istate.state.config?.extraReferenceTypeChecks !== false &&
-                !safeReferenceArg(node.argument!)
-              ) {
+              if (istate.state.config?.extraReferenceTypeChecks !== false) {
                 extraReferenceTypeChecks(
+                  istate,
                   (sourceType, targetType) =>
                     diagnostic(
                       istate.state,
@@ -1288,7 +1293,8 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
                       }
                     ),
                   returnType,
-                  value.value
+                  value.value,
+                  node.argument!
                 );
               }
             } else {

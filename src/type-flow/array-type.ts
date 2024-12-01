@@ -1,9 +1,12 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { subtypeOf } from "./sub-type";
-import { ArrayType, ExactOrUnion, reducedType } from "./types";
+import { ArrayType, ExactOrUnion, TypeTag, reducedType } from "./types";
+import { couldBe } from "./could-be";
+
+export type ArrayTypeData = NonNullable<ArrayType["value"]>;
 
 export function tupleForEach(
-  t: NonNullable<ArrayType["value"]>,
+  t: ArrayTypeData,
   tupleFn: (v: ExactOrUnion[]) => unknown,
   arrayFn: (v: ExactOrUnion) => unknown
 ) {
@@ -23,7 +26,7 @@ export function tupleForEach(
 }
 
 export function tupleMap<T, U, V>(
-  t: NonNullable<ArrayType["value"]>,
+  t: ArrayTypeData,
   tupleFn: (v: ExactOrUnion[]) => U | null,
   arrayFn: (v: ExactOrUnion) => V | null,
   reduceFn: (v: Array<U | V>) => T
@@ -40,19 +43,29 @@ export function tupleReduce(v: Array<ExactOrUnion | ExactOrUnion[]>) {
   return v.length === 1 ? v[0] : new Set(v);
 }
 
-export function reducedArrayType(
-  t: Set<ExactOrUnion[] | ExactOrUnion> | ExactOrUnion[] | ExactOrUnion
-) {
+export function reducedArrayType(t: ArrayTypeData) {
   if (t instanceof Set) {
     return reducedType(Array.from(t).map((v) => reducedType(v)));
   }
   return reducedType(t);
 }
 
-export function checkArrayCovariance(
-  arg: NonNullable<ArrayType["value"]>,
-  param: NonNullable<ArrayType["value"]>
+export function restrictArrayData(
+  constraint: ArrayTypeData,
+  tracked: ArrayTypeData
 ) {
+  const trackedType = { type: TypeTag.Array, value: tracked } as const;
+  const result = (
+    constraint instanceof Set ? Array.from(constraint) : [constraint]
+  ).filter((value) => couldBe({ type: TypeTag.Array, value }, trackedType));
+  return result.length === 0
+    ? constraint
+    : result.length === 1
+    ? result[0]
+    : new Set(result);
+}
+
+export function checkArrayCovariance(arg: ArrayTypeData, param: ArrayTypeData) {
   let ok = true;
   tupleForEach(
     arg,
