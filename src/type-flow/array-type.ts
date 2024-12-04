@@ -2,6 +2,7 @@ import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { subtypeOf } from "./sub-type";
 import { ArrayType, ExactOrUnion, TypeTag, reducedType } from "./types";
 import { couldBe } from "./could-be";
+import { InterpState, evaluate } from "./interp";
 
 export type ArrayTypeData = NonNullable<ArrayType["value"]>;
 
@@ -111,10 +112,29 @@ export function checkArrayCovariance(arg: ArrayTypeData, param: ArrayTypeData) {
   return ok;
 }
 
-export function safeReferenceArg(arg: mctree.Expression) {
-  return (
+export function safeReferenceArg(
+  istate: InterpState,
+  arg: mctree.Expression
+): boolean {
+  if (
+    arg.type === "Literal" ||
     arg.type === "ArrayExpression" ||
     arg.type === "ObjectExpression" ||
-    arg.type === "NewExpression"
-  );
+    arg.type === "NewExpression" ||
+    (arg.type === "BinaryExpression" &&
+      arg.operator === "as" &&
+      safeReferenceArg(istate, arg.left)) ||
+    (arg.type === "ConditionalExpression" &&
+      safeReferenceArg(istate, arg.consequent) &&
+      safeReferenceArg(istate, arg.alternate))
+  ) {
+    return true;
+  }
+
+  const type = istate.typeMap?.get(arg) ?? evaluate(istate, arg).value;
+  if (type && !couldBe({ type: TypeTag.Array | TypeTag.Dictionary }, type)) {
+    return true;
+  }
+
+  return false;
 }

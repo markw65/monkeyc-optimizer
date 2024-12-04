@@ -712,6 +712,9 @@ async function optimizeMonkeyCHelper(
           elem.embeddedEffects = false;
         }
       }
+      if (istate !== gistate) {
+        delete istate.typeChecker;
+      }
       again = true;
     }
     return result;
@@ -1039,6 +1042,9 @@ async function optimizeMonkeyCHelper(
       case "BlockStatement":
       case "ForStatement":
         if (locals.map && cleanupUnusedVars(this, node) && !this.inlining) {
+          if (istate !== gistate) {
+            delete istate.typeChecker;
+          }
           again = true;
         }
         break;

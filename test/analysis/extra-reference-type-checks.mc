@@ -25,12 +25,6 @@ function arrayAssignTuple(v as Number) as Array<Number> {
     }
     array1[0] = "Hello";
     wantsStringArray(array1);
-    // The type checker has noticed that array1 and t refer to the same thing,
-    // and knows that t is now a [String], rather than a [Number]. The
-    // extraReferenceTypeChecks warning was suppressed for array1, because it's
-    // declared type is Array, not Tuple. But t doesn't have a declared type, and
-    // makeTuple explicitly returns a tuple, so we do get a "type safety" warning
-    // here
 
     array1 = [42];
     if (v == 2) {
@@ -56,4 +50,9 @@ function arrayAssignTuple(v as Number) as Array<Number> {
     }
     wantsNumberArray(array2);
     return [];
+}
+
+(:keep)
+function returnsArray(flag as Number) as Array<Number> or Number {
+    return flag == 0 ? [42] : flag == 1 ? [24] as Array<Number> : flag + 4;
 }

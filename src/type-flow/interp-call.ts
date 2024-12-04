@@ -949,7 +949,7 @@ export function extraReferenceTypeChecks(
   sourceType: ExactOrUnion,
   sourceNode: mctree.Expression
 ) {
-  if (safeReferenceArg(sourceNode)) {
+  if (targetType.type === TypeTag.Any || safeReferenceArg(istate, sourceNode)) {
     return;
   }
   let constrainedType: ExactOrUnion | null = null;
