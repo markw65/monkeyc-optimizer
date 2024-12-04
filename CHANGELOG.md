@@ -2,6 +2,14 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.84
+
+- Refactor `extraReferenceTypeChecks` and take account of type constraints (fixes #56)
+- Clear const and enum caches when an enum is resolved (Fixes #59)
+- Apply `extraReferenceTypeChecks` to assignments and return value
+- Fix description of extraReferenceTypeChecks in settings (shows a named link, rather than the text of the link)
+- Convert enum expressions as array indices to their underlying type (Fixes #55)
+
 ### 1.1.83
 
 - Rewrite enums to handle arbitrary unions (Fixes #48)
