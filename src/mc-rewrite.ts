@@ -1369,6 +1369,17 @@ async function optimizeMonkeyCHelper(
     });
   }
 
+  Object.values(fnMap).forEach((f) => {
+    traverseAst(f.ast!, (node) => {
+      if (node.type === "ObjectExpression" || node.type === "ArrayExpression") {
+        const n = node as { originalTypes?: unknown };
+        if (n.originalTypes) {
+          delete n.originalTypes;
+        }
+      }
+    });
+  });
+
   return {
     diagnostics,
     sdkVersion: state.sdkVersion,
