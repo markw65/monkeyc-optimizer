@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.86
+
+- Leaving stashed type lists on ArrayExpression and ObjectExpression could confuse the prettier printer, and result in errors when outputing the optimized files. Remove all of them after optimization is done.
+
 ### 1.1.85
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.60](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1060)
