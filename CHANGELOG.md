@@ -2,6 +2,13 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.85
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.60](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1060)
+  - Fixes a crash introduced by stashing ArrayExpression/ObjectExpression types on nodes.
+- Preserve casts on ArrayExpression and ObjectExpression (Fixes #30)
+- Identify more 'obviously safe' reference expressions
+
 ### 1.1.84
 
 - Refactor `extraReferenceTypeChecks` and take account of type constraints (fixes #56)
