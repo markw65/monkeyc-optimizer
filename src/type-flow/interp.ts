@@ -655,6 +655,17 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     }
     istate.stack.push(item);
   };
+  const argType = (arg: InterpStackElem, i: number) => {
+    const n = node as {
+      originalTypes?: Array<mctree.TypeSpecList | null>;
+    };
+    const t =
+      n.originalTypes?.[i] ||
+      (arg.node.type === "BinaryExpression" &&
+        arg.node.operator === "as" &&
+        arg.node.right);
+    return t ? typeFromTypespec(istate.state, t) : arg.value;
+  };
   switch (node.type) {
     case "BinaryExpression": {
       if (node.operator === "as") {
@@ -828,7 +839,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           node,
         });
       } else {
-        const value = args.map((arg) => relaxType(arg.value));
+        const value = args.map((arg, i) => relaxType(argType(arg, i)));
         push({
           value: { type: TypeTag.Array, value },
           embeddedEffects,
@@ -843,9 +854,9 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
         : [];
       const fields: ObjectLiteralType = new Map();
       for (let i = 0; i < args.length; i += 2) {
-        const key = args[i];
-        const value = args[i + 1];
-        const keyStr = objectLiteralKeyFromType(key.value);
+        const key = argType(args[i], i);
+        const value = argType(args[i + 1], i + 1);
+        const keyStr = objectLiteralKeyFromType(key);
         if (!keyStr) {
           const value = args.reduce(
             (cur, next, i) => {
@@ -872,7 +883,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
           });
           return;
         }
-        fields.set(keyStr, relaxType(value.value));
+        fields.set(keyStr, relaxType(value));
       }
       push({
         value: {

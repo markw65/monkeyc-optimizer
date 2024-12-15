@@ -131,3 +131,21 @@ function arrayAssignTuple(t as [Number]) as Array<Number or String> {
     // @expect "Unsafe return from $.arrayAssignTuple: converting"
     return array1;
 }
+
+function castOnTupleHelper(x as [Number?]) as Void {
+    if (x[0] != null) {
+        x[0]++;
+    }
+}
+
+(:keep)
+function castOnTuple() as [Number?] {
+    var x = [null as Number?];
+    castOnTupleHelper(x);
+    return x;
+}
+
+(:keep)
+function castOnObjectLiteral() as { :x as Number? } {
+    return { :x => null as Number? };
+}

@@ -1001,6 +1001,47 @@ async function optimizeMonkeyCHelper(
         // We don't want to call evaluateNode on
         // id, or superClass
         return ["body"];
+      case "ArrayExpression": {
+        const n = node as mctree.ArrayExpression & {
+          originalTypes?: Array<mctree.TypeSpecList | null>;
+        };
+        if (
+          !n.originalTypes &&
+          n.elements.some(
+            (e) => e.type === "BinaryExpression" && e.operator === "as"
+          )
+        ) {
+          n.originalTypes = n.elements.map((e) =>
+            e.type === "BinaryExpression" && e.operator === "as"
+              ? e.right
+              : null
+          );
+        }
+        break;
+      }
+      case "ObjectExpression": {
+        const n = node as mctree.ObjectExpression & {
+          originalTypes?: Array<mctree.TypeSpecList | null>;
+        };
+        if (
+          !n.originalTypes &&
+          n.properties.some(
+            (e) =>
+              (e.key.type === "BinaryExpression" && e.key.operator === "as") ||
+              (e.value.type === "BinaryExpression" && e.value.operator === "as")
+          )
+        ) {
+          n.originalTypes = n.properties.flatMap((e) => [
+            e.key.type === "BinaryExpression" && e.key.operator === "as"
+              ? e.key.right
+              : null,
+            e.value.type === "BinaryExpression" && e.value.operator === "as"
+              ? e.value.right
+              : null,
+          ]);
+        }
+        break;
+      }
     }
     return ret;
   };
