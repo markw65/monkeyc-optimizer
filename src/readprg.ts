@@ -358,7 +358,7 @@ function optimizePackage(
               }
             });
 
-            unzip.on("end", () => {
+            unzip.on("end", async () => {
               try {
                 if (!manifest) {
                   throw new Error("No manifest file found");
@@ -368,7 +368,7 @@ function optimizePackage(
                 if (body instanceof Error) {
                   throw body;
                 }
-                Promise.all(promises).then(() => {
+                await Promise.all(promises).then(() => {
                   body
                     .children("iq:application")
                     .children("iq:products")
