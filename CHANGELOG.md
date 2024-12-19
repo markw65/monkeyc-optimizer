@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.87
+
+- Update post build optimizer to work with sdk-7.4.3. The manifest file was changed a little with this release, so I had to update the optimizer to match.
+
 ### 1.1.86
 
 - Leaving stashed type lists on ArrayExpression and ObjectExpression could confuse the prettier printer, and result in errors when outputing the optimized files. Remove all of them after optimization is done.
