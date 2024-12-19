@@ -31,6 +31,13 @@ export function getSdkPath() {
     });
 }
 
+export type PartNumber = {
+  connectIQVersion: string;
+  firmwareVersion: string;
+  languages: Array<{ code: string; fontSet: string }>;
+  number: string;
+};
+
 export type DeviceInfo = {
   [key: string]: {
     appTypes: { memoryLimit: number; type: string }[];
@@ -38,6 +45,7 @@ export type DeviceInfo = {
     displayName: string;
     languages: Record<string, true>;
     ciqVersions: Array<string>;
+    partNumbers: PartNumber[];
   };
 };
 
@@ -57,11 +65,7 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
             appTypes: { memoryLimit: number; type: string }[];
             deviceFamily: string;
             displayName: string;
-            partNumbers: Array<{
-              connectIQVersion: string;
-              firmwareVersion: string;
-              languages: Array<{ code: string; fontSet: string }>;
-            }>;
+            partNumbers: PartNumber[];
           };
         const languages = Object.fromEntries(
           partNumbers
@@ -73,7 +77,14 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
         const ciqVersions = partNumbers.map((part) => part.connectIQVersion);
         return [
           deviceId,
-          { appTypes, deviceFamily, displayName, languages, ciqVersions },
+          {
+            appTypes,
+            deviceFamily,
+            displayName,
+            languages,
+            ciqVersions,
+            partNumbers,
+          },
         ] as const;
       });
     })

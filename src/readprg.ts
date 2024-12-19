@@ -20,7 +20,7 @@ import { parseLineNum } from "./readprg/linenum";
 import { parseCode } from "./readprg/opcodes";
 import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
 import { SymbolTable } from "./readprg/symbols";
-import { getSdkPath, xmlUtil } from "./sdk-util";
+import { getDeviceInfo, getSdkPath, xmlUtil } from "./sdk-util";
 import { logger } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
@@ -214,9 +214,18 @@ function optimizePackage(
       : name;
 
   const poolStarted = startPool();
-  return getDevKey(devKey)
+  return Promise.all([
+    getDevKey(devKey),
+    getDeviceInfo().then((deviceInfo) =>
+      Object.fromEntries(
+        Object.entries(deviceInfo).flatMap(([id, info]) =>
+          info.partNumbers.map((part) => [part.number, id] as const)
+        )
+      )
+    ),
+  ])
     .then(
-      (key) =>
+      ([key, deviceInfo]) =>
         new Promise((resolve, reject) => {
           let manifest: string | null = null;
           const sigs: Map<string, Buffer> = new Map();
@@ -304,7 +313,7 @@ function optimizePackage(
               if (/\/$/.test(entry.fileName)) {
                 unzip.readEntry();
               } else {
-                if (entry.fileName === "manifest.sig") {
+                if (entry.fileName.startsWith("manifest.sig")) {
                   unzip.readEntry();
                   return;
                 }
@@ -375,10 +384,16 @@ function optimizePackage(
                     .children("iq:product")
                     .attrs()
                     .forEach((attr) => {
-                      const id = attr.id?.value.value;
+                      const part = attr.partNumber?.value.value;
+                      if (!part) {
+                        throw new Error(
+                          `Missing partNumber for product in manifest`
+                        );
+                      }
+                      const id = deviceInfo[part];
                       if (!id) {
                         throw new Error(
-                          `Product with missing id found in manifest`
+                          `No id found for partNumber '${part}' in manifest`
                         );
                       }
                       const filename = attr.filename?.value.value;
@@ -401,6 +416,7 @@ function optimizePackage(
                       }
                       attr.filename!.value.value = newName;
                       attr.sig.value.value = sig.toString("hex").toUpperCase();
+                      delete attr.sig2;
                     });
                   const contents = Buffer.from(xmlUtil.writeXml(xml));
                   zipfile.addBuffer(contents, "manifest.xml");
