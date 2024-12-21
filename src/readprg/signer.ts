@@ -6,11 +6,17 @@ import { Context, SectionKinds } from "./bytecode";
 
 export function getPrgSignature(context: Context) {
   if (!context.key) return;
+  const withSha256 =
+    context.sections[SectionKinds.SIGNATURE]?.length === 1036 + 512;
   delete context.sections[SectionKinds.SIGNATURE];
   delete context.sections[SectionKinds.STORE_SIG];
 
   const signature = signatureFromContext(context);
   if (!signature) return;
+  const signature2 = withSha256
+    ? signatureFromContext(context, "SHA256")
+    : null;
+  if (withSha256 && !signature2) return;
   const keyInfo = context.key.export({ format: "jwk" });
   assert(keyInfo.n && keyInfo.e);
   const modulusBuf = Buffer.from(keyInfo.n, "base64");
@@ -25,27 +31,35 @@ export function getPrgSignature(context: Context) {
     modulusBuf.byteLength - delta
   );
   assert(modulus.byteLength === 512 && signature.length === 512);
-  const sectionLength = signature.length + modulus.byteLength + 4;
+  assert(!signature2 || signature2.length === 512);
+  const sectionLength =
+    signature.length + modulus.byteLength + 4 + (signature2?.length ?? 0);
   const buffer = new DataView(new ArrayBuffer(sectionLength + 8));
+  const asUint = new Uint8Array(
+    buffer.buffer,
+    buffer.byteOffset,
+    buffer.byteLength
+  );
   buffer.setInt32(0, SectionKinds.SIGNATURE);
   buffer.setInt32(4, sectionLength);
-  let offset = 8;
-  signature.forEach((b, i) => {
-    buffer.setUint8(offset + 512, modulus.getUint8(i));
-    buffer.setUint8(offset++, b);
-  });
-  buffer.setInt32(offset + 512, publicExponent);
-  const max = Object.values(context.sections).reduce(
-    (max, cur) =>
-      cur.offset + cur.length > max ? cur.offset + cur.length : max,
-    0
+  asUint.set(signature, 8);
+  asUint.set(
+    new Uint8Array(modulus.buffer, modulus.byteOffset, modulus.byteLength),
+    520
+  );
+  buffer.setInt32(1032, publicExponent);
+  if (signature2) {
+    asUint.set(signature2, 1036);
+  }
+  const max = Math.max(
+    ...Object.values(context.sections).map((cur) => cur.offset + cur.length)
   );
   context.sections[SectionKinds.SIGNATURE] = {
     offset: max + 8,
     length: sectionLength,
     view: new DataView(buffer.buffer, 8, sectionLength),
   };
-  return signature;
+  return signature2 ? Buffer.concat([signature, signature2]) : signature;
 }
 
 export function getDevKey(file: string) {
@@ -58,9 +72,9 @@ export function getDevKey(file: string) {
   );
 }
 
-export function signatureFromContext(context: Context) {
+export function signatureFromContext(context: Context, method = "SHA1") {
   if (!context.key) return null;
-  const signer = crypto.createSign("SHA1");
+  const signer = crypto.createSign(method);
   Object.entries(context.sections)
     .filter(
       ([section]) =>
@@ -81,8 +95,12 @@ export function signatureFromContext(context: Context) {
   return signer.sign(context.key);
 }
 
-export function signView(key: crypto.KeyObject, view: DataView) {
-  const signer = crypto.createSign("SHA1");
+export function signView(
+  key: crypto.KeyObject,
+  view: DataView,
+  method = "SHA1"
+) {
+  const signer = crypto.createSign(method);
   signer.update(view);
   signer.end();
   return signer.sign(key);

@@ -309,11 +309,15 @@ function optimizePackage(
 
             unzip.readEntry();
 
+            let hasSig2 = false;
             unzip.on("entry", function (entry) {
               if (/\/$/.test(entry.fileName)) {
                 unzip.readEntry();
               } else {
                 if (entry.fileName.startsWith("manifest.sig")) {
+                  if (entry.fileName === "manifest.sig2") {
+                    hasSig2 = true;
+                  }
                   unzip.readEntry();
                   return;
                 }
@@ -415,20 +419,33 @@ function optimizePackage(
                         );
                       }
                       attr.filename!.value.value = newName;
-                      attr.sig.value.value = sig.toString("hex").toUpperCase();
-                      delete attr.sig2;
+                      attr.sig.value.value = sig
+                        .subarray(0, 512)
+                        .toString("hex")
+                        .toUpperCase();
+                      if (attr.sig2 && sig.length === 1024) {
+                        attr.sig2.value.value = sig
+                          .subarray(512)
+                          .toString("hex")
+                          .toUpperCase();
+                      } else {
+                        delete attr.sig2;
+                      }
                     });
                   const contents = Buffer.from(xmlUtil.writeXml(xml));
                   zipfile.addBuffer(contents, "manifest.xml");
-                  const sig = signView(
-                    key,
-                    new DataView(
-                      contents.buffer,
-                      contents.byteOffset,
-                      contents.byteLength
-                    )
+                  const contentView = new DataView(
+                    contents.buffer,
+                    contents.byteOffset,
+                    contents.byteLength
                   );
-                  zipfile.addBuffer(sig, "manifest.sig");
+                  zipfile.addBuffer(signView(key, contentView), "manifest.sig");
+                  if (hasSig2) {
+                    zipfile.addBuffer(
+                      signView(key, contentView, "SHA256"),
+                      "manifest.sig2"
+                    );
+                  }
                   zipfile.end();
                 });
               } catch (e) {
