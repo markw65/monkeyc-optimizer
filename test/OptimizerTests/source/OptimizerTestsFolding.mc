@@ -74,10 +74,9 @@ function testRelationalFolding1(logger as Logger) as Boolean {
     return ok;
 }
 
-(:test)
-function testRelationalFoldingExpectedFail4_1_6_6_2_9U(
-    logger as Logger
-) as Boolean {
+// this one passes from 6.2.9 through 7.4.3, then starts failing again
+(:test,:typecheck(false))
+function testRelationalFoldingExpectedFail4_1_6_X(logger as Logger) as Boolean {
     ok = true;
 
     /* @match /check\(@42, @42, logger\);/ */

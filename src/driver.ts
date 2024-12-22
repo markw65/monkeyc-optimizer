@@ -739,7 +739,9 @@ export async function driver() {
                     expectedErrors++;
                   }
                 } else {
-                  const m = match[1].match(/(ExpectedFail|crash)(.*?)(U)?$/i);
+                  const m = match[1].match(
+                    /(ExpectedFail|crash)(.*?)([UX])?$/i
+                  );
                   if (m && (!m[2] || checkCompilerVersion(m[2], sdkVersion))) {
                     if (m[1].toLowerCase() === "crash") {
                       if (match[3] === "ERROR") {
@@ -748,6 +750,7 @@ export async function driver() {
                       } else if (
                         m[2] &&
                         match[3] === "PASS" &&
+                        m[3] !== "X" &&
                         (!m[3] || options.skipOptimization)
                       ) {
                         line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");
@@ -758,6 +761,7 @@ export async function driver() {
                       expectedFailures++;
                     } else if (
                       match[3] === "PASS" &&
+                      m[3] !== "X" &&
                       (!m[3] || options.skipOptimization)
                     ) {
                       line = line.replace(/PASS\s*$/, "UNEXPECTED PASS");

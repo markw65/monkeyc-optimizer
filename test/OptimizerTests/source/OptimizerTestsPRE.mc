@@ -13,6 +13,7 @@ function testSubstitution(logger as Logger) as Boolean {
     return x == y && y == z;
 }
 
+(:typecheck(false))
 function checksArgs(
     n as Number,
     f as Float,
