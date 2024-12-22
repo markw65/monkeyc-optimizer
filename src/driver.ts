@@ -379,7 +379,7 @@ export async function driver() {
     checkTypes =
       typeCheckLevel.toLowerCase() === "strict" ? "ERROR" : "WARNING";
   }
-  if (strictTypeCheck == null) {
+  if (strictTypeCheck.toLowerCase() === "default") {
     strictTypeCheck = typeCheckLevel.toLowerCase() === "strict" ? "On" : "Off";
   }
   const getOptions = (options: BuildConfig) => {
@@ -531,10 +531,6 @@ export async function driver() {
       .join(";");
     const workspace = path.dirname(jungleFiles.split(";")[0]);
     if (!outputPath) outputPath = defaultConfig.outputPath;
-    const strictTypeCheck =
-      jungleOptions.typeCheckLevel?.toLowerCase() === "strict"
-        ? "On"
-        : "Default";
     const options = getOptions({
       jungleFiles,
       workspace,
