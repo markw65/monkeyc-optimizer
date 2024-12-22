@@ -556,7 +556,12 @@ export async function driver() {
     >(
       res: T
     ) => {
-      if (showInfo && res && res.program) {
+      if (
+        showInfo &&
+        res &&
+        res.program &&
+        res.program.slice(-3).toLowerCase() !== ".iq"
+      ) {
         return readPrg(res.program).then((info) => {
           logger(
             `${path.basename(res.program)} sizes: text: ${
