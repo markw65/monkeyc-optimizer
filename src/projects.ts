@@ -511,7 +511,13 @@ function fetchAndClean(
     .then(() =>
       spawnByLine(
         "git",
-        ["reset", "--hard", `origin/${branch ?? "HEAD"}`],
+        [
+          "-c",
+          "core.symlinks=true",
+          "reset",
+          "--hard",
+          `origin/${branch ?? "HEAD"}`,
+        ],
         loggers,
         {
           cwd: projDir,

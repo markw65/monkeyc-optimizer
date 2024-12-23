@@ -22,6 +22,11 @@ export async function launchSimulator(force = true): Promise<void> {
               "Contents/MacOS/simulator"
             ),
           ]);
+    if (process.platform === "win32") {
+      child.stdin?.end();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }
     child.unref();
     for (let i = 0; ; i++) {
       if (await checkIfSimulatorRunning()) return;
