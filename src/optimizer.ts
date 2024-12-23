@@ -1116,21 +1116,35 @@ async function getProjectAnalysisHelper(
         name
       )
     )
-  ).then(
-    (results) =>
-      results.reduce((cur, result) => {
-        if (!cur) return result;
-        Object.entries(result.fnMap).forEach(([key, value]) => {
-          if (cur.fnMap[key]) {
-            cur.fnMap[key + "::" + value.barrel] = value;
-          } else {
-            cur.fnMap[key] = value;
-          }
-        });
-        cur.paths.push(...result.paths);
-        return cur;
-      }, null as PreAnalysis | null)!
-  );
+  )
+    .then(
+      (results) =>
+        results.reduce((cur, result) => {
+          if (!cur) return result;
+          Object.entries(result.fnMap).forEach(([key, value]) => {
+            if (cur.fnMap[key]) {
+              cur.fnMap[key + "::" + value.barrel] = value;
+            } else {
+              cur.fnMap[key] = value;
+            }
+          });
+          cur.paths.push(...result.paths);
+          return cur;
+        }, null as PreAnalysis | null)!
+    )
+    .then(
+      (result) =>
+        result ??
+        Promise.reject(
+          new Error(
+            `No valid devices found in manifest. Found ${
+              manifestProducts(manifestXML)
+                .map((p) => `'${p}'`)
+                .join(", ") || "no products"
+            }`
+          )
+        )
+    );
 
   if (analysis) {
     Object.entries(fnMap).forEach(([k, v]) => {
