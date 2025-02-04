@@ -2,6 +2,18 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.88
+
+- Fix output of cft-font-info
+  - When I refactored the code to avoid holding everything in memory at once, I inadvertently changed the format. This restores the original format, and adds a flag to enable the incorrect format, just in case someone's relying on it.
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.61](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1061)
+
+  - Allow semi-colons after expression-statements, and uncontrolled block-statements to match Garmin's parser.
+
+- Fix a crash when no valid products are found in the manifest (Fixes [prettier-extension-monkeyc#19](https://github.com/markw65/prettier-extension-monkeyc/issues/19))
+- Fix various issues with tests so that they pass with 7.4.3, and on windows
+- Sdk 7.4.3 started signing `.iq` files with SHA256 in addition to SHA1. For now, the store still accepts files that are only signed with SHA1, but this adds the SHA256 for future proofing.
+
 ### 1.1.87
 
 - Update post build optimizer to work with sdk-7.4.3. The manifest file was changed a little with this release, so I had to update the optimizer to match.
