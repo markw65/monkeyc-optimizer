@@ -9,6 +9,7 @@ const fonts = new Set();
 const otherArgs = [];
 let charsWanted;
 let charInfoAsArray;
+let flatFonts;
 
 function error(e) {
   throw new Error(e);
@@ -37,6 +38,9 @@ const prev = process.argv.slice(2).reduce((key, value) => {
       break;
     case "char-info-as-array":
       charInfoAsArray = !value || /^(true|1)$/i.test(value);
+      break;
+    case "flat-fonts":
+      flatFonts = !value || /^(true|1)$/i.test(value);
       break;
     default:
       error(`Unknown argument: --${key}`);
@@ -76,7 +80,8 @@ Promise.all(
     );
   })
 ).then((results) => {
-  console.log("{");
+  console.log(`{${flatFonts ? "" : `\n"fonts":{`}`);
+  let started = false;
   let last = -1;
   let active = [];
   const fontArray = Array.from(fonts).sort();
@@ -85,14 +90,15 @@ Promise.all(
       fontArray[i] &&
       cft
         .getCFTFontInfo(fontArray[i], { chars: charsWanted, charInfoAsArray })
-        .then(({ name, ...rest }) => `"${name}":${JSON.stringify(rest)},`)
+        .then(({ name, ...rest }) => `"${name}":${JSON.stringify(rest)}`)
         .catch(() => null)
         .then((line) => {
           active[i] = line;
           while (active[last + 1] !== undefined) {
             const a = active[++last];
             if (a != null) {
-              console.log(a);
+              console.log(started ? "," : "", a);
+              started = true;
             }
             delete active[last];
           }
@@ -101,6 +107,7 @@ Promise.all(
     .then(() => active.forEach((line) => line && console.log(line)))
     .then(() =>
       console.log(
+        flatFonts ? "," : "},\n",
         `"devices":${JSON.stringify(
           Object.fromEntries(
             results
