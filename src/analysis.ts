@@ -35,17 +35,28 @@ export function relative_path_no_dotdot(relative: string) {
   );
 }
 
+type GlobCache = Map<string, Promise<string[]>>;
+function globCache(pattern: string, workspace: string, cache?: GlobCache) {
+  const key = pattern + "::" + workspace;
+  const cached = cache?.get(key);
+  if (cached) return cached;
+  const result = globa(pattern, { cwd: workspace, mark: true });
+  if (cache) cache.set(key, result);
+  return result;
+}
+
 async function filesFromPaths(
   workspace: string,
   buildDir: string,
   inPaths: string[] | null | undefined,
-  extension: string
+  extension: string,
+  cache?: GlobCache
 ) {
   const filter = buildDir.startsWith(workspace);
   const paths = (
     await Promise.all(
       inPaths?.map((pattern) =>
-        globa(pattern, { cwd: workspace, mark: true }).then((paths) =>
+        globCache(pattern, workspace, cache).then((paths) =>
           paths.map((p) => ({
             path: p,
             filter:
@@ -60,14 +71,12 @@ async function filesFromPaths(
   const files = await Promise.all(
     paths.map((result) =>
       result.path.endsWith("/")
-        ? globa(`${result.path}**/*${extension}`, {
-            cwd: workspace,
-            mark: true,
-          }).then((paths) =>
-            paths.map((path) => ({
-              path,
-              filter: result.filter,
-            }))
+        ? globCache(`${result.path}**/*${extension}`, workspace, cache).then(
+            (paths) =>
+              paths.map((path) => ({
+                path,
+                filter: result.filter,
+              }))
           )
         : result
     )
@@ -94,20 +103,23 @@ export async function fileInfoFromConfig(
   output: string,
   buildConfig: JungleQualifier,
   extraExcludes: ExcludeAnnotationsMap,
-  barrel: string
+  barrel: string,
+  cache?: GlobCache
 ): Promise<PreAnalysis> {
   const { files, paths } = await filesFromPaths(
     workspace,
     buildDir,
     buildConfig.sourcePath,
-    ".mc"
+    ".mc",
+    cache
   );
 
   const { files: personalityFiles } = await filesFromPaths(
     workspace,
     buildDir,
     buildConfig.personality,
-    ".mss"
+    ".mss",
+    cache
   );
 
   const excludeAnnotations = Object.assign(
@@ -151,88 +163,79 @@ export async function getProjectAnalysisHelper(
   manifestXML: xmlUtil.Document,
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
-  const qualifiers: Map<
-    string,
-    { sourcePath: Set<string>; personality: Set<string>; root: string }
-  > = new Map();
+  const targetInfoMap: Map<string, PreAnalysis> = new Map();
+  const { workspace, outputPath } = options;
 
-  const addQualifier = (
+  const cache: GlobCache = new Map();
+
+  const addTargetInfo = async (
     name: string,
     qualifier: JungleQualifier,
     root: string
   ) => {
-    const sp = qualifier.sourcePath;
-    const pp = qualifier.personality;
-    if (sp || pp) {
-      let q = qualifiers.get(name);
-      if (!q) {
-        q = {
-          sourcePath: new Set(),
-          personality: new Set(),
-          root,
-        };
-        qualifiers.set(name, q);
-      }
-      sp?.forEach((s) => q!.sourcePath!.add(s));
-      pp?.forEach((p) => q!.personality!.add(p));
-    }
+    const key =
+      (qualifier.sourcePath ?? []).sort().join("::") +
+      ":::" +
+      (qualifier.personality ?? []).sort().join("::") +
+      ":::" +
+      (qualifier.excludeAnnotations ?? []).sort().join("::");
+
+    if (targetInfoMap.has(key)) return;
+    targetInfoMap.set(key, { fnMap: {}, paths: [] });
+    const preAnalysis = await fileInfoFromConfig(
+      root,
+      path.resolve(workspace!, outputPath ?? "bin/optimized"),
+      workspace!,
+      qualifier,
+      {},
+      name,
+      cache
+    );
+    targetInfoMap.set(key, preAnalysis);
   };
 
-  const products = targets.map(({ qualifier, product }) => {
-    addQualifier("", qualifier, options.workspace!);
-    if (qualifier.barrelMap) {
-      Object.entries(qualifier.barrelMap).forEach(([name, bm]) => {
-        addQualifier(name, bm.qualifier, path.dirname(bm.jungles[0]));
-      });
-    }
-    return product;
-  });
-
-  const { workspace, outputPath } = options;
-  const { fnMap, paths } = await Promise.all(
-    Array.from(qualifiers).map(([name, qualifier]) =>
-      fileInfoFromConfig(
-        qualifier.root,
-        path.resolve(workspace!, outputPath ?? "bin/optimized"),
-        workspace!,
-        {
-          sourcePath: Array.from(qualifier.sourcePath),
-          personality: Array.from(qualifier.personality),
-          products: name === "" ? products : undefined,
-        },
-        {},
-        name
+  await Promise.all(
+    targets
+      .map(({ qualifier }) => addTargetInfo("", qualifier, options.workspace!))
+      .concat(
+        targets.flatMap(({ qualifier }) => {
+          if (!qualifier.barrelMap) return [];
+          return Object.entries(qualifier.barrelMap).map(([name, bm]) =>
+            addTargetInfo(name, bm.qualifier, path.dirname(bm.jungles[0]))
+          );
+        })
       )
-    )
-  )
-    .then(
-      (results) =>
-        results.reduce((cur, result) => {
-          if (!cur) return result;
-          Object.entries(result.fnMap).forEach(([key, value]) => {
-            if (cur.fnMap[key]) {
-              cur.fnMap[key + "::" + value.barrel] = value;
-            } else {
-              cur.fnMap[key] = value;
-            }
-          });
-          cur.paths.push(...result.paths);
-          return cur;
-        }, null as PreAnalysis | null)!
-    )
-    .then(
-      (result) =>
-        result ??
-        Promise.reject(
-          new Error(
-            `No valid devices found in manifest. Found ${
-              manifestProducts(manifestXML)
-                .map((p) => `'${p}'`)
-                .join(", ") || "no products"
-            }`
-          )
-        )
+  );
+
+  const result = Array.from(targetInfoMap.values()).reduce(
+    (cur, result) => {
+      if (!cur) return result;
+      Object.entries(result.fnMap).forEach(([key, value]) => {
+        if (cur.fnMap[key]) {
+          if (cur.fnMap[key].barrel !== value.barrel) {
+            cur.fnMap[key + "::" + value.barrel] = value;
+          }
+        } else {
+          cur.fnMap[key] = value;
+        }
+      });
+      cur.paths.push(...result.paths);
+      return cur;
+    },
+    null as PreAnalysis | null
+  );
+  if (!result) {
+    throw new Error(
+      `No valid devices found in manifest. Found ${
+        manifestProducts(manifestXML)
+          .map((p) => `'${p}'`)
+          .join(", ") || "no products"
+      }`
     );
+  }
+  const { fnMap, paths } = result;
+
+  Object.values(fnMap).forEach((v) => (v.excludeAnnotations = {}));
 
   if (analysis) {
     Object.entries(fnMap).forEach(([k, v]) => {
