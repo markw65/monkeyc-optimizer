@@ -7,7 +7,7 @@ import { Context, SectionKinds } from "./bytecode";
 export function getPrgSignature(context: Context) {
   if (!context.key) return;
   const withSha256 =
-    context.sections[SectionKinds.SIGNATURE]?.length === 1036 + 512;
+    context.sections[SectionKinds.SIGNATURE]?.length === 1036 + 512 - 8;
   delete context.sections[SectionKinds.SIGNATURE];
   delete context.sections[SectionKinds.STORE_SIG];
 
