@@ -278,6 +278,7 @@ module Inheritance {
         }
     }
     class Child extends Base {
+        private var p as Number = 2;
         (:inline)
         function localConflict() as Number {
             return h;
@@ -304,9 +305,9 @@ module Inheritance {
         return x.bar() == 43 && x.foo() == 25;
     }
     (:test)
-    function privateFromDerivedCrash(logger as Logger) as Boolean {
+    function privateFromDerived(logger as Logger) as Boolean {
         var x = new Child();
-        return x.baz() == 43;
+        return x.baz() == 44;
     }
 }
 
