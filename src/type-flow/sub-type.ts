@@ -20,15 +20,36 @@ import {
 } from "./types";
 import { clearValuesUnder } from "./union-type";
 
+type ActiveTypeMap = Map<ExactOrUnion, Set<ExactOrUnion>>;
 /*
  * Determine whether a is a subtype of b.
  */
 export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
+  return subtypeHelper(null, a, b);
+}
+
+function subtypeHelper(
+  activeTypeMap: ActiveTypeMap | null,
+  a: ExactOrUnion,
+  b: ExactOrUnion
+): boolean {
   if (a.type & TypeTag.Typedef && a.value != null) {
-    return subtypeOf(expandTypedef(a), b);
+    if (!activeTypeMap) {
+      activeTypeMap = new Map([[a, new Set([b])]]);
+    } else {
+      const seen = activeTypeMap.get(a);
+      if (!seen) {
+        activeTypeMap.set(a, new Set([b]));
+      } else if (seen.has(b)) {
+        return true;
+      } else {
+        seen.add(b);
+      }
+    }
+    return subtypeHelper(activeTypeMap, expandTypedef(a), b);
   }
   if (b.type & TypeTag.Typedef && b.value != null) {
-    return subtypeOf(a, expandTypedef(b));
+    return subtypeHelper(activeTypeMap, a, expandTypedef(b));
   }
   if (
     a.type & TypeTag.Enum &&
@@ -36,13 +57,13 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
     b.type & EnumTagsConst
   ) {
     const value = getUnionComponent(a, TypeTag.Enum);
-    if (!subtypeOf(typeFromEnumValue(value), b)) {
+    if (!subtypeHelper(activeTypeMap, typeFromEnumValue(value), b)) {
       return false;
     }
     if (a.type === TypeTag.Enum) return true;
     const a2 = cloneType(a);
     clearValuesUnder(a2, TypeTag.Enum, true);
-    return subtypeOf(a2, b);
+    return subtypeHelper(activeTypeMap, a2, b);
   }
 
   let common = a.type & b.type;
@@ -60,7 +81,11 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
     if (bc.value == null || avalue === bc.value) return true;
     if (
       avalue == null ||
-      !subtypeOfValue({ type: bc.type, avalue, bvalue: bc.value } as ValuePairs)
+      !subtypeOfValue(activeTypeMap, {
+        type: bc.type,
+        avalue,
+        bvalue: bc.value,
+      } as ValuePairs)
     ) {
       result = false;
       return false;
@@ -70,7 +95,7 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
   return result;
 }
 
-function subtypeOfValue(pair: ValuePairs) {
+function subtypeOfValue(activeTypeMap: ActiveTypeMap | null, pair: ValuePairs) {
   switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
@@ -96,10 +121,12 @@ function subtypeOfValue(pair: ValuePairs) {
             (bv) => {
               some =
                 av.length === bv.length &&
-                bv.every((b, i) => subtypeOf(av[i], b));
+                bv.every((b, i) => subtypeHelper(activeTypeMap, av[i], b));
               return some === false;
             },
-            (bv) => (some = av.every((a) => subtypeOf(a, bv))) === false
+            (bv) =>
+              (some = av.every((a) => subtypeHelper(activeTypeMap, a, bv))) ===
+              false
           );
           return (result = some);
         },
@@ -111,7 +138,7 @@ function subtypeOfValue(pair: ValuePairs) {
               // Array<T> is never a subtype of a tuple
               return true;
             },
-            (bv) => (some = subtypeOf(av, bv)) === false
+            (bv) => (some = subtypeHelper(activeTypeMap, av, bv)) === false
           );
           return (result = some);
         }
@@ -125,7 +152,7 @@ function subtypeOfValue(pair: ValuePairs) {
         if (!bdict.value) {
           return Array.from(adict).every(([key, av]) => {
             const bv = bdict.get(key);
-            return !bv || subtypeOf(av, bv);
+            return !bv || subtypeHelper(activeTypeMap, av, bv);
           });
         }
         // a mapped type is never a subtype of a generic dictionary, because any
@@ -139,18 +166,24 @@ function subtypeOfValue(pair: ValuePairs) {
         // maps "foo" to a string, or it doesn't include "foo" as a key.
         return Array.from(bdict).every(([key, bv]) => {
           const kt = typeFromObjectLiteralKey(key);
-          return !couldBe(kt, adict.key) || subtypeOf(adict.value, bv);
+          return (
+            !couldBe(kt, adict.key) ||
+            subtypeHelper(activeTypeMap, adict.value, bv)
+          );
         });
       }
       return (
-        subtypeOf(adict.key, bdict.key) && subtypeOf(adict.value, bdict.value)
+        subtypeHelper(activeTypeMap, adict.key, bdict.key) &&
+        subtypeHelper(activeTypeMap, adict.value, bdict.value)
       );
     }
     case TypeTag.Method: {
       return (
         pair.avalue.args.length === pair.bvalue.args.length &&
-        subtypeOf(pair.avalue.result, pair.bvalue.result) &&
-        pair.avalue.args.every((arg, i) => subtypeOf(pair.bvalue.args[i], arg))
+        subtypeHelper(activeTypeMap, pair.avalue.result, pair.bvalue.result) &&
+        pair.avalue.args.every((arg, i) =>
+          subtypeHelper(activeTypeMap, pair.bvalue.args[i], arg)
+        )
       );
     }
     case TypeTag.Module:
@@ -178,7 +211,8 @@ function subtypeOfValue(pair: ValuePairs) {
       const aobj = pair.avalue;
       const bobj = pair.bvalue;
       return (
-        subtypeOf(aobj.klass, bobj.klass) && subtypeOfObj(aobj.obj, bobj.obj)
+        subtypeHelper(activeTypeMap, aobj.klass, bobj.klass) &&
+        subtypeOfObj(activeTypeMap, aobj.obj, bobj.obj)
       );
     }
 
@@ -186,7 +220,10 @@ function subtypeOfValue(pair: ValuePairs) {
       const aenum = pair.avalue;
       const benum = pair.bvalue;
       if (benum.value) {
-        if (!aenum.value || !subtypeOf(aenum.value, benum.value)) {
+        if (
+          !aenum.value ||
+          !subtypeHelper(activeTypeMap, aenum.value, benum.value)
+        ) {
           return false;
         }
       }
@@ -198,12 +235,13 @@ function subtypeOfValue(pair: ValuePairs) {
 }
 
 function subtypeOfObj(
+  activeTypeMap: ActiveTypeMap | null,
   a: Record<string, ExactOrUnion> | undefined,
   b: Record<string, ExactOrUnion> | undefined
 ) {
   if (!a || !b) return true;
   return Object.entries(b).every(([key, value]) => {
     if (!hasProperty(a, key)) return false;
-    return subtypeOf(a[key], value);
+    return subtypeHelper(activeTypeMap, a[key], value);
   });
 }
