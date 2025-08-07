@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.89
+
+- Fix error determining whether or not to generate a SHA256 signature, so that things start working with sdk-8.2.2 again
+
 ### 1.1.88
 
 - Fix output of cft-font-info
