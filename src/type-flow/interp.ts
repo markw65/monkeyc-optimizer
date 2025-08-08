@@ -66,6 +66,7 @@ import {
   typeFromTypespec,
 } from "./types";
 import { clearValuesUnder, unionInto } from "./union-type";
+import { inferenceType } from "./inference-type";
 
 export type TypeMap = Map<mctree.Node, ExactOrUnion>;
 
@@ -570,7 +571,9 @@ export function getLhsConstraint(
   node: mctree.MemberExpression | mctree.Identifier
 ) {
   const [constraintType, constrained] = getLhsConstraintHelper(istate, node);
-  return constrained ? constraintType : null;
+  return constrained && constraintType
+    ? inferenceType(constraintType, true)
+    : null;
 }
 
 function pushScopedNameType(

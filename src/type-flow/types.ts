@@ -361,10 +361,10 @@ export function hasValue(v: AbstractValue): v is WithValue<ExactTypes> {
 
 export function hasNoData(v: AbstractValue, t: TypeTag) {
   if (v.value == null) return true;
-  return (
+  return !(
     (hasUnionData(v.type)
-      ? (v.value as UnionData).mask & t
-      : v.type & t & ~SingletonTypeTagsConst) === 0
+      ? (v.value as UnionData).mask
+      : v.type & UnionDataTypeTagsConst || v.type & ~SingletonTypeTagsConst) & t
   );
 }
 
@@ -377,9 +377,6 @@ export function cloneType<T extends ExactOrUnion>(t: T): T {
  * etc.
  */
 export function relaxType(type: ExactOrUnion) {
-  if (type.type === TypeTag.Null) {
-    return { type: TypeTag.Null | TypeTag.Object };
-  }
   const valTypes = type.type & ValueTypeTagsConst;
   if (
     (!valTypes || hasNoData(type, valTypes)) &&
