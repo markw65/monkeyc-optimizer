@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.90
+
+- Fix a bug that could result in infinite recursion when computing the union or intersection of two types involving typedefs
+- Fix a bug where the inferred type of `[ null ]` was tuple containing `Object?`.
+
 ### 1.1.89
 
 - Fix error determining whether or not to generate a SHA256 signature, so that things start working with sdk-8.2.2 again
