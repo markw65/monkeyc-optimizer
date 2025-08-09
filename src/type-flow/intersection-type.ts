@@ -11,6 +11,7 @@ import { tupleMap, tupleReduce } from "./array-type";
 import { couldBe } from "./could-be";
 import { roundToFloat } from "./interp";
 import {
+  ActiveTypeMap,
   CharType,
   ClassType,
   DoubleType,
@@ -30,6 +31,7 @@ import {
   forEachUnionComponent,
   getObjectValue,
   getUnionComponent,
+  guardRecursiveTypedef,
   hasUnionData,
   isExact,
   typeFromEnumValue,
@@ -58,13 +60,13 @@ function intersectEnum(
 ) {
   const enumData = getUnionComponent(e, TypeTag.Enum);
   const e2 = cloneType(e);
-  const i = intersectionHelper(activeTypeMap, t, typeFromEnumValue(enumData));
+  const i = intersection(t, typeFromEnumValue(enumData));
   if (e2.value != null) {
     clearValuesUnder(e2, TypeTag.Enum, true);
   } else {
     e2.type &= ~TypeTag.Enum;
   }
-  const rest = intersectionHelper(activeTypeMap, t, e2);
+  const rest = intersection(t, e2);
   if (i.type === TypeTag.Never) {
     // There are no values. This would happen if eg
     // the enum is numbers only, and t cannot be a
@@ -79,34 +81,14 @@ function intersectEnum(
   return result;
 }
 
-type ActiveTypeMap = Map<ExactOrUnion, Set<ExactOrUnion>>;
-
+const activeTypeMap: ActiveTypeMap = new Map();
 export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
-  return intersectionHelper(null, a, b);
-}
-
-function intersectionHelper(
-  activeTypeMap: ActiveTypeMap | null,
-  a: ExactOrUnion,
-  b: ExactOrUnion
-): ExactOrUnion {
   if (a.type & TypeTag.Typedef && a.value != null) {
-    if (!activeTypeMap) {
-      activeTypeMap = new Map([[a, new Set([b])]]);
-    } else {
-      const seen = activeTypeMap.get(a);
-      if (!seen) {
-        activeTypeMap.set(a, new Set([b]));
-      } else if (seen.has(b)) {
-        return a;
-      } else {
-        seen.add(b);
-      }
-    }
-    return intersectionHelper(activeTypeMap, expandTypedef(a), b);
+    const result = guardRecursiveTypedef(activeTypeMap, a, b, intersection);
+    return result === true ? a : result;
   }
   if (b.type & TypeTag.Typedef && b.value != null) {
-    return intersectionHelper(activeTypeMap, a, expandTypedef(b));
+    return intersection(a, expandTypedef(b));
   }
   let common = a.type & b.type & ~TypeTag.Typedef;
   if (
@@ -231,15 +213,11 @@ function intersectionValue(
             pair.bvalue,
             (bv) => {
               if (av.length !== bv.length) return null;
-              const isect = av.map((t, i) =>
-                intersectionHelper(activeTypeMap, t, bv[i])
-              );
+              const isect = av.map((t, i) => intersection(t, bv[i]));
               return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
             },
             (bv) => {
-              const isect = av.map((t) =>
-                intersectionHelper(activeTypeMap, bv, t)
-              );
+              const isect = av.map((t) => intersection(bv, t));
               return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
             },
             (bv) => (bv.length === 0 ? null : bv)
@@ -248,13 +226,11 @@ function intersectionValue(
           tupleMap(
             pair.bvalue,
             (bv) => {
-              const isect = bv.map((t) =>
-                intersectionHelper(activeTypeMap, av, t)
-              );
+              const isect = bv.map((t) => intersection(av, t));
               return isect.some((t) => t.type === TypeTag.Never) ? null : isect;
             },
             (bv) => {
-              const atype = intersectionHelper(activeTypeMap, av, bv);
+              const atype = intersection(av, bv);
               return atype.type === TypeTag.Never ? null : atype;
             },
             (bv) => (bv.length === 0 ? null : bv)
@@ -272,7 +248,7 @@ function intersectionValue(
           pair.bvalue.forEach((bv, key) => {
             const av = result.get(key);
             if (av) {
-              bv = intersectionHelper(activeTypeMap, bv, av);
+              bv = intersection(bv, av);
             }
             result.set(key, bv);
           });
@@ -283,27 +259,15 @@ function intersectionValue(
       } else if (!pair.bvalue.value) {
         return pair.avalue;
       }
-      const dkey = intersectionHelper(
-        activeTypeMap,
-        pair.avalue.key,
-        pair.bvalue.key
-      );
-      const dvalue = intersectionHelper(
-        activeTypeMap,
-        pair.avalue.value,
-        pair.bvalue.value
-      );
+      const dkey = intersection(pair.avalue.key, pair.bvalue.key);
+      const dvalue = intersection(pair.avalue.value, pair.bvalue.value);
       return dkey.type !== TypeTag.Never && dvalue.type !== TypeTag.Never
         ? { key: dkey, value: dvalue }
         : null;
     }
     case TypeTag.Method: {
       if (pair.avalue.args.length !== pair.bvalue.args.length) return null;
-      const mresult = intersectionHelper(
-        activeTypeMap,
-        pair.avalue.result,
-        pair.bvalue.result
-      );
+      const mresult = intersection(pair.avalue.result, pair.bvalue.result);
       if (mresult.type === TypeTag.Never) return null;
       const margs = pair.avalue.args.map((aarg, i) => {
         aarg = cloneType(aarg);
@@ -348,11 +312,7 @@ function intersectionValue(
     }
 
     case TypeTag.Object: {
-      const klass = intersectionHelper(
-        activeTypeMap,
-        pair.avalue.klass,
-        pair.bvalue.klass
-      );
+      const klass = intersection(pair.avalue.klass, pair.bvalue.klass);
       const obj = intersectObj(activeTypeMap, pair.avalue.obj, pair.bvalue.obj);
       return klass.type !== TypeTag.Class || klass.value == null
         ? null
@@ -378,11 +338,7 @@ function intersectionValue(
       const enumValue =
         pair.avalue.value != null
           ? pair.bvalue.value != null
-            ? intersectionHelper(
-                activeTypeMap,
-                pair.avalue.value,
-                pair.bvalue.value
-              )
+            ? intersection(pair.avalue.value, pair.bvalue.value)
             : pair.avalue.value
           : pair.bvalue.value;
       return { enum: enumDecl, value: enumValue };
@@ -407,7 +363,7 @@ function intersectObj(
       return;
     }
     if (result === to) result = { ...result };
-    result[key] = intersectionHelper(activeTypeMap, to[key], value);
+    result[key] = intersection(to[key], value);
   });
   return result;
 }

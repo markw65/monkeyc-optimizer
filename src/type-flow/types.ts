@@ -1,4 +1,5 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
+import assert from "node:assert";
 import {
   diagnostic,
   formatAstLongLines,
@@ -21,7 +22,7 @@ import {
 import { forEach, map } from "../util";
 import { tupleMap } from "./array-type";
 import { deEnumerate, evaluateExpr, roundToFloat } from "./interp";
-import { intersection } from "./intersection-type";
+import { expandTypedef, intersection } from "./intersection-type";
 import { clearValuesUnder, unionInto } from "./union-type";
 
 // prettier-ignore
@@ -1325,4 +1326,31 @@ export function typeFromEnumValue(arg: EnumType["value"] | null) {
       type: EnumTagsConst,
     }
   );
+}
+
+export type ActiveTypeMap = Map<ExactOrUnion, Set<ExactOrUnion>>;
+
+export function guardRecursiveTypedef<T>(
+  activeTypeMap: ActiveTypeMap,
+  a: ExactOrUnion,
+  b: ExactOrUnion,
+  callback: (a: ExactOrUnion, b: ExactOrUnion) => T
+) {
+  let seen = activeTypeMap.get(a);
+  if (!seen) {
+    activeTypeMap.set(a, (seen = new Set([b])));
+  } else if (seen.has(b)) {
+    return true;
+  } else {
+    seen.add(b);
+  }
+
+  try {
+    return callback(expandTypedef(a), b);
+  } finally {
+    assert(seen.delete(b));
+    if (!seen.size) {
+      activeTypeMap.delete(a);
+    }
+  }
 }
