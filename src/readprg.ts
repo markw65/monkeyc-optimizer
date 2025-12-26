@@ -2,7 +2,6 @@ import * as fscb from "fs";
 import * as fs from "fs/promises";
 import * as crypto from "node:crypto";
 import * as path from "path";
-import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { hasProperty } from "./ast";
 import { BuildConfig } from "./optimizer-types";
@@ -23,6 +22,7 @@ import { SymbolTable } from "./readprg/symbols";
 import { getDeviceInfo, getSdkPath, xmlUtil } from "./sdk-util";
 import { logger } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
+import { unzip7 } from "./unzip7";
 
 export async function readPrg(path: string) {
   const { sections } = await readPrgFromFile(path);
@@ -243,216 +243,178 @@ function optimizePackage(
               resolve({ output });
             });
 
-          yauzl.open(filepath, { lazyEntries: true }, function (err, unzip) {
-            if (err) {
-              reject(err);
+          let hasSig2 = false;
+          const promises: Promise<unknown>[] = [];
+          const doOptimize = (
+            prgName: string,
+            prgBuffer: Buffer,
+            xmlName: string,
+            xmlBuffer: Buffer
+          ) => {
+            promises.push(
+              runTaskInPool({
+                type: "optimizePrgAndDebug",
+                data: {
+                  prgName,
+                  prgBuffer: prgBuffer.buffer,
+                  prgOffset: prgBuffer.byteOffset,
+                  prgLength: prgBuffer.byteLength,
+                  xmlName,
+                  xmlBuffer: xmlBuffer.buffer,
+                  xmlOffset: xmlBuffer.byteOffset,
+                  xmlLength: xmlBuffer.byteLength,
+                  key,
+                  config,
+                },
+              }).then(
+                ({
+                  prgBuffer,
+                  prgOffset,
+                  prgLength,
+                  sigBuffer,
+                  sigOffset,
+                  sigLength,
+                  debugXml,
+                }) => {
+                  if (
+                    sigBuffer == null ||
+                    sigOffset == null ||
+                    sigLength == null
+                  ) {
+                    return Promise.reject(
+                      new Error(`Unable to generate signature for ${prgName}`)
+                    );
+                  }
+                  const name = rename(prgName);
+                  sigs.set(name, Buffer.from(sigBuffer, sigOffset, sigLength));
+                  zipfile.addBuffer(
+                    Buffer.from(prgBuffer, prgOffset, prgLength),
+                    name
+                  );
+                  zipfile.addBuffer(Buffer.from(debugXml), xmlName);
+                  return null;
+                }
+              )
+            );
+          };
+          unzip7(filepath, (fileName, buffer) => {
+            if (fileName.startsWith("manifest.sig")) {
+              if (fileName === "manifest.sig2") {
+                hasSig2 = true;
+              }
               return;
             }
-
-            const promises: Promise<unknown>[] = [];
-            const doOptimize = (
-              prgName: string,
-              prgBuffer: Buffer,
-              xmlName: string,
-              xmlBuffer: Buffer
-            ) => {
-              promises.push(
-                runTaskInPool({
-                  type: "optimizePrgAndDebug",
-                  data: {
-                    prgName,
-                    prgBuffer: prgBuffer.buffer,
-                    prgOffset: prgBuffer.byteOffset,
-                    prgLength: prgBuffer.byteLength,
-                    xmlName,
-                    xmlBuffer: xmlBuffer.buffer,
-                    xmlOffset: xmlBuffer.byteOffset,
-                    xmlLength: xmlBuffer.byteLength,
-                    key,
-                    config,
-                  },
-                }).then(
-                  ({
-                    prgBuffer,
-                    prgOffset,
-                    prgLength,
-                    sigBuffer,
-                    sigOffset,
-                    sigLength,
-                    debugXml,
-                  }) => {
-                    if (
-                      sigBuffer == null ||
-                      sigOffset == null ||
-                      sigLength == null
-                    ) {
-                      reject(
-                        new Error(`Unable to generate signature for ${prgName}`)
-                      );
-                      unzip.close();
-                      return;
-                    }
-                    const name = rename(prgName);
-                    sigs.set(
-                      name,
-                      Buffer.from(sigBuffer, sigOffset, sigLength)
-                    );
-                    zipfile.addBuffer(
-                      Buffer.from(prgBuffer, prgOffset, prgLength),
-                      name
-                    );
-                    zipfile.addBuffer(Buffer.from(debugXml), xmlName);
-                  }
-                )
-              );
-            };
-
-            unzip.readEntry();
-
-            let hasSig2 = false;
-            unzip.on("entry", function (entry) {
-              if (/\/$/.test(entry.fileName)) {
-                unzip.readEntry();
+            if (fileName === "manifest.xml") {
+              manifest = buffer.toString("utf-8");
+              return;
+            }
+            const dirname = path.dirname(fileName);
+            if (/\.prg$/i.test(fileName)) {
+              const p = pending.get(dirname);
+              if (p) {
+                doOptimize(fileName, buffer, p.name, p.buffer);
+                pending.delete(dirname);
               } else {
-                if (entry.fileName.startsWith("manifest.sig")) {
-                  if (entry.fileName === "manifest.sig2") {
-                    hasSig2 = true;
-                  }
-                  unzip.readEntry();
-                  return;
-                }
-                unzip.openReadStream(entry, (err, readStream) => {
-                  if (err) {
-                    reject(err);
-                    unzip.close();
-                    return;
-                  }
-                  const buffers: Buffer[] = [];
-                  readStream.on("end", function () {
-                    unzip.readEntry();
-                    const buffer = Buffer.concat(buffers);
-                    if (entry.fileName === "manifest.xml") {
-                      manifest = buffer.toString("utf-8");
-                      return;
-                    }
-                    const dirname = path.dirname(entry.fileName);
-                    if (/\.prg$/i.test(entry.fileName)) {
-                      const p = pending.get(dirname);
-                      if (p) {
-                        doOptimize(entry.fileName, buffer, p.name, p.buffer);
-                        pending.delete(dirname);
-                      } else {
-                        pending.set(dirname, {
-                          name: entry.fileName,
-                          buffer,
-                        });
-                      }
-                      return;
-                    }
-                    if (/debug.xml$/i.test(entry.fileName)) {
-                      const p = pending.get(dirname);
-                      if (p) {
-                        doOptimize(p.name, p.buffer, entry.fileName, buffer);
-                        pending.delete(dirname);
-                      } else {
-                        pending.set(dirname, {
-                          name: entry.fileName,
-                          buffer,
-                        });
-                      }
-                      return;
-                    }
-                    zipfile.addBuffer(buffer, entry.fileName);
-                  });
-                  readStream.on("data", (data: Buffer) => {
-                    buffers.push(data);
-                  });
+                pending.set(dirname, {
+                  name: fileName,
+                  buffer,
                 });
               }
-            });
-
-            unzip.on("end", async () => {
-              try {
-                if (!manifest) {
-                  throw new Error("No manifest file found");
-                }
-                const xml = xmlUtil.parseXml(manifest);
-                const body = xml.body;
-                if (body instanceof Error) {
-                  throw body;
-                }
-                await Promise.all(promises).then(() => {
-                  body
-                    .children("iq:application")
-                    .children("iq:products")
-                    .children("iq:product")
-                    .attrs()
-                    .forEach((attr) => {
-                      const part = attr.partNumber?.value.value;
-                      if (!part) {
-                        throw new Error(
-                          `Missing partNumber for product in manifest`
-                        );
-                      }
-                      const id = deviceInfo[part];
-                      if (!id) {
-                        throw new Error(
-                          `No id found for partNumber '${part}' in manifest`
-                        );
-                      }
-                      const filename = attr.filename?.value.value;
-                      if (!filename) {
-                        throw new Error(
-                          `Product ${id} was missing a filename in the manifest`
-                        );
-                      }
-                      const newName = rename(filename);
-                      const sig = sigs.get(newName);
-                      if (!sig) {
-                        throw new Error(
-                          `${newName}, listed in the manifest for product ${id}, was not found`
-                        );
-                      }
-                      if (!attr.sig) {
-                        throw new Error(
-                          `${newName}, listed in the manifest had no signature`
-                        );
-                      }
-                      attr.filename!.value.value = newName;
-                      attr.sig.value.value = sig
-                        .subarray(0, 512)
+              return;
+            }
+            if (/debug.xml$/i.test(fileName)) {
+              const p = pending.get(dirname);
+              if (p) {
+                doOptimize(p.name, p.buffer, fileName, buffer);
+                pending.delete(dirname);
+              } else {
+                pending.set(dirname, {
+                  name: fileName,
+                  buffer,
+                });
+              }
+              return;
+            }
+            zipfile.addBuffer(buffer, fileName);
+          })
+            .then(() => {
+              if (!manifest) {
+                throw new Error("No manifest file found");
+              }
+              const xml = xmlUtil.parseXml(manifest);
+              const body = xml.body;
+              if (body instanceof Error) {
+                throw body;
+              }
+              return Promise.all(promises).then(() => {
+                body
+                  .children("iq:application")
+                  .children("iq:products")
+                  .children("iq:product")
+                  .attrs()
+                  .forEach((attr) => {
+                    const part = attr.partNumber?.value.value;
+                    if (!part) {
+                      throw new Error(
+                        `Missing partNumber for product in manifest`
+                      );
+                    }
+                    const id = deviceInfo[part];
+                    if (!id) {
+                      throw new Error(
+                        `No id found for partNumber '${part}' in manifest`
+                      );
+                    }
+                    const filename = attr.filename?.value.value;
+                    if (!filename) {
+                      throw new Error(
+                        `Product ${id} was missing a filename in the manifest`
+                      );
+                    }
+                    const newName = rename(filename);
+                    const sig = sigs.get(newName);
+                    if (!sig) {
+                      throw new Error(
+                        `${newName}, listed in the manifest for product ${id}, was not found`
+                      );
+                    }
+                    if (!attr.sig) {
+                      throw new Error(
+                        `${newName}, listed in the manifest had no signature`
+                      );
+                    }
+                    attr.filename!.value.value = newName;
+                    attr.sig.value.value = sig
+                      .subarray(0, 512)
+                      .toString("hex")
+                      .toUpperCase();
+                    if (attr.sig2 && sig.length === 1024) {
+                      attr.sig2.value.value = sig
+                        .subarray(512)
                         .toString("hex")
                         .toUpperCase();
-                      if (attr.sig2 && sig.length === 1024) {
-                        attr.sig2.value.value = sig
-                          .subarray(512)
-                          .toString("hex")
-                          .toUpperCase();
-                      } else {
-                        delete attr.sig2;
-                      }
-                    });
-                  const contents = Buffer.from(xmlUtil.writeXml(xml));
-                  zipfile.addBuffer(contents, "manifest.xml");
-                  const contentView = new DataView(
-                    contents.buffer,
-                    contents.byteOffset,
-                    contents.byteLength
+                    } else {
+                      delete attr.sig2;
+                    }
+                  });
+                const contents = Buffer.from(xmlUtil.writeXml(xml));
+                zipfile.addBuffer(contents, "manifest.xml");
+                const contentView = new DataView(
+                  contents.buffer,
+                  contents.byteOffset,
+                  contents.byteLength
+                );
+                zipfile.addBuffer(signView(key, contentView), "manifest.sig");
+                if (hasSig2) {
+                  zipfile.addBuffer(
+                    signView(key, contentView, "SHA256"),
+                    "manifest.sig2"
                   );
-                  zipfile.addBuffer(signView(key, contentView), "manifest.sig");
-                  if (hasSig2) {
-                    zipfile.addBuffer(
-                      signView(key, contentView, "SHA256"),
-                      "manifest.sig2"
-                    );
-                  }
-                  zipfile.end();
-                });
-              } catch (e) {
-                reject(e);
-              }
-            });
-          });
+                }
+                zipfile.end();
+              });
+            })
+            .catch((e) => reject(e));
         })
     )
     .finally(() => poolStarted && stopPool());
