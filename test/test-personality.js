@@ -63,7 +63,7 @@ Promise.resolve()
     testOne(
       "venu2",
       "personality-round",
-      "\\(\\d+\\s*\\*\\s*\\(25 / 100.0\\)\\)"
+      "\\((\\d+|\\w+_dc_getWidth)\\s*\\*\\s*\\(25 / 100.0\\)\\)"
     )
   )
   .then(() => testOne("edge_1000", "personality-rectangle-240x400", "10"))

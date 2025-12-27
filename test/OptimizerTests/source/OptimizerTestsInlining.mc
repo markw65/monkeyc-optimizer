@@ -177,6 +177,7 @@ function inlineAsExpressionTests(logger as Logger) as Boolean {
     ok = true;
     A.B.x = 0;
     var x = 0;
+    check(A.K, 0, logger);
     x = /* @match A.B.a */ A.B.f(1);
     check(x, 2, logger);
     x = /* @match A.B.a */ A.B.f(x);
@@ -253,6 +254,7 @@ function inlineSizeTests(logger as Logger) as Boolean {
     A.B.x = 0;
     var x;
 
+    check(A.K, 0, logger);
     x = /* @match A.B.j */ A.B.j(1) + 1;
     check(x, 3, logger);
     x = /* @match A.B.j */ A.B.j(x) + 1;
@@ -276,6 +278,7 @@ function inlineSpeedTests(logger as Logger) as Boolean {
     A.B.x = 0;
     var x;
 
+    check(A.K, 0, logger);
     x = /* @match A.B.a */ A.B.j(1);
     check(x, 2, logger);
     x = /* @match A.B.a */ A.B.j(x);

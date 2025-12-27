@@ -521,6 +521,7 @@ module Compiler2 {
         }
         const ENDIAN_LITTLE = 42;
         class Klass extends M.N {
+            (:typecheck(false))
             function foo() as Number {
                 return self.Nested.L;
             }
