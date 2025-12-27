@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.91
+
+- Update the post build optimizer to use 7zip to unpack `.iq` files for compatibility with sdk-8.4.0
+- Another fix for the bug that could result in infinite recursion when computing the union or intersection of two types involving typedefs
+
 ### 1.1.90
 
 - Fix a bug that could result in infinite recursion when computing the union or intersection of two types involving typedefs
