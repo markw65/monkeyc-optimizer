@@ -14,6 +14,7 @@ function test1(index as Number) as ResourceId {
   return Rez.Strings[resourceSymbols[index]];
 }
 
+(:typecheck(false)) // sdk-8.4 reports an error for the return type
 function test2(index as Number) as ResourceId {
   var resourceSymbols = [:AppName];
 
