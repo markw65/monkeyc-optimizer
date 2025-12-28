@@ -1,54 +1,19 @@
-import * as yauzl from "yauzl";
 import SevenZip from "7z-wasm";
 import * as path from "node:path";
-export function unzipYauzl(
-  filepath: string,
-  process: (fileName: string, data: Buffer) => void
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    yauzl.open(filepath, { lazyEntries: true }, function (err, unzip) {
-      if (err) {
-        reject(err);
-        return;
-      }
 
-      unzip.readEntry();
-      unzip.on("entry", function (entry) {
-        if (/\/$/.test(entry.fileName)) {
-          // it's a directory, just move on to the next file
-          unzip.readEntry();
-          return;
-        }
-
-        unzip.openReadStream(entry, (err, readStream) => {
-          if (err) {
-            reject(err);
-            unzip.close();
-            return;
-          }
-          const buffers: Buffer[] = [];
-          readStream.on("end", function () {
-            unzip.readEntry();
-            const buffer = Buffer.concat(buffers);
-            process(entry.fileName, buffer);
-          });
-          readStream.on("data", (data: Buffer) => {
-            buffers.push(data);
-          });
-        });
-      });
-
-      unzip.on("end", () => {
-        resolve();
-      });
-    });
-  });
-}
+export type SevenZipHandler = {
+  refresh: (filename: string, data?: Buffer) => void;
+  writeArchive: (filepath: string, t?: string) => void;
+};
 
 export async function unzip7(
   filepath: string,
-  process: (fileName: string, data: Buffer) => void
-): Promise<void> {
+  process: (
+    fileName: string,
+    data: Buffer,
+    refresh: (filename: string, data?: Buffer) => void
+  ) => void
+) {
   const output: string[] = [];
   const sevenZip = await SevenZip({
     print: (data) => {
@@ -59,46 +24,70 @@ export async function unzip7(
       // console.error(`==> ${data}`);
     },
   });
-  const mountRoot = "/nodefs";
+  const refresh = (filename: string, data?: Buffer) =>
+    data ? sevenZip.FS.writeFile(filename, data) : sevenZip.FS.unlink(filename);
+  const mount = (filepath: string, mountRoot: string) => {
+    sevenZip.FS.mkdir(mountRoot);
+    sevenZip.FS.mount(
+      sevenZip.NODEFS,
+      {
+        root: path.dirname(filepath),
+      },
+      mountRoot
+    );
+    return path.resolve(mountRoot, path.basename(filepath));
+  };
   const tmpRoot = "/outdir";
-  sevenZip.FS.mkdir(mountRoot);
   sevenZip.FS.mkdir(tmpRoot);
-  sevenZip.FS.mount(
-    sevenZip.NODEFS,
-    {
-      root: path.dirname(filepath),
-    },
-    mountRoot
-  );
   sevenZip.FS.chdir(tmpRoot);
-  const zippedFile = path.resolve(mountRoot, path.basename(filepath));
-  /*
-   * It would be nice to use the `-ba` option and only get the lines describing
-   * the contents of the archive, but there's a bug that causes some extra bogus
-   * info on the first line that's hard to parse out.
-   *
-   * Instead, we get the full output, and look for the table separator lines,
-   * which look like "-------- -- ------ (etc)"
-   */
-  sevenZip.callMain(["l", zippedFile]);
-  const fileNames: string[] = [];
-  output.reduce((enabled, line) => {
-    if (/^[- ]{53,}$/.test(line)) {
-      return !enabled;
+  const zippedFile = mount(filepath, "/nodefs-in");
+
+  const findFiles = (path: string) => {
+    const entries = sevenZip.FS.readdir(path);
+    return entries.flatMap((entry): string | string[] => {
+      if (entry === "." || entry === "..") {
+        return [];
+      }
+      const full = path !== "." ? path + "/" + entry : entry;
+      const stat = sevenZip.FS.stat(full, true);
+      if (sevenZip.FS.isFile(stat.mode)) {
+        return full;
+      }
+      if (sevenZip.FS.isDir(stat.mode)) {
+        return findFiles(full);
+      }
+      return [];
+    });
+  };
+
+  const type = output.reduce((type, line) => {
+    const m = line.match(/^Type = (\S+)\s*$/);
+    if (m) {
+      type = m[1];
     }
-    if (enabled) {
-      fileNames.push(line.substring(53));
-    }
-    return enabled;
-  }, false);
+
+    return type;
+  }, "7z");
   sevenZip.callMain(["x", zippedFile]);
 
+  const fileNames = findFiles(".");
   fileNames.forEach((filepath) => {
     const data = sevenZip.FS.readFile(filepath);
     process(
       filepath,
-      Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+      Buffer.from(data.buffer, data.byteOffset, data.byteLength),
+      refresh
     );
   });
-  return Promise.resolve();
+  const writeArchive = (filepath: string, t?: string) => {
+    const archive = mount(filepath, "/nodefs-out");
+    try {
+      sevenZip.FS.unlink(archive);
+    } catch {
+      /* the archive may not exist */
+    }
+    const files = findFiles(".");
+    sevenZip.callMain(["a", `-t${t ?? type}`, "-ms=off", archive, ...files]);
+  };
+  return Promise.resolve<SevenZipHandler>({ refresh, writeArchive });
 }

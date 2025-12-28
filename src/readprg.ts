@@ -1,8 +1,6 @@
-import * as fscb from "fs";
 import * as fs from "fs/promises";
 import * as crypto from "node:crypto";
 import * as path from "path";
-import * as yazl from "yazl";
 import { hasProperty } from "./ast";
 import { BuildConfig } from "./optimizer-types";
 import {
@@ -20,9 +18,9 @@ import { parseCode } from "./readprg/opcodes";
 import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
 import { SymbolTable } from "./readprg/symbols";
 import { getDeviceInfo, getSdkPath, xmlUtil } from "./sdk-util";
+import { SevenZipHandler, unzip7 } from "./unzip7";
 import { logger } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
-import { unzip7 } from "./unzip7";
 
 export async function readPrg(path: string) {
   const { sections } = await readPrgFromFile(path);
@@ -185,7 +183,7 @@ function optimizeProgramBuffer(
   return { signature, buffer: Buffer.concat(buffers) };
 }
 
-function optimizePackage(
+async function optimizePackage(
   filepath: string,
   devKey?: string | undefined,
   output?: string,
@@ -213,8 +211,7 @@ function optimizePackage(
       ? path.join(path.dirname(name), outName)
       : name;
 
-  const poolStarted = startPool();
-  return Promise.all([
+  const [key, deviceInfo] = await Promise.all([
     getDevKey(devKey),
     getDeviceInfo().then((deviceInfo) =>
       Object.fromEntries(
@@ -223,201 +220,193 @@ function optimizePackage(
         )
       )
     ),
-  ])
-    .then(
-      ([key, deviceInfo]) =>
-        new Promise((resolve, reject) => {
-          let manifest: string | null = null;
-          const sigs: Map<string, Buffer> = new Map();
-          const zipfile = new yazl.ZipFile();
-          const pending: Map<
-            string,
-            {
-              name: string;
-              buffer: Buffer;
-            }
-          > = new Map();
-          zipfile.outputStream
-            .pipe(fscb.createWriteStream(output!))
-            .on("close", () => {
-              resolve({ output });
-            });
+  ]);
 
-          let hasSig2 = false;
-          const promises: Promise<unknown>[] = [];
-          const doOptimize = (
-            prgName: string,
-            prgBuffer: Buffer,
-            xmlName: string,
-            xmlBuffer: Buffer
-          ) => {
-            promises.push(
-              runTaskInPool({
-                type: "optimizePrgAndDebug",
-                data: {
-                  prgName,
-                  prgBuffer: prgBuffer.buffer,
-                  prgOffset: prgBuffer.byteOffset,
-                  prgLength: prgBuffer.byteLength,
-                  xmlName,
-                  xmlBuffer: xmlBuffer.buffer,
-                  xmlOffset: xmlBuffer.byteOffset,
-                  xmlLength: xmlBuffer.byteLength,
-                  key,
-                  config,
-                },
-              }).then(
-                ({
-                  prgBuffer,
-                  prgOffset,
-                  prgLength,
-                  sigBuffer,
-                  sigOffset,
-                  sigLength,
-                  debugXml,
-                }) => {
-                  if (
-                    sigBuffer == null ||
-                    sigOffset == null ||
-                    sigLength == null
-                  ) {
-                    return Promise.reject(
-                      new Error(`Unable to generate signature for ${prgName}`)
-                    );
-                  }
-                  const name = rename(prgName);
-                  sigs.set(name, Buffer.from(sigBuffer, sigOffset, sigLength));
-                  zipfile.addBuffer(
-                    Buffer.from(prgBuffer, prgOffset, prgLength),
-                    name
-                  );
-                  zipfile.addBuffer(Buffer.from(debugXml), xmlName);
-                  return null;
-                }
-              )
+  let manifest: string | null = null;
+  const sigs: Map<string, Buffer> = new Map();
+  const pending: Map<
+    string,
+    {
+      name: string;
+      buffer: Buffer;
+    }
+  > = new Map();
+
+  let hasSig2 = false;
+  let hasSig = false;
+  const promises: Promise<unknown>[] = [];
+  const doOptimize = (
+    prgName: string,
+    prgBuffer: Buffer,
+    xmlName: string,
+    xmlBuffer: Buffer,
+    refresh: SevenZipHandler["refresh"]
+  ) => {
+    promises.push(
+      runTaskInPool({
+        type: "optimizePrgAndDebug",
+        data: {
+          prgName,
+          prgBuffer: prgBuffer.buffer,
+          prgOffset: prgBuffer.byteOffset,
+          prgLength: prgBuffer.byteLength,
+          xmlName,
+          xmlBuffer: xmlBuffer.buffer,
+          xmlOffset: xmlBuffer.byteOffset,
+          xmlLength: xmlBuffer.byteLength,
+          key,
+          config,
+        },
+      }).then(
+        ({
+          prgBuffer,
+          prgOffset,
+          prgLength,
+          sigBuffer,
+          sigOffset,
+          sigLength,
+          debugXml,
+        }) => {
+          if (sigBuffer == null || sigOffset == null || sigLength == null) {
+            return Promise.reject(
+              new Error(`Unable to generate signature for ${prgName}`)
             );
-          };
-          unzip7(filepath, (fileName, buffer) => {
-            if (fileName.startsWith("manifest.sig")) {
-              if (fileName === "manifest.sig2") {
-                hasSig2 = true;
-              }
-              return;
-            }
-            if (fileName === "manifest.xml") {
-              manifest = buffer.toString("utf-8");
-              return;
-            }
-            const dirname = path.dirname(fileName);
-            if (/\.prg$/i.test(fileName)) {
-              const p = pending.get(dirname);
-              if (p) {
-                doOptimize(fileName, buffer, p.name, p.buffer);
-                pending.delete(dirname);
-              } else {
-                pending.set(dirname, {
-                  name: fileName,
-                  buffer,
-                });
-              }
-              return;
-            }
-            if (/debug.xml$/i.test(fileName)) {
-              const p = pending.get(dirname);
-              if (p) {
-                doOptimize(p.name, p.buffer, fileName, buffer);
-                pending.delete(dirname);
-              } else {
-                pending.set(dirname, {
-                  name: fileName,
-                  buffer,
-                });
-              }
-              return;
-            }
-            zipfile.addBuffer(buffer, fileName);
-          })
-            .then(() => {
-              if (!manifest) {
-                throw new Error("No manifest file found");
-              }
-              const xml = xmlUtil.parseXml(manifest);
-              const body = xml.body;
-              if (body instanceof Error) {
-                throw body;
-              }
-              return Promise.all(promises).then(() => {
-                body
-                  .children("iq:application")
-                  .children("iq:products")
-                  .children("iq:product")
-                  .attrs()
-                  .forEach((attr) => {
-                    const part = attr.partNumber?.value.value;
-                    if (!part) {
-                      throw new Error(
-                        `Missing partNumber for product in manifest`
-                      );
-                    }
-                    const id = deviceInfo[part];
-                    if (!id) {
-                      throw new Error(
-                        `No id found for partNumber '${part}' in manifest`
-                      );
-                    }
-                    const filename = attr.filename?.value.value;
-                    if (!filename) {
-                      throw new Error(
-                        `Product ${id} was missing a filename in the manifest`
-                      );
-                    }
-                    const newName = rename(filename);
-                    const sig = sigs.get(newName);
-                    if (!sig) {
-                      throw new Error(
-                        `${newName}, listed in the manifest for product ${id}, was not found`
-                      );
-                    }
-                    if (!attr.sig) {
-                      throw new Error(
-                        `${newName}, listed in the manifest had no signature`
-                      );
-                    }
-                    attr.filename!.value.value = newName;
-                    attr.sig.value.value = sig
-                      .subarray(0, 512)
-                      .toString("hex")
-                      .toUpperCase();
-                    if (attr.sig2 && sig.length === 1024) {
-                      attr.sig2.value.value = sig
-                        .subarray(512)
-                        .toString("hex")
-                        .toUpperCase();
-                    } else {
-                      delete attr.sig2;
-                    }
-                  });
-                const contents = Buffer.from(xmlUtil.writeXml(xml));
-                zipfile.addBuffer(contents, "manifest.xml");
-                const contentView = new DataView(
-                  contents.buffer,
-                  contents.byteOffset,
-                  contents.byteLength
-                );
-                zipfile.addBuffer(signView(key, contentView), "manifest.sig");
-                if (hasSig2) {
-                  zipfile.addBuffer(
-                    signView(key, contentView, "SHA256"),
-                    "manifest.sig2"
-                  );
-                }
-                zipfile.end();
-              });
-            })
-            .catch((e) => reject(e));
-        })
-    )
-    .finally(() => poolStarted && stopPool());
+          }
+          const name = rename(prgName);
+          sigs.set(name, Buffer.from(sigBuffer, sigOffset, sigLength));
+          refresh(prgName);
+          refresh(name, Buffer.from(prgBuffer, prgOffset, prgLength));
+          refresh(xmlName, Buffer.from(debugXml));
+          return null;
+        }
+      )
+    );
+  };
+
+  startPool();
+  try {
+    const sevenZipHandler = await unzip7(
+      filepath,
+      (fileName, buffer, refresh) => {
+        if (fileName.startsWith("manifest.sig")) {
+          if (fileName === "manifest.sig2") {
+            hasSig2 = true;
+          } else {
+            hasSig = true;
+          }
+          return;
+        }
+        if (fileName === "manifest.xml") {
+          manifest = buffer.toString("utf-8");
+          return;
+        }
+        const dirname = path.dirname(fileName);
+        if (/\.prg$/i.test(fileName)) {
+          const p = pending.get(dirname);
+          if (p) {
+            doOptimize(fileName, buffer, p.name, p.buffer, refresh);
+            pending.delete(dirname);
+          } else {
+            pending.set(dirname, {
+              name: fileName,
+              buffer,
+            });
+          }
+          return;
+        }
+        if (/debug.xml$/i.test(fileName)) {
+          const p = pending.get(dirname);
+          if (p) {
+            doOptimize(p.name, p.buffer, fileName, buffer, refresh);
+            pending.delete(dirname);
+          } else {
+            pending.set(dirname, {
+              name: fileName,
+              buffer,
+            });
+          }
+          return;
+        }
+        refresh(fileName, buffer);
+      }
+    );
+    if (!manifest) {
+      throw new Error("No manifest file found");
+    }
+    const xml = xmlUtil.parseXml(manifest);
+    const body = xml.body;
+    if (body instanceof Error) {
+      throw body;
+    }
+
+    await Promise.all(promises);
+
+    body
+      .children("iq:application")
+      .children("iq:products")
+      .children("iq:product")
+      .attrs()
+      .forEach((attr) => {
+        const part = attr.partNumber?.value.value;
+        if (!part) {
+          throw new Error(`Missing partNumber for product in manifest`);
+        }
+        const id = deviceInfo[part];
+        if (!id) {
+          throw new Error(`No id found for partNumber '${part}' in manifest`);
+        }
+        const filename = attr.filename?.value.value;
+        if (!filename) {
+          throw new Error(
+            `Product ${id} was missing a filename in the manifest`
+          );
+        }
+        const newName = rename(filename);
+        const sig = sigs.get(newName);
+        if (!sig) {
+          throw new Error(
+            `${newName}, listed in the manifest for product ${id}, was not found`
+          );
+        }
+        if (!attr.sig) {
+          throw new Error(
+            `${newName}, listed in the manifest had no signature`
+          );
+        }
+        attr.filename!.value.value = newName;
+        attr.sig.value.value = sig
+          .subarray(0, 512)
+          .toString("hex")
+          .toUpperCase();
+        if (attr.sig2 && sig.length === 1024) {
+          attr.sig2.value.value = sig
+            .subarray(512)
+            .toString("hex")
+            .toUpperCase();
+        } else {
+          delete attr.sig2;
+        }
+      });
+    const contents = Buffer.from(xmlUtil.writeXml(xml));
+    sevenZipHandler.refresh("manifest.xml", contents);
+    const contentView = new DataView(
+      contents.buffer,
+      contents.byteOffset,
+      contents.byteLength
+    );
+    if (hasSig) {
+      sevenZipHandler.refresh("manifest.sig", signView(key, contentView));
+    }
+    if (hasSig2) {
+      sevenZipHandler.refresh(
+        "manifest.sig2",
+        signView(key, contentView, "SHA256")
+      );
+    }
+    sevenZipHandler.writeArchive(output!);
+  } finally {
+    stopPool();
+  }
 }
 
 export function optimizePrgAndDebug(
