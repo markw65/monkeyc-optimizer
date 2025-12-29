@@ -66,8 +66,6 @@
     "@types/mocha": "^10.0.1",
     "@types/prettier": "^2.6.1",
     "@types/priorityqueuejs": "^1.0.1",
-    "@types/yauzl": "^2.10.0",
-    "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "^5.28.0",
     "@typescript-eslint/parser": "^5.28.0",
     "chai": "^4.3.7",
@@ -80,9 +78,7 @@
     "prettier": "^2.6.2",
     "prettier-plugin-pegjs": "^1.0.1",
     "priorityqueuejs": "^2.0.0",
-    "typescript": "^5.0.4",
-    "yauzl": "^2.10.0",
-    "yazl": "^2.5.1"
+    "typescript": "^5.0.4"
   },
   "repository": {
     "type": "git",
