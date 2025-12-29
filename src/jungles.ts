@@ -1,5 +1,4 @@
 import * as crypto from "crypto";
-import extract from "extract-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as jungle from "src/jungle.peggy";
@@ -20,6 +19,7 @@ import {
   getLanguages,
   xmlUtil,
 } from "./sdk-util";
+import { unzip7 } from "./unzip7";
 import { forEach, globa, globSome } from "./util";
 
 type JungleCache = {
@@ -1063,7 +1063,8 @@ function resolve_barrel(
             ? fs
                 .rm(localPath, { recursive: true, force: true })
                 .catch(() => null)
-                .then(() => extract(barrel, { dir: localPath }))
+                .then(() => fs.mkdir(localPath, { recursive: true }))
+                .then(() => unzip7(barrel, localPath))
             : null
         )
     );

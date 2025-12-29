@@ -8,11 +8,25 @@ export type SevenZipHandler = {
 
 export async function unzip7(
   filepath: string,
+  destination: string
+): Promise<null>;
+export async function unzip7(
+  filepath: string,
   process: (
     fileName: string,
     data: Buffer<ArrayBuffer>,
     refresh: (filename: string, data?: Buffer) => void
   ) => void
+): Promise<SevenZipHandler>;
+export async function unzip7(
+  filepath: string,
+  destinationOrProcess:
+    | string
+    | ((
+        fileName: string,
+        data: Buffer<ArrayBuffer>,
+        refresh: (filename: string, data?: Buffer) => void
+      ) => void)
 ) {
   const output: string[] = [];
   const sevenZip = await SevenZip({
@@ -38,9 +52,17 @@ export async function unzip7(
     return path.resolve(mountRoot, path.basename(filepath));
   };
   const tmpRoot = "/outdir";
+  const zippedFile = mount(filepath, "/nodefs-in");
+
+  if (typeof destinationOrProcess === "string") {
+    const output = mount(destinationOrProcess, tmpRoot);
+    sevenZip.callMain(["x", `-o${output}`, zippedFile]);
+    return Promise.resolve(null);
+  }
+
   sevenZip.FS.mkdir(tmpRoot);
   sevenZip.FS.chdir(tmpRoot);
-  const zippedFile = mount(filepath, "/nodefs-in");
+  sevenZip.callMain(["x", zippedFile]);
 
   const findFiles = (path: string) => {
     const entries = sevenZip.FS.readdir(path);
@@ -68,12 +90,11 @@ export async function unzip7(
 
     return type;
   }, "7z");
-  sevenZip.callMain(["x", zippedFile]);
 
   const fileNames = findFiles(".");
   fileNames.forEach((filepath) => {
     const data = sevenZip.FS.readFile(filepath) as Uint8Array<ArrayBuffer>;
-    process(
+    destinationOrProcess(
       filepath,
       Buffer.from(data.buffer, data.byteOffset, data.byteLength),
       refresh
