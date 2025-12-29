@@ -244,8 +244,8 @@ function groupBlocks(func: FuncEntry) {
 
     const ordered: number[] = [];
     const visited = new Set<CFGNode>();
-    const helper = (cur: CFGNode) => {
-      if (visited.has(cur)) return;
+    const helper = (cur: CFGNode | undefined) => {
+      if (!cur || visited.has(cur)) return;
       visited.add(cur);
       if (cur.succs) {
         cur.succs.forEach((offset) => {

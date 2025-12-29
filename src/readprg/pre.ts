@@ -130,7 +130,7 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
       const bcs = canonicalMap.get(key)!;
       log(
         `Replacing ${bcs.size} instances of ${bytecodeToString(
-          bcs.values().next().value,
+          bcs.values().next().value!,
           context.symbolTable
         )}`
       );
@@ -166,7 +166,7 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
         index = block.bytecodes.length;
       }
     }
-    const bc: Bytecode = bcs.values().next().value;
+    const bc: Bytecode = bcs.values().next().value!;
     const slot = nextSlot++;
     if (bc.op === Opcodes.getm) {
       assert(index !== 0);

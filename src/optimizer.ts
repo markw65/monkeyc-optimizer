@@ -157,7 +157,7 @@ export function getConfig(options: BuildConfig) {
     Object.entries(desc.properties)
   );
   return defaults
-    .reduce((promise: Promise<null | Record<string, unknown>>, [key, info]) => {
+    .reduce<Promise<null | Record<string, unknown>>>((promise, [key, info]) => {
       if (key in config) return promise;
       return promise
         .then(

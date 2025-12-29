@@ -10,7 +10,7 @@ export async function unzip7(
   filepath: string,
   process: (
     fileName: string,
-    data: Buffer,
+    data: Buffer<ArrayBuffer>,
     refresh: (filename: string, data?: Buffer) => void
   ) => void
 ) {
@@ -72,7 +72,7 @@ export async function unzip7(
 
   const fileNames = findFiles(".");
   fileNames.forEach((filepath) => {
-    const data = sevenZip.FS.readFile(filepath);
+    const data = sevenZip.FS.readFile(filepath) as Uint8Array<ArrayBuffer>;
     process(
       filepath,
       Buffer.from(data.buffer, data.byteOffset, data.byteLength),

@@ -228,7 +228,7 @@ async function optimizePackage(
     string,
     {
       name: string;
-      buffer: Buffer;
+      buffer: Buffer<ArrayBuffer>;
     }
   > = new Map();
 
@@ -237,9 +237,9 @@ async function optimizePackage(
   const promises: Promise<unknown>[] = [];
   const doOptimize = (
     prgName: string,
-    prgBuffer: Buffer,
+    prgBuffer: Uint8Array<ArrayBuffer>,
     xmlName: string,
-    xmlBuffer: Buffer,
+    xmlBuffer: Uint8Array<ArrayBuffer>,
     refresh: SevenZipHandler["refresh"]
   ) => {
     promises.push(
