@@ -208,7 +208,7 @@ async function optimizePackage(
 
   const rename = (name: string) =>
     path.basename(name) === inName
-      ? path.join(path.dirname(name), outName)
+      ? path.posix.join(path.dirname(name), outName)
       : name;
 
   const [key, deviceInfo] = await Promise.all([

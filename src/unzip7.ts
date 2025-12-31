@@ -49,7 +49,7 @@ export async function unzip7(
       },
       mountRoot
     );
-    return path.resolve(mountRoot, path.basename(filepath));
+    return path.posix.resolve(mountRoot, path.basename(filepath));
   };
   const tmpRoot = "/outdir";
   const zippedFile = mount(filepath, "/nodefs-in");
@@ -64,13 +64,23 @@ export async function unzip7(
   sevenZip.FS.chdir(tmpRoot);
   sevenZip.callMain(["x", zippedFile]);
 
-  const findFiles = (path: string) => {
-    const entries = sevenZip.FS.readdir(path);
+  const findFiles = (dirpath: string) => {
+    const entries = sevenZip.FS.readdir(dirpath);
     return entries.flatMap((entry): string | string[] => {
       if (entry === "." || entry === "..") {
         return [];
       }
-      const full = path !== "." ? path + "/" + entry : entry;
+      let full = path.posix.join(dirpath !== "." ? dirpath : "", entry);
+      if (entry.includes("\\")) {
+        const tmp = full.replace(/\\/g, "/");
+        try {
+          sevenZip.FS.mkdir(path.posix.dirname(tmp));
+        } catch {
+          /* directory may already exist */
+        }
+        sevenZip.FS.rename(full, tmp);
+        full = tmp;
+      }
       const stat = sevenZip.FS.stat(full, true);
       if (sevenZip.FS.isFile(stat.mode)) {
         return full;
@@ -108,7 +118,11 @@ export async function unzip7(
       /* the archive may not exist */
     }
     const files = findFiles(".");
-    sevenZip.callMain(["a", `-t${t ?? type}`, "-ms=off", archive, ...files]);
+    const args = ["-ms=off"];
+    if (process.platform !== "win32") {
+      args.push(`-t${t ?? type}`);
+    }
+    sevenZip.callMain(["a", ...args, archive, ...files]);
   };
   return Promise.resolve<SevenZipHandler>({ refresh, writeArchive });
 }
