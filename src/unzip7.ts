@@ -118,9 +118,11 @@ export async function unzip7(
       /* the archive may not exist */
     }
     const files = findFiles(".");
-    const args = ["-ms=off"];
-    if (process.platform !== "win32") {
-      args.push(`-t${t ?? type}`);
+
+    const typeToUse = t ?? type;
+    const args = [`-t${typeToUse}`];
+    if (typeToUse === "7z") {
+      args.push("-ms=off");
     }
     sevenZip.callMain(["a", ...args, archive, ...files]);
   };
