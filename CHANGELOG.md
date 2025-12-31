@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.92
+
+- Get rid of yazl, yauzl and extract-zip, and uze 7z-wasm instead.
+- Fix some issues causing 7z-wasm to fail on Windows.
+
 ### 1.1.91
 
 - Update the post build optimizer to use 7zip to unpack `.iq` files for compatibility with sdk-8.4.0
