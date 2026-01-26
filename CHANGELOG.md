@@ -2,6 +2,14 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.93
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.64](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1064)
+  - Fixes incompatibilities with `prettier@3.7.0` and later
+- Update to prettier3.x for testing/development purposes, since that's what's in use almost everywhere now
+- Add support for Extended Code Spaces in the post build optimizer.
+  - This just fixes some assertions, and makes sure that various tables get updated correctly. It doesn't yet optimize the code in the Extended Code Space.
+
 ### 1.1.92
 
 - Get rid of yazl, yauzl and extract-zip, and uze 7z-wasm instead.
@@ -26,7 +34,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 - Fix output of cft-font-info
   - When I refactored the code to avoid holding everything in memory at once, I inadvertently changed the format. This restores the original format, and adds a flag to enable the incorrect format, just in case someone's relying on it.
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.61](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1061)
-
   - Allow semi-colons after expression-statements, and uncontrolled block-statements to match Garmin's parser.
 
 - Fix a crash when no valid products are found in the manifest (Fixes [prettier-extension-monkeyc#19](https://github.com/markw65/prettier-extension-monkeyc/issues/19))
@@ -118,7 +125,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.72
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.59](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1059)
-
   - Ignore `resolveType` field in serializeMonkeyC to avoid errors due to cycles.
 
 - Make `evaluate` skip everything except the `body` when processing class, module or function declarations.
@@ -308,7 +314,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.39
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.54](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1054)
-
   - Fixes the parser to understand tuples
 
 - Add basic type analysis for tuples
@@ -323,23 +328,19 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.53](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1053)
 
 - Features
-
   - Generate diagnostics for unary and binary operators with incorrect arguments
   - Properly handle object-literal types (eg `{ :foo as String, :bar as Number }`).
   - When converting Graphics.ColorValue to a number, format the number as hex.
 
 - Tests
-
   - Update tests for sdk 6.3.0
   - Add more test coverage for binary operators and their expected types.
 
 - Build
-
   - Use [@markw65/peggy-optimizer](https://github.com/markw65/peggy/tree/peggy-optimizer/optimizer-plugin) to optimize the jungle and resource parsers
   - Make things work properly with prettier-3.x, but don't actually upgrade yet
 
 - Bug fixes
-
   - Fix a bug with the result type of A & B when A could be Boolean
   - Always include null for the types of values extracted from `Dictionary`s
   - When inferring the type of a `Dictionary`, don't include values.
@@ -352,7 +353,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.35
 
 - Infrastructure
-
   - Optimize the xml parser to speed up compilation/analysis
 
 - Type Checker
@@ -361,7 +361,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.34
 
 - Optimizations
-
   - Add a few more peephole optimizations to the post build optimizer
     - `incsp 0;` => `nop`
     - `ipush 0; shlv` => `nop`
@@ -375,26 +374,21 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.33
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.51](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1051)
-
   - Makes it compatible with prettier@3.0.0
 
 - Bug fixes
-
   - Fix a problem that could incorrectly optimize an array-init
 
 - Optimizations
-
   - Enable the array-init optimization in a few more cases
 
 ### 1.1.32
 
 - Bug fixes
-
   - Don't optimize `do { BODY } while (false);` to `{ BODY }` if `BODY` contains `break` or `continue`
   - In some circumstances, a comparison between a known `Long` and a known `Char` could be inferred to be false, regardless of the values (eg `42l == '*'` which should be `true`). It would eventually be folded to the correct value, but in some circumstances, an incorrect warning could be issued, or an incorrect optimization could have already been performed.
 
 - Fixes for sdk-6.2.x
-
   - sdk-6.2.x fixes [this finally bug](https://forums.garmin.com/developer/connect-iq/i/bug-reports/finally-doesn-t-work-as-expected), so that now all the examples work correctly (ie the `finally` block always executes, as expected, no matter how you exit the `try` or `catch` blocks). I've updated the way the control flow graph is built to match this behavior.
 
   - sdk-6.2.x fixes [this continue in switch issue](https://forums.garmin.com/developer/connect-iq/i/bug-reports/continue-in-a-switch-statement-behaves-surprisingly), by making `continue` in a `switch` continue the loop containing the switch (or its a compile time error if there's no loop). This matches the behavior of C and C++, for example. I've updated the optimizer to interpret `continue` appropriately, depending on the sdk version.
@@ -415,7 +409,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.29
 
 - Bug fixes
-
   - Fixes an issue where a value could incorrectly be inferred to be true-ish when its declared type was known to be an object of class type. This is not of itself incorrect, but some Toybox APIs are declared as returning an Object of a class, but may in fact return null - so we can't treat them as non-null.
 
 - Enhancements
@@ -424,7 +417,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.28
 
 - Bug fixes
-
   - Fixes an issue in the post build optimizer which could cause a pre-definition to be inserted just prior to an `frpush`, which could result in the wrong value of `self` being passed to a call
   - Don't add personality paths to the generated jungle file if the sdk is prior to 4.2.1
   - Fixes a bug in the source-to-source optimizer that could incorrectly infer that an `if` block was never entered when the if's comparison was between a primitive type, and a plain `Object`
@@ -435,7 +427,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.27
 
 - Bug fixes
-
   - Fixes an incorrect type check warning when an assignment to a local was incompatible with the type of a same-named non-local variable. This only affects the warning; it did not result in incorrect optimizations.
 
 - New features
@@ -444,13 +435,11 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.26
 
 - Bug fixes
-
   - fixes an issue in the post build optimizer which could cause pre variables to be inserted too late in a block that could throw (so that if the variable was used in, or after the catch block, it might not have been set).
   - fixes an issue with references in resource files, that could result in some references not being reported to the extension (only affects `Goto References` and `Goto Definition`)
   - fixes some issues converting the system function documentation to markdown (for the Hover, Completion and Signature providers in the extension).
 
 - New features
-
   - Update to [@markw65/prettier-plugin-monkeyc@1.0.49](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1049) (including [#1.0.48](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1048) and [#1.0.47](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1047))
     - adds support for parsing (but not formatting) .mss files
   - Adds full support for personalities in `.jungle` and `.mss` files, including reading the per-device `personality.mss` files
@@ -468,7 +457,6 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.1.24
 
 - Bug fixes
-
   - Conversion of unary `-x` to `0 - x` was too restrictive, causing some missed optimization opportunities
 
 - Post Build Optimizations
@@ -487,7 +475,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.22
 
 - Bug fixes
-
   - [Fixes a bug in Single Use Copy Prop](https://github.com/markw65/prettier-extension-monkeyc/issues/8)
 
 - Post Build Optimizations
@@ -500,11 +487,9 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.21
 
 - Bug fixes
-
   - fixed a bug that could cause dead-store elimination to delete stores that might be used if an exception was thrown. eg `try { x=1; foo(); x=2; } catch (ex) { System.println(x); x=3; }` could delete the first store to `x`, breaking the println if `foo` actually throws.
 
 - Source to Source Optimizations
-
   - convert `++` and `--` to `+= 1` and `-= 1`. Garmin's compiler generates exactly the same code for both, but when the `1` is written explicitly, its available for `sizeBasedPRE` to optimize.
   - convert `-x` to `0 - x`. Again, Garmin's compiler generates exactly the same code, but being explicit makes the `0` available to `sizeBasedPRE`.
   - rewrite some optimizations so that `-x` and `0-x` are treated identically. eg `(0-x) + y` => `y - x` (for suitably typed `x` and `y`).
@@ -518,7 +503,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.20
 
 - Bug fixes
-
   - Fix a bug that could cause the optimizer to incorrectly substitute one local for another.
 
 - Optimizations
@@ -527,7 +511,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.19
 
 - Bug fixes
-
   - Fix "Minimize Modules" in background/glance scopes
     - due to a [bug in the monkeyc compiler](https://forums.garmin.com/developer/connect-iq/i/bug-reports/import-rez-or-using-rez-breaks-background-resources), adding "using Rez;" when a resource may be loaded by a background or glance app causes it to crash. This release won't import Rez into anything marked :background or :glance. This fixes [prettier-extension-monkeyc#7](https://github.com/markw65/prettier-extension-monkeyc/issues/7)
   - Update background and glance offsets in the program header. I had assumed these offsets were obtained from the symbols, which already get updated, but it turns out they're stored as offsets in the header. This didn't break anything, but it did mean that the background and glance code sizes were unchanged, even though the post build optimizer had in fact made them smaller.
@@ -544,7 +527,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.17 (this package is missing two files)
 
 - Project infrastructure
-
   - Use worker threads to speed up exporting a .iq file. With an 8 core (16 with hyperthreading) system, my project goes from taking 28 seconds to generate the optimized source to less than 10. It still takes garmin's compiler nearly 3 minutes to compile though.
 
 - Bug fixes
@@ -553,7 +535,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.16
 
 - Project infrastructure
-
   - Update to [@markw65/prettier-plugin-monkeyc@1.0.46](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1046)
     - no functional change.
   - switch from webpack to esbuild, for faster builds, and better packaging.
@@ -574,7 +555,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.15
 
 - Post build optimizer improvements
-
   - Simplify LogicalExpressions. This generally saves 3 bytes per `&&` or `||`, and also makes them faster
   - Adds a simple code sharing pass. If multiple code paths converge to the same point (or leave the function via return) and they end with the same sequence of bytecode, they're merged into one.
   - Flips branch-true to branch-false or vice versa if the fall through block has multiple predecessors, and the target block has just one. This often leads to better control flow, reducing the number of "goto" bytecodes required.
@@ -608,7 +588,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.11
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.44](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1044)
-
   - Fixes a parser bug relating to Methods returning Void, and a printer bug relating to nested Method declarations.
 
 - Bug fixes
@@ -636,7 +615,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.43](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1043)
 
 - Bug fixes
-
   - fix an interaction between inlining and removing unused local vars that could cause unlimited recursion leading to stack overflow
 
 - New optimizations
@@ -645,7 +623,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.8
 
 - Bug fixes
-
   - After making a non-modifying change to a variable, update the types of all equivalent variables. eg in `var x = y; if (y != null) { whatever }` we know that x is not null in `whatever`, even though we didn't explicitly test it.
   - Fix an issue with `import` and `using`. If an import happened after the definition of an inline function, inlined copies of the function might incorrectly use those imports resulting in finding the wrong symbols. This was rare - most imports happen at the top of the file, and generally an import will simply make something work that would have failed, rather than changing the behavior of something that already works. But I added a test case that exhibits the problem.
 
@@ -675,17 +652,14 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.4
 
 - Optimizations
-
   - Minor tweaks to dead store elimination
   - Better type resolution for untyped code
 
 - Enhancements
-
   - Retain the type map in the analysis pass, so that it can be used to improve
     the results in visitReferences
 
 - Bug fixes
-
   - When multiple diagnostics were reported for a single location, all but the last was lost
   - Sometimes when evaluating MemberExpressions type-flow would give up too easily, resulting
     in unknown types for the object, which then resulted in unexpected error messages from
@@ -699,14 +673,12 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.3
 
 - Tweaks and fixes
-
   - Update to [@markw65/prettier-plugin-monkeyc@1.0.42](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1042)
   - Fixed an issue that cause inlining in return context to be too conservative
   - Update inliner to keep a stack of locations, so that error messages can show exactly where an error occurred, even in the presence of inlining.
   - Update diagnostic api to optionally include a uri to more detailing information.
 
 - Type Analysis
-
   - Track type info through branch conditions, so that in `if (x != null) { A } else { B }`, the type checker knows that x is not null in A, and it is null in B.
   - Added checkers for return types, call arguments, assignments and variable declarations.
   - Automatically infer Array and Dictionary types
@@ -737,11 +709,9 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.1.0
 
 - Implements a type analyzer, to enable better optimizations
-
   - adds options `trustDeclaredTypes` and `propagateTypes`. See https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis
 
 - Improved optimizations
-
   - SizeBasedPRE now has finer granularity, making it generally find more opportunities
   - Lots of improvements to binary operators, and folding. Subject to suitable type checks,
     - `(x + K1) + K2` => `x + (K1 + K2)`
@@ -765,11 +735,9 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.45
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.41](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1041)
-
   - Fixes a few parser edge cases
 
 - Bug fixes
-
   - Fix a bug constant folding == and !=
   - Make sure to include all languages, even for devices that don't support them, because they're still supported in settings. Do this in a way that avoids creating warnings.
   - Look at all build dependencies when deciding whether to regenerate the optimized files.
@@ -783,7 +751,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.44
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.40](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1040)
-
   - Fixes location ranges associated with parenthesized expressions
   - Fixes parsing of Lang.Char literals
 
@@ -793,7 +760,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.43
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.39](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1039)
-
   - Fixes issues parsing/printing/optimizing NaN
 
 - Fix issues with windows paths introduced in 1.0.42
@@ -804,12 +770,10 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.42
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.38](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1038)
-
   - faster parsing
   - supports parsing the attributes in api.mir, including sdk version etc.
 
 - Performance
-
   - Using the updated prettier-plugin-monkeyc halves the time spent in the parser
   - There was some pathological behavior in the jungle processing. For most projects, it was quite fast (under 1s), but the worst project I found took nearly 5 minutes. I fixed a lot of redundant processing, which dropped most projects to under 500ms, with a worst case of 20s.
   - I had some caching code to prevent reading the same resource file multiple times, but the cache didn't work properly because an async function ran in between the test of the cache, and the fill of the cache; which meant that lots of threads could test the cache and decide it needed to be filled. Fixed by caching Promises, rather than the promise results. Dropped the worst case 20s down to under 500ms, and the average down below 100ms.
@@ -826,7 +790,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.40
 
 - Improvements
-
   - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.37](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1037).
   - Report locations of errors in manifest.xml (rather than just reporting an error somewhere in the file)
   - Minor improvements to Goto References etc
@@ -837,7 +800,6 @@ No functional change, just fixes a typo that broke the typescript exports.
   - Fix lookups in static methods, under a new option that defaults to true.
 
 - Testing
-
   - Fix pragma checker to sort the diagnostics properly
   - Allow specifying which test to run on the command line
   - Update all tests to work with 4.1.6 and 4.1.7
@@ -849,7 +811,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.39
 
 - Improvements
-
   - Upgrade to [@markw65/prettier-plugin-monkeyc@1.0.36](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1036).
   - Upgrade all other npm dependencies to the latest versions, and fix a few issues that showed up as a result.
   - Report missing symbols after optimization, rather than before. Results in fewer false negatives. eg Given `if (foo has :bar) { return foo.bar; }`, where the compiler knows that foo.bar doesn't exist, the whole thing will be optimized away, rather than generate a diagnostic that foo.bar doesn't exist.
@@ -858,11 +819,9 @@ No functional change, just fixes a typo that broke the typescript exports.
   - Since we were already parsing all the resource files to look for `<build>` instructions, additionally identify all the symbols that will get generated. This allows us to detect references to undefined resources, and also makes `Goto Definition` just work for things like `Rez.Strings.foo`.
 
 - Optimizations
-
   - Optimize has expressions that are guaranteed to be false.
 
 - Bugs
-
   - Fix an issue with launchSimulator, which caused it to sometimes not bring the simulator window into focus when it should have done.
   - Fix an issue that caused simulateProgram to fail on windows.
   - Fix a bug looking up self when not part of a member-expression (this didn't happen until I added optimizations for "has" expressions, in this release)
@@ -897,7 +856,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.35
 
 - Testing
-
   - Add a new open source project
   - Fixup tests to work with compiler2beta2
 
@@ -907,7 +865,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.34
 
 - Bug fixes
-
   - Fix parser to allow white space to separate attributes, in addition to comma
   - Fix optimizer to respect prettier options when formatting the optimized code
 
@@ -918,7 +875,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.33
 
 - New features
-
   - Tagging a function with (:keep) will prevent the optimizer from removing it, even if it appears to be unused.
 
 - Bug fixes
@@ -933,7 +889,6 @@ No functional change, just fixes a typo that broke the typescript exports.
 ### 1.0.31
 
 - Bug fixes
-
   - Use withLocDeep on inline results
   - Better tracking of state.inType
   - Fix typo setting up the ProgramState
@@ -943,7 +898,6 @@ No functional change, just fixes a typo that broke the typescript exports.
     - I had forgotten to remove some code that I added to debug a problem
 
 - Code cleanup
-
   - Move all the global types to optimizer-types.ts, and explicitly import them
   - Be more consistent about when assignment/update lhs is traversed
   - Rework exposed flag
@@ -954,7 +908,6 @@ No functional change, just fixes a typo that broke the typescript exports.
   - Update for BigInt literals, and cleanup folding code
 
 - New features
-
   - Support `obj[:key]` as alternate for obj.key in lookup
     - `Find References`, and `Rename` will recognize these references now.
   - Add an unused variable cleanup pass
@@ -981,19 +934,15 @@ Bug Fixes
 ### 1.0.29
 
 - Update to `@markw65/prettier-plugin-monkeyc@1.0.32`
-
   - Fixes a parser issue where `x as Type ? a : b` would be parsed as `(x as Type?) a : b` which would then be reported as a syntax error.
 
 - Bug fixes
-
   - Fix a bug causing literal nodes to be shared. This was harmless prior to the implementation of the PRE pass
 
 - Code cleanup
-
   - Add `isStatement` and `isExpression` helpers
 
 - New features
-
   - Add constant folding for relational and logical operators
   - Allow assignment-scope inlining in variable initializers
   - Better cleanup of unused expressions
@@ -1036,7 +985,6 @@ Bug Fixes
 ### 1.0.23
 
 - Bug Fixes
-
   - Don't treat parameters to Method types as undeclared variables
     - eg `var x as (Method(a as Number, b as Number) as Void)` should not report that `a` and `b` are undeclared
 
@@ -1047,9 +995,7 @@ Bug Fixes
 ### 1.0.22
 
 - Improvements
-
   - Major rewrite of the symbol lookup mechanism, to match monkeyc as closely as possible
-
     - Fix callee lookup to skip local variables
     - Fix class lookup to first check all the super classes, then to check the context of each super class
     - Fix module lookup to check both the module, and the context of the module
@@ -1058,7 +1004,6 @@ Bug Fixes
   - Add live diagnostics for missing symbols
 
 - Bug fixes
-
   - Recognize the the variable in a catch clause is a declaration
 
 - Breaking change
@@ -1067,7 +1012,6 @@ Bug Fixes
 ### 1.0.21
 
 - Bug fixes
-
   - Parameters from the calling function should be treated just line locals when inlining
   - Upgrade to `@markw65/prettier-plugin-monkeyc@1.0.24`
     - fixes crash with comments following an attribute: `(:foo) /* comment */ function foo() {}`
@@ -1076,12 +1020,10 @@ Bug Fixes
 ### 1.0.20
 
 - Bug fixes
-
   - Fix a bug marking unknown callees
   - Fix a bug in test.js that didn't notice when tests failed, and fix a failing test
 
 - Optimizer enhancements
-
   - Re-run the main optimization step, to properly account for functions that are unused after optimization
   - Call the optimizer on 'unused' nodes before returning them
 
@@ -1091,18 +1033,15 @@ Bug Fixes
 ### 1.0.19
 
 - Upgrade to `@markw65/prettier-plugin-monkeyc@1.0.22`
-
   - fixes some minor typing issues for mctree
   - special handling for certain parenthesized expressions.
 
 - Optimizer
-
   - Handle more unused expressions, add tests, and prettify the OptimizerTests project
   - Allow statement-style inlining in assignment and return contexts
   - Add diagnostics for failure to inline
 
 - Tests
-
   - More tweaks to pragma-checker
   - Add launch and task configs for building/running tests
 
@@ -1118,12 +1057,10 @@ Bug Fixes
 ### 1.0.17
 
 - New Features
-
   - Extend the inliner to support more complex functions when called in a void context
   - Cleanup unused expressions. `0;x;foo.bar;a+b` will all now be optimized away.
 
 - Testing
-
   - Rewrite the @match pragma implementation to have access to the next Node in the ast, rather than just the text of the remainder of the line.
   - Add tests for the statement inliner, and the unused expression cleanup code.
 
@@ -1133,13 +1070,11 @@ Bug Fixes
 ### 1.0.16
 
 - Bug fixes
-
   - Fix off-by-one in removeNodeComments
   - Fix lookup to consistently lookup types or values.
   - Fix lookup of superclass names
 
 - New Features
-
   - Add a simple inliner
   - Add support for conditional inlining based on excludeAnnotations
 
@@ -1156,7 +1091,6 @@ Bug Fixes
 ### 1.0.14
 
 - Bug fixes
-
   - When reading a barrel project with no products, add all products by default
   - Only set language specific paths for languages that are supported by the device
   - Remove comments that are completely contained within removed nodes
@@ -1170,13 +1104,11 @@ Bug Fixes
 ### 1.0.13
 
 - Improvements
-
   - Add displayName to deviceInfo (for getTargetDevices in prettier-extension-monkeyc)
   - Throw a better error when we fail to read a jungle file
   - Don't try to optimize barrel projects
 
 - Code cleanup
-
   - Update to `@markw65/prettier-plugin-monkeyc@1.0.20` for mctree fixes
   - Enable typescript strict checks
   - Turn off synthetic default imports, and fix issues
@@ -1192,12 +1124,10 @@ Bug Fixes
 ### 1.0.11
 
 - Improvements
-
   - Add option to run tests (for projects that have them)
   - Add getProjectAnalysis api, to support various language features in `@markw65/prettier-extension-monkeyc`
 
 - Bug fixes
-
   - Fix lookup of self/me
 
 - Code cleanup
@@ -1229,7 +1159,6 @@ Bug Fixes
 ### 1.0.8
 
 - Improvements
-
   - Update to `@markw65/prettier-plugin-monkeyc:1.0.14`
   - Parse and respect \<build\> instructions in resource files
   - Add minimal barrel support
@@ -1237,7 +1166,6 @@ Bug Fixes
   - Rename locals which would be marked re-declaring
 
 - Bug Fixes
-
   - Generate the default jungle dynamically, since sdk/bin/default.jungle is generated lazily, and may not exist in newly installed sdks, or may be out of date after device installations.
   - Fix a bug generating language settings in optimized jungle
   - Fix a bug introduced by pick-one: don't modify a shared array
