@@ -1,4 +1,5 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
+import { ParserOptions } from "prettier";
 import { diagnostic } from "./api";
 import {
   adjustLoc,
@@ -370,9 +371,11 @@ function visit_resource_refs(
     // for the opening '('
     const startPos = adjustLoc(loc, -1, 0).start;
     try {
-      const expr = MonkeyC.parsers.monkeyc.parse(`(${name})`, null, {
+      const expr = MonkeyC.parsers.monkeyc.parse(`(${name})`, {
         filepath: loc.source || undefined,
         singleExpression: true,
+      } as ParserOptions<mctree.Node> & {
+        singleExpression?: boolean;
       }) as mctree.Expression;
       traverseAst(expr, (node) => {
         if (node.loc) {
@@ -420,30 +423,33 @@ function visit_resource_refs(
     }
     if (id === "personality") {
       const elems = dotted.match(/\s+|\S+/g);
-      elems?.reduce((loc, name) => {
-        if (/\s/.test(name)) {
-          const newLines = name.match(/\r\n|[\r\n]/g);
-          if (newLines?.length) {
-            loc.start.line += newLines.length;
-            loc.start.column = 1;
-            loc.start.offset += name.length;
-            name = name.replace(/^.*(\r\n|[\r\n])(.*)$/, "$2");
-            loc.start.offset -= name.length;
+      elems?.reduce(
+        (loc, name) => {
+          if (/\s/.test(name)) {
+            const newLines = name.match(/\r\n|[\r\n]/g);
+            if (newLines?.length) {
+              loc.start.line += newLines.length;
+              loc.start.column = 1;
+              loc.start.offset += name.length;
+              name = name.replace(/^.*(\r\n|[\r\n])(.*)$/, "$2");
+              loc.start.offset -= name.length;
+            }
+          } else {
+            const colonPos = name.indexOf(":");
+            const barrel = colonPos < 0 ? "" : name.slice(0, colonPos) + ".";
+            name = name.slice(colonPos + 1);
+            const base = makeScopedName(`${barrel}Rez.Styles`);
+            const idLoc = adjustLoc(loc, colonPos + 1, 0);
+            idLoc.end = { ...idLoc.start };
+            idLoc.end.column += name.length;
+            idLoc.end.offset += name.length;
+            const id = makeIdentifier(name, idLoc);
+            result.push(makeMemberExpression(withLoc(base, id, false), id));
           }
-        } else {
-          const colonPos = name.indexOf(":");
-          const barrel = colonPos < 0 ? "" : name.slice(0, colonPos) + ".";
-          name = name.slice(colonPos + 1);
-          const base = makeScopedName(`${barrel}Rez.Styles`);
-          const idLoc = adjustLoc(loc, colonPos + 1, 0);
-          idLoc.end = { ...idLoc.start };
-          idLoc.end.column += name.length;
-          idLoc.end.offset += name.length;
-          const id = makeIdentifier(name, idLoc);
-          result.push(makeMemberExpression(withLoc(base, id, false), id));
-        }
-        return adjustLoc(loc, name.length, 0);
-      }, adjustLoc(l, 0, 0));
+          return adjustLoc(loc, name.length, 0);
+        },
+        adjustLoc(l, 0, 0)
+      );
       return;
     }
     if (

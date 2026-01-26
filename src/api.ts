@@ -103,10 +103,10 @@ export function pushRootNode(
   const sn =
     root.stack
       ?.at(-1)
-      ?.sn?.decls?.[root.name]?.find(
-        (sn): sn is RootStateNode =>
-          sn.type === root.type && (root.nodes != null || sn.node === root.node)
-      ) ?? state.nestedClasses[root.name]?.find((d) => d.node === root.node);
+      ?.sn?.decls?.[
+        root.name
+      ]?.find((sn): sn is RootStateNode => sn.type === root.type && (root.nodes != null || sn.node === root.node)) ??
+    state.nestedClasses[root.name]?.find((d) => d.node === root.node);
   if (!sn) {
     throw new Error(`Invalid stack for node ${root.fullName}`);
   }
@@ -148,9 +148,9 @@ export async function getApiMapping(
     .replace(/^(\s*static)?\s*<init>\s*\{\s*\}\s*?\n/gm, "")
     .replace(/^(\s*type)\s/gm, "$1def ");
 
-  const ast = parser.parse(api, null, {
+  const ast = parser.parse(api, {
     filepath: "api.mir",
-  }) as mctree.Program;
+  } as Prettier.ParserOptions<mctree.Node>) as mctree.Program;
 
   if (resourcesMap) {
     const rezAst: mctree.Program = state
@@ -1784,8 +1784,8 @@ export function diagnosticHelper(
       message == null
         ? null
         : typeof message === "string"
-        ? message
-        : message.then((m) => (diag.message = m)),
+          ? message
+          : message.then((m) => (diag.message = m)),
   };
   if (extra) {
     diag.extra = extra;

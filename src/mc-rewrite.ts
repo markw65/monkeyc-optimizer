@@ -1,5 +1,6 @@
 import { default as MonkeyC, mctree } from "@markw65/prettier-plugin-monkeyc";
 import * as fs from "fs/promises";
+import { ParserOptions } from "prettier";
 import {
   clearDiagnostics,
   collectNamespaces,
@@ -286,16 +287,15 @@ export function getFileASTs(fnMap: FilesToOptimizeMap) {
   return getFileSources(fnMap).then(() =>
     Object.values(fnMap).reduce((ok, value) => {
       if (!value.ast && !value.parserError) {
-        const options: Record<string, unknown> = {
+        const options = {
           filepath: value.name,
-        };
+        } as ParserOptions<mctree.Node> & { mss?: string };
         if (/\.mss$/i.test(value.name)) {
           options.mss = value.barrel;
         }
         try {
           value.ast = MonkeyC.parsers.monkeyc.parse(
             value.monkeyCSource!,
-            null,
             options
           ) as mctree.Program;
         } catch (e) {
