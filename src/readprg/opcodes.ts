@@ -1,4 +1,5 @@
 import { unhandledType } from "../data-flow";
+import { TEXT_SECTION_PC } from "./bytecode";
 import { LineNumber } from "./linenum";
 
 export enum Opcodes {
@@ -709,7 +710,7 @@ export function parseCode(view: DataView, lineTable: Map<number, LineNumber>) {
   const results: Bytecode[] = [];
   while (current < view.byteLength) {
     const nextOp = parseOne();
-    const lineNum = lineTable.get(nextOp.offset | 0x10000000);
+    const lineNum = lineTable.get(nextOp.offset | TEXT_SECTION_PC);
     if (lineNum) {
       nextOp.lineNum = lineNum;
     }

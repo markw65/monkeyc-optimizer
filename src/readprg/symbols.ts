@@ -1,4 +1,5 @@
 import { xmlUtil } from "../sdk-util";
+import { SECTION_PC_MASK, TEXT_SECTION_PC } from "./bytecode";
 
 export class SymbolTable {
   // given a symbol id, symbolToLabelMap.get(id) gives the
@@ -39,7 +40,7 @@ export class SymbolTable {
         const { startPc, name, parent } = functionEntry.attr;
         if (!startPc || !name) return;
         const fullPc = Number(startPc.value.value);
-        if (fullPc >>> 28 !== 1) {
+        if ((fullPc & SECTION_PC_MASK) !== TEXT_SECTION_PC) {
           // not the code section. this can happen for entries in api.debug.xml,
           // because the pc is a firmware address (3, rather than 1).
           return;

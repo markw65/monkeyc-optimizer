@@ -1,5 +1,10 @@
 import { xmlUtil } from "../sdk-util";
-import { Context, SectionKinds } from "./bytecode";
+import {
+  Context,
+  SECTION_PC_MASK,
+  SectionKinds,
+  TEXT_SECTION_PC,
+} from "./bytecode";
 import { UpdateInfo } from "./emit";
 
 interface BaseLineNumber {
@@ -71,7 +76,14 @@ export function parseLineNum(view: DataView, debugXml: xmlUtil.Document) {
 }
 
 export function fixupLineNum(context: Context, updateInfo: UpdateInfo) {
-  const symLineTable = updateInfo.lineMap.filter(
+  const newLineTable = updateInfo.lineMap.concat(
+    Array.from(context.lineTable.values()).filter(
+      (lineNum) => (lineNum.pc & SECTION_PC_MASK) !== TEXT_SECTION_PC
+    )
+  );
+  newLineTable.sort((a, b) => a.pc - b.pc);
+  context.lineTable = new Map(newLineTable.map((l) => [l.pc, l]));
+  const symLineTable = newLineTable.filter(
     (lineNum): lineNum is LineNumberSym => lineNum.file != null
   );
   const sectionLength = 2 + symLineTable.length * 16;
@@ -93,7 +105,7 @@ export function fixupLineNum(context: Context, updateInfo: UpdateInfo) {
     8,
     sectionLength
   );
-  const strLineTable = updateInfo.lineMap.filter(
+  const strLineTable = newLineTable.filter(
     (lineNum): lineNum is LineNumberStr => lineNum.fileStr != null
   );
   if (context.debugXml.body instanceof Error) return;

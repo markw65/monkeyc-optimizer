@@ -23,6 +23,7 @@ export const enum SectionKinds {
   HEADER = 0xd000d000 | 0,
   HEADER_VERSIONED = 0xd000d00d | 0,
   TEXT = 0xc0debabe | 0,
+  EXTENDED = 0xc0de10ad | 0,
   DATA = 0xda7ababe | 0,
   SYMBOLS = 0x5717b015 | 0,
   LINENUM = 0xc0de7ab1 | 0,
@@ -31,12 +32,17 @@ export const enum SectionKinds {
   STORE_SIG = 20833 | 0,
 }
 
+export const TEXT_SECTION_PC = 0x10000000;
+export const EXTENDED_SECTION_BASE = 0x50000000;
+export const SECTION_PC_MASK = 0xf0000000;
+export const PC_OFFSET_MASK = 0xffffff;
 /*
 HEADER(-805253120, 1, false),
   ENTRY_POINTS(1616953566, 11, false),
   PERMISSIONS(1610668801, 2, true),
   DATA(-629491010, 3, true),
   CODE(-1059145026, 4, true),
+  EXTENDED_CODE(-1059188563),
   LINK_TABLE(-1046128719, 5, true),
   PC_TO_LINE_NUM(-1059161423, 6, true),
   RESOURCES(-267558899, 7, true),
@@ -124,8 +130,8 @@ function markLocals(context: Context) {
     .elements.forEach((entry) => {
       const { startPc, endPc, stackId, name, arg } = entry.attr;
       assert(startPc && endPc && stackId && name);
-      const spc = Number(startPc.value.value) & 0xffffff;
-      const epc = (Number(endPc.value.value) & 0xffffff) + 1;
+      const spc = Number(startPc.value.value) & PC_OFFSET_MASK;
+      const epc = (Number(endPc.value.value) & PC_OFFSET_MASK) + 1;
       const sid = Number(stackId.value.value);
       let locals = localMap.get(spc);
       if (!locals) {
@@ -275,7 +281,7 @@ export function optimizeBytecode(context: Context) {
   const funcIndex = (pc: number) => {
     let lo = 0,
       hi = funcArray.length;
-    pc = pc & 0xffffff;
+    pc = pc & PC_OFFSET_MASK;
     while (hi - lo > 1) {
       const mid = (hi + lo) >>> 1;
       if (funcArray[mid].offset > pc) {
@@ -290,15 +296,15 @@ export function optimizeBytecode(context: Context) {
   const funcRange = (pc: number) => {
     const index = funcIndex(pc);
     assert(
-      funcArray[index].offset <= (pc & 0xffffff) &&
-        funcArray[index + 1].offset > (pc & 0xffffff)
+      funcArray[index].offset <= (pc & PC_OFFSET_MASK) &&
+        funcArray[index + 1].offset > (pc & PC_OFFSET_MASK)
     );
     const s = offsetMap.get(funcArray[index].offset);
     const e = offsetMap.get(funcArray[index + 1].offset);
     if (s == null || e == null) {
       assert(s != null && e != null);
     }
-    return [s + 0x10000000, e + 0x10000000];
+    return [s + TEXT_SECTION_PC, e + TEXT_SECTION_PC];
   };
 
   const localVars = context.debugXml.body.children("localVars");
@@ -310,15 +316,20 @@ export function optimizeBytecode(context: Context) {
     element.attr[attrName] = xmlUtil.makeAttribute(attrName, attrValue);
   };
   localVars.elements.forEach((element, i) => {
+    const original = element.children;
     delete element.children;
     if (i) return;
-    element.children = [];
-    const children = element.children;
+    const children =
+      original?.filter((elt): elt is xmlUtil.Element => {
+        if (elt.type !== "element") return false;
+        if (!elt.attr?.startPc) return false;
+        const spc = Number(elt.attr.startPc.value.value);
+        return (spc & SECTION_PC_MASK) !== TEXT_SECTION_PC;
+      }) ?? [];
     updateInfo.localRanges.forEach((localRange) => {
       if (localRange.endPc === localRange.startPc) {
         return;
       }
-      children.push({ type: "chardata", value: "\n" });
       const element: xmlUtil.Element = {
         type: "element",
         name: "entry",
@@ -328,12 +339,27 @@ export function optimizeBytecode(context: Context) {
       if (localRange.isParam) {
         addAttr(element, "arg", "true");
       }
-      addAttr(element, "startPc", (localRange.startPc + 0x10000000).toString());
-      addAttr(element, "endPc", (localRange.endPc + 0x10000000).toString());
+      addAttr(
+        element,
+        "startPc",
+        (localRange.startPc + TEXT_SECTION_PC).toString()
+      );
+      addAttr(
+        element,
+        "endPc",
+        (localRange.endPc + TEXT_SECTION_PC).toString()
+      );
       addAttr(element, "stackId", localRange.slot.toString());
       children.push(element);
     });
-    children.push({ type: "chardata", value: "\n" });
+    element.children = children
+      .sort(
+        (a, b) =>
+          Number(a.attr.startPc?.value.value ?? 0) -
+          Number(b.attr.startPc?.value.value ?? 0)
+      )
+      .flatMap((e) => [{ type: "chardata", value: "\n" }, e]);
+    element.children.push({ type: "chardata", value: "\n" });
   });
 
   context.debugXml.body
@@ -342,8 +368,13 @@ export function optimizeBytecode(context: Context) {
     .elements.forEach((entry) => {
       const { startPc, endPc } = entry.attr;
       if (!startPc || !endPc) return;
-      const range = funcRange(Number(startPc.value.value));
-      assert(funcRange(Number(endPc.value.value))[0] === range[0]);
+      const spc = Number(startPc.value.value);
+      const epc = Number(endPc.value.value);
+      if ((spc & SECTION_PC_MASK) !== TEXT_SECTION_PC) {
+        return;
+      }
+      const range = funcRange(spc);
+      assert(funcRange(epc)[0] === range[0]);
       startPc.value.value = range[0].toString();
       endPc.value.value = (range[1] - 1).toString();
     });

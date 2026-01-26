@@ -1,5 +1,11 @@
 import assert from "node:assert";
-import { Context, SectionKinds } from "./bytecode";
+import {
+  Context,
+  PC_OFFSET_MASK,
+  SECTION_PC_MASK,
+  SectionKinds,
+  TEXT_SECTION_PC,
+} from "./bytecode";
 import { SymbolTable } from "./symbols";
 
 export function parseData(view: DataView, symbols: SymbolTable) {
@@ -40,9 +46,8 @@ function skipClassDef(
     const addr = view.getUint32((current += 4) - 4);
     if (type !== 6) continue;
     // its a method;
-    const section = addr >>> 28;
-    if (section === 1) {
-      const pc = addr & 0xffffff;
+    if ((addr & SECTION_PC_MASK) === TEXT_SECTION_PC) {
+      const pc = addr & PC_OFFSET_MASK;
       const method = symbols.methods.get(pc);
       if (method) {
         if (method.id != null) {
@@ -109,9 +114,8 @@ function fixupClassDef(
     const addr = view.getUint32((current += 4) - 4);
     if (type !== 6) continue;
     // its a method;
-    const section = addr >>> 28;
-    if (section === 1) {
-      const pc = addr & 0xffffff;
+    if ((addr & SECTION_PC_MASK) === TEXT_SECTION_PC) {
+      const pc = addr & PC_OFFSET_MASK;
       const newPc = offsetMap.get(pc);
       assert(newPc != null);
       view.setUint32(current - 4, addr - pc + newPc);

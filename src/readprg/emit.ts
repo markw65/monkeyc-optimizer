@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { hasProperty } from "../ast";
-import { Block, Context, FuncEntry } from "./bytecode";
+import { Block, Context, FuncEntry, TEXT_SECTION_PC } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
 import { ExceptionEntry, ExceptionsMap } from "./exceptions";
 import { LineNumber } from "./linenum";
@@ -122,7 +122,7 @@ export function emitFunc(
       if (bytecode.lineNum) {
         if (!lineNum || !compareLineInfo(lineNum, bytecode.lineNum)) {
           lineNum = { ...bytecode.lineNum };
-          lineNum.pc = offset | 0x10000000;
+          lineNum.pc = offset | TEXT_SECTION_PC;
           updateInfo.lineMap.push(lineNum);
         }
       }
