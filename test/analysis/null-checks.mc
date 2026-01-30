@@ -29,7 +29,6 @@ class C2 extends C1 {
     }
 }
 
-/*
 class C3 {
     private var z as Array<Number>?;
 
@@ -43,4 +42,3 @@ class C3 {
         }
     }
 }
-*/

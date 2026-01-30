@@ -43,7 +43,7 @@ import {
   StateNodeDecl,
 } from "./optimizer-types";
 import { tupleForEach, tupleMap, tupleReduce } from "./type-flow/array-type";
-import { couldBeShallow } from "./type-flow/could-be";
+import { couldBe, couldBeShallow } from "./type-flow/could-be";
 import {
   CopyPropStores,
   eliminateDeadStores,
@@ -1183,17 +1183,49 @@ function propagateTypes(
 
   const modifiableDecl = (
     decls: TypeStateKey,
-    callees?: FunctionStateNode | FunctionStateNode[] | null
-  ) =>
-    some(
+    callees: FunctionStateNode | FunctionStateNode[] | null | undefined,
+    node: mctree.Node
+  ) => {
+    if (!callees) {
+      const lv =
+        node.type === "AssignmentExpression"
+          ? node.left
+          : node.type === "UpdateExpression"
+            ? node.argument
+            : null;
+      if (!lv) return true;
+      if (lv.type === "MemberExpression") {
+        if (lv.computed) {
+          /*
+           * an expression like (unknown)[E] can't affect a
+           * class/module/instance variable unless E evaluates to a Symbol
+           */
+          if (lv.property.type === "Literal") {
+            // literals are never Symbols
+            return false;
+          }
+          if (
+            (lv.property.type !== "UnaryExpression" ||
+              lv.property.operator !== ":") &&
+            !couldBe(
+              { type: TypeTag.Symbol },
+              evaluate(istate, lv.property).value
+            )
+          ) {
+            return false;
+          }
+        }
+      }
+    }
+    return some(
       decls,
       (decl) =>
         decl.type === "VariableDeclarator" &&
         decl.node.kind === "var" &&
         !isLocal(decl) &&
-        (!callees ||
-          some(callees, (callee) => functionMayModify(state, callee, decl)))
+        some(callees, (callee) => functionMayModify(state, callee, decl))
     );
+  };
 
   const mergeSuccState = (top: TypeFlowBlock, curState: TypeState) => {
     top.succs?.forEach((succ: TypeFlowBlock) => {
@@ -1702,7 +1734,7 @@ function propagateTypes(
             ) {
               return;
             }
-            if (modifiableDecl(decl, callees)) {
+            if (modifiableDecl(decl, callees, event.node)) {
               if (tsv.equivSet) {
                 removeEquiv(curState.map, decl);
               }
