@@ -320,6 +320,7 @@ export function buildDataFlowGraph(
   };
   const findDecl = (node: mctree.Node): EventDecl | null => {
     const path: mctree.MemberExpression[] = [];
+    const root = node;
     while (
       node.type === "MemberExpression" &&
       (wantsAllRefs || !node.computed)
@@ -358,7 +359,7 @@ export function buildDataFlowGraph(
       ) {
         return {
           type: "MemberDecl",
-          node: node as mctree.MemberExpression,
+          node: root as mctree.MemberExpression,
           base: decl as VariableStateNode | VariableStateNode[],
           path,
         };

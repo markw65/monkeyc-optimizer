@@ -134,13 +134,13 @@ export function describeEvent(event: Event) {
     event.type === "imp"
       ? printImp(event)
       : event.type === "flw" ||
-        event.type === "mod" ||
-        (!Array.isArray(event.decl) &&
-          (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
-      ? formatAstLongLines(event.node)
-      : event.decl
-      ? declFullName(event.decl)
-      : "??"
+          event.type === "mod" ||
+          (!Array.isArray(event.decl) &&
+            (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
+        ? formatAstLongLines(event.node)
+        : event.decl
+          ? declFullName(event.decl)
+          : "??"
   ).then((desc) => `${event.type}: ${desc}`);
 }
 
@@ -201,8 +201,8 @@ function filterDecls(
       declSups !== undefined
         ? declSups
         : decl.type === "ClassDeclaration"
-        ? (declSups = getSuperClasses(decl))
-        : null;
+          ? (declSups = getSuperClasses(decl))
+          : null;
     const found = possible.reduce((flag, poss) => {
       if (
         decl === poss ||

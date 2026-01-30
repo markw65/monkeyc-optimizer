@@ -8,6 +8,7 @@ import {
   StateNodeDecl,
   ProgramStateAnalysis,
 } from "./optimizer-types";
+import { forEach } from "./util";
 
 export function cloneSet<T>(ae: Set<T>) {
   return new Set<T>(ae);
@@ -71,9 +72,9 @@ export function recordCalledFunc(
 
 export function recordCalledFuncs(
   func: FunctionStateNode,
-  callees: FunctionStateNode[]
+  callees: FunctionStateNode | FunctionStateNode[]
 ) {
-  callees.forEach((callee) => {
+  forEach(callees, (callee) => {
     recordCalledFunc(func, callee);
   });
 }
@@ -181,8 +182,8 @@ export function findCalleesByNode(
     callee.type === "Identifier"
       ? callee.name
       : callee.type === "MemberExpression" && !callee.computed
-      ? callee.property.name
-      : null;
+        ? callee.property.name
+        : null;
   if (!name) return null;
   return (
     (hasProperty(state.allFunctions, name) && state.allFunctions[name]) || null

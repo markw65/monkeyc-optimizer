@@ -7,6 +7,7 @@ import {
   hasProperty,
   isClassVariable,
   isLocal,
+  isLookupCandidate,
   lookupNext,
   popRootNode,
   pushRootNode,
@@ -25,7 +26,14 @@ import {
   RefEvent,
   buildDataFlowGraph,
 } from "./data-flow";
-import { findCalleesByNode, functionMayModify } from "./function-info";
+import {
+  findCalleesByNode,
+  functionMayModify,
+  recordCalledFuncs,
+  recordModifiedDecl,
+  recordModifiedName,
+  recordModifiedUnknown,
+} from "./function-info";
 import { inlineRequested } from "./inliner";
 import {
   ClassStateNode,
@@ -756,6 +764,10 @@ function propagateTypes(
   const order = getPostOrder(graph).reverse() as TypeFlowBlock[];
   const queue = new DataflowQueue();
 
+  const rootFunc = root.type === "FunctionDeclaration" ? root : null;
+  if (rootFunc) {
+    delete rootFunc.next_info;
+  }
   const isStatic = !!(root.attributes & StateNodeAttributes.STATIC);
   const klass = root.stack?.[root.stack?.length - 1].sn;
   const selfClassDecl =
@@ -1644,6 +1656,13 @@ function propagateTypes(
           log(describeEvent(event).then((eventStr) => `  ${eventStr}`));
         }
         modInterference(curState, event, true, (callees, calleeObj) => {
+          if (rootFunc) {
+            if (callees) {
+              recordCalledFuncs(rootFunc, callees);
+            } else {
+              recordModifiedUnknown(rootFunc);
+            }
+          }
           clearRelatedCopyPropEvents(curState, null, nodeCopyProp);
           if (calleeObj) {
             const objType = getStateType(curState, calleeObj);
@@ -1727,12 +1746,32 @@ function propagateTypes(
         break;
       }
       case "def": {
+        if (rootFunc) {
+          forEach(event.decl, (decl) => {
+            if (decl.type === "VariableDeclarator") {
+              if (decl.node.kind !== "var") return;
+              if (isLocal(decl)) return;
+              recordModifiedDecl(rootFunc, decl);
+              return;
+            }
+            if (decl.type === "MemberDecl") {
+              const name = isLookupCandidate(decl.node);
+              if (name) {
+                recordModifiedName(rootFunc, name.name);
+                return;
+              }
+            } else if (decl.type !== "Unknown") {
+              return;
+            }
+            recordModifiedUnknown(rootFunc);
+          });
+        }
         const lval =
           event.node.type === "UpdateExpression"
             ? event.node.argument
             : event.node.type === "AssignmentExpression"
-            ? event.node.left
-            : null;
+              ? event.node.left
+              : null;
         if (lval) {
           if (nodeCopyProp.size && lval.type === "MemberExpression") {
             // We can convert
@@ -1752,8 +1791,8 @@ function propagateTypes(
                 target.type === "AssignmentExpression"
                   ? target.right
                   : target.type === "VariableDeclarator"
-                  ? target.init
-                  : null;
+                    ? target.init
+                    : null;
               if (copyExpr?.type === "BinaryExpression") {
                 nodeCopyProp.set(target, false);
                 nodeCopyProp.delete(t);
@@ -2514,6 +2553,9 @@ function propagateTypes(
     );
   }
 
+  if (rootFunc) {
+    rootFunc.info = rootFunc.next_info ?? false;
+  }
   return {
     istate,
     nodeEquivs,
