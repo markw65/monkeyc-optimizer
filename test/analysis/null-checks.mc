@@ -48,7 +48,12 @@ function m() as Moment {
     return new Moment(0);
 }
 
+var z as Array<Number>?;
+
 function f(d as Duration?) as Moment? {
-    var m = m();
-    return d != null ? m.add(d) : null;
+    if (z != null) {
+        var m = m();
+        z[0] = 0;
+        return d != null ? m.add(d) : null;
+    }
 }

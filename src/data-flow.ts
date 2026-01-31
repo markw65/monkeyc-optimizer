@@ -318,7 +318,7 @@ export function buildDataFlowGraph(
     }
     return canon;
   };
-  const findDecl = (node: mctree.Node): EventDecl | null => {
+  const findDecl = (node: mctree.Node, nonLocal = false): EventDecl | null => {
     const path: mctree.MemberExpression[] = [];
     const root = node;
     while (
@@ -327,11 +327,14 @@ export function buildDataFlowGraph(
     ) {
       path.unshift(node);
       node = node.object;
+      nonLocal = false;
     }
     if (node.type !== "Identifier" && node.type !== "ThisExpression") {
       return null;
     }
-    let [, results] = state.lookup(node);
+    let [, results] = nonLocal
+      ? state.lookupNonlocal(node)
+      : state.lookup(node);
     if (!results) {
       return wantsAllRefs ? { type: "Unknown", node: path.pop()! } : null;
     }
@@ -632,7 +635,7 @@ export function buildDataFlowGraph(
           case "CallExpression": {
             liveDef(null, stmt);
             if (wantsAllRefs) {
-              const calleeDecl = findDecl(node.callee);
+              const calleeDecl = findDecl(node.callee, true);
               if (calleeDecl) {
                 const mod: ModEvent = {
                   type: "mod",

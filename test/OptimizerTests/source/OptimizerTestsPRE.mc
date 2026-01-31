@@ -85,11 +85,12 @@ function safe() as Number {
 //   - correctly identifies functions with no side-effects
 (:test)
 function testPREWithFunctionConflict(logger as Logger) as Boolean {
+    /* @match "var conflict, safe;" */
     var conflict = gMaybeModified + 2,
-        /* @match "safe = pre_gMaybe" */ safe = gMaybeModified + 1;
+        safe = gMaybeModified + 1;
     /* @match "conflict = pre_gMaybe" */
     conflict += safe();
-    /* @match "safe += pre_gMaybe" */
+    /* @match "safe = pre_gMaybe" */
     safe += gMaybeModified;
     /* @match "conflict += pre_gMaybe" */
     conflict += gMaybeModified;
