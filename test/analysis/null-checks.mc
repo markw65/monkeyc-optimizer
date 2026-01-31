@@ -1,3 +1,4 @@
+import Toybox.Time;
 import Toybox.Lang;
 import Toybox.System;
 
@@ -41,4 +42,13 @@ class C3 {
             return [] as Array<Number>;
         }
     }
+}
+
+function m() as Moment {
+    return new Moment(0);
+}
+
+function f(d as Duration?) as Moment? {
+    var m = m();
+    return d != null ? m.add(d) : null;
 }

@@ -1193,27 +1193,24 @@ function propagateTypes(
           : node.type === "UpdateExpression"
             ? node.argument
             : null;
-      if (!lv) return true;
-      if (lv.type === "MemberExpression") {
-        if (lv.computed) {
-          /*
-           * an expression like (unknown)[E] can't affect a
-           * class/module/instance variable unless E evaluates to a Symbol
-           */
-          if (lv.property.type === "Literal") {
-            // literals are never Symbols
-            return false;
-          }
-          if (
-            (lv.property.type !== "UnaryExpression" ||
-              lv.property.operator !== ":") &&
-            !couldBe(
-              { type: TypeTag.Symbol },
-              evaluate(istate, lv.property).value
-            )
-          ) {
-            return false;
-          }
+      if (lv?.type === "MemberExpression" && lv.computed) {
+        /*
+         * an expression like (unknown)[E] can't affect a
+         * class/module/instance variable unless E evaluates to a Symbol
+         */
+        if (lv.property.type === "Literal") {
+          // literals are never Symbols
+          return false;
+        }
+        if (
+          (lv.property.type !== "UnaryExpression" ||
+            lv.property.operator !== ":") &&
+          !couldBe(
+            { type: TypeTag.Symbol },
+            evaluate(istate, lv.property).value
+          )
+        ) {
+          return false;
         }
       }
     }
@@ -1223,7 +1220,8 @@ function propagateTypes(
         decl.type === "VariableDeclarator" &&
         decl.node.kind === "var" &&
         !isLocal(decl) &&
-        some(callees, (callee) => functionMayModify(state, callee, decl))
+        (!callees ||
+          some(callees, (callee) => functionMayModify(state, callee, decl)))
     );
   };
 
