@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.95
+
+- Fix a regression introduced in `1.1.94`
+- Fix lookup of calls in data flow to ignore locals
+- Revert a fix I put in to match [a Garmin bug](https://forums.garmin.com/developer/connect-iq/i/bug-reports/relative-paths-in-local-variables-in-jungle-files-are-resolved-incorrectly) since that bug was fixed in `Sdk-8.0.0`.
+
 ### 1.1.94
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.65](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1065)
