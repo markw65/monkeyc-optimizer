@@ -2,6 +2,15 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.96
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.66](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1066)
+  - Insert a single space after the comma in a list of exclusions if there was at least one space already.
+- Fix [Minor documentation issue regarding running the optimizer via the command line](https://github.com/markw65/monkeyc-optimizer/issues/68)
+- Fix ["Export Optimized Project" fails with "doc.processRefs is not a function"](https://github.com/markw65/monkeyc-optimizer/issues/69)
+- Fix ["Export Optimized Project" fails if extended code takes up more than one page](https://github.com/markw65/monkeyc-optimizer/issues/70)
+- Fix ["Undefined symbol" due to variable resolution issue in jungle file](https://github.com/markw65/monkeyc-optimizer/issues/71)
+
 ### 1.1.95
 
 - Fix a regression introduced in `1.1.94`
