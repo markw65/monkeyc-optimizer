@@ -130,9 +130,17 @@ function markLocals(context: Context) {
     .elements.forEach((entry) => {
       const { startPc, endPc, stackId, name, arg } = entry.attr;
       assert(startPc && endPc && stackId && name);
-      const spc = Number(startPc.value.value) & PC_OFFSET_MASK;
-      const epc = (Number(endPc.value.value) & PC_OFFSET_MASK) + 1;
+      const spcRaw = Number(startPc.value.value);
+      const epcRaw = Number(endPc.value.value) + 1;
       const sid = Number(stackId.value.value);
+      if (
+        (spcRaw & SECTION_PC_MASK) !== TEXT_SECTION_PC ||
+        (epcRaw & SECTION_PC_MASK) !== TEXT_SECTION_PC
+      ) {
+        return;
+      }
+      const spc = spcRaw & PC_OFFSET_MASK;
+      const epc = epcRaw & PC_OFFSET_MASK;
       let locals = localMap.get(spc);
       if (!locals) {
         locals = [];
@@ -164,9 +172,7 @@ function markLocals(context: Context) {
 
     const locals = localMap.get(bc.offset);
     locals?.forEach((localInfo) => {
-      if (live.has(localInfo.sid)) {
-        assert(!live.has(localInfo.sid));
-      }
+      assert(!live.has(localInfo.sid));
       live.set(localInfo.sid, localInfo);
       const e = ends.get(localInfo.epc);
       if (e == null) {
