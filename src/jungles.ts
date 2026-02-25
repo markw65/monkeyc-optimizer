@@ -218,11 +218,11 @@ function evaluate_locals(assignments: Assignment[]) {
     const newLength = Object.keys(locals).length;
     if (newLength === localsLength) break;
     localsLength = newLength;
-    const process_list = (values: JNode[]) => {
+    const process_list = (names: string[] | null, values: JNode[]) => {
       for (let i = values.length; i--; ) {
         const v = values[i];
         if (v.type === "Compound") {
-          process_list(v.values);
+          process_list(null, v.values);
           if (v.values.every((s) => s.type === "Literal")) {
             values[i] = {
               type: "Literal",
@@ -237,12 +237,18 @@ function evaluate_locals(assignments: Assignment[]) {
           hasProperty(locals, v.names[0])
         ) {
           values.splice(i, 1, ...locals[v.names[0]]);
+          if (
+            names?.length === 1 &&
+            values.every((v) => v.type === "Literal")
+          ) {
+            locals[names[0]] = values;
+          }
         } else if (v.type === "SubList") {
-          process_list(v.values);
+          process_list(null, v.values);
         }
       }
     };
-    assignments.forEach((a) => process_list(a.values));
+    assignments.forEach((a) => process_list(a.names, a.values));
   }
   return assignments;
 }
@@ -742,8 +748,8 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
     str == null
       ? null
       : str === "*"
-      ? "*"
-      : Object.fromEntries(str.split(";").map((e) => [e, true]));
+        ? "*"
+        : Object.fromEntries(str.split(";").map((e) => [e, true]));
   const getStrsWithIgnore = (
     strs: string[],
     option: Record<string, true> | string | null
