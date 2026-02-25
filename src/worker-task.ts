@@ -64,6 +64,7 @@ function restoreQualifier(qualifier: JungleQualifier) {
   }
   if (qualifier.barrelMap) {
     Object.values(qualifier.barrelMap).forEach((barrel) => {
+      Object.values(barrel.resources).forEach((res) => restoreDocument(res));
       restoreQualifier(barrel.qualifier);
       restoreDocument(barrel.xml);
     });
@@ -71,6 +72,9 @@ function restoreQualifier(qualifier: JungleQualifier) {
 }
 
 function restoreDocument(obj: unknown) {
+  if (obj instanceof xmlUtil.Document) {
+    return;
+  }
   Object.setPrototypeOf(obj, xmlUtil.Document.prototype);
   const doc = obj as xmlUtil.Document;
   if ((doc.body as { elements?: Array<xmlUtil.Element> }).elements) {
