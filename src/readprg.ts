@@ -407,6 +407,7 @@ async function optimizePackage(
   } finally {
     stopPool();
   }
+  return { output };
 }
 
 export function optimizePrgAndDebug(
