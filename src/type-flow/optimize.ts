@@ -88,8 +88,8 @@ export function beforeEvaluate(
       const result = mustBeTrue(test.value)
         ? true
         : mustBeFalse(test.value)
-        ? false
-        : null;
+          ? false
+          : null;
       if (result !== null) {
         if (!test.embeddedEffects) {
           const arg = result ? consequent : alternate;
@@ -161,8 +161,8 @@ export function beforeEvaluate(
       const result = mustBeTrue(test.value)
         ? true
         : mustBeFalse(test.value)
-        ? false
-        : null;
+          ? false
+          : null;
       if (result !== null) {
         const rep = result ? node.consequent : node.alternate || false;
         if (!test.embeddedEffects) {
@@ -620,8 +620,8 @@ function tryIdentity(
                 (TypeTag.Long | TypeTag.Float | TypeTag.Double)
               )
             : right.value.type & TypeTag.Long // Negating -2^63 goes wrong if left is a float/double
-            ? !(left.value.type & (TypeTag.Float | TypeTag.Double))
-            : true)
+              ? !(left.value.type & (TypeTag.Float | TypeTag.Double))
+              : true)
         ) {
           right.value = evaluateBinaryTypes(
             "-",

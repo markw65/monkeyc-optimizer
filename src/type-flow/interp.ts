@@ -408,10 +408,10 @@ function arrayTypeAtIndex(
   }
   const reduce = (v: ExactOrUnion[]) =>
     forStrictAssign
-      ? v.reduce(
+      ? (v.reduce(
           (t, c) => (t ? intersection(t, c) : c),
           null as ExactOrUnion | null
-        ) ?? { type: TypeTag.Never }
+        ) ?? { type: TypeTag.Never })
       : reducedType(v);
   const key =
     elemType && isExact(elemType) && elemType.type === TypeTag.Number
@@ -419,14 +419,14 @@ function arrayTypeAtIndex(
       : null;
   return tupleMap(
     arr,
-    (v) => (key != null ? v[key] ?? null : reduce(v)),
+    (v) => (key != null ? (v[key] ?? null) : reduce(v)),
     (v) => v,
     (v) =>
       v.length
         ? reduce(v)
         : enforceTuples
-        ? { type: TypeTag.Never }
-        : { type: TypeTag.Any }
+          ? { type: TypeTag.Never }
+          : { type: TypeTag.Any }
   );
 }
 
