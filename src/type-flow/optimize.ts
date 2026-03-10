@@ -488,6 +488,17 @@ export function afterEvaluate(
     if (!top.embeddedEffects && hasValue(top.value)) {
       const rep = mcExprFromType(top.value);
       if (rep) {
+        if (
+          rep.type !== "BinaryExpression" ||
+          node.type !== "BinaryExpression" ||
+          node.operator !== "as" ||
+          node.left.type !== "Literal"
+        ) {
+          // only re-run if we made progress. If we replace one literal as Type
+          // with another, we don't want to re-run or we'll end in an infinite
+          // loop
+          istate.rerun = true;
+        }
         top.node = rep;
         return withLoc(rep, node, node);
       }

@@ -100,6 +100,7 @@ export type InterpState = {
   checkTypes?: DiagnosticType;
   dependencies?: DependencyMap;
   frpushType?: ExactOrUnion;
+  rerun?: true;
 };
 
 export function popIstate(istate: InterpState, node: mctree.Node) {

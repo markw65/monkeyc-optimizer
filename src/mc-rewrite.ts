@@ -1071,6 +1071,10 @@ async function optimizeMonkeyCHelper(
         this.currentFunction.info = this.currentFunction.next_info || false;
         delete this.currentFunction.next_info;
         delete this.currentFunction;
+        if (istate.rerun) {
+          again = true;
+          delete istate.rerun;
+        }
         if (istate.stack.length) {
           throw new Error("Stack was not empty");
         }
