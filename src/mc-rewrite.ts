@@ -317,7 +317,7 @@ export async function analyze(
   manifestXML: xmlUtil.Document | undefined,
   config: BuildConfig,
   allowParseErrors?: boolean
-) {
+): Promise<ProgramStateAnalysis> {
   let hasTests = false;
   let markApi = true;
   const preState: ProgramState = {
@@ -394,16 +394,16 @@ export async function analyze(
   const state = preState as ProgramStateAnalysis;
 
   await getFileASTs(fnMap);
-  Object.values(fnMap).forEach((value) => {
+  for (const value of Object.values(fnMap)) {
     const { ast, parserError } = value;
     if (!ast) {
-      if (allowParseErrors) return;
+      if (allowParseErrors) continue;
       throw parserError || new Error(`Failed to parse ${value.name}`);
     }
     hasTests = false;
-    collectNamespaces(ast, state);
+    await collectNamespaces(ast, state);
     value.hasTests = hasTests;
-  });
+  }
 
   delete state.shouldExclude;
   delete state.pre;
@@ -1249,22 +1249,23 @@ async function optimizeMonkeyCHelper(
     }
     return null;
   };
-  Object.values(fnMap).forEach((f) => {
-    collectNamespaces(f.ast!, state);
-  });
+  for (const f of Object.values(fnMap)) {
+    await collectNamespaces(f.ast!, state);
+  }
 
   enum Changes {
     None = 0,
     Some = 1,
     Force = 2,
   }
-  const cleanupAll = (state: ProgramStateOptimizer) => {
+  const cleanupAll = async (state: ProgramStateOptimizer) => {
     const usedDecls = findRezRefs(state);
     const pre = state.pre;
     const post = state.post;
     try {
       delete state.pre;
-      return Object.values(fnMap).reduce((changes, f) => {
+      let changes = Changes.None as Changes;
+      for (const f of Object.values(fnMap)) {
         state.post = function (node) {
           if (usedDecls.has(node)) {
             return null;
@@ -1290,12 +1291,12 @@ async function optimizeMonkeyCHelper(
           }
           return ret;
         };
-        collectNamespaces(f.ast!, state);
+        await collectNamespaces(f.ast!, state);
         if (changes & Changes.Force) {
           state.allCached?.forEach((t) => delete t.resolvedType);
         }
-        return changes;
-      }, Changes.None);
+      }
+      return changes;
     } finally {
       state.pre = pre;
       state.post = post;
@@ -1307,12 +1308,12 @@ async function optimizeMonkeyCHelper(
     state.calledFunctions = {};
     state.exposed = state.nextExposed;
     state.nextExposed = {};
-    Object.values(fnMap).forEach((f) => {
-      collectNamespaces(f.ast!, state);
-    });
+    for (const f of Object.values(fnMap)) {
+      await collectNamespaces(f.ast!, state);
+    }
     state.exposed = state.nextExposed;
     state.nextExposed = {};
-    const changes = cleanupAll(state);
+    const changes = await cleanupAll(state);
     if (
       changes & Changes.Force ||
       (changes & Changes.Some && state.config?.iterateOptimizer)
@@ -1326,9 +1327,9 @@ async function optimizeMonkeyCHelper(
   delete state.post;
 
   if (state.config?.minimizeModules ?? true) {
-    Object.values(fnMap).forEach((f) => {
-      minimizeModules(f.ast!, state);
-    });
+    for (const f of Object.values(fnMap)) {
+      await minimizeModules(f.ast!, state);
+    }
   }
 
   await Object.values(state.allFunctions).reduce(
@@ -1340,7 +1341,7 @@ async function optimizeMonkeyCHelper(
     Promise.resolve()
   );
 
-  cleanupAll(state);
+  await cleanupAll(state);
   config.checkCompilerLookupRules = checkLookupRules;
   await reportMissingSymbols(state, config);
   Object.values(fnMap).forEach(

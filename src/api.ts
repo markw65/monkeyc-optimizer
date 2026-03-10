@@ -41,7 +41,7 @@ import { getSdkPath, xmlUtil } from "./sdk-util";
 import { TypeMap } from "./type-flow/interp";
 import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
-import { log, pushUnique, sameArrays } from "./util";
+import { log, logPromise, pushUnique, sameArrays } from "./util";
 import { RootStateNode } from "./control-flow";
 
 export { visitReferences, visitorNode } from "./visitor";
@@ -162,9 +162,9 @@ export async function getApiMapping(
       state.manifestXML = manifestXML;
     }
   }
-  const result = collectNamespaces(ast, state);
+  const result = await collectNamespaces(ast, state);
   if (state && state.rezAst) {
-    collectNamespaces(state.rezAst, state);
+    await collectNamespaces(state.rezAst, state);
   }
   negativeFixups.forEach((fixup) => {
     const vs = fixup.split(".").reduce((state: StateNodeDecl, part) => {
@@ -1173,10 +1173,10 @@ function stateFuncs() {
   } as ProgramStateLive;
 }
 
-export function collectNamespaces(
+export async function collectNamespaces(
   ast: mctree.Program,
   stateIn?: ProgramState
-): ProgramStateNode {
+): Promise<ProgramStateNode> {
   const state = (stateIn || {}) as ProgramStateLive;
   if (!state.nextExposed) state.nextExposed = {};
   if (!state.index) state.index = {};
@@ -1216,6 +1216,8 @@ export function collectNamespaces(
   state.inType = 0;
 
   state.traverse(ast);
+  await logPromise;
+
   if (state.inType) {
     throw new Error(`inType was non-zero on exit: ${state.inType}`);
   }

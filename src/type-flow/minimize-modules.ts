@@ -13,7 +13,7 @@ import {
   ProgramStateStack,
 } from "../optimizer-types";
 
-export function minimizeModules(
+export async function minimizeModules(
   ast: mctree.Program,
   state: ProgramStateAnalysis
 ) {
@@ -130,7 +130,7 @@ export function minimizeModules(
       return null;
     };
     delete state.post;
-    collectNamespaces(ast, state);
+    await collectNamespaces(ast, state);
     const mappedNames = new Map<ModuleStateNode, string>();
     replacementMap.forEach((value, key) => {
       let name: string | undefined;
