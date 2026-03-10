@@ -157,32 +157,39 @@ export function getConfig(options: BuildConfig) {
     Object.entries(desc.properties)
   );
   return defaults
-    .reduce<Promise<null | Record<string, unknown>>>((promise, [key, info]) => {
-      if (key in config) return promise;
-      return promise
-        .then(
-          (v) =>
-            v ||
-            getVSCodeSettings(`${appSupport}/Code/User/settings.json`).then(
-              (globals) =>
-                getCodeWorkspaceSettings(config.workspace).then((workspace) =>
-                  getVSCodeSettings(
-                    `${config.workspace ?? "."}/.vscode/settings.json`
-                  ).then((locals) => ({ ...globals, ...workspace, ...locals }))
-                )
-            )
-        )
-        .then((settings) => {
-          const value =
-            settings[`prettierMonkeyC.${key}`] ??
-            settings[`monkeyC.${key}`] ??
-            info.default;
-          if (value !== undefined) {
-            (config as Record<string, unknown>)[key] = value;
-          }
-          return settings;
-        });
-    }, Promise.resolve(options.ignore_settings_files ? {} : null))
+    .reduce<Promise<null | Record<string, unknown>>>(
+      (promise, [key, info]) => {
+        if (key in config) return promise;
+        return promise
+          .then(
+            (v) =>
+              v ||
+              getVSCodeSettings(`${appSupport}/Code/User/settings.json`).then(
+                (globals) =>
+                  getCodeWorkspaceSettings(config.workspace).then((workspace) =>
+                    getVSCodeSettings(
+                      `${config.workspace ?? "."}/.vscode/settings.json`
+                    ).then((locals) => ({
+                      ...globals,
+                      ...workspace,
+                      ...locals,
+                    }))
+                  )
+              )
+          )
+          .then((settings) => {
+            const value =
+              settings[`prettierMonkeyC.${key}`] ??
+              settings[`monkeyC.${key}`] ??
+              info.default;
+            if (value !== undefined) {
+              (config as Record<string, unknown>)[key] = value;
+            }
+            return settings;
+          });
+      },
+      Promise.resolve(options.ignore_settings_files ? {} : null)
+    )
     .then((settings) => {
       if (
         settings &&
@@ -560,12 +567,15 @@ export async function generateOptimizedProject(options: BuildConfig) {
     const nextAvailableDefault = () => {
       if (!availableDefaults) {
         availableDefaults = Object.keys(
-          Object.values(devices).reduce((m, d) => {
-            m[d.deviceFamily] = true;
-            const match = d.deviceFamily.match(/^(\w+)-\d+x\d+/);
-            if (match) m[match[1]] = true;
-            return m;
-          }, {} as Record<string, true>)
+          Object.values(devices).reduce(
+            (m, d) => {
+              m[d.deviceFamily] = true;
+              const match = d.deviceFamily.match(/^(\w+)-\d+x\d+/);
+              if (match) m[match[1]] = true;
+              return m;
+            },
+            {} as Record<string, true>
+          )
         ).sort();
         availableDefaults.unshift("base");
       }
@@ -1119,18 +1129,21 @@ async function getProjectAnalysisHelper(
   )
     .then(
       (results) =>
-        results.reduce((cur, result) => {
-          if (!cur) return result;
-          Object.entries(result.fnMap).forEach(([key, value]) => {
-            if (cur.fnMap[key]) {
-              cur.fnMap[key + "::" + value.barrel] = value;
-            } else {
-              cur.fnMap[key] = value;
-            }
-          });
-          cur.paths.push(...result.paths);
-          return cur;
-        }, null as PreAnalysis | null)!
+        results.reduce(
+          (cur, result) => {
+            if (!cur) return result;
+            Object.entries(result.fnMap).forEach(([key, value]) => {
+              if (cur.fnMap[key]) {
+                cur.fnMap[key + "::" + value.barrel] = value;
+              } else {
+                cur.fnMap[key] = value;
+              }
+            });
+            cur.paths.push(...result.paths);
+            return cur;
+          },
+          null as PreAnalysis | null
+        )!
     )
     .then(
       (result) =>
@@ -1192,7 +1205,7 @@ export async function getFnMapAnalysis(
 ) {
   const state = await analyze(fnMap, resourcesMap, manifestXML, options, true);
   if (Object.values(fnMap).every(({ ast }) => ast != null)) {
-    reportMissingSymbols(state, options);
+    await reportMissingSymbols(state, options);
   }
 
   const typeMap = await analyze_module_types(state);

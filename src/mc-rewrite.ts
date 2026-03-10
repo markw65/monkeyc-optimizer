@@ -416,7 +416,7 @@ export async function analyze(
   return state;
 }
 
-export function reportMissingSymbols(
+export async function reportMissingSymbols(
   state: ProgramStateAnalysis,
   config?: BuildConfig
 ) {
@@ -433,7 +433,7 @@ export function reportMissingSymbols(
     !config?.compilerOptions?.includes("--Eno-invalid-symbol")
   ) {
     const checkTypes = config?.checkTypes?.toLowerCase() !== "off";
-    const report = (ast: mctree.Program) => {
+    const report = (ast: mctree.Program) =>
       visitReferences(state, ast, null, false, (node, results, error) => {
         if (node.type === "BinaryExpression" && node.operator === "has") {
           // Its not an error to check whether a property exists...
@@ -495,9 +495,11 @@ export function reportMissingSymbols(
         );
         return false;
       });
-    };
-    Object.values(state.fnMap).forEach((v) => v.ast && report(v.ast));
-    state.rezAst && report(state.rezAst);
+
+    for (const v of Object.values(state.fnMap)) {
+      v.ast && (await report(v.ast));
+    }
+    state.rezAst && (await report(state.rezAst));
   }
 }
 
@@ -1340,7 +1342,7 @@ async function optimizeMonkeyCHelper(
 
   cleanupAll(state);
   config.checkCompilerLookupRules = checkLookupRules;
-  reportMissingSymbols(state, config);
+  await reportMissingSymbols(state, config);
   Object.values(fnMap).forEach(
     ({ ast }) => ast && reportFailedInlining(state, ast)
   );

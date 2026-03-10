@@ -41,7 +41,7 @@ export function visitorNode(node: mctree.Node): mctree.Node {
   return node;
 }
 
-export function visitReferences(
+export async function visitReferences(
   state: ProgramStateAnalysis,
   ast: mctree.Program,
   name: string | null,
@@ -282,7 +282,7 @@ export function visitReferences(
       return null;
     };
     delete state.post;
-    collectNamespaces(ast, state);
+    return collectNamespaces(ast, state);
   } finally {
     state.pre = pre;
     state.post = post;

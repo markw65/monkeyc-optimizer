@@ -2318,12 +2318,11 @@ function propagateTypes(
     }
     if (copyPropStores) {
       copyPropStores.forEach(({ ref, ant }, node) => {
+        const result = nodeCopyProp.get(node) !== ref ? "Failed" : "Success";
         log(
           formatAstLongLines(node).then(
             (nodeStr) =>
-              `copy-prop-store: ${nodeStr}${ant ? "!" : ""} => ${
-                nodeCopyProp.get(node) !== ref ? "Failed" : "Success"
-              }`
+              `copy-prop-store: ${nodeStr}${ant ? "!" : ""} => ${result}`
           )
         );
       });
