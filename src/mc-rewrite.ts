@@ -1543,14 +1543,16 @@ function cleanup(
       }
       return typedefDecl;
     }
-    case "VariableDeclarator": {
-      const name = variableDeclarationName(node.id);
-      return !hasProperty(state.index, name) ||
-        hasProperty(state.exposed, name) ||
-        hasProperty(state.usedByName, name)
-        ? null
-        : false;
-    }
+    case "VariableDeclarator":
+      if (state.stack.at(-1)?.sn.type !== "BlockStatement") {
+        const name = variableDeclarationName(node.id);
+        return !hasProperty(state.index, name) ||
+          hasProperty(state.exposed, name) ||
+          hasProperty(state.usedByName, name)
+          ? null
+          : false;
+      }
+      break;
     case "VariableDeclaration": {
       if (!node.declarations.length) {
         return false;
