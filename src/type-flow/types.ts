@@ -258,9 +258,9 @@ export interface StringType extends AbstractValue {
 export interface ArrayType extends AbstractValue {
   type: TypeTag.Array;
   value?:
-    | ExactOrUnion
-    | ExactOrUnion[]
-    | Set<ExactOrUnion | ExactOrUnion[]>
+    | ExactOrUnion // Array<type>
+    | ExactOrUnion[] // [t1, t2,...,tn]
+    | Set<ExactOrUnion | ExactOrUnion[]> // Array<t1> | [t2,t3] | ...
     | undefined;
 }
 export interface DictionaryType extends AbstractValue {
@@ -471,8 +471,8 @@ export function typeFromTypeStateNode(
           n.init?.type === "Literal"
             ? typeFromLiteral(n.init)
             : n.init
-            ? deEnumerate(evaluateExpr(state, n.init).value)
-            : { type: TypeTag.Number };
+              ? deEnumerate(evaluateExpr(state, n.init).value)
+              : { type: TypeTag.Number };
 
         n.resolvedType = value;
       }
@@ -1201,8 +1201,8 @@ export function forEachUnionComponent(
     const data = hasUnion
       ? unionData[bit as UnionDataKey]
       : bit & v.type
-      ? v.value
-      : null;
+        ? v.value
+        : null;
 
     if (fn({ type: bit, value: data } as ExactTypes) === false) break;
     bits = next;

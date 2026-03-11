@@ -212,6 +212,12 @@ export async function visitReferences(
           }
           break;
         }
+        case "TypeSpecPart":
+          if (node.callspec) {
+            return ["callspec"];
+          }
+          break;
+
         case "MethodDefinition": {
           if (!this.inType) {
             throw new Error("Method definition outside of type!");

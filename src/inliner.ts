@@ -24,6 +24,7 @@ import {
   VariableStateNode,
 } from "./optimizer-types";
 import { renameVariable } from "./variable-renamer";
+import { unhandledType } from "./data-flow";
 
 // Note: Keep in sync with replaceInlinedSubExpression below
 export function inlinableSubExpression(expr: mctree.Expression) {
@@ -222,8 +223,8 @@ function getArgSafety(
                 node.callee.type === "Identifier"
                   ? node.callee
                   : node.callee.type === "MemberExpression"
-                  ? isLookupCandidate(node.callee)
-                  : null;
+                    ? isLookupCandidate(node.callee)
+                    : null;
               if (callee_name) {
                 const callees = this.allFunctions[callee_name.name];
                 if (callees) {
@@ -540,6 +541,99 @@ function processInlineBody<T extends InlineBody>(
       }
       return replacement;
     };
+    const fixupScopedType = (node: mctree.ScopedName): mctree.ScopedName => {
+      if (node.type === "Identifier") {
+        const save = state.inType;
+        state.inType = 1;
+        const replacement = fixNodeScope(state, node, lookupStack);
+        state.inType = save;
+        if (!replacement) {
+          failed = true;
+          inlineDiagnostic(
+            state,
+            func,
+            call,
+            `Failed to resolve '${node.name}'`
+          );
+        }
+        return replacement as mctree.ScopedName;
+      }
+      const object = fixupScopedType(node.object);
+      return {
+        ...node,
+        object,
+      };
+    };
+
+    const fixupType = <T extends mctree.TypeSpecList | mctree.SingleTypeSpec>(
+      node: T
+    ): T => {
+      // there are some weird shortcuts where we put a string in place of
+      // a TypeSpecPart
+      if (typeof node === "string") {
+        return node;
+      }
+      const { type } = node;
+      switch (type) {
+        case "TypeSpecList":
+          return {
+            ...node,
+            ts: node.ts.map((spec) => fixupType(spec)),
+          };
+        case "ArrayExpression":
+          return {
+            ...node,
+            elements: node.elements.map((e) =>
+              fixupType(e as unknown as mctree.TypeSpecList)
+            ),
+          };
+        case "ObjectExpression":
+          return {
+            ...node,
+            properties: node.properties.map((property) => {
+              const prop = property as unknown as mctree.AsExpression;
+              return { ...prop, right: fixupType(prop.right) };
+            }),
+          };
+        case "TypeSpecPart": {
+          const name =
+            typeof node.name === "string"
+              ? node.name
+              : fixupScopedType(node.name);
+          if (node.body) {
+            return { ...node, name };
+          }
+          if (node.callspec) {
+            return {
+              ...node,
+              callspec: {
+                ...node.callspec,
+                params: node.callspec.params.map((p) =>
+                  p.type === "BinaryExpression"
+                    ? { ...p, right: fixupType(p.right) }
+                    : p
+                ),
+                returnType: {
+                  ...node.callspec.returnType,
+                  argument: fixupType(node.callspec.returnType.argument),
+                },
+              },
+            };
+          }
+          return node.generics
+            ? {
+                ...node,
+                name,
+                generics: node.generics.map((ts) => fixupType(ts)),
+              }
+            : { ...node, name };
+          break;
+        }
+        default:
+          unhandledType(type);
+      }
+    };
+
     state.post = function (node: mctree.Node) {
       if (failed) return post.call(this, node);
       let replacement = null;
@@ -564,6 +658,11 @@ function processInlineBody<T extends InlineBody>(
           break;
         case "Identifier":
           replacement = fixId(node);
+          break;
+        case "BinaryExpression":
+          if (node.operator === "as") {
+            node.right = fixupType(node.right);
+          }
           break;
       }
       const ret = post.call(this, replacement || node);
@@ -1062,7 +1161,7 @@ function fixNodeScope(
   lookupNode: mctree.Identifier | mctree.MemberExpression,
   nodeStack: ProgramStateStack
 ) {
-  if (lookupNode.type === "Identifier") {
+  if (lookupNode.type === "Identifier" && !state.inType) {
     const locals = state.localsStack![state.localsStack!.length - 1];
     const { map } = locals;
     if (!map) throw new Error("No local variable map!");
