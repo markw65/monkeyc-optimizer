@@ -1552,7 +1552,12 @@ function cleanup(
         const name = variableDeclarationName(node.id);
         return !hasProperty(state.index, name) ||
           hasProperty(state.exposed, name) ||
-          hasProperty(state.usedByName, name)
+          hasProperty(state.usedByName, name) ||
+          !state.index[name].find((sn) =>
+            sn.decls?.[name]?.find(
+              (sn) => sn.type === "VariableDeclarator" && sn.node === node
+            )
+          )
           ? null
           : false;
       }

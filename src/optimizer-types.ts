@@ -220,7 +220,7 @@ export type ProgramState = {
     map?: { [key: string]: boolean | string };
     inners?: { [key: string]: true };
   }[];
-  index?: { [key: string]: unknown[] };
+  index?: { [key: string]: StateNode[] };
   constants?: { [key: string]: mctree.Literal };
   diagnostics?: Record<string, PreDiagnostic[]>;
   inlineDiagnostics?: Record<string, Diagnostic[]>;

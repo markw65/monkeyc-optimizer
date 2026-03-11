@@ -1,12 +1,24 @@
 import Toybox.Lang;
 
 const B = true;
+module M {
+    const xyz = 0;
+    const uvw = 0;
+}
+
+var uvw as Number = 0;
 
 (:keep)
 function f() as Number? {
-    var x = null;
+    var xyz = null;
     if (B) {
-        x = 0;
+        xyz = 0;
     }
-    return x;
+    return xyz;
+}
+
+(:keep)
+function g() as Number? {
+    uvw = 0;
+    return uvw;
 }
