@@ -536,7 +536,10 @@ function processInlineBody<T extends InlineBody>(
       }
       const replacement = fixNodeScope(state, node, lookupStack);
       if (!replacement) {
-        failed = true;
+        if (!failed) {
+          inlineDiagnostic(state, func, call, null);
+          failed = true;
+        }
         inlineDiagnostic(state, func, call, `Failed to resolve '${node.name}'`);
       }
       return replacement;
@@ -548,7 +551,10 @@ function processInlineBody<T extends InlineBody>(
         const replacement = fixNodeScope(state, node, lookupStack);
         state.inType = save;
         if (!replacement) {
-          failed = true;
+          if (!failed) {
+            inlineDiagnostic(state, func, call, null);
+            failed = true;
+          }
           inlineDiagnostic(
             state,
             func,
