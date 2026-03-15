@@ -281,15 +281,24 @@ export function beforeEvaluate(
         if (
           left.embeddedEffects ||
           right.embeddedEffects ||
-          !hasValue(left.value) ||
           !hasValue(right.value) ||
           !(left.value.type & (TypeTag.Module | TypeTag.Class))
         ) {
           break;
         }
+        const leftValues = hasValue(left.value)
+          ? (left.value.value as StateNode | StateNode[])
+          : left.value.type === TypeTag.Module &&
+              node.left.type === "Identifier" &&
+              node.left.name === "$"
+            ? istate.state.stack[0].sn
+            : null;
+        if (!leftValues) {
+          break;
+        }
         const id = node.right.argument;
         if (
-          every(left.value.value as StateNode | StateNode[], (m) => {
+          every(leftValues as StateNode | StateNode[], (m) => {
             if (hasProperty(m.decls, id.name)) return false;
             // This is overkill, since we've already looked up
             // node.left, but the actual lookup rules are complicated,
