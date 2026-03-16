@@ -2,6 +2,12 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.97
+
+- Fix [$ has :UNDEFINED error (#79)](https://github.com/markw65/monkeyc-optimizer/issues/79#top)
+- Fix ["Generate Optimized Project" issue due to inlining code into another class (#76)](https://github.com/markw65/monkeyc-optimizer/issues/76#top)
+- Fix ["Generate Optimized Project" produces code with syntax error (#77)](https://github.com/markw65/monkeyc-optimizer/issues/77#top)
+
 ### 1.1.96
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.66](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1066)
