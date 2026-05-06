@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.98
+
+- Add support for `monkeyC.javaPath`. Fixes [#82](https://github.com/markw65/monkeyc-optimizer/issues/82#top)
+
 ### 1.1.97
 
 - Fix [$ has :UNDEFINED error (#79)](https://github.com/markw65/monkeyc-optimizer/issues/79#top)
