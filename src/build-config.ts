@@ -7,6 +7,7 @@ export type BuildConfig = {
   workspace?: string; // The project's workspace directory
   jungleFiles?: string; // Semicolon separated list of jungle files
   developerKeyPath?: string; // Path to the developer key file to be used by the garmin tools
+  javaPath?: string; // monkeyC.javaPath
   typeCheckLevel?: "Off" | "Default" | "Gradual" | "Informative" | "Strict"; // monkeyC.typeCheckLevel
   optimizationLevel?: "None" | "Basic" | "Fast" | "Slow"; // monkeyC.optimizationLevel
   compilerOptions?: string; // monkeyC.compilerOptions
@@ -99,10 +100,10 @@ type BuildConfigEntry =
 type BuildConfigEntry<V> = boolean extends V
   ? BuildConfigEntryBoolean
   : [V] extends [string]
-  ? [string] extends [V]
-    ? BuildConfigEntryString
-    : BuildConfigEntryEnum<V>
-  : never;
+    ? [string] extends [V]
+      ? BuildConfigEntryString
+      : BuildConfigEntryEnum<V>
+    : never;
 
 type BuildConfigDescription = {
   title: string;
@@ -398,6 +399,12 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         scope: "tasks_launch",
       },
       developerKeyPath: {
+        type: "string",
+        description:
+          "If present, overrides the corresponding `monkeyC' setting.",
+        scope: "tasks_launch",
+      },
+      javaPath: {
         type: "string",
         description:
           "If present, overrides the corresponding `monkeyC' setting.",

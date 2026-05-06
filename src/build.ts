@@ -77,7 +77,7 @@ export async function build_project(
   if (!program || !jungleFiles || !developerKeyPath || !workspace) {
     throw new Error("Required arguments were missing!");
   }
-  const exe = "java";
+  const exe = options.javaPath ? `${options.javaPath}/bin/java` : "java";
   const args = [
     ["-Xms1g", "-Dfile.encoding=UTF-8", "-Dapple.awt.UIElement=true"],
     ["-cp", path.resolve(sdk, "bin", "monkeybrains.jar")],
