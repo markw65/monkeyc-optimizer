@@ -17,7 +17,9 @@ function inlineNeedsLocalImport() as Number {
 
 (:inline)
 function inlineNeedsToyboxImport() as PropertyValueType {
-    return Application has :Storage ? Storage.getValue("a") : null;
+    return Application has :Storage
+        ? Storage.getValue("a") as PropertyValueType
+        : null;
 }
 
 (:typecheck(false))
