@@ -1353,34 +1353,40 @@ export function formatScopedName(
   return `${formatScopedName(node.object)}.${node.property.name}`;
 }
 
-export function formatAstLongLines(node: mctree.Node) {
-  const filter = (s: mctree.Node) =>
-    s.type !== "ClassDeclaration" &&
-    s.type !== "ModuleDeclaration" &&
-    s.type !== "FunctionDeclaration";
-  switch (node.type) {
-    case "ClassDeclaration":
-      if (node.body?.body) {
-        node = { ...node };
-        node.body = { ...node.body };
-        node.body.body = node.body.body.filter((c) => filter(c.item));
-      }
-      break;
-    case "ModuleDeclaration":
-      if (node.body?.body) {
-        node = { ...node };
-        node.body = { ...node.body };
-        node.body.body = node.body.body.filter(filter);
-      }
-      break;
-    case "Program":
-      if (node.body) {
-        node = { ...node };
-        node.body = node.body.filter(filter);
-      }
-      break;
+export function formatAstWithFilter(node: mctree.Node, doFilter: boolean) {
+  if (doFilter) {
+    const filter = (s: mctree.Node) =>
+      s.type !== "ClassDeclaration" &&
+      s.type !== "ModuleDeclaration" &&
+      s.type !== "FunctionDeclaration";
+    switch (node.type) {
+      case "ClassDeclaration":
+        if (node.body?.body) {
+          node = { ...node };
+          node.body = { ...node.body };
+          node.body.body = node.body.body.filter((c) => filter(c.item));
+        }
+        break;
+      case "ModuleDeclaration":
+        if (node.body?.body) {
+          node = { ...node };
+          node.body = { ...node.body };
+          node.body.body = node.body.body.filter(filter);
+        }
+        break;
+      case "Program":
+        if (node.body) {
+          node = { ...node };
+          node.body = node.body.filter(filter);
+        }
+        break;
+    }
   }
   return formatAst(node, null, { printWidth: 10000 });
+}
+
+export function formatAstLongLines(node: mctree.Node) {
+  return formatAstWithFilter(node, true);
 }
 
 export async function createDocumentationMap(

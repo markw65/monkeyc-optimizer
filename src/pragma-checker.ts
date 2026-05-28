@@ -1,5 +1,5 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
-import { checkCompilerVersion, diagnostic, formatAstLongLines } from "./api";
+import { checkCompilerVersion, diagnostic, formatAstWithFilter } from "./api";
 import { traverseAst } from "./ast";
 import { Diagnostic, ProgramStateAnalysis } from "./optimizer-types";
 
@@ -16,14 +16,20 @@ export function pragmaChecker(
   let diagIndex = 0;
   let index = -1;
   let comment: mctree.Comment;
-  let matchers: { kind: string; quote: string; needle: string }[];
+  let matchers: {
+    kind: string;
+    quote: string;
+    needle: string;
+    noFilter: boolean;
+  }[];
   const next = () => {
     while (++index < comments.length) {
       comment = comments[index];
-      let match = comment.value.match(/^\s*@(match|expect)\s+(.+)/);
+      let match = comment.value.match(/^\s*@(match|expect)\s+(>\s*)?(.+)/);
       if (!match) continue;
       const kind = match[1];
-      let str = match[2];
+      const noFilter = !!match[2];
+      let str = match[3];
       const verCheck = checkCompilerVersion(
         str.replace(/\s.*/, ""),
         state.sdkVersion || 0
@@ -36,7 +42,7 @@ export function pragmaChecker(
       while (
         (match = str.match(/^([/%&#@"])(.+?(?<!\\)(?:\\{2})*)\1(\s+|$)/))
       ) {
-        matchers.push({ kind, quote: match[1], needle: match[2] });
+        matchers.push({ kind, quote: match[1], needle: match[2], noFilter });
         str = str.substring(match[0].length);
         if (!str.length) break;
       }
@@ -44,7 +50,7 @@ export function pragmaChecker(
       if (!matchers.length) {
         match = str.match(/^(\S+)\s+$/);
         if (match) {
-          matchers.push({ kind, quote: '"', needle: match[1] });
+          matchers.push({ kind, quote: '"', needle: match[1], noFilter });
           break;
         }
       }
@@ -84,11 +90,11 @@ export function pragmaChecker(
       return false;
     }
     if (node.start && node.start >= (comment.end || Infinity)) {
-      const { kind, quote, needle } = matchers.shift()!;
+      const { kind, quote, needle, noFilter } = matchers.shift()!;
       const thisComment = comment;
       if (kind === "match") {
         promise = promise.then(() =>
-          formatAstLongLines(node).then((haystack) => {
+          formatAstWithFilter(node, !noFilter).then((haystack) => {
             haystack = haystack
               .replace(/([\r\n]|\s)+/g, " ")
               .replace(/\b\w+\s\/\*>([\w.]+)<\*\//g, "$1");
