@@ -2,6 +2,16 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.99
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.66](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1066)
+  - Fix a bug where `function f() as /* comment */ T` could get formatted as `function f() as (/* comment */ T)`, which doesn't parse.
+  - Fix [Issue #8](https://github.com/markw65/prettier-plugin-monkeyc/issues/8)
+    - Wrap `class E extends T {` if it exceeds the line length by indenting `extends T` on a new line, and breaking again before `{`
+    - When `var v as T;` wraps after the `as`, indent the `T`
+    - Wrap `function f() as T {` after `as` if it would exceed the line length.
+- Add missing references from `button` resources, so that Delegate functions don't get removed.
+
 ### 1.1.98
 
 - Add support for `monkeyC.javaPath`. Fixes [#82](https://github.com/markw65/monkeyc-optimizer/issues/82#top)
