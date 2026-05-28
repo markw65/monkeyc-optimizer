@@ -6,6 +6,8 @@
         </drawable>
         <!-- OK -->
         <drawable id="MyDrawable2" class="CustomDrawable" />
+        <button id="MyButton" class="CustomButton" behavior="myBehavior" x="0" y="0" width="10%"
+            height="10%" />
     </layout>
     <bitmap id="system_icon_dark__check" personality="system_icon_dark__check" />
 </resources>

@@ -482,6 +482,27 @@ function visit_resource_refs(
           }
         }
         return;
+      case "button":
+        if (id === "class") {
+          parseArg(dotted, l);
+        } else if (id === "behavior") {
+          if (/^[A-Za-z_]\w*$/.test(dotted)) {
+            const idLoc = adjustLoc(l, 0, 0);
+            const argument = makeIdentifier(dotted, idLoc);
+            result.push(
+              wrap(
+                {
+                  type: "UnaryExpression",
+                  operator: ":",
+                  argument,
+                  prefix: true,
+                },
+                idLoc
+              )
+            );
+          }
+        }
+        break;
       case "shape":
       case "bitmap":
       case "drawable-list":

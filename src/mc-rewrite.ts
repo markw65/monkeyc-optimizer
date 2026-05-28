@@ -1253,9 +1253,28 @@ async function optimizeMonkeyCHelper(
     }
     return null;
   };
-  for (const f of Object.values(fnMap)) {
-    await collectNamespaces(f.ast!, state);
-  }
+
+  const collectAll = async () => {
+    state.nextExposed = {};
+    if (state.rezAst) {
+      const { pre, post } = state;
+      try {
+        delete state.pre;
+        delete state.post;
+        await collectNamespaces(state.rezAst, state);
+      } finally {
+        state.pre = pre;
+        state.post = post;
+      }
+    }
+    for (const f of Object.values(fnMap)) {
+      await collectNamespaces(f.ast!, state);
+    }
+    state.exposed = state.nextExposed;
+    state.nextExposed = {};
+  };
+
+  await collectAll();
 
   enum Changes {
     None = 0,
@@ -1310,13 +1329,7 @@ async function optimizeMonkeyCHelper(
   while (true) {
     state.usedByName = {};
     state.calledFunctions = {};
-    state.exposed = state.nextExposed;
-    state.nextExposed = {};
-    for (const f of Object.values(fnMap)) {
-      await collectNamespaces(f.ast!, state);
-    }
-    state.exposed = state.nextExposed;
-    state.nextExposed = {};
+    await collectAll();
     const changes = await cleanupAll(state);
     if (
       changes & Changes.Force ||
