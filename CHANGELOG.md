@@ -10,7 +10,7 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
     - Wrap `class E extends T {` if it exceeds the line length by indenting `extends T` on a new line, and breaking again before `{`
     - When `var v as T;` wraps after the `as`, indent the `T`
     - Wrap `function f() as T {` after `as` if it would exceed the line length.
-- Add missing references from `button` resources, so that Delegate functions don't get removed.
+- Add missing code references from `button` resources, so that Delegate functions don't get removed.
 
 ### 1.1.98
 
