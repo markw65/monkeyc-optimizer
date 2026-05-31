@@ -56,7 +56,7 @@
   "author": "markw65",
   "license": "MIT",
   "dependencies": {
-    "@markw65/prettier-plugin-monkeyc": "^1.0.67",
+    "@markw65/prettier-plugin-monkeyc": "^1.0.68",
     "7z-wasm": "^1.2.0"
   },
   "devDependencies": {
