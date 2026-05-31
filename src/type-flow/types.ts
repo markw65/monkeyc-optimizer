@@ -1048,7 +1048,7 @@ export function mustBeFalse(arg: ExactOrUnion) {
   );
 }
 
-export function display(type: ExactOrUnion): string {
+export function display(type: ExactOrUnion, forUi = false): string {
   const names = <T>(v: T | T[] | null, fn: (v: T) => string) =>
     map(v, fn)
       .sort()
@@ -1104,7 +1104,7 @@ export function display(type: ExactOrUnion): string {
         if (!klass.value) return undefined;
         const obj = tv.value.obj;
         const ret = displayOne({ type: TypeTag.Class, value: klass.value });
-        return obj
+        return obj && !forUi
           ? `${ret}<{${Object.entries(obj)
               .map(([key, value]) => `${key}: ${display(value)}`)
               .join(", ")}}>`
