@@ -702,11 +702,9 @@ export function typeFromSingleTypeSpec(
       if (type.callspec) {
         // only legal thing here is Method(<args>) as <result>
         // For now, make it an instance of an unknown class.
-        const result = typeFromTypespec(
-          state,
-          type.callspec.returnType.argument,
-          stack
-        );
+        const result = type.callspec.returnType
+          ? typeFromTypespec(state, type.callspec.returnType.argument, stack)
+          : { type: TypeTag.Any };
         const args = type.callspec.params.map((param) =>
           param.type === "BinaryExpression"
             ? typeFromTypespec(state, param.right, stack)

@@ -9,6 +9,7 @@ import {
   variableDeclarationName,
 } from "./api";
 import { cloneDeep, traverseAst, withLoc, withLocDeep } from "./ast";
+import { unhandledType } from "./data-flow";
 import {
   findCallees,
   findCalleesForNew,
@@ -24,7 +25,6 @@ import {
   VariableStateNode,
 } from "./optimizer-types";
 import { renameVariable } from "./variable-renamer";
-import { unhandledType } from "./data-flow";
 
 // Note: Keep in sync with replaceInlinedSubExpression below
 export function inlinableSubExpression(expr: mctree.Expression) {
@@ -619,10 +619,12 @@ function processInlineBody<T extends InlineBody>(
                     ? { ...p, right: fixupType(p.right) }
                     : p
                 ),
-                returnType: {
-                  ...node.callspec.returnType,
-                  argument: fixupType(node.callspec.returnType.argument),
-                },
+                returnType: node.callspec.returnType
+                  ? {
+                      ...node.callspec.returnType,
+                      argument: fixupType(node.callspec.returnType.argument),
+                    }
+                  : undefined,
               },
             };
           }
