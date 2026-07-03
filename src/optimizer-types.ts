@@ -169,6 +169,7 @@ export type ProgramState = {
   nestedClasses?: Record<string, ClassStateNode[]>;
   allModules?: Set<ModuleStateNode>;
   allCached?: Set<TypedefStateNode | VariableStateNode | EnumStateNode>;
+  calledInterfaces?: Map<FunctionStateNode, mctree.ClassElement[][]>;
   invokeInfo?: FunctionInfo;
   allDeclarations?: Record<string, ByNameStateNodeDecls[]>;
   fnMap?: FilesToOptimizeMap;

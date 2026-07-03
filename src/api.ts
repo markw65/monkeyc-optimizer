@@ -43,6 +43,7 @@ import { findObjectDeclsByProperty } from "./type-flow/type-flow-util";
 import { getStateNodeDeclsFromType, typeFromLiteral } from "./type-flow/types";
 import { log, logPromise, pushUnique, sameArrays } from "./util";
 import { RootStateNode } from "./control-flow";
+import { SingleTypeSpec } from "@markw65/prettier-plugin-monkeyc/build/estree-types";
 
 export { visitReferences, visitorNode } from "./visitor";
 export { hasProperty, traverseAst, visit_resources };
@@ -1649,6 +1650,42 @@ export function getApiFunctionInfo(
   state: ProgramState,
   func: FunctionStateNode
 ): FunctionInfo | false {
+  const processInterfaces = (tsp: SingleTypeSpec) => {
+    if (tsp.type !== "TypeSpecPart" || tsp.callspec || tsp.generics) {
+      return;
+    }
+    if (tsp.body?.body) {
+      const intf = tsp.body.body as unknown as mctree.ClassElement[];
+      if (intf.some((item) => item.item.type === "FunctionDeclaration")) {
+        if (!state.calledInterfaces) {
+          state.calledInterfaces = new Map();
+        }
+        const elems = state.calledInterfaces.get(func);
+        if (!elems) {
+          state.calledInterfaces.set(func, [intf]);
+        } else {
+          pushUnique(elems, intf);
+        }
+      }
+      return;
+    }
+    if (typeof tsp.name !== "string" && state.lookupType) {
+      const [, results] = state.lookupType(tsp.name);
+      if (!results) return;
+      results.forEach((result) =>
+        result.results.forEach((sn) => {
+          if (sn.type === "TypedefDeclaration") {
+            sn.node.ts.argument.ts.forEach(processInterfaces);
+          }
+        })
+      );
+    }
+  };
+  func.node.params?.forEach(
+    (param) =>
+      param.type === "BinaryExpression" &&
+      param.right.ts.forEach(processInterfaces)
+  );
   if (
     func.fullName === "$.Toybox.Lang.Method.invoke" ||
     (func.node.params &&

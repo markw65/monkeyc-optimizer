@@ -61,8 +61,8 @@ export function evaluateCall(
       node.callee.type === "Identifier"
         ? node.callee
         : node.callee.type === "MemberExpression" && !node.callee.computed
-        ? node.callee.property
-        : null;
+          ? node.callee.property
+          : null;
     if (name) {
       const decls = istate.state.allFunctions[name.name];
       if (decls) {
@@ -128,6 +128,15 @@ export function checkCallArgs(
       let returnType: ExactOrUnion | null = null;
       let effects = true;
       let argEffects = true;
+
+      istate.state.calledInterfaces?.get(cur)?.forEach((elems) =>
+        elems.forEach((elem) => {
+          if (elem.item.type === "FunctionDeclaration") {
+            istate.state.nextExposed[elem.item.id.name] = true;
+          }
+        })
+      );
+
       const object = calleeObjectType(istate, node.callee);
       if (object) {
         const info = sysCallInfo(istate.state, cur);
@@ -797,8 +806,8 @@ function getSystemCallTable(state: ProgramStateAnalysis) {
         type: flags.mustBeDouble
           ? TypeTag.Double
           : flags.mayBeDouble
-          ? TypeTag.Decimal
-          : TypeTag.Float,
+            ? TypeTag.Decimal
+            : TypeTag.Float,
       };
       results.returnType = returnType;
       if (
