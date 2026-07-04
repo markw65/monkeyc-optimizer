@@ -2,6 +2,13 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.101
+
+- Update to [@markw65/prettier-plugin-monkeyc@1.0.69](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1069)
+  - Update exported types to indicate that `Method.returnType` is optional
+- Fix a crash handling `Method` types with no return type
+- If a `Toybox` function takes an `interface` parameter, and the function is called, mark all methods in the `interface` as used.
+
 ### 1.1.100
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.68](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1068)
