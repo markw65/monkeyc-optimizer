@@ -26,14 +26,14 @@ export const githubProjects: RemoteProject[] = [
     options: { typeCheckLevel: "Strict" },
     include: "DataFieldWithBarrels/monkey.jungle",
   },
-  {
+  /* {
     root: "https://github.com/ad220/gopro-remote-connectiq",
     options: {
       checkCompilerLookupRules: "INFO",
       checkInvalidSymbols: "WARNING",
     },
     test: true,
-  },
+  }, */
   "https://bitbucket.org/mike_polatoglou/moonphase",
   "https://bitbucket.org/obagot/connectiq-hict",
   "https://bitbucket.org/villagehymn/marklaying",
