@@ -431,12 +431,14 @@ export interface Getmv extends BaseOpcode {
   arg: { module: number; var: number };
 }
 
+// equivalent to lgetv local; spush var; getv
 export interface Getlocalv extends BaseOpcode {
   op: Opcodes.getlocalv;
   arg: { local: number; var: number };
   range?: LocalRange;
 }
 
+// equivalent to spush <arg>; getv
 export interface Getsv extends WordArg {
   op: Opcodes.getsv;
 }
@@ -804,6 +806,94 @@ export function opcodeSize(op: Opcodes) {
     case Opcodes.dpush:
     case Opcodes.getmv:
       return 9;
+    case Opcodes.ts:
+      throw new Error(`Unknown opcode ${op}`);
+    default:
+      unhandledType(op);
+  }
+}
+
+export function opcodeMayThrow(op: Opcodes) {
+  switch (op) {
+    case Opcodes.apush:
+    case Opcodes.bapush:
+    case Opcodes.bf:
+    case Opcodes.bfpush:
+    case Opcodes.bpush:
+    case Opcodes.bt:
+    case Opcodes.btpush:
+    case Opcodes.canhazplz:
+    case Opcodes.cpush:
+    case Opcodes.dpush:
+    case Opcodes.dpushz:
+    case Opcodes.dup:
+    case Opcodes.eq:
+    case Opcodes.fpush:
+    case Opcodes.fpushz:
+    case Opcodes.frpush:
+    case Opcodes.getm:
+    case Opcodes.getself:
+    case Opcodes.goto:
+    case Opcodes.hpush:
+    case Opcodes.incsp:
+    case Opcodes.ipush:
+    case Opcodes.ipush1:
+    case Opcodes.ipush2:
+    case Opcodes.ipush3:
+    case Opcodes.ipushz:
+    case Opcodes.isa:
+    case Opcodes.isnotnull:
+    case Opcodes.isnull:
+    case Opcodes.jsr:
+    case Opcodes.lgetv:
+    case Opcodes.lpush:
+    case Opcodes.lpushz:
+    case Opcodes.lputv:
+    case Opcodes.ne:
+    case Opcodes.newa:
+    case Opcodes.newba:
+    case Opcodes.newc:
+    case Opcodes.newd:
+    case Opcodes.news:
+    case Opcodes.nop:
+    case Opcodes.npush:
+    case Opcodes.popv:
+    case Opcodes.ret:
+    case Opcodes.return:
+    case Opcodes.spush:
+      return false;
+
+    case Opcodes.addv:
+    case Opcodes.agetv:
+    case Opcodes.andv:
+    case Opcodes.aputv:
+    case Opcodes.aputvdup:
+    case Opcodes.argc:
+    case Opcodes.argcincsp:
+    case Opcodes.divv:
+    case Opcodes.getlocalv:
+    case Opcodes.getmv:
+    case Opcodes.getselfv:
+    case Opcodes.getsv:
+    case Opcodes.getv:
+    case Opcodes.gt:
+    case Opcodes.gte:
+    case Opcodes.invokem:
+    case Opcodes.invokemz:
+    case Opcodes.invv:
+    case Opcodes.lt:
+    case Opcodes.lte:
+    case Opcodes.modv:
+    case Opcodes.mulv:
+    case Opcodes.orv:
+    case Opcodes.putv:
+    case Opcodes.shlv:
+    case Opcodes.shrv:
+    case Opcodes.subv:
+    case Opcodes.throw:
+    case Opcodes.xorv:
+      return true;
+
     case Opcodes.ts:
       throw new Error(`Unknown opcode ${op}`);
     default:

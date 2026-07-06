@@ -22,6 +22,7 @@ import {
   Opcodes,
   Putv,
   opReadsLocal,
+  opcodeMayThrow,
 } from "./opcodes";
 
 function cloneLive(locals: Map<number, Set<Bytecode>> | undefined) {
@@ -322,6 +323,12 @@ function computeSplitRanges(
     func,
     (block) => cloneLive(liveOutLocals.get(block.offset)),
     (block, bc, locals) => {
+      if (block.exsucc && opcodeMayThrow(bc.op)) {
+        const from = liveInLocals.get(block.exsucc);
+        if (from) {
+          mergeInto(from, locals);
+        }
+      }
       switch (bc.op) {
         case Opcodes.getself:
         case Opcodes.getselfv:
@@ -356,16 +363,6 @@ function computeSplitRanges(
           locals.delete(bc.arg);
           break;
         }
-        case Opcodes.throw:
-        case Opcodes.invokem:
-        case Opcodes.invokemz:
-          if (block.exsucc) {
-            const from = liveInLocals.get(block.exsucc);
-            if (from) {
-              mergeInto(from, locals);
-            }
-          }
-          break;
         default:
           assert(opReadsLocal(bc) == null);
       }

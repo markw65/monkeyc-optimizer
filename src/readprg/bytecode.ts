@@ -14,6 +14,7 @@ import {
   LocalRange,
   Opcodes,
   isCondBranch,
+  opcodeMayThrow,
   opcodeSize,
 } from "./opcodes";
 import { optimizeFunc } from "./optimize";
@@ -584,14 +585,12 @@ export function findFunctions({
     const nextBcOffset = offsetAfter(bytecode);
     next = nextBcOffset;
     taken = undefined;
+    if (opcodeMayThrow(bytecode.op)) {
+      mayThrow = true;
+    }
     switch (bytecode.op) {
       case Opcodes.throw:
-        mayThrow = true;
         next = undefined;
-        break;
-      case Opcodes.invokem:
-      case Opcodes.invokemz:
-        mayThrow = true;
         break;
       case Opcodes.return:
       case Opcodes.ret:
@@ -814,14 +813,7 @@ export function redirect(
 export function splitBlock(func: FuncEntry, block: Block, offset: number) {
   const fixEx = (block: Block, isNew: boolean) => {
     if (block.exsucc) {
-      if (
-        !block.bytecodes.some(
-          (bc) =>
-            bc.op === Opcodes.throw ||
-            bc.op === Opcodes.invokem ||
-            bc.op === Opcodes.invokemz
-        )
-      ) {
+      if (!block.bytecodes.some((bc) => opcodeMayThrow(bc.op))) {
         if (!isNew) {
           removePred(func, block.exsucc, block.offset);
         }

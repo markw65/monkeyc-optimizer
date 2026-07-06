@@ -7,7 +7,14 @@ import {
   functionBanner,
 } from "./bytecode";
 import { computeDominators, intersect, postOrderTraverse } from "./cflow";
-import { Argcincsp, Bytecode, Incsp, Opcodes, opcodeSize } from "./opcodes";
+import {
+  Argcincsp,
+  Bytecode,
+  Incsp,
+  opcodeMayThrow,
+  Opcodes,
+  opcodeSize,
+} from "./opcodes";
 
 export function sizeBasedPRE(func: FuncEntry, context: Context) {
   if (func.argc == null) {
@@ -111,7 +118,7 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
   });
   let nextSlot =
     func.argc +
-    (incSp?.op === Opcodes.incsp ? incSp.arg : incSp?.arg.incsp ?? 0);
+    (incSp?.op === Opcodes.incsp ? incSp.arg : (incSp?.arg.incsp ?? 0));
   const bytecode = <T extends Opcodes>(
     op: T,
     arg: Extract<Bytecode, { op: T }>["arg"]
@@ -151,25 +158,22 @@ export function sizeBasedPRE(func: FuncEntry, context: Context) {
     // if the one of the target bytecodes is in the target block,
     // then we want to insert just before it
     let index = block.bytecodes.findIndex(
-      (bc) =>
-        bcs.has(bc) ||
-        (block.exsucc &&
-          (bc.op === Opcodes.invokem ||
-            bc.op === Opcodes.invokemz ||
-            bc.op === Opcodes.throw))
+      (bc) => bcs.has(bc) || (block.exsucc && opcodeMayThrow(bc.op))
     );
     if (index < 0) {
       // if its not there, we want to insert at the end; except we can't insert
       // after a conditional branch, or a throw (or a return, but that should
       // never happen)
-      if (block.next && !block.taken) {
+      // note that leaving it as -1 will insert before the last bytecode - exactly
+      // what we want if it ends in a conditional branch.
+      if (block.next && block.taken == null) {
         index = block.bytecodes.length;
       }
     }
     const bc: Bytecode = bcs.values().next().value!;
     const slot = nextSlot++;
     if (bc.op === Opcodes.getm) {
-      assert(index !== 0);
+      assert(block.try || index !== 0);
       let spush = null as Bytecode | null;
       func.blocks.forEach(
         (b) =>

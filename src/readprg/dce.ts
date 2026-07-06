@@ -9,7 +9,13 @@ import {
   offsetToString,
 } from "./bytecode";
 import { postOrderPropagate } from "./cflow";
-import { Bytecode, getOpInfo, Opcodes, opReadsLocal } from "./opcodes";
+import {
+  Bytecode,
+  getOpInfo,
+  opcodeMayThrow,
+  Opcodes,
+  opReadsLocal,
+} from "./opcodes";
 
 export function localDCE(func: FuncEntry, context: Context) {
   if (wouldLog("dce", 5)) {
@@ -117,6 +123,13 @@ export function localDCE(func: FuncEntry, context: Context) {
 
     for (let i = block.bytecodes.length; i--; ) {
       const bytecode = block.bytecodes[i];
+      if (block.exsucc && opcodeMayThrow(bytecode.op)) {
+        // if there's an exsucc and the opcode might throw we need to mark all
+        // the locals that are live into the exsucc as live here.
+        liveInLocals
+          .get(block.exsucc)
+          ?.forEach((local) => dceInfo.locals.add(local));
+      }
       switch (bytecode.op) {
         case Opcodes.lputv: {
           const liveLocal = dceInfo.locals.has(bytecode.arg);
@@ -247,15 +260,6 @@ export function localDCE(func: FuncEntry, context: Context) {
         case Opcodes.throw:
         case Opcodes.invokem:
         case Opcodes.invokemz:
-          // A call might throw, so if there's an exsucc
-          // we need to mark all the locals that are live
-          // into the exsucc as live here.
-          if (block.exsucc) {
-            liveInLocals
-              .get(block.exsucc)
-              ?.forEach((local) => dceInfo.locals.add(local));
-          }
-        // fallthrough
         case Opcodes.aputv:
         case Opcodes.aputvdup:
         case Opcodes.argc:
@@ -306,18 +310,12 @@ export function computeLiveLocals(func: FuncEntry) {
     func,
     (block) => new Set(liveOutLocals.get(block.offset)),
     (block, bc, locals) => {
+      if (block.exsucc && opcodeMayThrow(bc.op)) {
+        liveInLocals.get(block.exsucc)?.forEach((local) => locals.add(local));
+      }
       switch (bc.op) {
         case Opcodes.lputv:
           locals.delete(bc.arg);
-          break;
-        case Opcodes.throw:
-        case Opcodes.invokem:
-        case Opcodes.invokemz:
-          if (block.exsucc) {
-            liveInLocals
-              .get(block.exsucc)
-              ?.forEach((local) => locals.add(local));
-          }
           break;
         default: {
           const local = opReadsLocal(bc);

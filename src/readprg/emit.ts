@@ -8,6 +8,7 @@ import {
   Bytecode,
   emitBytecode,
   isCondBranch,
+  opcodeMayThrow,
   Opcodes,
   opReadsLocal,
 } from "./opcodes";
@@ -321,6 +322,12 @@ function getLocalsInfo(func: FuncEntry) {
     func,
     (block) => new Map(liveOutLocals.get(block.offset)),
     (block, bc, locals) => {
+      if (block.exsucc && opcodeMayThrow(bc.op)) {
+        const from = liveInLocals.get(block.exsucc);
+        if (from) {
+          mergeInto(from, locals);
+        }
+      }
       switch (bc.op) {
         case Opcodes.getlocalv:
         case Opcodes.lgetv: {
@@ -340,17 +347,6 @@ function getLocalsInfo(func: FuncEntry) {
 
         case Opcodes.lputv:
           locals.delete(bc.arg);
-          break;
-
-        case Opcodes.throw:
-        case Opcodes.invokem:
-        case Opcodes.invokemz:
-          if (block.exsucc) {
-            const from = liveInLocals.get(block.exsucc);
-            if (from) {
-              mergeInto(from, locals);
-            }
-          }
           break;
       }
     },

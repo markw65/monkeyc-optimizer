@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { GenericQueue } from "../util";
 import { Block, FuncEntry } from "./bytecode";
-import { Bytecode, Opcodes } from "./opcodes";
+import { Bytecode, opcodeMayThrow, Opcodes } from "./opcodes";
 
 export function postOrderTraverse(
   func: FuncEntry,
@@ -245,12 +245,7 @@ export function rpoPropagate<T>(
           i = -1;
           continue;
         }
-        if (
-          top.exsucc &&
-          (bc.op === Opcodes.invokem ||
-            bc.op === Opcodes.invokemz ||
-            bc.op === Opcodes.throw)
-        ) {
+        if (top.exsucc && opcodeMayThrow(bc.op)) {
           doMerge(top.exsucc, true);
         }
       }
