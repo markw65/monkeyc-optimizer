@@ -494,6 +494,8 @@ export function bytecodeToString(
       }
       break;
     case Opcodes.spush:
+    case Opcodes.getselfv:
+    case Opcodes.getsv:
       arg = symbol(bytecode.arg);
       break;
     case Opcodes.news: {
