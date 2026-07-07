@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.102
+
+- Fix an issue where PRE could insert a local assignment after a bytecode that could throw, even though the local might be used in the catch block.
+
 ### 1.1.101
 
 - Update to [@markw65/prettier-plugin-monkeyc@1.0.69](https://github.com/markw65/prettier-plugin-monkeyc/blob/main/CHANGELOG.md#1069)
