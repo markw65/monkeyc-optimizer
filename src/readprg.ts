@@ -12,7 +12,7 @@ import {
 } from "./readprg/bytecode";
 import { parseData } from "./readprg/data";
 import { parseExceptions } from "./readprg/exceptions";
-import { parseHeader } from "./readprg/header";
+import { Header, parseHeader } from "./readprg/header";
 import { parseLineNum } from "./readprg/linenum";
 import { parseCode } from "./readprg/opcodes";
 import { getDevKey, getPrgSignature, signView } from "./readprg/signer";
@@ -22,11 +22,23 @@ import { SevenZipHandler, unzip7 } from "./unzip7";
 import { logger } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
 
-export async function readPrg(path: string) {
+type ReadPrgResult = {
+  header: Header;
+  [K: number]: number;
+};
+export async function readPrg(path: string): Promise<ReadPrgResult> {
   const { sections } = await readPrgFromFile(path);
-  return Object.fromEntries(
-    Object.entries(sections).map(([key, value]) => [key, value.length])
-  );
+  const result: ReadPrgResult = {
+    ...Object.fromEntries(
+      Object.entries(sections).map(([key, value]) => [key, value.length])
+    ),
+    header: parseHeader(
+      (sections[SectionKinds.HEADER] ?? sections[SectionKinds.HEADER_VERSIONED])
+        .view
+    ),
+  };
+
+  return result;
 }
 
 export async function readPrgFromFile(prg: string) {
