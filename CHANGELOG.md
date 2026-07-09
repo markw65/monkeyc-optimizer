@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.1.103
+
+- Include the .prg Header in the result of readPrg, so that the extension can report glance and background sizes.
+
 ### 1.1.102
 
 - Fix an issue where PRE could insert a local assignment after a bytecode that could throw, even though the local might be used in the catch block.
