@@ -22,7 +22,7 @@ export async function build_project(
     optimizationLevel,
     returnCommand,
   } = options;
-  const sdk = await getSdkPath();
+  const sdk = await getSdkPath(options);
   const extraArgs = [];
   if (compilerOptions) {
     extraArgs.push(...compilerOptions.split(/\s+/));

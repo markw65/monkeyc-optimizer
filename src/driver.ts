@@ -92,15 +92,11 @@ export async function driver() {
   let profile: string | undefined;
   let extraExcludes: string | undefined;
   let allowForbiddenOpts: boolean | undefined;
-  const sourceFiles: string[] = [];
+  let sdkPath: string | undefined;
+  let connectIQPath: string | undefined;
+  let compiler1ArgError: string | undefined;
 
-  const sdk = await getSdkPath();
-  const sdkVersion = (() => {
-    const match = sdk.match(/-(\d+\.\d+\.\d+)/);
-    return match ? parseSdkVersion(match[1]) : 0;
-  })();
-  const supportsCompiler2 =
-    sdkVersion >= 4001006 || sdk.match(/compiler2beta/i);
+  const sourceFiles: string[] = [];
 
   const prev = process.argv.slice(2).reduce<string | null>((key, value) => {
     const match = /^--((?:\w|-)+)(?:=(.*))?$/.exec(value);
@@ -194,9 +190,7 @@ export async function driver() {
         }
         break;
       case "optimizationLevel":
-        if (!supportsCompiler2) {
-          error("optimizationLevel requires a more recent sdk");
-        }
+        compiler1ArgError = "optimizationLevel requires a more recent sdk";
         switch (value?.toLowerCase() ?? null) {
           case null:
             return key;
@@ -215,9 +209,7 @@ export async function driver() {
         ignore_settings_files = !value || /^(true|1)$/i.test(value);
         break;
       case "garminOptLevel":
-        if (!supportsCompiler2) {
-          error("garminOptLevel requires a more recent sdk");
-        }
+        compiler1ArgError = "garminOptLevel requires a more recent sdk";
         if (value == null) return key;
         extraMonkeycArgs.push(`-O${value}`);
         break;
@@ -273,8 +265,8 @@ export async function driver() {
         sizeBasedPRE = /^(true|1)$/i.test(value)
           ? true
           : /^(false|0)$/i.test(value)
-          ? false
-          : value;
+            ? false
+            : value;
         break;
       case "preSkipLiterals":
         preSkipLiterals = !value || /^(true|1)$/i.test(value);
@@ -375,6 +367,7 @@ export async function driver() {
     return null;
   }, null);
   if (prev) error(`Missing arg for '${prev}'`);
+
   if (checkTypes == null) {
     checkTypes =
       typeCheckLevel.toLowerCase() === "strict" ? "ERROR" : "WARNING";
@@ -384,6 +377,8 @@ export async function driver() {
   }
   const getOptions = (options: BuildConfig) => {
     options = {
+      sdkPath,
+      connectIQPath,
       developerKeyPath,
       outputPath,
       products,
@@ -422,8 +417,20 @@ export async function driver() {
     return options;
   };
 
+  const baseOptions = await getConfig({});
+  const sdk = await getSdkPath(baseOptions);
+  const sdkVersion = (() => {
+    const match = sdk.match(/-(\d+\.\d+\.\d+)/);
+    return match ? parseSdkVersion(match[1]) : 0;
+  })();
+  const supportsCompiler2 =
+    sdkVersion >= 4001006 || sdk.match(/compiler2beta/i);
+
+  if (compiler1ArgError && !supportsCompiler2) {
+    error(compiler1ArgError);
+  }
   if (!developerKeyPath) {
-    developerKeyPath = (await getConfig({})).developerKeyPath;
+    developerKeyPath = baseOptions.developerKeyPath;
   }
   if (postProcess) {
     await optimizeProgram(
@@ -548,7 +555,7 @@ export async function driver() {
         program: string;
         product: string | null;
         hasTests: boolean;
-      } | null
+      } | null,
     >(
       res: T
     ) => {
@@ -648,67 +655,74 @@ export async function driver() {
           analyzeOnly
             ? doAnalyzeOnly()
             : genOnly
-            ? profileWithBlocking("generate", () =>
-                runTaskInPool({
-                  type: "generateOptimizedProject",
-                  data: {
-                    options,
-                  },
-                })
-              ).then(({ diagnostics }) =>
-                reportDiagnostics(diagnostics, logger, extraArgs)
-              )
-            : profileWithBlocking("build", () =>
-                runTaskInPool({
-                  type: "buildOptimizedProject",
-                  data: {
-                    product: products ? products[0] : null,
-                    options,
-                  },
-                })
-              )
-                .then(
-                  ({ exe, args, program, product, hasTests, diagnostics }) => {
-                    reportDiagnostics(diagnostics, logger, extraArgs);
-                    args.push(...extraArgs);
-                    logger(
-                      [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
-                    );
-                    return Promise.all([
-                      {
-                        program,
-                        product,
-                        hasTests,
-                      },
-                      spawnByLine(exe, args, logger, {
-                        cwd: workspace,
-                      }),
-                    ]);
-                  }
+              ? profileWithBlocking("generate", () =>
+                  runTaskInPool({
+                    type: "generateOptimizedProject",
+                    data: {
+                      options,
+                    },
+                  })
+                ).then(({ diagnostics }) =>
+                  reportDiagnostics(diagnostics, logger, extraArgs)
                 )
-                .then(([res]) => (postOptimize ? showInfoFn(res) : res))
-                .then((res) => {
-                  return Promise.all([
-                    postOptimize
-                      ? {
-                          program:
-                            path.join(
-                              path.dirname(res.program),
-                              path.basename(res.program, ".prg")
-                            ) + ".opt.prg",
-                          product: res.product,
-                          hasTests: res.hasTests,
-                        }
-                      : res,
-                    postOptimize &&
-                      optimizeProgram(
-                        res.program,
-                        developerKeyPath,
-                        undefined,
-                        options
-                      ),
-                  ]).then(([res]) => res);
-                })
+              : profileWithBlocking("build", () =>
+                  runTaskInPool({
+                    type: "buildOptimizedProject",
+                    data: {
+                      product: products ? products[0] : null,
+                      options,
+                    },
+                  })
+                )
+                  .then(
+                    ({
+                      exe,
+                      args,
+                      program,
+                      product,
+                      hasTests,
+                      diagnostics,
+                    }) => {
+                      reportDiagnostics(diagnostics, logger, extraArgs);
+                      args.push(...extraArgs);
+                      logger(
+                        [exe, ...args].map((a) => JSON.stringify(a)).join(" ")
+                      );
+                      return Promise.all([
+                        {
+                          program,
+                          product,
+                          hasTests,
+                        },
+                        spawnByLine(exe, args, logger, {
+                          cwd: workspace,
+                        }),
+                      ]);
+                    }
+                  )
+                  .then(([res]) => (postOptimize ? showInfoFn(res) : res))
+                  .then((res) => {
+                    return Promise.all([
+                      postOptimize
+                        ? {
+                            program:
+                              path.join(
+                                path.dirname(res.program),
+                                path.basename(res.program, ".prg")
+                              ) + ".opt.prg",
+                            product: res.product,
+                            hasTests: res.hasTests,
+                          }
+                        : res,
+                      postOptimize &&
+                        optimizeProgram(
+                          res.program,
+                          developerKeyPath,
+                          undefined,
+                          options
+                        ),
+                    ]).then(([res]) => res);
+                  })
         )
       )
       .then((res) => showInfoFn(res))
@@ -796,7 +810,8 @@ export async function driver() {
               res.program,
               res.product!,
               pass === undefined ? testBuild : false,
-              handler
+              handler,
+              options
             );
           const serializePromise = serializeSim.promise
             .then(sim)
@@ -970,7 +985,8 @@ function trySim(
   program: string,
   product: string,
   runTests: boolean | string,
-  handler: (line: string) => void
+  handler: (line: string) => void,
+  options: BuildConfig
 ) {
   return (
     process.platform === "darwin"
@@ -983,9 +999,9 @@ function trySim(
         })
       : Promise.resolve()
   )
-    .then(() => launchSimulator(!runTests))
+    .then(() => launchSimulator(!runTests, options))
     .then(() =>
-      simulateProgram(program, product!, runTests, [handler, handler])
+      simulateProgram(program, product!, runTests, [handler, handler], options)
     )
     .catch((e) => {
       if (e === 1) return;

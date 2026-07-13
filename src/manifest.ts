@@ -1,5 +1,6 @@
 import * as fs from "fs/promises";
 import { getDeviceInfo, xmlUtil } from "./sdk-util";
+import { BuildConfig } from "./build-config";
 
 export type ManifestXML = xmlUtil.Document;
 
@@ -113,7 +114,8 @@ export function manifestLanguages(manifest: ManifestXML): string[] | undefined {
 
 export async function checkManifest(
   manifest: ManifestXML,
-  products: string[]
+  products: string[],
+  config: BuildConfig | undefined
 ): Promise<boolean> {
   if (manifest.body instanceof Error) {
     throw manifest.body;
@@ -140,7 +142,7 @@ export async function checkManifest(
     );
   }
   const type = attrs.type?.value.value.replace(/-/g, "").toLowerCase();
-  const deviceInfo = await getDeviceInfo();
+  const deviceInfo = await getDeviceInfo(config);
   const allowedProducts = products.sort().filter(
     (p) =>
       deviceInfo[p] &&

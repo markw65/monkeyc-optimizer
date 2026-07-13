@@ -2,6 +2,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { globa } from "./util";
 import { parseXml, Element } from "./xml-util";
+import { BuildConfig } from "./build-config";
 
 export { readPrg, optimizeProgram, readPrgWithOffsets } from "./readprg";
 export { SectionKinds } from "./readprg/bytecode";
@@ -12,21 +13,25 @@ export const isWin = process.platform === "win32";
 export const appSupport = isWin
   ? `${process.env.APPDATA}`.replace(/\\/g, "/")
   : process.platform === "linux"
-  ? `${process.env.HOME}/.config`
-  : `${process.env.HOME}/Library/Application Support`;
+    ? `${process.env.HOME}/.config`
+    : `${process.env.HOME}/Library/Application Support`;
 
 export const connectiq =
   process.platform === "linux"
     ? `${process.env.HOME}/.Garmin/ConnectIQ`
     : `${appSupport}/Garmin/ConnectIQ`;
 
-export function getSdkPath() {
+export function getSdkPath(config?: BuildConfig | undefined) {
+  if (config?.sdkPath) {
+    return Promise.resolve(config.sdkPath);
+  }
+  const connectIQPath = config?.connectIQPath || connectiq;
   return fs
-    .readFile(connectiq + "/current-sdk.cfg")
+    .readFile(connectIQPath + "/current-sdk.cfg")
     .then((contents) => contents.toString().replace(/^\s*(.*?)\s*$/s, "$1"))
     .catch(() => {
       throw new Error(
-        `No sdk found at '${connectiq}'. Check your sdk is correctly installed`
+        `No sdk found at '${connectIQPath}'. Check your sdk is correctly installed`
       );
     });
 }
@@ -49,11 +54,14 @@ export type DeviceInfo = {
   };
 };
 
-export async function getDeviceInfo(): Promise<DeviceInfo> {
-  const files = await globa(`${connectiq}/Devices/*/compiler.json`);
+export async function getDeviceInfo(
+  config?: BuildConfig | undefined
+): Promise<DeviceInfo> {
+  const connectIQPath = config?.connectIQPath || connectiq;
+  const files = await globa(`${connectIQPath}/Devices/*/compiler.json`);
   if (!files.length) {
     throw new Error(
-      `No devices found at '${connectiq}/Devices'. Check your sdk is correctly installed`
+      `No devices found at '${connectIQPath}/Devices'. Check your sdk is correctly installed`
     );
   }
   return Promise.all(
@@ -93,14 +101,14 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
   });
 }
 
-async function getProjectInfo() {
-  const file = path.join(await getSdkPath(), "bin", "projectInfo.xml");
+async function getProjectInfo(config: BuildConfig | undefined) {
+  const file = path.join(await getSdkPath(config), "bin", "projectInfo.xml");
   const data = await fs.readFile(file);
   return parseXml(data.toString(), file);
 }
 
-export async function getLanguages() {
-  const projectInfo = await getProjectInfo();
+export async function getLanguages(config?: BuildConfig | undefined) {
+  const projectInfo = await getProjectInfo(config);
   if (projectInfo.body instanceof Error) {
     throw projectInfo.body;
   }
@@ -119,8 +127,10 @@ export async function getLanguages() {
     .filter((s): s is NonNullable<typeof s> => s != null);
 }
 
-export async function getFunctionDocumentation() {
-  const file = path.join(await getSdkPath(), "bin", "api.debug.xml");
+export async function getFunctionDocumentation(
+  config?: BuildConfig | undefined
+) {
+  const file = path.join(await getSdkPath(config), "bin", "api.debug.xml");
   const data = await fs.readFile(file);
   const xml = parseXml(data.toString(), file);
   if (xml.body instanceof Error) {

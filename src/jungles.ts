@@ -75,11 +75,12 @@ function isJNode(obj: unknown): obj is JNode {
 }
 
 type Assignment = { names: string[]; values: JNode[] };
-async function default_jungle() {
+async function default_jungle(config: BuildConfig) {
   const assignments: Array<Assignment> = [];
+  const connectIQPath = config.connectIQPath || connectiq;
   const [devices, languages] = await Promise.all([
-    getDeviceInfo(),
-    getLanguages(),
+    getDeviceInfo(config),
+    getLanguages(config),
   ]);
   const literal = (value: string): Literal => ({ type: "Literal", value });
   const qname = (name: string): JNode => ({
@@ -98,7 +99,7 @@ async function default_jungle() {
     rassign(`${id}.resourcePath`, [literal(rez)], base);
     rassign(
       `${id}.personality`,
-      [literal(`${connectiq}/Devices/${id}`), literal(rez)],
+      [literal(`${connectIQPath}/Devices/${id}`), literal(rez)],
       base
     );
 
@@ -267,12 +268,15 @@ async function parse_one(file: string | string[]) {
 // Read default.jungle, and all jungles in sources, and
 // return a jungle object with all local variables resolved,
 // but all qualifier references left unresolved.
-async function process_jungles(sources: string | (string | string[])[]) {
+async function process_jungles(
+  sources: string | (string | string[])[],
+  config: BuildConfig
+) {
   if (!Array.isArray(sources)) {
     sources = [sources];
   }
   const [{ state, devices }, ...results] = await Promise.all([
-    default_jungle(),
+    default_jungle(config),
     ...sources.map(parse_one),
   ]);
   results.forEach((r) => process_assignments(r, state));
@@ -1241,7 +1245,7 @@ async function get_jungle_and_barrels(
       }
     }
     jungles.forEach((j) => (buildDependencies[j] = true));
-    const { state, devices } = await process_jungles(jungles);
+    const { state, devices } = await process_jungles(jungles, options);
     // apparently square_watch is an alias for rectangle_watch
     state["square_watch"] = state["rectangle_watch"];
     const manifest_node = resolve_node(

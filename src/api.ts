@@ -134,7 +134,7 @@ export async function getApiMapping(
   // get the path to the currently active sdk
   const parser = MonkeyC.parsers.monkeyc;
 
-  const sdk = await getSdkPath();
+  const sdk = await getSdkPath(state?.config);
   if (state) {
     state.sdk = sdk;
     const match = state.sdk?.match(/-(\d+\.\d+\.\d+)/);

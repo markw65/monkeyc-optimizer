@@ -4,11 +4,15 @@ import * as path from "path";
 import { execFile } from "child_process";
 import { getSdkPath, isWin } from "./sdk-util";
 import { LineHandler, log, spawnByLine } from "./util";
+import { BuildConfig } from "./build-config";
 
-export async function launchSimulator(force = true): Promise<void> {
+export async function launchSimulator(
+  force = true,
+  config?: BuildConfig | undefined
+): Promise<void> {
   try {
     if (!force && (await checkIfSimulatorRunning())) return;
-    const sdk = await getSdkPath();
+    const sdk = await getSdkPath(config);
     const child =
       force || process.platform !== "darwin"
         ? execFile(path.resolve(sdk, "bin", isWin ? "simulator" : "connectiq"))
@@ -63,7 +67,8 @@ export function simulateProgram(
   prg: string,
   device: string,
   test: boolean | string = false,
-  logger?: LineHandler | LineHandler[]
+  logger?: LineHandler | LineHandler[],
+  options?: BuildConfig | undefined
 ): Promise<void> {
   const args = [prg, device];
   if (test) {
@@ -72,7 +77,7 @@ export function simulateProgram(
       args.push(test);
     }
   }
-  return getSdkPath().then((sdk) =>
+  return getSdkPath(options).then((sdk) =>
     spawnByLine(
       path.resolve(sdk, "bin", isWin ? "monkeydo.bat" : "monkeydo"),
       args,

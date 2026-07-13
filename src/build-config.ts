@@ -3,6 +3,8 @@ export type LookupRules = "COMPILER1" | "COMPILER2" | "DEFAULT";
 export type EnforceStatic = "YES" | "NO";
 // Configuration options for build
 export type BuildConfig = {
+  sdkPath?: string; // path to the sdk
+  connectIQPath?: string; // path do directory containing Sdks, Devices and Fonts
   ignore_settings_files?: boolean; // For consistent testing, ignore settings.json files
   workspace?: string; // The project's workspace directory
   jungleFiles?: string; // Semicolon separated list of jungle files
@@ -118,6 +120,17 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
     title: "Optimizer",
     type: "object",
     properties: {
+      sdkPath: {
+        type: "string",
+        description: "Path to the SDK to use (optional).",
+        scope: "resource",
+      },
+      connectIQPath: {
+        type: "string",
+        description:
+          "Path to the ConnectIQ directory (containing SDKS, Devices, Fonts and current-sdk.cfg (optional).",
+        scope: "resource",
+      },
       outputPath: {
         type: "string",
         description: "Path to where the optimized project should be generated.",

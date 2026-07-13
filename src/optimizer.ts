@@ -466,7 +466,8 @@ export async function generateOptimizedProject(options: BuildConfig) {
     (!config.checkManifest ||
       (await checkManifest(
         xml,
-        targets.map((t) => t.product)
+        targets.map((t) => t.product),
+        options
       ))) &&
     !dropBarrels;
   let hasTests = false;
@@ -986,7 +987,7 @@ export async function generateOneConfig(
       .sort()
       .every((f, i) => f === actualOptimizedFiles[i])
   ) {
-    const sdk = await getSdkPath();
+    const sdk = await getSdkPath(config);
     const match = sdk.match(/-(\d+\.\d+\.\d+)/);
     if ((match && parseSdkVersion(match[1])) === prevSdkVersion) {
       // now if the newest source file is older than

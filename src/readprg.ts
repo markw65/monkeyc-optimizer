@@ -88,7 +88,7 @@ export async function optimizeProgram(
       .catch(() => "")
       .then((xmlBytes) => xmlUtil.parseXml(xmlBytes.toString())),
 
-    getSdkPath()
+    getSdkPath(config)
       .then((sdk) => fs.readFile(`${sdk}bin/api.debug.xml`))
       .catch(() => "")
       .then((xmlBytes) => xmlUtil.parseXml(xmlBytes.toString())),
@@ -225,7 +225,7 @@ async function optimizePackage(
 
   const [key, deviceInfo] = await Promise.all([
     getDevKey(devKey),
-    getDeviceInfo().then((deviceInfo) =>
+    getDeviceInfo(config).then((deviceInfo) =>
       Object.fromEntries(
         Object.entries(deviceInfo).flatMap(([id, info]) =>
           info.partNumbers.map((part) => [part.number, id] as const)
