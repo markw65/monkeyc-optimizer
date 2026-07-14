@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.0
+
+- Adds `sdkPath` and `connectIQPath` to `BuildConfig`. Various exported methods (such as getSdkPath) get optional config parameters so they can access `sdkPath` and `connectIQPath`, but the API should be backward compatibile.
+
 ### 1.1.103
 
 - Include the .prg Header in the result of readPrg, so that the extension can report glance and background sizes.
