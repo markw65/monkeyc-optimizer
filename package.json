@@ -59,11 +59,15 @@
     "@markw65/prettier-plugin-monkeyc": "^1.0.69",
     "7z-wasm": "^1.2.0"
   },
+  "overrides": {
+    "serialize-javascript": "^7.0.2",
+    "diff": "^8.0.3"
+  },
   "devDependencies": {
     "@markw65/peggy-optimizer": "^1.0.1",
     "@types/chai": "^4.3.4",
     "@types/glob": "^8.0.0",
-    "@types/mocha": "^10.0.1",
+    "@types/mocha": "^10.0.10",
     "@types/priorityqueuejs": "^1.0.1",
     "@typescript-eslint/eslint-plugin": "^5.28.0",
     "@typescript-eslint/parser": "^5.28.0",
@@ -71,7 +75,7 @@
     "esbuild": "^0.25.8",
     "eslint": "^8.12.0",
     "fast-glob": "^3.2.12",
-    "mocha": "^10.2.0",
+    "mocha": "^11.8.0",
     "peggy": "^3.0.2",
     "prettier": "^3.8.1",
     "prettier-plugin-pegjs": "^1.0.1",
