@@ -19,11 +19,13 @@ import { manifestProducts } from "./manifest";
 export type PreAnalysis = {
   fnMap: FilesToOptimizeMap;
   paths: string[];
+  recommendedBaseSourcePath?: string | false;
 };
 
 export type Analysis = {
   fnMap: FilesToOptimizeMap;
   paths: string[];
+  recommendedBaseSourcePath?: string | false;
   state: ProgramStateAnalysis;
   typeMap?: TypeMap | null | undefined;
 };
@@ -61,7 +63,8 @@ async function filesFromPaths(
             path: p,
             filter:
               filter &&
-              /^\*\*[\\/]\*\.mc$/i.test(path.relative(workspace, pattern)),
+              ((p.endsWith("/") && extension === ".mc") ||
+                /^\*\*[\\/]\*\.mc$/i.test(path.relative(workspace, pattern))),
           }))
         )
       ) || []
@@ -157,6 +160,37 @@ export async function fileInfoFromConfig(
   };
 }
 
+function getRecommendedBaseSourcePath(
+  rootDir: string,
+  filePaths: string[]
+): Set<string> | false {
+  const absoluteRoot = path.resolve(rootDir);
+  const results: Set<string> = new Set();
+
+  for (const filePath of filePaths) {
+    const absolutePath = path.resolve(filePath);
+    const relative = path.relative(absoluteRoot, absolutePath);
+
+    // Ensure the file is inside the root, and ignore the root directory itself
+    const isContained =
+      relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+
+    if (isContained) {
+      // Check if the file is directly inside the root (no subdirectories)
+      if (!relative.includes(path.sep)) {
+        return false;
+      } else {
+        // Isolate the first subdirectory segment
+        const firstSegment = relative.split(path.sep)[0];
+        results.add(path.join(absoluteRoot, firstSegment));
+      }
+    }
+  }
+
+  // Optional: Remove duplicate entries if multiple files share a root or subdirectory
+  return results;
+}
+
 export async function getProjectAnalysisHelper(
   targets: Target[],
   analysis: PreAnalysis | null,
@@ -164,8 +198,9 @@ export async function getProjectAnalysisHelper(
   options: BuildConfig
 ): Promise<Analysis | PreAnalysis> {
   const targetInfoMap: Map<string, PreAnalysis> = new Map();
-  const { workspace, outputPath } = options;
-
+  const workspace = options.workspace ?? process.cwd();
+  const outputPath = options.outputPath ?? "bin/optimized";
+  const sourceKeys: Set<string> = new Set();
   const cache: GlobCache = new Map();
 
   const addTargetInfo = async (
@@ -173,19 +208,25 @@ export async function getProjectAnalysisHelper(
     qualifier: JungleQualifier,
     root: string
   ) => {
+    const sourceKey = (qualifier.sourcePath ?? []).sort().join("::");
     const key =
-      (qualifier.sourcePath ?? []).sort().join("::") +
+      name +
+      ":::" +
+      sourceKey +
       ":::" +
       (qualifier.personality ?? []).sort().join("::") +
       ":::" +
       (qualifier.excludeAnnotations ?? []).sort().join("::");
 
     if (targetInfoMap.has(key)) return;
+    if (name === "") {
+      sourceKeys.add(sourceKey);
+    }
     targetInfoMap.set(key, { fnMap: {}, paths: [] });
     const preAnalysis = await fileInfoFromConfig(
       root,
-      path.resolve(workspace!, outputPath ?? "bin/optimized"),
-      workspace!,
+      path.resolve(workspace, outputPath ?? "bin/optimized"),
+      workspace,
       qualifier,
       {},
       name,
@@ -196,7 +237,7 @@ export async function getProjectAnalysisHelper(
 
   await Promise.all(
     targets
-      .map(({ qualifier }) => addTargetInfo("", qualifier, options.workspace!))
+      .map(({ qualifier }) => addTargetInfo("", qualifier, workspace))
       .concat(
         targets.flatMap(({ qualifier }) => {
           if (!qualifier.barrelMap) return [];
@@ -206,6 +247,61 @@ export async function getProjectAnalysisHelper(
         })
       )
   );
+
+  const outputDir = path.resolve(workspace, outputPath);
+  const jungleDir = path.dirname(
+    path.resolve(
+      workspace,
+      (options.jungleFiles ?? "monkey.jungle").split(";")[0]
+    )
+  );
+
+  const [allIncludeOutput, someIncludeOutput] = Array.from(sourceKeys).reduce(
+    (cur, key) => {
+      if (!cur[0] && cur[1]) return cur;
+      const includesOutputdir = key.split("::").map((pattern) => {
+        const canonical = pattern.replace(/([\\/])\*\*[\\/]\*\.mc$/i, "$1");
+        const relative = path.relative(canonical, outputDir);
+        return !relative.startsWith("..") && !path.isAbsolute(relative);
+      });
+      cur[0] = cur[0] && includesOutputdir.every((x) => x);
+      cur[1] = cur[1] || includesOutputdir.some((x) => x);
+      return cur;
+      //!key.includes("::") && key.replace(/\\/g, "/") === defaultBaseSource;
+    },
+    [true, false]
+  );
+
+  const baseSourcePaths = allIncludeOutput
+    ? Array.from(targetInfoMap).reduce<Set<string> | false>(
+        (cur, [key, result]) => {
+          if (cur === false || !key.startsWith(":::")) {
+            return cur;
+          }
+
+          const rec = getRecommendedBaseSourcePath(
+            workspace,
+            Object.keys(result.fnMap).filter((n) => /\.mc$/i.test(n))
+          );
+
+          if (rec === false) {
+            return false;
+          }
+
+          rec.forEach((n) => cur.add(n));
+          return cur;
+        },
+        new Set()
+      )
+    : someIncludeOutput
+      ? false
+      : null;
+
+  const recommendedBaseSourcePath =
+    baseSourcePaths &&
+    Array.from(baseSourcePaths)
+      .map((p) => path.relative(jungleDir, p))
+      .join(";");
 
   const result = Array.from(targetInfoMap.values()).reduce(
     (cur, result) => {
@@ -272,6 +368,7 @@ export async function getProjectAnalysisHelper(
   return {
     ...(await getFnMapAnalysis(fnMap, resourcesMap, manifestXML, options)),
     paths,
+    ...(recommendedBaseSourcePath != null && { recommendedBaseSourcePath }),
   };
 }
 
