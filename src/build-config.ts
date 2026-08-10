@@ -121,14 +121,16 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
     type: "object",
     properties: {
       sdkPath: {
+        order: 1,
         type: "string",
         description: "Path to the SDK to use (optional).",
         scope: "resource",
       },
       connectIQPath: {
+        order: 2,
         type: "string",
         description:
-          "Path to the ConnectIQ directory (containing SDKS, Devices, Fonts and current-sdk.cfg (optional).",
+          "Path to the ConnectIQ directory - containing SDKS, Devices, Fonts and current-sdk.cfg (optional).",
         scope: "resource",
       },
       outputPath: {
