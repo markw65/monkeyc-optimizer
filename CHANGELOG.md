@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.1
+
+- Add `recommendedBaseSourcePath` to analysis result, to indicate what needs changing to exclude the `bin/optimized` directory.
+
 ### 1.2.0
 
 - Adds `sdkPath` and `connectIQPath` to `BuildConfig`. Various exported methods (such as getSdkPath) get optional config parameters so they can access `sdkPath` and `connectIQPath`, but the API should be backward compatibile.
