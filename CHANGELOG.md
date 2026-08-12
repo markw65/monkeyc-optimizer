@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.2
+
+- Add `isApplicationManifest` helper function.
+
 ### 1.2.1
 
 - Add `recommendedBaseSourcePath` to analysis result, to indicate what needs changing to exclude the `bin/optimized` directory.
