@@ -3,6 +3,13 @@ import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as Prettier from "prettier";
+import {
+  Analysis,
+  PreAnalysis,
+  fileInfoFromConfig,
+  getProjectAnalysisHelper,
+  relative_path_no_dotdot,
+} from "./analysis";
 import { formatAst, hasProperty, parseSdkVersion } from "./api";
 import { build_project } from "./build";
 import { buildConfigDescription } from "./build-config";
@@ -19,6 +26,7 @@ import {
 import { launchSimulator, simulateProgram } from "./launch";
 import {
   checkManifest,
+  isApplicationManifest,
   manifestDropBarrels,
   manifestLanguages,
   manifestProducts,
@@ -36,13 +44,6 @@ import {
   last_modified,
 } from "./util";
 import { runTaskInPool, startPool, stopPool } from "./worker-pool";
-import {
-  Analysis,
-  PreAnalysis,
-  fileInfoFromConfig,
-  getProjectAnalysisHelper,
-  relative_path_no_dotdot,
-} from "./analysis";
 
 declare const MONKEYC_OPTIMIZER_VERSION: string;
 
@@ -58,6 +59,7 @@ export {
   buildConfigDescription,
   copyRecursiveAsNeeded,
   get_jungle,
+  isApplicationManifest,
   launchSimulator,
   manifestProducts,
   mctree,

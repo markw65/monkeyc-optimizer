@@ -16,6 +16,18 @@ export async function writeManifest(
   return fs.writeFile(filename, xmlUtil.writeXml(xml));
 }
 
+export function isApplicationManifest(manifest: ManifestXML) {
+  if (manifest.body instanceof Error) {
+    return false;
+  }
+  return (
+    manifest.body
+      .children()
+      .filter((c) => c.name === "iq:application")
+      .length() === 1
+  );
+}
+
 export function manifestProducts(manifest: ManifestXML): string[] {
   if (manifest.body instanceof Error) {
     throw manifest.body;
