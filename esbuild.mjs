@@ -232,7 +232,11 @@ function spawnByLine(command, args, lineHandler, options) {
   return new Promise((resolve, reject) => {
     const proc = child_process.spawn(command, args, {
       ...(options || {}),
-      shell: false,
+      // Node >= 18.20.2 / 20.12.1 refuses to spawn .cmd/.bat with
+      // shell:false on Windows (the CVE-2024-27980 mitigation), and
+      // npx below is npx.cmd there - without a shell the build dies
+      // with spawn EINVAL before compiling anything.
+      shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(command),
     });
     const rl = readline.createInterface({
       input: proc.stdout,
