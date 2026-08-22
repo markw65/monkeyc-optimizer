@@ -727,6 +727,10 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
   "extraReferenceTypeChecks",
   "iterateOptimizer",
   "extraExcludes",
+  "preSkipLiterals",
+  "enforceStatic",
+  "strictTypeCheck",
+  "compilerLookupRules",
 ];
 
 /**
