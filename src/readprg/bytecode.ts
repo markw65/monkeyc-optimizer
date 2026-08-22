@@ -740,12 +740,27 @@ export function equalBlocks(b1: Block, b2: Block) {
   });
 }
 
+/*
+ * A block can have more than one edge to the same successor. eg a conditional
+ * branch whose taken target is also its fall through (`bf X` at the end of the
+ * block preceding X), or a try block whose handler is also its fall through.
+ * `preds` is a set of predecessor *blocks*, not a multiset of edges, so such a
+ * predecessor appears in the successor's preds exactly once, and `addPred` is
+ * idempotent for it. Removing the edges therefore has to visit each distinct
+ * successor exactly once too.
+ */
+export function removeSuccPreds(func: FuncEntry, block: Block) {
+  const succs: Set<number> = new Set();
+  block.next && succs.add(block.next);
+  block.taken && succs.add(block.taken);
+  block.exsucc && succs.add(block.exsucc);
+  succs.forEach((succ) => removePred(func, succ, block.offset));
+}
+
 export function removeBlock(func: FuncEntry, offset: number) {
   const block = func.blocks.get(offset);
   assert(block && !block.preds?.size);
-  block.next && removePred(func, block.next, block.offset);
-  block.taken && removePred(func, block.taken, block.offset);
-  block.exsucc && removePred(func, block.exsucc, block.offset);
+  removeSuccPreds(func, block);
   func.blocks.delete(offset);
 }
 
