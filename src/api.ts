@@ -104,10 +104,10 @@ export function pushRootNode(
   const sn =
     root.stack
       ?.at(-1)
-      ?.sn?.decls?.[
-        root.name
-      ]?.find((sn): sn is RootStateNode => sn.type === root.type && (root.nodes != null || sn.node === root.node)) ??
-    state.nestedClasses[root.name]?.find((d) => d.node === root.node);
+      ?.sn?.decls?.[root.name]?.find(
+        (sn): sn is RootStateNode =>
+          sn.type === root.type && (root.nodes != null || sn.node === root.node)
+      ) ?? state.nestedClasses[root.name]?.find((d) => d.node === root.node);
   if (!sn) {
     throw new Error(`Invalid stack for node ${root.fullName}`);
   }
@@ -488,7 +488,7 @@ function lookup(
       return [name || property.name, result];
     }
     case "ThisExpression": {
-      for (let i = stack.length; ; ) {
+      for (let i = stack.length; ;) {
         const si = stack[--i].sn;
         if (
           si.type === "ModuleDeclaration" ||
@@ -509,7 +509,7 @@ function lookup(
       let inStatic = false;
       let checkedImports = ignoreImports;
       let imports = null;
-      for (let i = stack.length; i--; ) {
+      for (let i = stack.length; i--;) {
         const si = stack[i].sn;
         switch (si.type) {
           case "ClassDeclaration":
@@ -1488,6 +1488,9 @@ export function makeToyboxLink(result: StateNodeDecl, root?: string) {
   switch (result.type) {
     case "ClassDeclaration":
     case "ModuleDeclaration":
+      if (result.fullName === "$.Toybox") {
+        return make_link("$.index");
+      }
       if (result.fullName.startsWith("$.Toybox")) {
         return make_link(result.fullName);
       }
@@ -1627,7 +1630,7 @@ export function findUsingForNode(
       return findUsing(state, stack, using);
     }
     if (si.imports) {
-      for (let j = si.imports.length; j--; ) {
+      for (let j = si.imports.length; j--;) {
         const using = si.imports[j];
         const module = findUsing(state, stack, using);
 
@@ -1785,7 +1788,7 @@ export function clearDiagnostics(state: ProgramState, node: mctree.Node) {
   if (!loc?.source) return;
   const diagnostics = state.diagnostics?.[loc.source];
   if (!diagnostics) return;
-  for (let i = diagnostics.length; i--; ) {
+  for (let i = diagnostics.length; i--;) {
     const diagnostic = diagnostics[i];
     if (
       diagnostic.loc.start.offset >= loc.start.offset &&
