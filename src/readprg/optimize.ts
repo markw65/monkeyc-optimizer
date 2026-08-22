@@ -14,7 +14,7 @@ import {
   offsetToString,
   redirect,
   removeBlock,
-  removePred,
+  removeSuccPreds,
 } from "./bytecode";
 import { postOrderTraverse } from "./cflow";
 import { localDCE } from "./dce";
@@ -526,11 +526,7 @@ export function cleanCfg(func: FuncEntry, context: Context) {
   removeUnreachableCatches(func, context);
   const deadBlocks = new Set(func.blocks.values());
   postOrderTraverse(func, (block) => deadBlocks.delete(block));
-  deadBlocks.forEach((block) => {
-    block.next && removePred(func, block.next, block.offset);
-    block.taken && removePred(func, block.taken, block.offset);
-    block.exsucc && removePred(func, block.exsucc, block.offset);
-  });
+  deadBlocks.forEach((block) => removeSuccPreds(func, block));
   deadBlocks.forEach((block) => {
     assert(!block.preds?.size);
     func.blocks.delete(block.offset);
