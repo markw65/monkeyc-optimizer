@@ -205,7 +205,7 @@ function collectClassInfo(state: ProgramStateAnalysis) {
     seen: Set<ClassStateNode>
   ) => {
     if (scls === true) return;
-    for (let i = scls.length; i--; ) {
+    for (let i = scls.length; i--;) {
       const c = scls[i];
       if (!c.decls) continue;
       if (seen.has(c)) {
@@ -670,7 +670,7 @@ function markFunctionCalled(
 export function optimizeMonkeyC(
   fnMap: FilesToOptimizeMap,
   resourcesMap: Record<string, JungleResourceMap>,
-  manifestXML: xmlUtil.Document,
+  manifestXML: xmlUtil.Document | undefined,
   config: BuildConfig
 ) {
   return optimizeMonkeyCHelper(fnMap, resourcesMap, manifestXML, config).catch(
@@ -682,7 +682,7 @@ export function optimizeMonkeyC(
 async function optimizeMonkeyCHelper(
   fnMap: FilesToOptimizeMap,
   resourcesMap: Record<string, JungleResourceMap>,
-  manifestXML: xmlUtil.Document,
+  manifestXML: xmlUtil.Document | undefined,
   config: BuildConfig
 ) {
   const state = (await analyze(

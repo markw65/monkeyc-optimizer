@@ -80,6 +80,7 @@ export async function driver() {
   let minimizeLocals = true;
   let minimizeModules = true;
   let singleUseCopyProp = true;
+  let preserveNullAssignments = false;
   let checkTypes: DiagnosticType | "OFF" | undefined;
   let skipRemote = false;
   let extraReferenceTypeChecks: boolean | undefined;
@@ -283,6 +284,9 @@ export async function driver() {
         if (value == null) return key;
         singleUseCopyProp = /^(false|0)$/i.test(value) ? false : true;
         break;
+      case "preserveNullAssignments":
+        preserveNullAssignments = !value || /^(true|1)$/i.test(value);
+        break;
       case "minimizeLocals":
         if (value == null) return key;
         minimizeLocals = /^(false|0)$/i.test(value) ? false : true;
@@ -394,6 +398,7 @@ export async function driver() {
       trustDeclaredTypes,
       propagateTypes,
       singleUseCopyProp,
+      preserveNullAssignments,
       minimizeLocals,
       minimizeModules,
       checkTypes,
