@@ -60,11 +60,30 @@ function cloneState(blockState: DeadState) {
   return clone;
 }
 
+/**
+ * An explicit `x = null' store. Monkey C is reference counted, so this
+ * is how code on low-memory devices releases a large object at a
+ * precise point. Under config.preserveNullAssignments these stores are
+ * kept even when they are otherwise dead, and are not treated as copy
+ * prop candidates (folding the null into the single use would remove
+ * the store just the same) - either would keep whatever the variable
+ * previously held alive longer than the author intended.
+ */
+function isNullAssignment(node: mctree.Node): boolean {
+  return (
+    node.type === "AssignmentExpression" &&
+    node.operator === "=" &&
+    node.right.type === "Literal" &&
+    node.right.value === null
+  );
+}
+
 export function findDeadStores(
   func: FunctionStateNode,
   graph: TypeFlowBlock,
   nodeEquivs: NodeEquivMap | null,
   findCopyPropCandidates: boolean,
+  preserveNullAssignments: boolean,
   logThisRun: boolean
 ) {
   const order = getPostOrder(graph) as TypeFlowBlock[];
@@ -235,14 +254,18 @@ export function findDeadStores(
                   event.node.right) ||
                 (event.node.type === "VariableDeclarator" && event.node.init);
 
+              const preserve =
+                preserveNullAssignments && isNullAssignment(event.node);
               if (curState.dead.has(event.decl)) {
-                deadStores.add(event.node);
+                if (!preserve) {
+                  deadStores.add(event.node);
+                }
               } else {
                 deadStores.delete(event.node);
                 copyPropStores.delete(event.node);
                 if (declIsLocal(event.decl) && curState.partiallyAnticipated) {
                   const pant = curState.partiallyAnticipated.get(event.decl);
-                  if (pant) {
+                  if (pant && !preserve) {
                     if (logThisRun) {
                       log(
                         `  is copy-prop-candidate ${
@@ -362,6 +385,7 @@ export function eliminateDeadStores(
     graph,
     null,
     state.config?.singleUseCopyProp ?? true,
+    state.config?.preserveNullAssignments ?? false,
     logThisRun
   );
   if (!deadStores.size) return { changes: false, copyPropStores };

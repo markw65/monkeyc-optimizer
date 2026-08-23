@@ -720,6 +720,7 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
   "trustDeclaredTypes",
   "propagateTypes",
   "singleUseCopyProp",
+  "preserveNullAssignments",
   "minimizeLocals",
   "minimizeModules",
   "extensionVersion",
