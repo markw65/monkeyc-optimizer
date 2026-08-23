@@ -728,6 +728,7 @@ const configOptionsToCheck: Array<keyof BuildConfig> = [
   "iterateOptimizer",
   "extraExcludes",
   "preSkipLiterals",
+  "preCostModel",
   "enforceStatic",
   "strictTypeCheck",
   "compilerLookupRules",
@@ -750,6 +751,14 @@ export async function generateOneConfig(
   diagnostics: ProgramState["diagnostics"];
   sdkVersion: number | undefined;
 }> {
+  if (
+    buildConfig.preCostModel &&
+    buildConfig.preCostModel !== config.preCostModel
+  ) {
+    // the group's devices resolved "auto" (or overrode nothing) to a
+    // concrete cost model during identify_optimizer_groups
+    config = { ...config, preCostModel: buildConfig.preCostModel };
+  }
   const { workspace } = config;
   const outputRoot = path.resolve(workspace!, config.outputPath!);
   const output = path.join(outputRoot, key);

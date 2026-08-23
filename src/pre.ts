@@ -1,6 +1,7 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { formatAstLongLines } from "./api";
-import { isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
+import { getNodeValue, isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
+import { PreCostModel, resolvePreCostModel } from "./cost-model";
 import { getPostOrder, postOrderTraverse } from "./control-flow";
 import {
   DataflowQueue,
@@ -45,7 +46,7 @@ import { AwaitedError, every, log, some } from "./util";
 
 const logging = false;
 
-function logAntState(s: AnticipatedState, decl: EventDecl) {
+function logAntState(s: AnticipatedState, decl: EventDecl, cm: PreCostModel) {
   const defs = Array.from(s.ant).reduce<number>((defs, event) => {
     if (event.type === "def" || event.type === "mod") defs++;
     return defs;
@@ -53,7 +54,7 @@ function logAntState(s: AnticipatedState, decl: EventDecl) {
   log(
     declFullName(decl).then(
       (declStr) =>
-        `  - ${declStr}: ${candidateCost(s)} bytes, ${
+        `  - ${declStr}: ${candidateCost(s, cm)} bytes, ${
           s.ant.size - defs
         } refs, ${defs} defs, ${s.live ? "" : "!"}live, ${
           s.isIsolated ? "" : "!"
@@ -67,8 +68,8 @@ function logAntState(s: AnticipatedState, decl: EventDecl) {
   );
 }
 
-function logAntDecls(antDecls: AnticipatedDecls) {
-  antDecls.forEach(logAntState);
+function logAntDecls(antDecls: AnticipatedDecls, cm: PreCostModel) {
+  antDecls.forEach((s, decl) => logAntState(s, decl, cm));
 }
 
 export async function sizeBasedPRE(
@@ -84,12 +85,13 @@ export async function sizeBasedPRE(
   ) {
     return;
   }
-  const { graph: head, identifiers } = buildPREGraph(state, func);
-  const candidates = computeAttributes(state, head);
+  const costModel = resolvePreCostModel(state.config);
+  const { graph: head, identifiers } = buildPREGraph(state, func, costModel);
+  const candidates = computeAttributes(state, head, costModel);
   if (candidates) {
     if (logging) {
       log(`Found ${candidates.size} candidates in ${func.fullName}`);
-      logAntDecls(candidates);
+      logAntDecls(candidates, costModel);
     }
     const nodeMap = new Map<mctree.Node, Event[]>();
     const declMap = new Map<EventDecl, string>();
@@ -148,12 +150,16 @@ export async function sizeBasedPRE(
   }
 }
 
-function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
+function buildPREGraph(
+  state: ProgramStateAnalysis,
+  func: FunctionStateNode,
+  cm: PreCostModel
+) {
   const result = buildDataFlowGraph(
     state,
     func,
     (literal) =>
-      !state.config?.preSkipLiterals && refCost(literal) > LocalRefCost,
+      !state.config?.preSkipLiterals && refCost(literal, cm) > cm.localRef,
     true,
     false
   );
@@ -342,44 +348,36 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
   return true;
 }
 
-const LocalRefCost = 2;
-
-function refCost(node: RefNode) {
+export function refCost(node: RefNode, cm: PreCostModel) {
   if (node.type === "Literal") {
-    switch (typeof node.value) {
-      case "bigint":
-        return 9;
-      case "string":
-        return 5;
-      case "number":
-        return node.raw.match(/d/i) ? 9 : 5;
-      case "boolean":
-        return 2;
-      default:
-        if (node.value === null) {
-          return 2;
-        }
-        return 0;
-    }
+    // getNodeValue classifies the literal exactly; in particular a
+    // hex literal containing the digit `d' (0xdead) is a Number, and
+    // a Long is a Long whether it arrived as a bigint or as a number
+    // with an `l' suffix.
+    const [, type] = getNodeValue(node);
+    return cm.literal[type];
   }
-  // A read from a non-local identifier takes 8 bytes
-  let cost = 8;
+  // A read from a non-local identifier
+  let cost = cm.nonLocalRef;
   if (node.type === "Identifier") return cost;
   while (true) {
     const next: mctree.Expression = node.object;
     if (next.type !== "MemberExpression") {
       if (next.type !== "ThisExpression") {
-        cost += next.type === "Identifier" && next.name === "$" ? 4 : 6;
+        cost +=
+          next.type === "Identifier" && next.name === "$"
+            ? cm.globalRoot
+            : cm.objectRoot;
       }
       return cost;
     }
     node = next;
-    cost += 6;
+    cost += cm.memberStep;
   }
 }
 
-function defCost(node: RefNode) {
-  return refCost(node) + 2;
+export function defCost(node: RefNode, cm: PreCostModel) {
+  return refCost(node, cm) + cm.defExtra;
 }
 
 function candidateBoundary(candState: AnticipatedState) {
@@ -402,21 +400,25 @@ function candidateBoundary(candState: AnticipatedState) {
   return boundary;
 }
 
-function candidateCost(candState: AnticipatedState) {
+function candidateCost(candState: AnticipatedState, cm: PreCostModel) {
   let cost = 0;
   candState.ant.forEach((event: Event) => {
     if (event.type === "ref") {
-      cost -= refCost(candState.node) - LocalRefCost;
+      cost -= refCost(candState.node, cm) - cm.localRef;
     } else {
-      cost += defCost(candState.node);
+      cost += defCost(candState.node, cm);
     }
   });
   const boundarySize = candidateBoundary(candState).size;
-  cost += defCost(candState.node) * boundarySize;
+  cost += defCost(candState.node, cm) * boundarySize;
   return cost;
 }
 
-function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
+function computeAttributes(
+  state: ProgramStateAnalysis,
+  head: PREBlock,
+  cm: PreCostModel
+) {
   const order = getPostOrder(head) as PREBlock[];
   order.forEach((block, i) => {
     block.order = i;
@@ -602,7 +604,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
     blockStates[top.order!] = curState;
     if (logging) {
       log(`Updated block ${top.order!}`);
-      logAntDecls(curState);
+      logAntDecls(curState, cm);
     }
     if (top.preds) {
       top.preds.forEach((pred) => queue.enqueue(pred));
@@ -613,13 +615,13 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
   blockStates.forEach((blockState, i) => {
     blockState &&
       blockState.forEach((events, decl) => {
-        const cost = candidateCost(events);
+        const cost = candidateCost(events, cm);
         if (cost >= 0) return;
         const existing = candidateDecls.get(decl);
         if (
           !existing ||
           existing.isIsolated ||
-          candidateCost(existing) > cost
+          candidateCost(existing, cm) > cost
         ) {
           const boundary = candidateBoundary(events);
           if (
@@ -664,7 +666,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
           if (existing && existing.isIsolated) {
             delete existing.isIsolated;
             mergeAnticipatedState(events, existing);
-          } else if (candidateCost(events) !== cost) {
+          } else if (candidateCost(events, cm) !== cost) {
             throw new Error(`cost of block ${i} changed`);
           }
           candidateDecls.set(decl, events);

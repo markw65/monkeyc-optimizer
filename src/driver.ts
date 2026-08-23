@@ -72,6 +72,7 @@ export async function driver() {
   let checkCompilerLookupRules: DiagnosticType | "OFF" = "ERROR";
   let sizeBasedPRE: string | boolean = true;
   let preSkipLiterals = false;
+  let preCostModel: BuildConfig["preCostModel"];
   let checkBuildPragmas: boolean | undefined;
   let showInfo = false;
   let parallelism: number | undefined = undefined;
@@ -271,6 +272,13 @@ export async function driver() {
       case "preSkipLiterals":
         preSkipLiterals = !value || /^(true|1)$/i.test(value);
         break;
+      case "preCostModel":
+        if (value == null) return key;
+        if (value !== "auto" && value !== "v1" && value !== "v2") {
+          error(`Invalid option for preCostModel: ${value}`);
+        }
+        preCostModel = value;
+        break;
       case "trustDeclaredTypes":
         if (value == null) return key;
         trustDeclaredTypes = /^(false|0)$/i.test(value) ? false : true;
@@ -400,6 +408,7 @@ export async function driver() {
       checkCompilerLookupRules,
       sizeBasedPRE,
       preSkipLiterals,
+      preCostModel,
       returnCommand: true,
       checkManifest: true,
       checkBuildPragmas,
