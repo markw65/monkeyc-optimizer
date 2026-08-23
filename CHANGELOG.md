@@ -2,6 +2,14 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.3
+
+- Copy complications.json in the post build optimizer
+- Fix links generated for [$.Toybox](https://developer.garmin.com/connect-iq/api-docs/index.html)
+- Fix pred removal for blocks with duplicate edges to one successor
+- Include all codegen-affecting options in the regeneration cache check
+- Fix the build on Windows: spawn npx.cmd through a shell
+
 ### 1.2.2
 
 - Add `isApplicationManifest` helper function.
