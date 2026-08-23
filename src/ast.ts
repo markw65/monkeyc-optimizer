@@ -327,7 +327,7 @@ interface BooleanLiteral extends mctree.Literal {
 interface NullLiteral extends mctree.Literal {
   value: null;
 }
-type LiteralValues =
+export type LiteralValues =
   | [NumberLiteral, "Number" | "Float" | "Double"]
   | [LongLiteral, "Long"]
   | [StringLiteral, "String"]

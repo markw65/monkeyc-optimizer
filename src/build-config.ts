@@ -36,6 +36,7 @@ export type BuildConfig = {
   enforceStatic?: EnforceStatic;
   sizeBasedPRE?: boolean | string;
   preSkipLiterals?: boolean;
+  preCostModel?: "auto" | "v1" | "v2";
   prettier?: Record<string, unknown>;
   extensionVersion?: string;
   useLocalOptimizer?: boolean;
@@ -257,6 +258,20 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         markdownDescription:
           "[Whether to skip the size based partial redundancy pass for literal values](https://github.com/markw65/monkeyc-optimizer/wiki/Type-and-Dataflow-analysis#size-based-pre-skip-literals)",
         default: false,
+        scope: "resource",
+      },
+      preCostModel: {
+        order: 113,
+        type: "string",
+        description:
+          "Which bytecode cost model the size based partial redundancy pass uses to price its candidates",
+        enum: ["auto", "v1", "v2"],
+        enumDescriptions: [
+          "Pick the cost model per device, from the device's compiler.json",
+          "The original opcode set's costs",
+          "The costs for devices with paged code (codePageSize), where literals live in the data pool and are never worth hoisting",
+        ],
+        default: "auto",
         scope: "resource",
       },
       minimizeLocals: {
