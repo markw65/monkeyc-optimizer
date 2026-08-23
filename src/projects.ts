@@ -42,9 +42,9 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/DeCaPa/MyBigDate",
   "https://github.com/HanSolo/digital",
   "https://github.com/HerrRiebmann/Stretch",
-  "https://github.com/HookyQR/TidyField",
+  "https://github.com/mc-tests/TidyField",
   {
-    root: "https://github.com/HookyQR/TidyWatch",
+    root: "https://github.com/mc-tests/TidyWatch",
     options: { compilerOptions: "--Eno-invalid-symbol" },
   },
   {
@@ -117,7 +117,7 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/chanezgr/IQwprimebal",
   "https://github.com/chris220688/garmin-myBus-app",
   {
-    root: "https://github.com/clementbarthes/GarminCogDisplay",
+    root: "https://github.com/mc-tests/GarminCogDisplay",
     exclude: "temp.monkey\\.jungle",
   },
   "https://github.com/creacominc/connectiq-PowerField",
@@ -321,7 +321,6 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/sunpazed/garmin-flags",
     exclude: "temp/monkey.jungle",
   },
-  "https://github.com/sunpazed/garmin-mario",
   "https://github.com/sunpazed/garmin-mickey",
   {
     root: "https://github.com/sunpazed/garmin-nyan-cat",
