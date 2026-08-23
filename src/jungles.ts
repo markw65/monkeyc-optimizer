@@ -3,6 +3,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as jungle from "src/jungle.peggy";
 import { hasProperty } from "./api";
+import { PreCostModelId, preCostModelForDevice } from "./cost-model";
 import {
   manifestAnnotations,
   manifestBarrelName,
@@ -740,7 +741,11 @@ async function find_build_instructions(
   );
 }
 
-function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
+function identify_optimizer_groups(
+  targets: Target[],
+  options: BuildConfig,
+  devices: DeviceInfo
+) {
   const groups: Record<
     string,
     { key: string; optimizerConfig: JungleQualifier }
@@ -855,6 +860,14 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
         .sort()
         .filter((v, i, a) => i === 0 || v !== a[i - 1]);
     }
+    // sizeBasedPRE's cost model depends on the device's opcode set, so
+    // it is part of the group's identity: devices with different models
+    // must not share a generated tree.
+    const preCostModel: PreCostModelId =
+      options.preCostModel === "v1" || options.preCostModel === "v2"
+        ? options.preCostModel
+        : preCostModelForDevice(devices[target.product]?.codePageSize);
+
     const optimizerConfig = {
       sourcePath,
       sourceExcludes,
@@ -864,6 +877,7 @@ function identify_optimizer_groups(targets: Target[], options: BuildConfig) {
       annotations,
       resourceMap,
       personality,
+      preCostModel,
     };
 
     const toSortedEntries = <T>(value: Record<string, T>) =>
@@ -988,6 +1002,7 @@ export type JungleQualifier = {
   optBarrels?: OptBarrelMap;
   resourceMap?: JungleResourceMap;
   products?: string[];
+  preCostModel?: PreCostModelId; // the sizeBasedPRE cost model resolved for this group's devices
 };
 
 // The result of parsing a jungle file, without resolving any products
@@ -1370,6 +1385,6 @@ export async function get_jungle(
     resolvedPaths: {},
   };
   const result = await get_jungle_and_barrels(jungles, null, options, cache);
-  identify_optimizer_groups(result.targets, options);
+  identify_optimizer_groups(result.targets, options, result.devices);
   return result;
 }

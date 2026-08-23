@@ -51,6 +51,8 @@ export type DeviceInfo = {
     languages: Record<string, true>;
     ciqVersions: Array<string>;
     partNumbers: PartNumber[];
+    // present on devices that use the v2 opcode set (api level 5.1+)
+    codePageSize?: number;
   };
 };
 
@@ -67,14 +69,21 @@ export async function getDeviceInfo(
   return Promise.all(
     files.map((file) => {
       return fs.readFile(file).then((data) => {
-        const { deviceId, appTypes, deviceFamily, displayName, partNumbers } =
-          JSON.parse(data.toString()) as {
-            deviceId: string;
-            appTypes: { memoryLimit: number; type: string }[];
-            deviceFamily: string;
-            displayName: string;
-            partNumbers: PartNumber[];
-          };
+        const {
+          deviceId,
+          appTypes,
+          deviceFamily,
+          displayName,
+          partNumbers,
+          codePageSize,
+        } = JSON.parse(data.toString()) as {
+          deviceId: string;
+          appTypes: { memoryLimit: number; type: string }[];
+          deviceFamily: string;
+          displayName: string;
+          partNumbers: PartNumber[];
+          codePageSize?: number;
+        };
         const languages = Object.fromEntries(
           partNumbers
             .map((part) =>
@@ -92,6 +101,7 @@ export async function getDeviceInfo(
             languages,
             ciqVersions,
             partNumbers,
+            codePageSize,
           },
         ] as const;
       });
