@@ -184,7 +184,7 @@ function buildPREGraph(state: ProgramStateAnalysis, func: FunctionStateNode) {
       refs.clear();
       defs.clear();
     };
-    for (let i = block.events.length; i--; ) {
+    for (let i = block.events.length; i--;) {
       const event = block.events[i];
       switch (event.type) {
         case "ref":
@@ -440,8 +440,8 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
                 event.decl
                   ? declFullName(event.decl)
                   : event.node
-                  ? formatAstLongLines(event.node)
-                  : "??"
+                    ? formatAstLongLines(event.node)
+                    : "??"
               ).then((eventDetails) => `    ${event.type}: ${eventDetails}`)
             )
         );
@@ -515,7 +515,7 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
       anticipatedDecls();
 
     if (top.events) {
-      for (let i = top.events.length; i--; ) {
+      for (let i = top.events.length; i--;) {
         const event = top.events[i];
         if (event.mayThrow && top.exsucc) {
           const succState = blockStates[(top.exsucc as PREBlock).order!];
@@ -566,10 +566,11 @@ function computeAttributes(state: ProgramStateAnalysis, head: PREBlock) {
                 event.node.type === "AssignmentExpression"
                   ? event.node.left
                   : event.node.type === "UpdateExpression"
-                  ? (event.node.argument as mctree.AssignmentExpression["left"])
-                  : event.node.id.type === "BinaryExpression"
-                  ? event.node.id.left
-                  : event.node.id;
+                    ? (event.node
+                        .argument as mctree.AssignmentExpression["left"])
+                    : event.node.id.type === "BinaryExpression"
+                      ? event.node.id.left
+                      : event.node.id;
               candidates = anticipatedState(target);
               curState.set(event.decl, candidates);
             }
@@ -851,7 +852,7 @@ function applyReplacements(
         if (pending) {
           throw new Error(`Unexpected pending list at SequenceExpression`);
         }
-        for (let i = node.expressions.length; i--; ) {
+        for (let i = node.expressions.length; i--;) {
           const ni = node.expressions[i];
           if (ni.type === "SequenceExpression") {
             node.expressions.splice(i, 1, ...ni.expressions);

@@ -6,14 +6,16 @@ type UnionMemberExtends<T, U> = true extends (T extends U ? true : never)
   : unknown;
 
 type SubNodes<T extends mctree.Node> = {
-  [K in keyof T as UnionMemberExtends<
-    T[K],
-    mctree.Node | mctree.Node[]
-  > extends true
-    ? K extends "enumType"
-      ? never
-      : K
-    : never]: true;
+  [
+    K in keyof T as UnionMemberExtends<
+      T[K],
+      mctree.Node | mctree.Node[]
+    > extends true
+      ? K extends "enumType"
+        ? never
+        : K
+      : never
+  ]: true;
 };
 
 type NodeKeys<T extends mctree.Node> = keyof SubNodes<T>;
@@ -25,19 +27,21 @@ type NodeExtends<K, T> = UnionMemberExtends<Node<K>, T>;
 
 type MCTreeTypeInfo = {
   [Type in mctree.Node["type"]]: {
-    [K in "keys" | "stmt" | "expr" as K extends "stmt"
-      ? NodeExtends<Type, mctree.Statement> extends true
-        ? K
-        : never
-      : K extends "expr"
-      ? NodeExtends<Type, mctree.Expression> extends true
-        ? K
-        : never
-      : K]: K extends "keys"
+    [
+      K in "keys" | "stmt" | "expr" as K extends "stmt"
+        ? NodeExtends<Type, mctree.Statement> extends true
+          ? K
+          : never
+        : K extends "expr"
+          ? NodeExtends<Type, mctree.Expression> extends true
+            ? K
+            : never
+          : K
+    ]: K extends "keys"
       ? Readonly<NodeKeys<Node<Type>>[]>
       : K extends "stmt" | "expr"
-      ? true
-      : never;
+        ? true
+        : never;
   };
 };
 
@@ -248,7 +252,7 @@ export function mayThrow(node: mctree.Node) {
 // non null because them the compiler will incorrectly infer never in the
 // false case.
 export function hasProperty<
-  T extends null extends T ? unknown : undefined extends T ? unknown : never
+  T extends (null extends T ? unknown : undefined extends T ? unknown : never),
 >(obj: T, prop: string): obj is NonNullable<T>;
 export function hasProperty<T>(obj: T, prop: string): boolean;
 export function hasProperty(obj: unknown, prop: string): boolean {
