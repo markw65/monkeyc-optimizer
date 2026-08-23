@@ -54,25 +54,42 @@ export function costModelTests() {
       expect(refCost(literal("abc", '"abc"'), V1_COST_MODEL)).to.equal(5);
       expect(refCost(literal("a", "'a'"), V1_COST_MODEL)).to.equal(5);
     });
-    it("prices Boolean and Null literals at 2", () => {
+    it("prices Boolean literals at 2", () => {
       expect(refCost(literal(true, "true"), V1_COST_MODEL)).to.equal(2);
-      expect(refCost(literal(null, "null"), V1_COST_MODEL)).to.equal(2);
+      expect(refCost(literal(true, "false"), V1_COST_MODEL)).to.equal(2);
+    });
+    it("prices Null literals at 1", () => {
+      expect(refCost(literal(null, "null"), V1_COST_MODEL)).to.equal(1);
     });
   });
 
   describe("literal costs, v2", () => {
-    it("prices every literal at localRef, so no literal is ever worth hoisting", () => {
+    it("Prices of literals vary according to their values", () => {
       const literals = [
-        literal(123, "123"),
-        literal(1.5, "1.5"),
-        literal(1.5, "1.5d"),
-        literal(BigInt(123), "123l"),
-        literal("abc", '"abc"'),
-        literal(true, "true"),
-        literal(null, "null"),
-      ];
-      literals.forEach((node) => {
-        expect(refCost(node, V2_COST_MODEL)).to.equal(V2_COST_MODEL.localRef);
+        [literal(0, "0"), 1],
+        [literal(123, "123"), 2],
+        [literal(512, "512"), 3],
+        [literal(0xa000, "0xa000"), 4],
+        [literal(0xa00000, "0xa00000"), 5],
+        [literal(-123, "-123"), 2],
+        [literal(-512, "-512"), 3],
+        [literal(-0xa000, "-0xa000"), 4],
+        [literal(-0xa00000, "-0xa00000"), 5],
+        [literal(0, "0.0"), 1],
+        [literal(1.5, "1.5"), 5],
+        [literal(0, "0.0d"), 1],
+        [literal(1.5, "1.5d"), 9],
+        [literal(0, "0l"), 1],
+        [literal(BigInt(0), "0l"), 1],
+        [literal(123, "123l"), 9],
+        [literal(BigInt(123), "123l"), 9],
+        [literal("abc", '"abc"'), 5],
+        [literal(true, "true"), 1],
+        [literal(false, "false"), 1],
+        [literal(null, "null"), 1],
+      ] as const;
+      literals.forEach(([node, size]) => {
+        expect(refCost(node, V2_COST_MODEL)).to.equal(size);
       });
     });
   });

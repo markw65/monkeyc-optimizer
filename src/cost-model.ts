@@ -1,3 +1,4 @@
+import { LiteralValues } from "./ast";
 import { BuildConfig } from "./build-config";
 
 /**
@@ -22,15 +23,9 @@ import { BuildConfig } from "./build-config";
 
 export type PreCostModelId = "v1" | "v2";
 
-export type LiteralCostKind =
-  | "Null"
-  | "Boolean"
-  | "Number"
-  | "Float"
-  | "Long"
-  | "Double"
-  | "String"
-  | "Char";
+export type LiteralCostMap = {
+  [T in LiteralValues as T[1]]: T extends [infer V, T[1]] ? V : never;
+};
 
 export type PreCostModel = {
   /** cost of reading a local variable slot */
@@ -38,7 +33,10 @@ export type PreCostModel = {
   /** extra cost of a store, over a read of the same thing */
   defExtra: number;
   /** cost of pushing a literal, by its type */
-  literal: Record<LiteralCostKind, number>;
+  literal: {
+    [K in keyof LiteralCostMap]:
+      number | ((value: LiteralCostMap[K]) => number);
+  };
   /** base cost of reading a non-local identifier, or one member access */
   nonLocalRef: number;
   /** cost of each additional member access step */
@@ -53,7 +51,7 @@ export const V1_COST_MODEL: PreCostModel = {
   localRef: 2,
   defExtra: 2,
   literal: {
-    Null: 2,
+    Null: 1,
     Boolean: 2,
     Number: 5,
     Float: 5,
@@ -71,14 +69,23 @@ export const V1_COST_MODEL: PreCostModel = {
 export const V2_COST_MODEL: PreCostModel = {
   ...V1_COST_MODEL,
   literal: {
-    Null: 2,
-    Boolean: 2,
-    Number: 2,
-    Float: 2,
-    Char: 2,
-    String: 2,
-    Long: 2,
-    Double: 2,
+    Null: 1,
+    Boolean: 1,
+    Number: ({ value }) =>
+      !value
+        ? 1
+        : (value + 0x80) >>> 0 < 0x100
+          ? 2
+          : (value + 0x8000) >>> 0 < 0x10000
+            ? 3
+            : (value + 0x800000) >>> 0 < 0x1000000
+              ? 4
+              : 5,
+    Float: ({ value }) => (!value ? 1 : 5),
+    Char: 5,
+    String: 5,
+    Long: ({ value }) => (!value ? 1 : 9),
+    Double: ({ value }) => (!value ? 1 : 9),
   },
 };
 

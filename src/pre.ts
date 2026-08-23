@@ -1,6 +1,12 @@
 import { mctree } from "@markw65/prettier-plugin-monkeyc";
 import { formatAstLongLines } from "./api";
-import { getNodeValue, isStatement, traverseAst, withLoc, withLocDeep } from "./ast";
+import {
+  getNodeValue,
+  isStatement,
+  traverseAst,
+  withLoc,
+  withLocDeep,
+} from "./ast";
 import { PreCostModel, resolvePreCostModel } from "./cost-model";
 import { getPostOrder, postOrderTraverse } from "./control-flow";
 import {
@@ -348,14 +354,17 @@ function equalStates(a: AnticipatedDecls, b: AnticipatedDecls) {
   return true;
 }
 
-export function refCost(node: RefNode, cm: PreCostModel) {
+export function refCost(node: RefNode, cm: PreCostModel): number {
   if (node.type === "Literal") {
     // getNodeValue classifies the literal exactly; in particular a
     // hex literal containing the digit `d' (0xdead) is a Number, and
     // a Long is a Long whether it arrived as a bigint or as a number
     // with an `l' suffix.
-    const [, type] = getNodeValue(node);
-    return cm.literal[type];
+    const [value, type] = getNodeValue(node);
+    const costInfo = cm.literal[type];
+    // I couldn't find a way to preserve the relationship between value and type
+    // here, so costInfo ends up taking a "never" parameter...
+    return typeof costInfo === "number" ? costInfo : costInfo(value as never);
   }
   // A read from a non-local identifier
   let cost = cm.nonLocalRef;
