@@ -115,17 +115,13 @@ export async function optimizeProgram(
   }
   const jsonIn = removeExt(filepath, ".prg");
   const jsonOut = removeExt(output, ".prg");
-  promises.push(
-    fs
-      .readFile(jsonIn + "-settings.json")
-      .then((data) => fs.writeFile(jsonOut + "-settings.json", data))
-      .catch(() => "")
-  );
-  promises.push(
-    fs
-      .readFile(jsonIn + "-fit_contributions.json")
-      .then((data) => fs.writeFile(jsonOut + "-fit_contributions.json", data))
-      .catch(() => "")
+  ["settings", "fit_contributions", "complications"].forEach((file) =>
+    promises.push(
+      fs
+        .readFile(`${jsonIn}-${file}.json`)
+        .then((data) => fs.writeFile(`${jsonOut}-${file}.json`, data))
+        .catch(() => "")
+    )
   );
 
   await Promise.all(promises);
