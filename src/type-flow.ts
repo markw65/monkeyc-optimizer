@@ -207,6 +207,7 @@ export function buildConflictGraph(
     graph,
     nodeEquivs,
     false,
+    state.config?.preserveNullAssignments ?? false,
     logThisRun
   );
   return { graph, localConflicts, locals, identifiers, logThisRun };

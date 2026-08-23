@@ -45,6 +45,7 @@ export type BuildConfig = {
   minimizeModules?: boolean;
   postBuildOptimizer?: boolean;
   singleUseCopyProp?: boolean;
+  preserveNullAssignments?: boolean;
   iterateOptimizer?: boolean;
   extraReferenceTypeChecks?: boolean;
   checkTypes?: DiagnosticType | "OFF"; // how our type checker should report issues
@@ -272,6 +273,14 @@ export const buildConfigDescription: readonly BuildConfigDescription[] = [
         markdownDescription:
           "[Whether to enable the single use copy propagation pass](https://github.com/markw65/monkeyc-optimizer/wiki/Local-variable-elimination#single-use-copy-propagation)",
         default: true,
+        scope: "resource",
+      },
+      preserveNullAssignments: {
+        order: 120,
+        type: "boolean",
+        description:
+          "Whether to keep every explicit `x = null' assignment, even when the store is otherwise dead. Monkey C is reference counted, so such stores are how code on low-memory devices releases a large object at a precise point; removing them (or copy propagating around them) keeps the object alive longer than the author intended",
+        default: false,
         scope: "resource",
       },
       minimizeModules: {
