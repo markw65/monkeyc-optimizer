@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.4
+
+- Select the sizeBasedPRE cost model per device class (Fixes #90)
+- Add preserveNullAssignments to keep explicit x = null releases (Fixes #91)
+
 ### 1.2.3
 
 - Copy complications.json in the post build optimizer
