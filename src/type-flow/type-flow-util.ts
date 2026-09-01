@@ -14,6 +14,7 @@ import {
   ImpEvent,
   DataFlowBlock as TypeFlowBlock,
   declFullName,
+  unhandledType,
 } from "../data-flow";
 import {
   ClassStateNode,
@@ -128,20 +129,35 @@ function printImp(event: ImpEvent) {
   }
 }
 
+async function describeEventHelper(event: Event) {
+  switch (event.type) {
+    case "exn":
+      return "exn:";
+    case "imp":
+      return printImp(event);
+    case "flw":
+    case "mod":
+      return formatAstLongLines(event.node);
+    case "ref":
+    case "def":
+    case "kil":
+      if (
+        !Array.isArray(event.decl) &&
+        (event.decl.type === "MemberDecl" || event.decl.type === "Unknown")
+      ) {
+        return formatAstLongLines(event.node);
+      }
+      if (event.decl) {
+        return declFullName(event.decl);
+      }
+      return "??";
+    default:
+      unhandledType(event);
+  }
+}
+
 export function describeEvent(event: Event) {
-  if (event.type === "exn") return Promise.resolve("exn:");
-  return Promise.resolve(
-    event.type === "imp"
-      ? printImp(event)
-      : event.type === "flw" ||
-          event.type === "mod" ||
-          (!Array.isArray(event.decl) &&
-            (event.decl.type === "MemberDecl" || event.decl.type === "Unknown"))
-        ? formatAstLongLines(event.node)
-        : event.decl
-          ? declFullName(event.decl)
-          : "??"
-  ).then((desc) => `${event.type}: ${desc}`);
+  return describeEventHelper(event).then((desc) => `${event.type}: ${desc}`);
 }
 
 export function printBlockEvents(
@@ -268,7 +284,7 @@ function filterDecls(
         d.forEach((d) => {
           const stack = d.stack!;
           possible.forEach((poss) => {
-            for (let i = stack.length; i--; ) {
+            for (let i = stack.length; i--;) {
               const sn = stack[i].sn;
               if (sn.decls === poss.decls) {
                 if (!cur) {

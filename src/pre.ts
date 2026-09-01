@@ -19,6 +19,7 @@ import {
   buildDataFlowGraph,
   declFullName,
   declName,
+  unhandledType,
 } from "./data-flow";
 import { cloneSet, functionMayModify, mergeSet } from "./function-info";
 import { FunctionStateNode, ProgramStateAnalysis } from "./optimizer-types";
@@ -237,6 +238,13 @@ function buildPREGraph(
           }
           modSeen = true;
           break;
+        case "kil":
+        case "flw":
+        case "exn":
+        case "imp":
+          break;
+        default:
+          unhandledType(event);
       }
     }
   });
@@ -591,6 +599,14 @@ function computeAttributes(
             candidates.live = isUpdate;
             break;
           }
+          case "exn":
+          case "flw":
+          case "imp":
+          case "kil":
+            break;
+
+          default:
+            unhandledType(event);
         }
       }
     }

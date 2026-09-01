@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { formatAstLongLines, traverseAst } from "../api";
 import { withLoc } from "../ast";
 import { getPostOrder } from "../control-flow";
-import { DataflowQueue, DefEvent, RefNode } from "../data-flow";
+import { DataflowQueue, DefEvent, RefNode, unhandledType } from "../data-flow";
 import { unused } from "../inliner";
 import { FunctionStateNode, ProgramStateAnalysis } from "../optimizer-types";
 import { NodeEquivMap } from "../type-flow";
@@ -209,7 +209,7 @@ export function findDeadStores(
       curState.dead.forEach((decl) => log(` - anticipated: ${tsKey(decl)}`));
     }
     if (top.events) {
-      for (let i = top.events.length; i--; ) {
+      for (let i = top.events.length; i--;) {
         const event = top.events[i];
         if (top.exsucc && event.mayThrow) {
           // Suboptimal. Currently we merge both the regular and exceptional
@@ -322,7 +322,11 @@ export function findDeadStores(
             );
             break;
           case "flw":
+          case "imp":
+          case "exn":
             break;
+          default:
+            unhandledType(event);
         }
       }
     }

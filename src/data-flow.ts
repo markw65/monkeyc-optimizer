@@ -30,9 +30,7 @@ import { AwaitedError, GenericQueue, every, some } from "./util";
  *  - Literals (of interest to PRE, and copy propagation)
  */
 export type RefNode =
-  | mctree.Identifier
-  | mctree.MemberExpression
-  | mctree.Literal;
+  mctree.Identifier | mctree.MemberExpression | mctree.Literal;
 
 export type MemberDecl = {
   type: "MemberDecl";
@@ -187,10 +185,7 @@ export interface FlowEventInstanceof extends BaseEvent {
 }
 
 export type FlowEvent =
-  | FlowEventDecl
-  | FlowEventNode
-  | FlowEventTruthy
-  | FlowEventInstanceof;
+  FlowEventDecl | FlowEventNode | FlowEventTruthy | FlowEventInstanceof;
 
 export interface ExnEvent extends BaseEvent {
   type: "exn";
@@ -198,13 +193,7 @@ export interface ExnEvent extends BaseEvent {
 }
 
 export type Event =
-  | RefEvent
-  | KillEvent
-  | DefEvent
-  | ModEvent
-  | FlowEvent
-  | ImpEvent
-  | ExnEvent;
+  RefEvent | KillEvent | DefEvent | ModEvent | FlowEvent | ImpEvent | ExnEvent;
 
 export interface DataFlowBlock extends Block<Event> {
   order?: number;
@@ -258,8 +247,9 @@ export function declName(decl: EventDecl) {
 }
 
 export function unhandledType(node: never): never {
+  const obj = node as unknown;
   throw new Error(
-    `Unhandled expression type: ${(node as { type: string | number }).type}`
+    `Unhandled expression type: ${obj != null && typeof obj === "object" && "type" in obj ? obj.type : obj}`
   );
 }
 

@@ -25,6 +25,7 @@ import {
   ModEvent,
   RefEvent,
   buildDataFlowGraph,
+  unhandledType,
 } from "./data-flow";
 import {
   findCalleesByNode,
@@ -2131,7 +2132,12 @@ function propagateTypes(
         if (!skipMerge && handleFlowEvent(event, top, curState)) {
           return true;
         }
+        break;
       }
+      case "exn":
+        break;
+      default:
+        unhandledType(event);
     }
     return false;
   };
@@ -2636,7 +2642,7 @@ function updateByAssocPath(
     }
     return property;
   };
-  for (let i = path.length; i--; ) {
+  for (let i = path.length; i--;) {
     const pathElem = path[i];
     let object = pathElem.type;
     if (pathElem.name) {
