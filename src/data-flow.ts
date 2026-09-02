@@ -489,8 +489,9 @@ export function buildDataFlowGraph(
               some(decls, (decl) => {
                 if (decl.type === "VariableDeclarator") {
                   const defStmts =
-                    (decl.node.kind === "var" && liveDefs.get(null)) ||
-                    liveDefs.get(decl);
+                    (decl.node.kind === "var" &&
+                      liveDefs.get(null)?.has(stmt)) ||
+                    liveDefs.get(decl)?.has(stmt);
                   if (defStmts) {
                     return true;
                     /*
@@ -619,14 +620,22 @@ export function buildDataFlowGraph(
           case "NewExpression": {
             const [, results] = state.lookup(node.callee);
             const callees = results ? findCalleesForNew(results) : null;
-            liveDef(null, stmt);
+            if (trackInsertionPoints) {
+              if (
+                callees &&
+                every(callees, (callee) => callee.info === false)
+              ) {
+                break;
+              }
+              liveDef(null, stmt);
+            }
             return { type: "mod", node, mayThrow, callees };
           }
           case "CallExpression": {
-            liveDef(null, stmt);
             if (wantsAllRefs) {
               const calleeDecl = findDecl(node.callee, true);
               if (calleeDecl) {
+                liveDef(null, stmt);
                 const mod: ModEvent = {
                   type: "mod",
                   node,
@@ -657,6 +666,15 @@ export function buildDataFlowGraph(
             const callees = results
               ? findCallees(results)
               : findCalleesByNode(state, node.callee);
+            if (trackInsertionPoints) {
+              if (
+                callees &&
+                every(callees, (callee) => callee.info === false)
+              ) {
+                break;
+              }
+              liveDef(null, stmt);
+            }
             return { type: "mod", node, mayThrow, callees };
           }
           default:

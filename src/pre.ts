@@ -94,7 +94,7 @@ export async function sizeBasedPRE(
   }
   const costModel = resolvePreCostModel(state.config);
   const { graph: head, identifiers } = buildPREGraph(state, func, costModel);
-  const candidates = computeAttributes(state, head, costModel);
+  const candidates = await computeAttributes(state, head, costModel);
   if (candidates) {
     if (logging) {
       log(`Found ${candidates.size} candidates in ${func.fullName}`);
@@ -431,7 +431,7 @@ function candidateCost(candState: AnticipatedState, cm: PreCostModel) {
   return cost;
 }
 
-function computeAttributes(
+async function computeAttributes(
   state: ProgramStateAnalysis,
   head: PREBlock,
   cm: PreCostModel
@@ -473,6 +473,7 @@ function computeAttributes(
         }`
       );
     });
+    await log();
   }
 
   const queue = new DataflowQueue();
@@ -631,6 +632,7 @@ function computeAttributes(
     if (logging) {
       log(`Updated block ${top.order!}`);
       logAntDecls(curState, cm);
+      await log();
     }
     if (top.preds) {
       top.preds.forEach((pred) => queue.enqueue(pred));

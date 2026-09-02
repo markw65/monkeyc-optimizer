@@ -70,18 +70,18 @@ function getinst(
     return x == null
         ? "Null"
         : x instanceof Lang.Number
-        ? "Number"
-        : x instanceof Lang.Long
-        ? "Long"
-        : x instanceof Lang.Float
-        ? "Float"
-        : x instanceof Lang.Double
-        ? "Double"
-        : x instanceof Lang.String
-        ? "String"
-        : x instanceof Lang.Char
-        ? "Char"
-        : "<unknown>";
+          ? "Number"
+          : x instanceof Lang.Long
+            ? "Long"
+            : x instanceof Lang.Float
+              ? "Float"
+              : x instanceof Lang.Double
+                ? "Double"
+                : x instanceof Lang.String
+                  ? "String"
+                  : x instanceof Lang.Char
+                    ? "Char"
+                    : "<unknown>";
 }
 
 const FLOAT_EPSILON = Math.pow(2, -23);
@@ -110,8 +110,8 @@ function checker(
               (einst.equals("Float") ? FLOAT_EPSILON : DOUBLE_EPSILON) *
                   (expected as Numeric).abs()
             : x == null
-            ? expected == null
-            : !x.equals(expected)
+              ? expected == null
+              : !x.equals(expected)
     ) {
         logger.debug(
             "Got " +
@@ -502,11 +502,11 @@ function inlineAssignContext(logger as Logger) as Boolean {
     arr[z] = A.B.s3(1);
     check(arr[0] as Number, 1, logger);
 
-    /* @match /^\{ z = \$\.z; self.z \+= @1;/ /check\(x,/ */
+    /* @match /^\{ z = @z; @z \+= @1;/ /check\(x,/ */
     x = argInterference1(A.B.x, A.x, $.z);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
-    /* @match /^\{ y = A\.x; A.x \+= @1;/ /check/ */
+    /* @match /^\{ y = (A\.x|@x); (A\.x|@x) \+= @1;/ /check/ */
     x = argInterference2($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
@@ -515,10 +515,20 @@ function inlineAssignContext(logger as Logger) as Boolean {
     x = argInterference3($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
 
-    /* @match /z = A\.B\.x; \(new Lang.Method/ /check/ */
+    /* @match /z = (A\.B\.x|@x); \(new Lang.Method/ /check/ */
     x = argInterference4($.z, A.x, A.B.x);
     check(x, A.B.x + A.x + $.z - 1, logger);
+    /* @match /checkz\(@z/ */
+    checkz($.z, logger);
     return ok;
+}
+
+(:noinline)
+function checkz(z as Number, logger as Logger) as Void {
+    if (z != self.z) {
+        logger.debug("ERROR: bad z: " + z + " != " + self.z);
+        ok = false;
+    }
 }
 
 (:inline)
