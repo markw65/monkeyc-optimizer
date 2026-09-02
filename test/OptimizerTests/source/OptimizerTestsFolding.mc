@@ -719,6 +719,7 @@ class Whatever {
         // x.value might be the same as x.what.value
         // so we shouldn't const prop x.value
         x.value = 42;
+        // @expect "The object in this expression could be Null"
         x.what.value = 1;
         // @match /check\(x.value, @1/
         check(x.value, 1, logger);
@@ -726,12 +727,14 @@ class Whatever {
         // x.value can't be the same as x.other.value
         // so we should const prop x.value
         x.value = 42;
+        // @expect "The object in this expression could be Null"
         x.other.value = 1;
         // @match /check\(@42, @42/
         check(x.value, 42, logger);
 
         // x.value might be the same as x.what.value
         // so we shouldn't const prop x.what.value
+        // @expect "The object in this expression could be Null"
         x.what.value = 1;
         x.value = 42;
         // @match /check\(x.what.value, @42/
@@ -739,6 +742,7 @@ class Whatever {
 
         // x.value can't be the same as x.other.value
         // so we should const prop x.other.value
+        // @expect "The object in this expression could be Null"
         x.other.value = 1;
         x.value = 42;
         // @match /check\(@1, @1/
@@ -753,6 +757,7 @@ class Whatever {
 
         // x.other.value can't be the same as self.value
         // so we should const prop x.other.value
+        // @expect "The object in this expression could be Null"
         x.other.value = 42;
         value = 1;
         // @match /check\(@42, @42/
@@ -768,6 +773,7 @@ class Whatever {
         // x.other.value can't be the same as self.value
         // so we should const prop self.value
         value = 1;
+        // @expect "The object in this expression could be Null"
         x.other.value = 42;
         // @match /check\(@1, @1/
         check(value, 1, logger);
@@ -807,8 +813,8 @@ function toBool1(
     return value instanceof Lang.Boolean
         ? value
         : value != null && value has :toNumber
-        ? value.toNumber() != 0
-        : defaultValue;
+          ? value.toNumber() != 0
+          : defaultValue;
 }
 
 (:inline)

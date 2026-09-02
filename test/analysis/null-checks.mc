@@ -57,3 +57,17 @@ function f(d as Duration?) as Moment? {
         return d != null ? m.add(d) : null;
     }
 }
+
+function nullable_call(d as Dictionary?) as Number {
+    // @expect "The object in this expression could be Null"
+    return d.get("x") as Number;
+}
+
+class C {
+    var value as Number;
+}
+
+function nullable_variable(c as C?) as Number {
+    // @expect "The object in this expression could be Null"
+    return c.value as Number;
+}

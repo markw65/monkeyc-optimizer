@@ -25,6 +25,7 @@ import {
   traverseAst,
   withLoc,
   withLocDeep,
+  wrap,
 } from "./ast";
 import { unhandledType } from "./data-flow";
 import {
@@ -76,7 +77,13 @@ import {
 import { minimizeModules } from "./type-flow/minimize-modules";
 import { afterEvaluate, beforeEvaluate } from "./type-flow/optimize";
 import { subtypeOf } from "./type-flow/sub-type";
-import { TypeTag, mcExprFromType, typeFromLiteral } from "./type-flow/types";
+import {
+  TypeTag,
+  mcExprFromType,
+  mustBeFalse,
+  mustBeTrue,
+  typeFromLiteral,
+} from "./type-flow/types";
 import { cleanupUnusedVars } from "./unused-exprs";
 import { AwaitedError, pushUnique } from "./util";
 import { renameIdentifier, renameVariable } from "./variable-renamer";
@@ -811,6 +818,36 @@ async function optimizeMonkeyCHelper(
     }
   };
 
+  const replace = (state: ProgramStateOptimizer, node: mctree.Node) => {
+    if (node.loc && node.loc.source && state.fnMap) {
+      const fnInfo = state.fnMap[node.loc.source];
+      fnInfo && fnInfo.ast && state.removeNodeComments(node, fnInfo.ast);
+    }
+  };
+
+  type TypeWithKey<T, K extends string> = T extends {
+    [M in K]?: mctree.Node | null | undefined;
+  }
+    ? T
+    : never;
+  type NodeWithKey<K extends string> = TypeWithKey<mctree.Node, K>;
+  const processChild = <K extends string>(
+    state: ProgramStateOptimizer,
+    node: NodeWithKey<K>,
+    field: K
+  ) => {
+    const orig = node[field];
+    if (!orig) return;
+    const repl = state.traverse(orig);
+    if (repl) {
+      if (Array.isArray(repl)) {
+        throw new Error(`Invalid replacement expression`);
+      }
+      replace(state, orig);
+      node[field] = repl as never;
+    }
+  };
+
   // use this when optimizing initializer expressions,
   // outside of any function.
   const gistate: InterpState = { state, stack: [] };
@@ -1044,6 +1081,60 @@ async function optimizeMonkeyCHelper(
         }
         break;
       }
+      case "IfStatement":
+      case "ConditionalExpression":
+        processChild(this, node, "test");
+        if (node.test.type === "Literal") {
+          const flag = typeFromLiteral(node.test);
+          if (mustBeTrue(flag)) {
+            if (node.alternate) {
+              replace(state, node.alternate);
+              if (node.type === "ConditionalExpression") {
+                node.alternate = wrap(
+                  { type: "Literal", value: false, raw: "false" },
+                  node.loc
+                );
+              } else {
+                delete node.alternate;
+              }
+            }
+          } else if (mustBeFalse(flag)) {
+            replace(state, node.consequent);
+            if (node.type === "ConditionalExpression") {
+              node.consequent = wrap(
+                { type: "Literal", value: false, raw: "false" },
+                node.consequent.loc
+              );
+            } else {
+              node.consequent = wrap({ type: "BlockStatement", body: [] });
+            }
+          }
+        }
+        processChild(this, node, "consequent");
+        if (node.alternate) {
+          processChild(this, node, "alternate");
+        }
+        return [];
+
+      case "LogicalExpression":
+        processChild(this, node, "left");
+        if (node.left.type === "Literal") {
+          const flag = typeFromLiteral(node.left);
+          if (
+            node.operator === "&&" || node.operator === "and"
+              ? mustBeFalse(flag)
+              : (node.operator === "||" || node.operator === "or") &&
+                mustBeTrue(flag)
+          ) {
+            replace(state, node.right);
+            node.right = wrap(
+              { type: "Literal", value: false, raw: "false" },
+              node.right.loc
+            );
+          }
+        }
+        processChild(this, node, "right");
+        return [];
     }
     return ret;
   };

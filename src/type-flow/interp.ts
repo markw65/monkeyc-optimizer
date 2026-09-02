@@ -584,6 +584,24 @@ function pushScopedNameType(
 ) {
   let embeddedEffects = object ? object.embeddedEffects : false;
 
+  if (object?.value.type && istate.typeChecker && istate.checkTypes) {
+    const strict = istate.typeChecker === subtypeOf;
+    if (
+      strict
+        ? couldBe(object.value, { type: TypeTag.Null })
+        : subtypeOf(object.value, { type: TypeTag.Null })
+    ) {
+      diagnostic(
+        istate.state,
+        node,
+        strict
+          ? `The object in this expression could be Null`
+          : `The object in this expression is Null`,
+        istate.checkTypes
+      );
+    }
+  }
+
   istate.frpushType = object?.value;
   let result;
   if (istate.typeMap) {
@@ -901,7 +919,7 @@ export function evaluateNode(istate: InterpState, node: mctree.Node) {
     }
     case "ThisExpression": {
       const self = (() => {
-        for (let i = state.stack.length; i--; ) {
+        for (let i = state.stack.length; i--;) {
           const si = state.stack[i].sn;
           if (si.type === "ClassDeclaration") {
             const klass = { type: TypeTag.Class, value: si } as const;
