@@ -50,7 +50,9 @@
 }
 
 // Document
-document = prolog element Misc*
+document = bom @prolog @element @Misc*
+
+bom = "\uFEFF"?
 
 // Character Range
 Char
