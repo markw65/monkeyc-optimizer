@@ -2,6 +2,10 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.6
+
+- Fix parsing of utf BOM in xml files.
+
 ### 1.2.5
 
 - Add diagnostics for null dereferences in member expressions
