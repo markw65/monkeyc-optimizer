@@ -9,12 +9,12 @@ All notable changes to the "monkeyc-optimizer" package will be documented in thi
 ### 1.2.5
 
 - Add diagnostics for null dereferences in member expressions
-- Fix the heuristics for insertion points, and improve call effect analysis in PRE
+- Fix the heuristics for insertion points, and improve call effect analysis in PRE (Fixes [#94](https://github.com/markw65/monkeyc-optimizer/issues/94#top))
 
 ### 1.2.4
 
-- Select the sizeBasedPRE cost model per device class (Fixes #90)
-- Add preserveNullAssignments to keep explicit x = null releases (Fixes #91)
+- Select the sizeBasedPRE cost model per device class (Fixes [#90](https://github.com/markw65/monkeyc-optimizer/issues/90#top))
+- Add preserveNullAssignments to keep explicit x = null releases (Fixes #[91](https://github.com/markw65/monkeyc-optimizer/issues/91#top))
 
 ### 1.2.3
 
