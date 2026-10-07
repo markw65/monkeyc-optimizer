@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.7
+
+- Ignore missing `FontSet`s in cft-font-info
+- Add support for TrueType fonts in cft-font-info (making it a misnomer)
+
 ### 1.2.6
 
 - Fix parsing of utf BOM in xml files.
