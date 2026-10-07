@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as zlib from "node:zlib";
 import { hasProperty } from "./ast";
+import { getTTFFontInfo } from "./ttfinfo";
 
 /*
 HEADER section
@@ -61,7 +62,7 @@ export async function getCFTFontInfoFromBuffer(
   const ascent = view.getUint16(24);
   const internalLeading = view.getUint16(26);
   const { chars, charInfoAsArray } = (
-    typeof options === "string" ? { chars: options } : options ?? {}
+    typeof options === "string" ? { chars: options } : (options ?? {})
   ) satisfies FontInfoOptions;
   const charFilter =
     chars != null
@@ -131,10 +132,17 @@ export async function getCFTFontInfoFromBuffer(
   };
 }
 
-export function getCFTFontInfo(filename: string, chars?: string) {
+export function getCFTFontInfo(
+  filename: string,
+  options?: FontInfoOptions | string
+) {
+  const match = filename.match(/^(.*\.ttf):([0-9]+(\.[0-9]+)?)$/);
+  if (match) {
+    return getTTFFontInfo(match[1], Number(match[2]), options);
+  }
   return fs.readFile(filename).then((data) => {
     const name = path.basename(filename, ".cft");
-    return getCFTFontInfoFromBuffer(name, data, chars);
+    return getCFTFontInfoFromBuffer(name, data, options);
   });
 }
 
@@ -145,15 +153,20 @@ export function getDeviceFontInfo(dirname: string) {
   ]).then(([compiler, simulator]) => {
     const fonts = JSON.parse(simulator).fonts as Array<{
       fontSet: string;
-      fonts: Array<{ filename: string; name: string }>;
+      fonts: Array<{
+        filename: string;
+        name: string;
+        type?: string;
+        size?: number;
+      }>;
     }>;
     const fontSets = Object.fromEntries(
       fonts.map(({ fontSet, fonts }) => [
         fontSet,
         Object.fromEntries(
-          fonts.map(({ filename, name }) => [
+          fonts.map(({ filename, name, type, size }) => [
             "FONT_" + name.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase(),
-            filename,
+            `${filename}${type === "ttf" ? `.ttf:${size}` : ""}`,
           ])
         ),
       ])
@@ -162,9 +175,13 @@ export function getDeviceFontInfo(dirname: string) {
       languages: Array<{ code: string; fontSet: string }>;
     }>;
     const langMap: Record<string, string> = {};
+    const missingSets = new Set<string>();
     partNumbers.map((part) =>
       part.languages.map((lang) => {
-        assert(hasProperty(fontSets, lang.fontSet));
+        if (!hasProperty(fontSets, lang.fontSet)) {
+          missingSets.add(lang.fontSet);
+          return;
+        }
         if (hasProperty(langMap, lang.code)) {
           assert(langMap[lang.code] === lang.fontSet);
         } else {
@@ -172,7 +189,13 @@ export function getDeviceFontInfo(dirname: string) {
         }
       })
     );
-    return { device: path.basename(dirname), fontSets, langMap };
+    const device = path.basename(dirname);
+    if (missingSets.size > 0) {
+      console.error(
+        `device '${device}' referenced non-existent font sets: ${Array.from(missingSets).join(", ")}`
+      );
+    }
+    return { device, fontSets, langMap };
   });
 }
 

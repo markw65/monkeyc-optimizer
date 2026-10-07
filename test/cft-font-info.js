@@ -67,9 +67,13 @@ Promise.all(
           if (!device.endsWith("/")) return null;
           return cft.getDeviceFontInfo(device).then((devInfo) => {
             Object.values(devInfo.fontSets).forEach((fontSet) =>
-              Object.values(fontSet).forEach((file) =>
+              Object.values(fontSet).forEach((filename) =>
                 fonts.add(
-                  path.resolve(sdkUtil.connectiq, "Fonts", `${file}.cft`)
+                  path.resolve(
+                    sdkUtil.connectiq,
+                    "Fonts",
+                    `${filename}${/\.ttf:[0-9]+(\.[0-9]+)?$/.test(filename) ? "" : ".cft"}`
+                  )
                 )
               )
             );
