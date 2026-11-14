@@ -1677,13 +1677,13 @@ function cleanup(
         return false;
       }
       break;
-    case "FunctionDeclaration":
+    case "FunctionDeclaration": {
       let hasForceDce = false;
       if (node.id && node.id.name) {
         const decls = state.allFunctions[node.id.name];
         if (decls) {
-          const fnState = decls.find(d => d.node === node);
-          if (fnState && (fnState.attributes & StateNodeAttributes.FORCE_DCE)) {
+          const fnState = decls.find((d) => d.node === node);
+          if (fnState && fnState.attributes & StateNodeAttributes.FORCE_DCE) {
             hasForceDce = true;
           }
         }
@@ -1694,11 +1694,17 @@ function cleanup(
       if (keep && hasForceDce) {
         const isExplicitlyCalled =
           hasProperty(state.calledFunctions, node.id.name) &&
-          state.calledFunctions[node.id.name].some(f => f === node);
+          state.calledFunctions[node.id.name].some((f) => f === node);
 
-        const isTest = node.attrs && node.attrs.attributes && node.attrs.attributes.elements.some(
-          (attr) => attr.type === "UnaryExpression" && attr.argument.type === "Identifier" && attr.argument.name === "test"
-        );
+        const isTest =
+          node.attrs &&
+          node.attrs.attributes &&
+          node.attrs.attributes.elements.some(
+            (attr) =>
+              attr.type === "UnaryExpression" &&
+              attr.argument.type === "Identifier" &&
+              attr.argument.name === "test"
+          );
 
         if (node.body && !isTest && !isExplicitlyCalled) {
           keep = false;
@@ -1720,6 +1726,7 @@ function cleanup(
         return false;
       }
       break;
+    }
     case "ClassDeclaration":
     case "ModuleDeclaration":
       // none of the attributes means anything on classes and
