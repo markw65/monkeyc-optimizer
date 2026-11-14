@@ -212,24 +212,40 @@ export function variableDeclarationName(
 type DeclKind = "decls" | "type_decls";
 
 function stateNodeAttrs(attrs: mctree.FunctionDeclaration["attrs"]) {
-  return attrs && attrs.access
-    ? attrs.access.reduce((cur, attr) => {
-        switch (attr) {
-          case "static":
-            return cur | StateNodeAttributes.STATIC;
-          case "public":
-            return cur | StateNodeAttributes.PUBLIC;
-          case "protected":
-            return cur | StateNodeAttributes.PROTECTED;
-          case "hidden":
-            return cur | StateNodeAttributes.PROTECTED;
-          case "private":
-            return cur | StateNodeAttributes.PRIVATE;
-          default:
-            return cur;
-        }
-      }, 0)
-    : 0;
+  let flags =
+    attrs && attrs.access
+      ? attrs.access.reduce((cur, attr) => {
+          switch (attr) {
+            case "static":
+              return cur | StateNodeAttributes.STATIC;
+            case "public":
+              return cur | StateNodeAttributes.PUBLIC;
+            case "protected":
+              return cur | StateNodeAttributes.PROTECTED;
+            case "hidden":
+              return cur | StateNodeAttributes.PROTECTED;
+            case "private":
+              return cur | StateNodeAttributes.PRIVATE;
+            default:
+              return cur;
+          }
+        }, 0)
+      : 0;
+
+  if (attrs && attrs.attributes && attrs.attributes.elements) {
+    const hasForceDce = attrs.attributes.elements.some((attr) => {
+      if (attr.type !== "UnaryExpression") return false;
+      if (attr.operator !== ":") return false;
+      if (attr.argument.type !== "Identifier") return false;
+      return attr.argument.name === "force_dce";
+    });
+
+    if (hasForceDce) {
+      flags |= StateNodeAttributes.FORCE_DCE;
+    }
+  }
+
+  return flags;
 }
 
 function lookupToStateNodeDecls(results: LookupDefinition[]) {

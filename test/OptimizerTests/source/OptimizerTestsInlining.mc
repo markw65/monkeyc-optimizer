@@ -763,3 +763,19 @@ class NoInlineFromAbstractDerived extends NoInlineFromAbstractBase {
         return 42;
     }
 }
+
+module ForceDceTest {
+    var preventNormalDce = :forceDceTarget;
+
+    (:inline, :force_dce)
+    function forceDceTarget(x as Number) as Number {
+        /* @match This should have been removed */
+        return x + 1;
+    }
+
+    (:test)
+    function testForceDce(logger as Logger) as Boolean {
+        var result = forceDceTarget(41);
+        return result == 42;
+    }
+}
