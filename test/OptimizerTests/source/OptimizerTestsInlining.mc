@@ -765,7 +765,7 @@ class NoInlineFromAbstractDerived extends NoInlineFromAbstractBase {
 }
 
 module ForceDceTest {
-    var preventNormalDce = :forceDceTarget;
+    var preventNormalDce as Symbol = :forceDceTarget;
 
     (:inline, :force_dce)
     function forceDceTarget(x as Number) as Number {
