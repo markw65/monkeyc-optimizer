@@ -92,7 +92,10 @@ export const githubProjects: RemoteProject[] = [
   "https://github.com/antonioasaro/Garmin-Antonio_SMS",
   "https://github.com/aronsommer/WebRequestGlance-Widget",
   "https://github.com/aronsommer/WebRequestMultiple-Widget",
-  "https://github.com/axl13/PowerAdjuster",
+  {
+    root: "https://github.com/axl13/PowerAdjuster",
+    commit: "4d09bfe5ec5ab6babd78d2d795e5fbf6c03303fd",
+  },
   {
     root: "https://github.com/blaskovicz/garmin-nest-camera-control",
     rename: [{ from: "source/Env.mc.sample", to: "source/Env.mc" }],
