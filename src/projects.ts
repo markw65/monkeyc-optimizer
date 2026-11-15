@@ -18,6 +18,7 @@ export type RemoteProject =
       garminOptLevel?: number;
       test?: boolean | string[];
       branch?: string;
+      commit?: string;
     };
 
 export const githubProjects: RemoteProject[] = [
@@ -403,11 +404,12 @@ export async function fetchGitProjects(
       garminOptLevel = null,
       test = false,
       branch = null,
+      commit = null,
     } = typeof p === "string" ? { root: p } : p;
     if (testOnly && !test) return Promise.resolve([]);
     const name = root.replace(/(^.*\/(.*)\/)/, "$2-");
     const projDir = path.resolve(dir, name);
-    return fetchAndClean(projDir, root, skipRemote, branch)
+    return fetchAndClean(projDir, root, skipRemote, branch, commit)
       .then((output) => {
         if (!rename) {
           return output;
@@ -476,7 +478,8 @@ function fetchAndClean(
   projDir: string,
   root: string,
   skipRemote: boolean,
-  branch: string | null
+  branch: string | null,
+  commit: string | null
 ) {
   const gitDir = path.resolve(projDir, ".git");
   const output = [`Updating project ${root}`];
@@ -485,16 +488,17 @@ function fetchAndClean(
   const fetch = () =>
     spawnByLine("git", ["fetch", "origin"].concat(branch ?? []), loggers, {
       cwd: projDir,
-    }).then(() =>
-      spawnByLine(
-        "git",
-        ["diff", "FETCH_HEAD", `origin/${branch ?? "HEAD"}`],
-        loggers,
-        {
-          cwd: projDir,
-        }
-      )
-    );
+    }).then(() => {
+      commit ||
+        spawnByLine(
+          "git",
+          ["diff", "FETCH_HEAD", `origin/${branch ?? "HEAD"}`],
+          loggers,
+          {
+            cwd: projDir,
+          }
+        );
+    });
   return fs
     .stat(gitDir)
     .catch(() => null)
@@ -523,7 +527,7 @@ function fetchAndClean(
           "core.symlinks=true",
           "reset",
           "--hard",
-          `origin/${branch ?? "HEAD"}`,
+          commit ?? `origin/${branch ?? "HEAD"}`,
         ],
         loggers,
         {
