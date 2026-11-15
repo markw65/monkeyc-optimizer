@@ -2,6 +2,11 @@
 
 All notable changes to the "monkeyc-optimizer" package will be documented in this file.
 
+### 1.2.8
+
+- Add `:force_dce` anotation which will cause a method to be removed as long as there are no direct calls to it.
+- Fix a bug involving recursive typedefs that could cause a stack overflow and prevent the optimizer/analyzer from completing.
+
 ### 1.2.7
 
 - Ignore missing `FontSet`s in cft-font-info
