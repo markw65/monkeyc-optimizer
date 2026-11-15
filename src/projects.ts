@@ -213,7 +213,7 @@ export const githubProjects: RemoteProject[] = [
     root: "https://github.com/kromar/garmin_fenix3",
     options: { compilerOptions: "--Eno-invalid-symbol" },
   },
-  "https://github.com/landnavapp/LandNavApp",
+  "https://github.com/ikelw2/LandNavApp",
   "https://github.com/lcj2/ciq_binarywatch",
   "https://github.com/lcj2/ciq_monkeyfuel",
   "https://github.com/lucamrod/TriathlonDuathlonAquathlon",
