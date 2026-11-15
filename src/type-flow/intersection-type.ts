@@ -11,7 +11,7 @@ import { tupleMap, tupleReduce } from "./array-type";
 import { couldBe } from "./could-be";
 import { roundToFloat } from "./interp";
 import {
-  ActiveTypeMap,
+  ActiveTypePairs,
   CharType,
   ClassType,
   DoubleType,
@@ -53,11 +53,7 @@ export function expandTypedef(t: ExactOrUnion) {
  * we're intersecting an enum with something that could have values
  * related to the enum, we need to refine the enum's value
  */
-function intersectEnum(
-  activeTypeMap: ActiveTypeMap | null,
-  t: ExactOrUnion,
-  e: ExactOrUnion
-) {
+function intersectEnum(t: ExactOrUnion, e: ExactOrUnion) {
   const enumData = getUnionComponent(e, TypeTag.Enum);
   const e2 = cloneType(e);
   const i = intersection(t, typeFromEnumValue(enumData));
@@ -81,11 +77,17 @@ function intersectEnum(
   return result;
 }
 
-const activeTypeMap: ActiveTypeMap = new Map();
+const activeTypeMap: ActiveTypePairs = new Map();
 export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
   if (a.type & TypeTag.Typedef && a.value != null) {
-    const result = guardRecursiveTypedef(activeTypeMap, a, b, intersection);
-    return result === true ? a : result;
+    return guardRecursiveTypedef(activeTypeMap, a, b, (a, b, extra) => {
+      let result = intersection(a, b);
+      if (extra.length) {
+        result = cloneType(result);
+        forEach(extra, (sn) => unionInto(result, sn.resolvedType!));
+      }
+      return result;
+    });
   }
   if (b.type & TypeTag.Typedef && b.value != null) {
     return intersection(a, expandTypedef(b));
@@ -119,14 +121,14 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
     b.type & EnumTagsConst &&
     !(b.type & TypeTag.Enum)
   ) {
-    return intersectEnum(activeTypeMap, b, a);
+    return intersectEnum(b, a);
   }
   if (
     b.type & TypeTag.Enum &&
     a.type & EnumTagsConst &&
     !(a.type & TypeTag.Enum)
   ) {
-    return intersectEnum(activeTypeMap, a, b);
+    return intersectEnum(a, b);
   }
 
   if (!common) {
@@ -162,7 +164,7 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
       mask |= ac.type;
       return;
     }
-    const ivalue = intersectionValue(activeTypeMap, {
+    const ivalue = intersectionValue({
       type: ac.type,
       avalue: ac.value,
       bvalue,
@@ -187,10 +189,7 @@ export function intersection(a: ExactOrUnion, b: ExactOrUnion): ExactOrUnion {
   return { type: common, value: result[mask] } as ExactOrUnion;
 }
 
-function intersectionValue(
-  activeTypeMap: ActiveTypeMap | null,
-  pair: ValuePairs
-): SingleValue | null {
+function intersectionValue(pair: ValuePairs): SingleValue | null {
   switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
@@ -317,8 +316,8 @@ function intersectionValue(
       return klass.type !== TypeTag.Class || klass.value == null
         ? null
         : obj
-        ? { klass: klass as ClassType, obj }
-        : { klass: klass as ClassType };
+          ? { klass: klass as ClassType, obj }
+          : { klass: klass as ClassType };
     }
 
     case TypeTag.Enum: {
@@ -349,7 +348,7 @@ function intersectionValue(
 }
 
 function intersectObj(
-  activeTypeMap: ActiveTypeMap | null,
+  activeTypeMap: ActiveTypePairs | null,
   to: Record<string, ExactOrUnion> | undefined,
   from: Record<string, ExactOrUnion> | undefined
 ) {
@@ -443,8 +442,8 @@ function restrictExactTypesByEquality(
             value_bits === TypeTag.Char
               ? String.fromCharCode(a.value)
               : value_bits === TypeTag.Long
-              ? BigInt(a.value)
-              : Number(a.value);
+                ? BigInt(a.value)
+                : Number(a.value);
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;
@@ -496,8 +495,8 @@ function restrictExactTypesByEquality(
             value_bits === TypeTag.Char
               ? String.fromCharCode(Number(a.value))
               : value_bits === TypeTag.Long
-              ? BigInt(a.value)
-              : Number(a.value);
+                ? BigInt(a.value)
+                : Number(a.value);
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;
@@ -527,20 +526,15 @@ function restrictExactTypesByEquality(
       let v: ExactOrUnion = {
         type: value_bits,
       } as
-        | NumberType
-        | FloatType
-        | LongType
-        | DoubleType
-        | NeverType
-        | CharType;
+        NumberType | FloatType | LongType | DoubleType | NeverType | CharType;
       if (value_bits && !(value_bits & (value_bits - 1))) {
         if (a.value != null) {
           v.value =
             value_bits === TypeTag.Long
               ? BigInt(a.value)
               : value_bits === TypeTag.Char
-              ? String.fromCharCode(Number(a.value))
-              : a.value;
+                ? String.fromCharCode(Number(a.value))
+                : a.value;
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;
@@ -575,8 +569,8 @@ function restrictExactTypesByEquality(
             value_bits === TypeTag.Long
               ? BigInt(a.value.charCodeAt(0))
               : value_bits & TypeTag.Numeric
-              ? a.value.charCodeAt(0)
-              : a.value;
+                ? a.value.charCodeAt(0)
+                : a.value;
           if (b.value && !couldBe(v, b)) {
             v.type = TypeTag.Never;
             delete v.value;

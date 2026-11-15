@@ -1,5 +1,4 @@
 import { LiteralIntegerRe, mctree } from "@markw65/prettier-plugin-monkeyc";
-import assert from "node:assert";
 import {
   diagnostic,
   formatAstLongLines,
@@ -22,7 +21,7 @@ import {
 import { forEach, map } from "../util";
 import { tupleMap } from "./array-type";
 import { deEnumerate, evaluateExpr, roundToFloat } from "./interp";
-import { expandTypedef, intersection } from "./intersection-type";
+import { intersection } from "./intersection-type";
 import { clearValuesUnder, unionInto } from "./union-type";
 
 // prettier-ignore
@@ -266,9 +265,7 @@ export interface ArrayType extends AbstractValue {
 export interface DictionaryType extends AbstractValue {
   type: TypeTag.Dictionary;
   value?:
-    | { key: ExactOrUnion; value: ExactOrUnion }
-    | ObjectLiteralType
-    | undefined;
+    { key: ExactOrUnion; value: ExactOrUnion } | ObjectLiteralType | undefined;
 }
 export interface MethodType extends AbstractValue {
   type: TypeTag.Method;
@@ -1326,29 +1323,98 @@ export function typeFromEnumValue(arg: EnumType["value"] | null) {
   );
 }
 
-export type ActiveTypeMap = Map<ExactOrUnion, Set<ExactOrUnion>>;
+export type ActiveTypePairs = Map<
+  TypedefStateNode,
+  Map<UnionTypeTags, ExactOrUnion[]>
+>;
 
+function structuralEquals(a: ExactOrUnion, b: ExactOrUnion): boolean {
+  if (a.type !== b.type) return false;
+  if (a.value === b.value) return true;
+  if (a.value == null ? b.value : b.value == null) return false;
+  let matching = true;
+  forEachUnionComponent(a, a.type, (av) => {
+    const bv = getUnionComponent(b, av.type);
+    if (av.value === bv) {
+      return true;
+    }
+    do {
+      if (Array.isArray(av.value)) {
+        if (!Array.isArray(bv)) break;
+        if (bv.length !== av.value.length) break;
+        if (!av.value.every((a, i) => a === bv[i])) break;
+        return true;
+      }
+      if (av.value instanceof Set) {
+        if (!(bv instanceof Set)) break;
+        if (av.value.size !== bv.size) break;
+        const bva = Array.from(bv);
+        const ava = Array.from(av.value);
+        if (!ava.every((a, i) => a === bva[i])) break;
+        return true;
+      }
+    } while (false);
+    matching = false;
+    return false;
+  });
+  return matching;
+}
+
+let recursiveDepth = 0;
 export function guardRecursiveTypedef<T>(
-  activeTypeMap: ActiveTypeMap,
+  activeTypePairs: ActiveTypePairs,
   a: ExactOrUnion,
   b: ExactOrUnion,
-  callback: (a: ExactOrUnion, b: ExactOrUnion) => T
+  callback: (a: ExactOrUnion, b: ExactOrUnion, toSkip: TypedefStateNode[]) => T
 ) {
-  let seen = activeTypeMap.get(a);
-  if (!seen) {
-    activeTypeMap.set(a, (seen = new Set([b])));
-  } else if (seen.has(b)) {
-    return true;
-  } else {
-    seen.add(b);
-  }
+  const toCheck: TypedefStateNode[] = [];
+  const toSkip: TypedefStateNode[] = [];
+  const atds = getUnionComponent(a, TypeTag.Typedef);
+  forEach(atds, (sn) => {
+    const seen = activeTypePairs.get(sn);
+    if (!seen) {
+      activeTypePairs.set(sn, new Map([[b.type, [b]]]));
+    } else {
+      const arr = seen.get(b.type);
+      if (arr) {
+        if (arr.some((v) => structuralEquals(v, b))) {
+          toSkip.push(sn);
+          return;
+        }
+        arr.push(b);
+      } else {
+        seen.set(b.type, [b]);
+      }
+    }
+    toCheck.push(sn);
+  });
 
   try {
-    return callback(expandTypedef(a), b);
+    const tExpanded = cloneType(a);
+    clearValuesUnder(tExpanded, TypeTag.Typedef, true);
+
+    recursiveDepth++;
+    if (recursiveDepth > 30) {
+      console.log(
+        `guardRecursiveTypedef: ${display(a)}(${display(tExpanded)}) vs ${display(b)}`
+      );
+    } else {
+      forEach(toCheck, (decl) => unionInto(tExpanded, decl.resolvedType!));
+    }
+    return callback(tExpanded, b, toSkip);
   } finally {
-    assert(seen.delete(b));
-    if (!seen.size) {
-      activeTypeMap.delete(a);
+    recursiveDepth--;
+    for (let i = toCheck.length; i--;) {
+      const sn = toCheck[i];
+      const seen = activeTypePairs.get(sn)!;
+      const arr = seen.get(b.type)!;
+      arr.pop();
+      if (!arr.length) {
+        seen.delete(b.type);
+        if (!seen.size) {
+          activeTypePairs.delete(sn);
+        }
+      }
     }
   }
 }

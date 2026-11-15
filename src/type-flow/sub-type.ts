@@ -5,7 +5,7 @@ import { tupleForEach } from "./array-type";
 import { couldBe } from "./could-be";
 import { expandTypedef } from "./intersection-type";
 import {
-  ActiveTypeMap,
+  ActiveTypePairs,
   EnumTagsConst,
   ExactOrUnion,
   ObjectLikeTagsConst,
@@ -22,7 +22,7 @@ import {
 } from "./types";
 import { clearValuesUnder } from "./union-type";
 
-const activeTypeMap: ActiveTypeMap = new Map();
+const activeTypeMap: ActiveTypePairs = new Map();
 /*
  * Determine whether a is a subtype of b.
  */
@@ -63,7 +63,7 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
     if (bc.value == null || avalue === bc.value) return true;
     if (
       avalue == null ||
-      !subtypeOfValue(activeTypeMap, {
+      !subtypeOfValue({
         type: bc.type,
         avalue,
         bvalue: bc.value,
@@ -77,7 +77,7 @@ export function subtypeOf(a: ExactOrUnion, b: ExactOrUnion): boolean {
   return result;
 }
 
-function subtypeOfValue(activeTypeMap: ActiveTypeMap | null, pair: ValuePairs) {
+function subtypeOfValue(pair: ValuePairs) {
   switch (pair.type) {
     case TypeTag.Null:
     case TypeTag.False:
@@ -185,8 +185,7 @@ function subtypeOfValue(activeTypeMap: ActiveTypeMap | null, pair: ValuePairs) {
       const aobj = pair.avalue;
       const bobj = pair.bvalue;
       return (
-        subtypeOf(aobj.klass, bobj.klass) &&
-        subtypeOfObj(activeTypeMap, aobj.obj, bobj.obj)
+        subtypeOf(aobj.klass, bobj.klass) && subtypeOfObj(aobj.obj, bobj.obj)
       );
     }
 
@@ -206,7 +205,6 @@ function subtypeOfValue(activeTypeMap: ActiveTypeMap | null, pair: ValuePairs) {
 }
 
 function subtypeOfObj(
-  activeTypeMap: ActiveTypeMap | null,
   a: Record<string, ExactOrUnion> | undefined,
   b: Record<string, ExactOrUnion> | undefined
 ) {
