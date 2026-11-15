@@ -35,6 +35,7 @@ function noNumber(x as Number or String) as Boolean {
     return x instanceof Number;
 }
 
+(:speed)
 function properties() as Void {
     // mimimizeModules prevents this from firing for now
     /* @ expect "Properties will only be found" */
@@ -106,6 +107,7 @@ class TestClass extends X.Y.Base {
         var t = x instanceof Number;
         return t as MyBoolean;
     }
+    (:speed)
     function properties() as Void {
         // mimimizeModules prevents this from firing for now
         /* @ expect "Properties will only be found" */
@@ -152,12 +154,12 @@ function lookupTest3Crash(logger as Logger) as Boolean {
     // afterwards, its fine
     return true;
 }
-(:test)
+(:test,:speed)
 function lookupTest4Crash(logger as Logger) as Boolean {
     $.properties();
     return false;
 }
-(:test)
+(:test,:speed)
 function lookupTest5Crash(logger as Logger) as Boolean {
     var x = new TestClass();
     x.properties();

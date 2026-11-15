@@ -263,9 +263,9 @@ function testTryCatchFinallyCopy(logger as Logger) as Boolean {
     try {
         x = 1;
         if (logger == gLogger) {
-            throw new Lang.InvalidValueException("What?");
+            throw new Lang.UnexpectedTypeException("What?", null, null);
         }
-    } catch (ex instanceof Lang.InvalidValueException) {
+    } catch (ex instanceof Lang.UnexpectedTypeException) {
         logger.debug("x = " + x);
     } finally {
         x = 2;
