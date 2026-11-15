@@ -24,6 +24,7 @@ export const enum StateNodeAttributes {
   PROTECTED = 2,
   PRIVATE = 4,
   STATIC = 8,
+  FORCE_DCE = 16,
 }
 
 interface BaseStateNode {
