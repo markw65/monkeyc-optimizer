@@ -87,7 +87,7 @@ Promise.all(
   console.log(`{${flatFonts ? "" : `\n"fonts":{`}`);
   let started = false;
   let last = -1;
-  let active = [];
+  const active = [];
   const fontArray = Array.from(fonts).sort();
   return promiseAll(
     (i) =>

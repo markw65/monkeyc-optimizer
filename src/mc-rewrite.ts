@@ -656,7 +656,7 @@ function evaluateFunction(
     delete istate.state.inlining;
     istate.stack.length = depth;
     return ret;
-  } catch (e) {
+  } catch {
     delete istate.state.inlining;
     istate.stack.length = depth;
     return false;

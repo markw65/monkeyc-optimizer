@@ -39,8 +39,8 @@
             }
           ],
           "background": {
-            "beginsPattern": " - Build active$",
-            "endsPattern": " - Build inactive$"
+            "beginsPattern": " - Build active(\\s*\\(\\d+\\))?$",
+            "endsPattern": " - Build inactive(\\s*\\(\\d+\\))?$"
           }
         }
       ],

@@ -1,46 +1,16 @@
-import * as esbuild from "esbuild";
-import glob from "fast-glob";
-import * as child_process from "node:child_process";
-import * as fs from "node:fs/promises";
-import peggy from "peggy";
-import * as readline from "node:readline";
-import * as path from "node:path";
 import peggyOptimizer from "@markw65/peggy-optimizer";
+import { runBuild, startEndPlugin } from "@markw65/project-utils";
+import glob from "fast-glob";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import peggy from "peggy";
 
 const MONKEYC_OPTIMIZER = JSON.parse(await fs.readFile("./package.json"));
 
 const esmDir = "build/esm";
 const cjsDir = "build";
-const sourcemap = !process.argv.includes("--release");
 
-let buildActive = 0;
-function activate() {
-  if (!buildActive++) {
-    console.log(`${new Date().toLocaleString()} - Build active`);
-  }
-}
-
-function deactivate() {
-  setTimeout(() => {
-    if (!--buildActive) {
-      console.log(`${new Date().toLocaleString()} - Build inactive`);
-    }
-  }, 500);
-}
-
-function report(diagnostics, kind) {
-  diagnostics.forEach((diagnostic) => diagnostic.location.column++);
-
-  esbuild
-    .formatMessages(diagnostics, {
-      kind,
-      color: true,
-      terminalWidth: 100,
-    })
-    .then((messages) => messages.forEach((error) => console.log(error)));
-}
-
-const cjsConfig = async () => {
+const cjsConfig = async (sourcemap) => {
   const files = await glob(`${esmDir}/**/*.js`);
 
   const entryPoints = files.map((file) => ({
@@ -78,54 +48,6 @@ const fixImportsPlugin = {
         // deprecation warnings)
         .replace("new Buffer(toRead)", "Buffer.alloc(toRead)");
       return { contents };
-    });
-  },
-};
-
-const startEndPlugin = {
-  name: "startEnd",
-  setup(build) {
-    build.onStart(() => {
-      activate();
-      console.log(`${new Date().toLocaleString()} - ESBuild start`);
-      return glob("build/*.cjs*")
-        .then((files) =>
-          Promise.all(
-            files
-              .map((file) => fs.rm(file, { force: true }))
-              .concat(fs.rm("build/esm", { recursive: true, force: true }))
-          )
-        )
-        .then(() => {});
-    });
-    build.onEnd((result) => {
-      report(result.errors, "error");
-      report(result.warnings, "warning");
-      false &&
-        Object.entries(result.metafile.outputs).forEach(
-          ([key, value]) =>
-            key.endsWith(".js") &&
-            console.log(`${key}: ${value.bytes >>> 10}kb`)
-        ) &&
-        console.log("");
-      return Promise.all([
-        cjsConfig()
-          .then((config) => esbuild.build(config))
-          .then((result) => {
-            console.log("");
-            Object.entries(result.metafile.outputs).forEach(
-              ([key, value]) =>
-                key.endsWith(".cjs") &&
-                value.bytes > 10000 &&
-                console.log(`${key}: ${value.bytes >>> 10}kb`)
-            );
-            console.log("");
-          }),
-        //esbuild.analyzeMetafile(result.metafile).then((info) => console.log(info)),
-      ]).then(() => {
-        console.log(`${new Date().toLocaleString()} - ESBuild end`);
-        deactivate();
-      });
     });
   },
 };
@@ -193,98 +115,76 @@ const peggyPlugin = {
   },
 };
 
-const esmConfig = {
-  entryPoints: [
-    "src/optimizer.ts",
-    "src/util.ts",
-    "src/sdk-util.ts",
-    "src/api.ts",
-    "src/driver.ts",
-    "src/worker-thread.ts",
-    { in: "test/mocha/root.spec.ts", out: "mocha" },
-    "src/cftinfo.ts",
-  ],
-  chunkNames: "chunk-[hash]",
-  bundle: true,
-  platform: "node",
-  outdir: `${esmDir}`,
-  target: "node16.4",
-  external: [
-    "@markw65/prettier-plugin-monkeyc",
-    "prettier",
-    "mocha",
-    "chai",
-    "7z-wasm",
-  ],
-  format: "esm",
-  splitting: true,
-  plugins: [peggyPlugin, startEndPlugin],
-  define: {
-    MONKEYC_OPTIMIZER_VERSION: JSON.stringify(MONKEYC_OPTIMIZER.version),
+runBuild([
+  {
+    entryPoints: [
+      "src/optimizer.ts",
+      "src/util.ts",
+      "src/sdk-util.ts",
+      "src/api.ts",
+      "src/driver.ts",
+      "src/worker-thread.ts",
+      { in: "test/mocha/root.spec.ts", out: "mocha" },
+      "src/cftinfo.ts",
+    ],
+    chunkNames: "chunk-[hash]",
+    bundle: true,
+    platform: "node",
+    outdir: `${esmDir}`,
+    target: "node16.4",
+    external: [
+      "@markw65/prettier-plugin-monkeyc",
+      "prettier",
+      "mocha",
+      "chai",
+      "7z-wasm",
+    ],
+    format: "esm",
+    splitting: true,
+    plugins: [
+      peggyPlugin,
+      startEndPlugin({
+        onStart: () =>
+          glob("build/*.cjs*").then((files) =>
+            Promise.all(
+              files
+                .map((file) => fs.rm(file, { force: true }))
+                .concat(fs.rm("build/esm", { recursive: true, force: true }))
+            )
+          ),
+        onEnd: (result, options) => {
+          false &&
+            Object.entries(result.metafile.outputs).forEach(
+              ([key, value]) =>
+                key.endsWith(".js") &&
+                console.log(`${key}: ${value.bytes >>> 10}kb`)
+            ) &&
+            console.log("");
+          return Promise.all([
+            cjsConfig(options.sourcemap)
+              .then((config) =>
+                runBuild([config], { watch: false, nots: true })
+              )
+              .then(([result]) => {
+                console.log("");
+                Object.entries(result.metafile.outputs).forEach(
+                  ([key, value]) =>
+                    key.endsWith(".cjs") &&
+                    value.bytes > 10000 &&
+                    console.log(`${key}: ${value.bytes >>> 10}kb`)
+                );
+                console.log("");
+              }),
+          ]);
+        },
+      }),
+    ],
+    define: {
+      MONKEYC_OPTIMIZER_VERSION: JSON.stringify(MONKEYC_OPTIMIZER.version),
+    },
+    sourcesContent: false,
+    metafile: true,
+    logLevel: "silent",
+    minify: false,
   },
-  sourcemap,
-  sourcesContent: false,
-  metafile: true,
-  logLevel: "silent",
-};
-
-function spawnByLine(command, args, lineHandler, options) {
-  return new Promise((resolve, reject) => {
-    const proc = child_process.spawn(command, args, {
-      ...(options || {}),
-      // Node >= 18.20.2 / 20.12.1 refuses to spawn .cmd/.bat with
-      // shell:false on Windows (the CVE-2024-27980 mitigation), and
-      // npx below is npx.cmd there - without a shell the build dies
-      // with spawn EINVAL before compiling anything.
-      shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(command),
-    });
-    const rl = readline.createInterface({
-      input: proc.stdout,
-    });
-    const rle = readline.createInterface({
-      input: proc.stderr,
-    });
-    proc.on("error", reject);
-    proc.stderr.on("data", (data) => console.error(data.toString()));
-    rl.on("line", lineHandler);
-    rle.on("line", lineHandler);
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      reject(code);
-    });
-  });
-}
-
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-const tscCommand = ["tsc", "--emitDeclarationOnly"];
-
-const logger = (line) => {
-  // tsc in watch mode does ESC-c to clear the screen
-  // eslint-disable-next-line no-control-regex
-  line = line.replace(/[\x1b]c/g, "");
-  if (
-    /Starting compilation in watch mode|File change detected\. Starting incremental compilation/.test(
-      line
-    )
-  ) {
-    activate();
-  }
-  console.log(line);
-  if (/Found \d+ errors?\. Watching for file changes/.test(line)) {
-    deactivate();
-  }
-};
-if (process.argv.includes("--watch")) {
-  const ctx = await esbuild.context(esmConfig);
-  await Promise.all([
-    ctx.watch(),
-    spawnByLine(npx, tscCommand.concat("--watch"), logger),
-  ]);
-} else {
-  await Promise.all([
-    esbuild.build(esmConfig),
-    spawnByLine(npx, tscCommand, (line) => console.log(line)).then(() => {
-      console.log(`${new Date().toLocaleString()} - tsc end`);
-    }),
-  ]);
-}
+]);

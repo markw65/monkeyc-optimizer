@@ -1580,7 +1580,7 @@ function handleException(
     } else {
       exception = new Error(message);
     }
-  } catch (ex) {
+  } catch {
     throw exception;
   }
   throw exception;

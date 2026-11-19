@@ -6,12 +6,12 @@ import {
   lookupWithType,
 } from "./api";
 import {
+  ClassStateNode,
   LookupDefinition,
   ProgramStateAnalysis,
   StateNodeDecl,
 } from "./optimizer-types";
 import { TypeMap } from "./type-flow/interp";
-import { ClassStateNode } from "./optimizer-types";
 
 export function visitorNode(node: mctree.Node): mctree.Node {
   if (node.type === "Identifier") {

@@ -72,7 +72,7 @@ async function getVSCodeSettings(
   try {
     const settings = await fs.readFile(path);
     return JSON.parse(settings.toString());
-  } catch (e) {
+  } catch {
     return {};
   }
 }
@@ -107,7 +107,7 @@ async function getCodeWorkspaceSettings(
       if (next === curDir) break;
       curDir = next;
     }
-  } catch (ex) {
+  } catch {
     /* */
   }
   return {};
@@ -127,7 +127,6 @@ export function isErrorWithLocation(e: Error): e is ErrorWithLocation {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var lastModifiedSource: number;
 }
 
@@ -380,15 +379,16 @@ export async function generateOptimizedProject(options: BuildConfig) {
   const pick_one = config.products ? config.products.indexOf("pick-one") : -1;
   if (pick_one >= 0) {
     let preferredProduct = 0;
-    false &&
+    const ciqPrefix = "";
+    ciqPrefix !== "" &&
       targets.every((t, i) => {
         const dev = devices[t.product];
         if (!dev) return true;
-        if (dev.ciqVersions.every((ciq) => ciq.startsWith("5"))) {
+        if (dev.ciqVersions.every((ciq) => ciq.startsWith(ciqPrefix))) {
           preferredProduct = i;
           return false;
         }
-        if (dev.ciqVersions.some((ciq) => ciq.startsWith("5"))) {
+        if (dev.ciqVersions.some((ciq) => ciq.startsWith(ciqPrefix))) {
           preferredProduct = i;
         }
         return true;

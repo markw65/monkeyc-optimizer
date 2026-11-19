@@ -116,7 +116,7 @@ async function modified_times(inputs: string[], missing: number) {
       try {
         const stat = await fs.stat(path);
         return stat.mtimeMs;
-      } catch (e) {
+      } catch {
         return missing;
       }
     })
